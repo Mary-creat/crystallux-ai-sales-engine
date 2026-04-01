@@ -1,0 +1,462 @@
+{
+  "name": "CLX-Lead import",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "563463b9-51c7-4537-9849-842eb799871e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/mixed_people/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "hsg1FfXM2u6GmIykn26hBw"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"page\": 1,\n  \"per_page\": 25,\n  \"person_titles\": [\"Owner\", \"CEO\", \"Founder\", \"Director\"],\n  \"organization_industry_tag_ids\": [],\n  \"person_locations\": [\"Canada\"],\n  \"contact_email_status\": [\"verified\"],\n  \"prospected_by_current_team\": [\"no\"]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        208
+      ],
+      "id": "95763f4c-817d-4888-be36-bec65b982b2b",
+      "name": "Apollo - Search Leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle both Apollo's real response format and our mock data format\n// Apollo nests people inside items[0].json.people\n// Our Set node puts people directly on items[0].json.people too\n// But we need to handle the case where people might be a string\n\nlet people = [];\n\n// Try to get people from the incoming data\nconst rawPeople = items[0].json.people;\n\n// If rawPeople is a string (which happens when Set node sends JSON as text)\n// we parse it. If it's already an array, we use it directly.\nif (typeof rawPeople === 'string') {\n  people = JSON.parse(rawPeople);\n} else if (Array.isArray(rawPeople)) {\n  people = rawPeople;\n} else {\n  people = [];\n}\n\nreturn people.map(person => {\n  return {\n    json: {\n      // Core identity fields\n      full_name: person.name || \"\",\n      email: person.email || \"\",\n      phone: person.phone_numbers?.[0]?.sanitized_number || \"\",\n      \n      // Company and role fields\n      company: person.organization?.name || \"\",\n      job_title: person.title || \"\",\n      industry: person.organization?.industry || \"\",\n      \n      // Lead management fields\n      lead_score: 0,\n      interest: \"unknown\",\n      source: \"apollo\",\n      date_created: new Date().toISOString(),\n      lead_status: \"New Lead\",\n      pipeline_stage: \"Discovery\",\n      \n      // Business type field — critical for multi-service support\n      product_type: \"unassigned\",\n      \n      // Assignment and notes\n      assigned_to: \"\",\n      notes: \"\",\n      \n      // Location for city scan compatibility later\n      city: person.city || \"\",\n      linkedin_url: person.linkedin_url || \"\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "4a67fe6b-30f0-436b-9869-55f43ad4ed8a",
+      "name": "Normalize Lead Data"
+    },
+    {
+      "parameters": {
+        "tableId": "=leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "full_name",
+              "fieldValue": "={{ $json.full_name }}"
+            },
+            {
+              "fieldId": "=email",
+              "fieldValue": "={{ $json.email }}"
+            },
+            {
+              "fieldId": "company",
+              "fieldValue": "={{ $json.company }}"
+            },
+            {
+              "fieldId": "phone",
+              "fieldValue": "={{ $json.phone }}"
+            },
+            {
+              "fieldId": "job_title",
+              "fieldValue": "={{ $json.job_title }}"
+            },
+            {
+              "fieldId": "industry",
+              "fieldValue": "={{ $json.industry }}"
+            },
+            {
+              "fieldId": "lead_score",
+              "fieldValue": "={{ $json.lead_score }}"
+            },
+            {
+              "fieldId": "interest",
+              "fieldValue": "={{ $json.interest }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $json.source }}"
+            },
+            {
+              "fieldId": "date_created",
+              "fieldValue": "={{ $json.date_created }}"
+            },
+            {
+              "fieldId": "lead_status",
+              "fieldValue": "={{ $json.lead_status }}"
+            },
+            {
+              "fieldId": "pipeline_stage",
+              "fieldValue": "={{ $json.pipeline_stage }}"
+            },
+            {
+              "fieldId": "product_type",
+              "fieldValue": "={{ $json.product_type }}"
+            },
+            {
+              "fieldId": "city",
+              "fieldValue": "={{ $json.city }}"
+            },
+            {
+              "fieldId": "linkedin_url",
+              "fieldValue": "={{ $json.linkedin_url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "c0e085c9-bedc-4994-89cd-fd4194d3f5cd",
+      "name": "Supabase - Store Lead",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "bnJtZL81TsUGP8dj",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        592,
+        0
+      ],
+      "id": "49a7eb53-c52b-4b3b-933b-4062ff258a09",
+      "name": "Supabase - Check Duplicate",
+      "alwaysOutputData": true,
+      "notesInFlow": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "bnJtZL81TsUGP8dj",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "128512ee-ed45-421d-a6b2-9096fd5797c3",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        976,
+        0
+      ],
+      "id": "b5d29699-f920-44dd-8991-14ad4077ee70",
+      "name": "Is Duplicate?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1920fd75-fd97-4a7f-9b85-0b9f84028abe",
+              "name": "people",
+              "value": "=[\n  {\n    \"name\": \"James Carter\",\n    \"email\": \"james.carter@acmecorp.com\",\n    \"title\": \"CEO\",\n    \"phone_numbers\": [{\"sanitized_number\": \"+1-416-555-0101\"}],\n    \"organization\": {\n      \"name\": \"Acme Corporation\",\n      \"industry\": \"Insurance\"\n    },\n    \"city\": \"Toronto\",\n    \"linkedin_url\": \"https://linkedin.com/in/jamescarter\"\n  },\n  {\n    \"name\": \"Sarah Mitchell\",\n    \"email\": \"sarah.mitchell@brightwave.io\",\n    \"title\": \"Founder\",\n    \"phone_numbers\": [{\"sanitized_number\": \"+1-647-555-0189\"}],\n    \"organization\": {\n      \"name\": \"Brightwave Solutions\",\n      \"industry\": \"AI Automation\"\n    },\n    \"city\": \"Vancouver\",\n    \"linkedin_url\": \"https://linkedin.com/in/sarahmitchell\"\n  }\n]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "236c47ae-7010-42fc-ae55-ec9549a6a1d0",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "35f99cce-2bcc-44ed-91eb-7888cbf98b31",
+              "name": "=full_name",
+              "value": "={{ $('Normalize Lead Data').first().json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "0b052baa-7c1a-4280-95f9-c1a0972d4054",
+              "name": "email",
+              "value": "={{ $('Normalize Lead Data').first().json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "4b39acb0-9a03-4425-a79d-c0ab1c117ba4",
+              "name": "phone",
+              "value": "={{ $('Normalize Lead Data').first().json.phone }}",
+              "type": "string"
+            },
+            {
+              "id": "aa2a525a-430b-4765-9ae3-cccadbff81db",
+              "name": "company",
+              "value": "={{ $('Normalize Lead Data').first().json.company }}",
+              "type": "string"
+            },
+            {
+              "id": "e332fd7b-d0fc-4b57-a0e9-067ef1166478",
+              "name": "job_title",
+              "value": "={{ $('Normalize Lead Data').first().json.job_title }}",
+              "type": "string"
+            },
+            {
+              "id": "c4007997-c359-4560-ba37-f3e59e12fde8",
+              "name": "industry",
+              "value": "={{ $('Normalize Lead Data').first().json.industry }}",
+              "type": "string"
+            },
+            {
+              "id": "3c7348d5-bbe4-489e-bcdd-d4e8d592acc9",
+              "name": "lead_score",
+              "value": "={{ $('Normalize Lead Data').first().json.lead_score }}",
+              "type": "string"
+            },
+            {
+              "id": "dae8badf-2848-4290-aacf-cd917c431fb0",
+              "name": "interest",
+              "value": "={{ $('Normalize Lead Data').first().json.interest }}",
+              "type": "string"
+            },
+            {
+              "id": "9be45f6b-745b-4f38-b667-d6e749b8532c",
+              "name": "source",
+              "value": "={{ $('Normalize Lead Data').first().json.source }}",
+              "type": "string"
+            },
+            {
+              "id": "3e71ed54-aa20-41c3-82f8-fd4cefea4c37",
+              "name": "date_created",
+              "value": "={{ $('Normalize Lead Data').first().json.date_created }}",
+              "type": "string"
+            },
+            {
+              "id": "30429453-e1b4-4fe6-b6a5-9b09e0a82bac",
+              "name": "lead_status",
+              "value": "={{ $('Normalize Lead Data').first().json.lead_status }}",
+              "type": "string"
+            },
+            {
+              "id": "65e58923-6a34-40f2-8edf-a29f96f55dff",
+              "name": "pipeline_stage",
+              "value": "={{ $('Normalize Lead Data').first().json.pipeline_stage }}",
+              "type": "string"
+            },
+            {
+              "id": "e974d72c-bedd-4ceb-b420-68640a41aa51",
+              "name": "product_type",
+              "value": "={{ $('Normalize Lead Data').first().json.product_type }}",
+              "type": "string"
+            },
+            {
+              "id": "56e077ae-4ca9-4ed5-96f6-e7c22510e39f",
+              "name": "city",
+              "value": "={{ $('Normalize Lead Data').first().json.city }}",
+              "type": "string"
+            },
+            {
+              "id": "c6cdfa20-cd6a-4232-80ea-171ea112be49",
+              "name": "linkedin_url",
+              "value": "={{ $('Normalize Lead Data').first().json.linkedin_url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        944,
+        208
+      ],
+      "id": "ac0ae8b5-afd1-4aa2-a465-5d0e2b313a7e",
+      "name": "Restore Lead Data",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Normalize Lead Data').all().map(item => ({\n  json: {\n    ...item.json,\n    is_duplicate: false\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "8f47d043-7200-43e3-a1aa-b1743a23d7f1",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo - Search Leads": {
+      "main": [
+        []
+      ]
+    },
+    "Normalize Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Store Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supabase - Store Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Lead Data": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f516dfdd-563c-4f2f-9cdd-d0c3c81ce54a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "ePbZMZxQrNkcu6SA",
+  "tags": []
+}

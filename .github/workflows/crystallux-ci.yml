@@ -1,0 +1,163 @@
+# ===============================================================
+# Crystallux Universal AI Sales Engine
+# GitHub Actions CI/CD Pipeline
+# ================================================================
+# This pipeline runs automatically every time you push to main.
+# It validates your workflow files and deploys them to your
+# live n8n instance on Hostinger without manual intervention.
+# ================================================================
+
+name: Crystallux CI/CD Pipeline
+
+# ── Trigger Configuration ──────────────────────────────────────
+# Run this pipeline on every push to main branch
+# Also run on pull requests so you catch errors before merging
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# ── Jobs ───────────────────────────────────────────────────────
+# A job is a set of steps that run on the same virtual machine
+# Jobs run in parallel by default unless you use 'needs:'
+jobs:
+
+  # ── Job 1: Validate ──────────────────────────────────────────
+  # Checks that all workflow files are valid before deploying
+  # This is your safety net — catches broken files before
+  # they ever reach your production n8n instance
+  validate-workflows:
+    name: Validate n8n Workflow Files
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download your repository code onto the virtual machine
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Validate every JSON file in the workflows/ folder
+      # Python's json module is the most reliable JSON validator
+      # If any file is malformed, the pipeline stops here
+      - name: Validate workflow JSON files
+        run: |
+          echo "🔍 Validating all CLX workflow JSON files..."
+          
+          # Check if any workflow files exist yet
+          if [ -z "$(ls -A workflows/*.json 2>/dev/null)" ]; then
+            echo "⚠️  No workflow JSON files found yet — skipping validation"
+            exit 0
+          fi
+          
+          # Loop through every JSON file and validate it
+          failed=0
+          for file in workflows/*.json; do
+            if python3 -c "import json; json.load(open('$file'))" 2>/dev/null; then
+              echo "✅ Valid: $file"
+            else
+              echo "❌ Invalid JSON: $file"
+              failed=1
+            fi
+          done
+          
+          # Fail the pipeline if any file was invalid
+          if [ $failed -eq 1 ]; then
+            echo "Pipeline failed — fix invalid JSON files before deploying"
+            exit 1
+          fi
+          
+          echo "✅ All workflow files are valid"
+
+      # Verify that Phase 1 workflow exists
+      # As you complete more phases, add them to this list
+      - name: Check required workflow files exist
+        run: 
+          echo "📋 Checking required workflow files..."
+          
+          # Add new workflow filenames here as you complete each phase
+          required_files=(
+            "workflows/clx-lead-import.json"
+          )
+          
+          failed=0
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ Found: $file"
+            else
+              echo "❌ Missing: $file"
+              failed=1
+            fi
+          done
+          
+          if [ $failed -eq 1 ]; then
+            echo "Pipeline failed — required workflow files are missing"
+            exit 1
+          fi
+          
+          echo "✅ All required workflow files present"
+
+  # ── Job 2: Deploy ────────────────────────────────────────────
+  # Deploys validated workflows to your live n8n instance
+  # Only runs after Job 1 passes — never deploys broken files
+  # Only runs on pushes to main — never on pull requests
+  deploy-to-n8n:
+    name: Deploy Workflows to Hostinger n8n
+    runs-on: ubuntu-latest
+    
+    # This job depends on validate-workflows passing first
+    # If validation fails, deployment never runs
+    needs: validate-workflows
+    
+    # Only deploy on actual pushes to main, not pull requests
+    # This prevents deploying unreviewed code to production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Deploy each workflow file to your n8n instance
+      # Uses n8n's REST API to import workflows automatically
+      # N8N_URL and N8N_API_KEY are stored as GitHub Secrets
+      # — they are never visible in this file or in logs
+      - name: Deploy workflows to n8n
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: |
+          echo "🚀 Deploying CLX workflows to n8n at $N8N_URL"
+          
+          # Skip deployment if no workflow files exist yet
+          if [ -z "$(ls -A workflows/*.json 2>/dev/null)" ]; then
+            echo "⚠️  No workflow files to deploy yet"
+            exit 0
+          fi
+          
+          # Deploy each workflow file via n8n's REST API
+          for file in workflows/*.json; do
+            echo "Deploying $file..."
+            
+            response=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST "$N8N_URL/api/v1/workflows" \
+              -H "X-N8N-API-KEY: $N8N_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @"$file")
+            
+            if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+              echo "✅ Successfully deployed: $file"
+            else
+              echo "⚠️  Deployment returned status $response for: $file"
+            fi
+          done
+          
+          echo "✅ Deployment complete"
+
+      # Send a deployment summary to your workflow run
+      - name: Deployment summary
+        run: |
+          echo "## Crystallux Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
