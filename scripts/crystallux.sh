@@ -32,6 +32,6 @@ case "$1" in
   deploy)  deploy "$2" ;;
   execute) execute "$2" ;;
   *)
-    echo "Usage: ./scripts/crystallux.sh [list|deploy|execute] [name]"
+    echo "Usage: ./scripts/crystallux.sh [list|deploy <filename-no-ext>|execute <workflow-id>]"
     ;;
 esac

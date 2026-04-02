@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Crystallux Full Stack",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "--build"],
+      "port": 5678
+    },
+    {
+      "name": "n8n (UI + Triggers)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "n8n"],
+      "port": 5678
+    },
+    {
+      "name": "n8n Worker",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "n8n-worker"],
+      "port": 5679
+    },
+    {
+      "name": "Redis (Queue)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "redis"],
+      "port": 6379
+    }
+  ]
+}

@@ -53,7 +53,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Handle both Apollo's real response format and our mock data format\n// Apollo nests people inside items[0].json.people\n// Our Set node puts people directly on items[0].json.people too\n// But we need to handle the case where people might be a string\n\nlet people = [];\n\n// Try to get people from the incoming data\nconst rawPeople = items[0].json.people;\n\n// If rawPeople is a string (which happens when Set node sends JSON as text)\n// we parse it. If it's already an array, we use it directly.\nif (typeof rawPeople === 'string') {\n  people = JSON.parse(rawPeople);\n} else if (Array.isArray(rawPeople)) {\n  people = rawPeople;\n} else {\n  people = [];\n}\n\nreturn people.map(person => {\n  return {\n    json: {\n      // Core identity fields\n      full_name: person.name || \"\",\n      email: person.email || \"\",\n      phone: person.phone_numbers?.[0]?.sanitized_number || \"\",\n      \n      // Company and role fields\n      company: person.organization?.name || \"\",\n      job_title: person.title || \"\",\n      industry: person.organization?.industry || \"\",\n      \n      // Lead management fields\n      lead_score: 0,\n      interest: \"unknown\",\n      source: \"apollo\",\n      date_created: new Date().toISOString(),\n      lead_status: \"New Lead\",\n      pipeline_stage: \"Discovery\",\n      \n      // Business type field — critical for multi-service support\n      product_type: \"unassigned\",\n      \n      // Assignment and notes\n      assigned_to: \"\",\n      notes: \"\",\n      \n      // Location for city scan compatibility later\n      city: person.city || \"\",\n      linkedin_url: person.linkedin_url || \"\"\n    }\n  };\n});"
+        "jsCode": "// Handle both Apollo's real response format and our mock data format\n// Apollo nests people inside items[0].json.people\n// Our Set node puts people directly on items[0].json.people too\n// But we need to handle the case where people might be a string\n\nlet people = [];\n\n// Try to get people from the incoming data\nconst rawPeople = items[0].json.people;\n\n// If rawPeople is a string (which happens when Set node sends JSON as text)\n// we parse it. If it's already an array, we use it directly.\nif (typeof rawPeople === 'string') {\n  people = JSON.parse(rawPeople);\n} else if (Array.isArray(rawPeople)) {\n  people = rawPeople;\n} else {\n  people = [];\n}\n\nreturn people.map(person => {\n  return {\n    json: {\n      // Core identity fields\n      full_name: person.name || \"\",\n      email: person.email || \"\",\n      phone: person.phone_numbers?.[0]?.sanitized_number || \"\",\n      \n      // Company and role fields\n      company: person.organization?.name || \"\",\n      job_title: person.title || \"\",\n      industry: person.organization?.industry || \"\",\n      \n      // Lead management fields\n      lead_score: 0,\n      interest: \"unknown\",\n      source: \"apollo\",\n      created_at: new Date().toISOString(),\n      lead_status: \"New Lead\",\n      pipeline_stage: \"Discovery\",\n      \n      // Business type field — critical for multi-service support\n      product_type: \"unassigned\",\n      \n      // Assignment and notes\n      assigned_to: \"\",\n      notes: \"\",\n      \n      // Location for city scan compatibility later\n      city: person.city || \"\",\n      linkedin_url: person.linkedin_url || \"\"\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -74,7 +74,7 @@
               "fieldValue": "={{ $json.full_name }}"
             },
             {
-              "fieldId": "=email",
+              "fieldId": "email",
               "fieldValue": "={{ $json.email }}"
             },
             {
@@ -106,8 +106,8 @@
               "fieldValue": "={{ $json.source }}"
             },
             {
-              "fieldId": "date_created",
-              "fieldValue": "={{ $json.date_created }}"
+              "fieldId": "created_at",
+              "fieldValue": "={{ $json.created_at }}"
             },
             {
               "fieldId": "lead_status",
@@ -298,8 +298,8 @@
             },
             {
               "id": "3e71ed54-aa20-41c3-82f8-fd4cefea4c37",
-              "name": "date_created",
-              "value": "={{ $('Normalize Lead Data').first().json.date_created }}",
+              "name": "created_at",
+              "value": "={{ $('Normalize Lead Data').first().json.created_at }}",
               "type": "string"
             },
             {
