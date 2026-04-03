@@ -7,8 +7,9 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 |-------|----------|--------|
 | Phase 1 | CLX Lead Import (`clx-lead-import.json`) | Complete |
 | Phase 2 | CLX Lead Research (`clx-lead-research.json`) | In Progress (v0.2.0) |
-| Phase 3 | CLX Email Personalisation | Planned |
-| Phase 4 | CLX Outreach Sequencer | Planned |
+| Phase 3 | CLX Lead Scoring (`clx-lead-scoring.json`) | In Progress (v0.3.0) |
+| Phase 4 | CLX Email Personalisation | Planned |
+| Phase 5 | CLX Outreach Sequencer | Planned |
 
 ## Credentials Required
 
