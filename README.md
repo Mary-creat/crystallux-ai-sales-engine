@@ -23,3 +23,12 @@ The following credentials must be configured in n8n before activating workflows:
 > 1. Re-assign credentials in n8n: open **Get New Leads**, **Update Lead in Supabase** → select `Supabase Crystallux` from the credential vault. Open **Claude Research Lead** → select `Claude Anthropic`.
 > 2. The `Authorization` header in **Get New Leads** and **Update Lead in Supabase** is intentionally blank in the JSON (no keys are hardcoded). Set its value to `Bearer <your-supabase-service-role-key>` manually in the n8n UI after import. The `apikey` header is handled automatically by the `Supabase Crystallux` credential and is sufficient for most operations — the `Authorization` header is additive.
 > 3. Activate the workflow once credentials are confirmed.
+
+## Business Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Monetization Strategy](docs/business/monetization-strategy.md) | Business philosophy, service packages, pricing psychology, path to first 10 clients, and competitive advantage |
+| [Service Packages](docs/business/service-packages.md) | Client-facing one-page overview of all four packages with comparison table and value propositions |
+| [Competitive Positioning](docs/business/competitive-positioning.md) | Market differentiation analysis — what competitors offer, what Crystallux offers, and why the combination is defensible |
+| [Client Onboarding](docs/business/client-onboarding.md) | Complete onboarding framework — discovery call questions, configuration checklist, setup steps, training outline, and 30-day success metrics |
