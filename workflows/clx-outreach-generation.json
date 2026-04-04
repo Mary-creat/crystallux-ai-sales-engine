@@ -1,0 +1,329 @@
+{
+  "name": "CLX - Outreach Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "clx06-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Campaign%20Assigned&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,campaign_name,campaign_value_proposition,campaign_pain_point,campaign_call_to_action,campaign_tone&limit=10",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx06-0000-0000-0000-000000000002",
+      "name": "Get Campaign Assigned Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx06-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx06-0000-0000-0000-000000000003",
+      "name": "IF Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx06-0000-0000-0000-000000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "clx06-0000-0000-0000-000000000005",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1160, 300],
+      "webhookId": "clx06-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Outreach Generation — Phase 6\n// Constructs complete Claude prompt with all lead intelligence\n\nconst lead = $input.item.json;\n\nconst lines = [\n  'You are an expert B2B sales copywriter for the Crystallux AI Sales Engine. Your job is to write highly personalized outreach messages that feel genuinely human and researched.',\n  '',\n  'Lead Intelligence:',\n  'Name: ' + (lead.full_name || ''),\n  'Company: ' + (lead.company || ''),\n  'Industry: ' + (lead.industry || ''),\n  'Job Title: ' + (lead.job_title || ''),\n  'City: ' + (lead.city || ''),\n  'Research Summary: ' + (lead.research_summary || ''),\n  'Likely Business Need: ' + (lead.likely_business_need || ''),\n  'Research Angle: ' + (lead.research_angle || ''),\n  'Campaign: ' + (lead.campaign_name || ''),\n  'Value Proposition: ' + (lead.campaign_value_proposition || ''),\n  'Pain Point: ' + (lead.campaign_pain_point || ''),\n  'Call To Action: ' + (lead.campaign_call_to_action || ''),\n  'Tone: ' + (lead.campaign_tone || ''),\n  '',\n  'Rules for writing:',\n  '- Never use generic openers like I hope this finds you well',\n  '- Reference something specific about their company or industry',\n  '- Keep email subject line under 8 words',\n  '- Keep email body under 150 words',\n  '- Keep LinkedIn message under 300 characters',\n  '- Keep WhatsApp message under 100 words conversational and warm',\n  '- Follow up message should reference the first message naturally',\n  '- Every message must feel like it was written specifically for this person',\n  '- End every message with a soft clear call to action',\n  '- Never mention Crystallux by name — position as their solution',\n  '',\n  'Return ONLY raw JSON with no explanation no markdown no code blocks:',\n  '{',\n  '  \"email_subject\": \"compelling subject line under 8 words\",',\n  '  \"email_body\": \"personalized email body under 150 words\",',\n  '  \"linkedin_message\": \"under 300 characters connection message\",',\n  '  \"whatsapp_message\": \"conversational warm message under 100 words\",',\n  '  \"followup_message\": \"natural follow up referencing first outreach\",',\n  '  \"outreach_angle\": \"one sentence describing the hook used\",',\n  '  \"personalization_score\": 8',\n  '}'\n];\n\nconst prompt = lines.join('\\n');\n\nreturn {\n  json: {\n    ...lead,\n    prompt: prompt\n  }\n};"
+      },
+      "id": "clx06-0000-0000-0000-000000000006",
+      "name": "Build Outreach Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-6\", max_tokens: 2000, messages: [{ role: \"user\", content: $json.prompt }] }) }}",
+        "options": {}
+      },
+      "id": "clx06-0000-0000-0000-000000000007",
+      "name": "Claude Generate Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Outreach Generation — Phase 6\n// Parses Claude outreach response and extracts all outreach fields\n\nconst response = $input.item.json;\nconst lead = $('Build Outreach Prompt').item.json;\n\n// Extract text content from Claude API response\nconst rawText = response.content[0].text;\n\n// Strip markdown code fences and parse JSON\nlet outreach;\ntry {\n  const cleaned = rawText\n    .replace(/```json/gi, '')\n    .replace(/```/g, '')\n    .trim();\n  outreach = JSON.parse(cleaned);\n} catch (e) {\n  outreach = {\n    email_subject: 'A thought for ' + (lead.company || 'your business'),\n    email_body: 'Hi ' + (lead.full_name || 'there') + ', I came across your work at ' + (lead.company || 'your company') + ' and thought this could be genuinely useful. Worth a quick 15-minute chat?',\n    linkedin_message: 'Hi ' + (lead.full_name || '') + ', noticed your work at ' + (lead.company || '') + ' — would love to connect.',\n    whatsapp_message: 'Hi ' + (lead.full_name || '') + ', came across your business and had something relevant to share. Would you be open to a quick chat?',\n    followup_message: 'Just following up on my previous message — still happy to connect if the timing works better now.',\n    outreach_angle: 'Fallback outreach — parse error: ' + e.message,\n    personalization_score: 1\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    ...lead,\n    email_subject: outreach.email_subject || '',\n    email_body: outreach.email_body || '',\n    linkedin_message: outreach.linkedin_message || '',\n    whatsapp_message: outreach.whatsapp_message || '',\n    followup_message: outreach.followup_message || '',\n    outreach_angle: outreach.outreach_angle || '',\n    personalization_score: typeof outreach.personalization_score === 'number' ? Math.round(outreach.personalization_score) : 5,\n    lead_status: 'Outreach Ready',\n    outreach_generated_at: now,\n    updated_at: now\n  }\n};"
+      },
+      "id": "clx06-0000-0000-0000-000000000008",
+      "name": "Parse Outreach Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email_subject: $json.email_subject, email_body: $json.email_body, linkedin_message: $json.linkedin_message, whatsapp_message: $json.whatsapp_message, followup_message: $json.followup_message, outreach_angle: $json.outreach_angle, personalization_score: $json.personalization_score, lead_status: $json.lead_status, outreach_generated_at: $json.outreach_generated_at, updated_at: $json.updated_at }) }}",
+        "options": {}
+      },
+      "id": "clx06-0000-0000-0000-000000000009",
+      "name": "Update Lead Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2120, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx06-0000-0000-0000-000000000010",
+      "name": "No Campaign Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Campaign Assigned Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Campaign Assigned Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Campaign Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Build Outreach Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Outreach Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Generate Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Generate Outreach": {
+      "main": [
+        [
+          {
+            "node": "Parse Outreach Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outreach Response": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Outreach": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-outreach-v060",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-outreach-generation",
+  "tags": []
+}
