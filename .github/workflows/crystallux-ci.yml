@@ -130,8 +130,15 @@ jobs:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: |
+          # Skip deployment if secrets are not configured yet
+          if [ -z "$N8N_URL" ] || [ -z "$N8N_API_KEY" ]; then
+            echo "⚠️  N8N_URL or N8N_API_KEY secrets not configured — skipping deployment"
+            echo "ℹ️  Add N8N_URL and N8N_API_KEY in GitHub Settings > Secrets to enable auto-deploy"
+            exit 0
+          fi
+
           echo "🚀 Deploying CLX workflows to n8n at $N8N_URL"
-          
+
           # Skip deployment if no workflow files exist yet
           if [ -z "$(ls -A workflows/*.json 2>/dev/null)" ]; then
             echo "⚠️  No workflow files to deploy yet"
