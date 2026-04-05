@@ -140,7 +140,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Outreach Sender — Phase 7\n// Sets all post-send timestamps and status fields\n\nconst lead = $input.item.json;\n\nconst now = new Date();\nconst followupDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);\n\nreturn {\n  json: {\n    ...lead,\n    outreach_sent_at: now.toISOString(),\n    followup_scheduled_at: followupDate.toISOString(),\n    lead_status: 'Contacted',\n    outreach_channel: 'email',\n    updated_at: now.toISOString()\n  }\n};"
+        "jsCode": "// CLX Outreach Sender — Phase 7\n// Reads original lead from Split In Batches to avoid Gmail response overwriting lead id\n\nconst lead = $('Split In Batches').item.json;\n\nconst now = new Date();\nconst followupDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);\n\nreturn {\n  json: {\n    ...lead,\n    outreach_sent_at: now.toISOString(),\n    followup_scheduled_at: followupDate.toISOString(),\n    lead_status: 'Contacted',\n    outreach_channel: 'email',\n    updated_at: now.toISOString()\n  }\n};"
       },
       "id": "clx07-0000-0000-0000-000000000007",
       "name": "Calculate Follow Up",
@@ -308,7 +308,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-sender-v070",
+  "versionId": "clx-sender-v071",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
