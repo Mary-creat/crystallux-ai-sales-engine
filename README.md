@@ -43,3 +43,4 @@ The following credentials must be configured in n8n before activating workflows:
 | [Service Packages](docs/business/service-packages.md) | Client-facing one-page overview of all four packages with comparison table and value propositions |
 | [Competitive Positioning](docs/business/competitive-positioning.md) | Market differentiation analysis — what competitors offer, what Crystallux offers, and why the combination is defensible |
 | [Client Onboarding](docs/business/client-onboarding.md) | Complete onboarding framework — discovery call questions, configuration checklist, setup steps, training outline, and 30-day success metrics |
+# Auto-deploy enabled Sun Apr  5 15:02:52 EDT 2026
