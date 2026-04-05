@@ -11,7 +11,7 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase 4 | CLX Business Signal Detection (`clx-business-signal-detection.json`) | In Progress (v0.4.0) |
 | Phase 5 | CLX Campaign Router (`clx-campaign-router.json`) | In Progress (v0.5.0) |
 | Phase 6 | CLX Outreach Generation (`clx-outreach-generation.json`) | Complete (v0.6.0) |
-| Phase 7 | CLX Outreach Sequencer | Planned |
+| Phase 7 | CLX Outreach Sender (`clx-outreach-sender.json`) | Complete (v0.7.0) |
 
 ## Credentials Required
 
@@ -22,6 +22,7 @@ The following credentials must be configured in n8n before activating workflows:
 | `Supabase Crystallux` | Header Auth | `apikey: <service_role_key>` |
 | `Claude Anthropic` | Header Auth | `x-api-key: <anthropic_api_key>` |
 | `Google Search` | Header Auth | `X-Goog-Api-Key: <google_api_key>` — see [setup guide](docs/setup/google-search-setup.md) |
+| `Gmail` | Gmail OAuth2 | OAuth2 — see [setup guide](docs/setup/gmail-oauth-setup.md) |
 
 > **Post-import steps for `clx-lead-research.json`:**
 > 1. Re-assign credentials in n8n: open **Get New Leads**, **Update Lead in Supabase** → select `Supabase Crystallux` from the credential vault. Open **Claude Research Lead** → select `Claude Anthropic`.
@@ -34,6 +35,7 @@ The following credentials must be configured in n8n before activating workflows:
 |----------|-------------|
 | [Scaling Strategy](docs/architecture/scaling-strategy.md) | Phase architecture, volume limits, cost per lead, multi-tenant scaling, and roadmap |
 | [Google Search Setup](docs/setup/google-search-setup.md) | How to get Google Custom Search API key and cx ID for Phase 4 |
+| [Gmail OAuth2 Setup](docs/setup/gmail-oauth-setup.md) | Step-by-step Gmail OAuth2 credential setup for Phase 7 email sending |
 
 ## Business Documentation
 
