@@ -1,0 +1,318 @@
+{
+  "name": "CLX - Follow Up",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 60
+            }
+          ]
+        }
+      },
+      "id": "clx08-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Contacted&followup_scheduled_at=lte.\" + new Date().toISOString() + \"&followup_count=lt.3&reply_detected=eq.false&select=id,full_name,email,company,followup_message,followup_scheduled_at,followup_count,lead_status,email_subject,outreach_sent_at&limit=5\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx08-0000-0000-0000-000000000002",
+      "name": "Get Due Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx08-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx08-0000-0000-0000-000000000003",
+      "name": "IF Follow-ups Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx08-0000-0000-0000-000000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "clx08-0000-0000-0000-000000000005",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        300
+      ],
+      "webhookId": "clx08-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Follow Up — Phase 8\n// Reads lead from Split In Batches to avoid upstream node response contamination\n\nconst lead = $('Split In Batches').item.json;\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\n\n// Build subject line\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\n// Calculate next follow-up date and status based on sequence\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  // Follow-up 1 sent — schedule follow-up 2 in 5 days\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  // Follow-up 2 sent — schedule follow-up 3 in 10 days\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  // Follow-up 3 sent — sequence complete, no reply received\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};"
+      },
+      "id": "clx08-0000-0000-0000-000000000006",
+      "name": "Build Follow Up Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Build Follow Up Email').item.json.email }}",
+        "subject": "={{ $('Build Follow Up Email').item.json.followup_subject }}",
+        "message": "={{ $('Build Follow Up Email').item.json.followup_message }}",
+        "options": {}
+      },
+      "id": "clx08-0000-0000-0000-000000000007",
+      "name": "Send Follow Up Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1640,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $('Build Follow Up Email').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ followup_count: $('Build Follow Up Email').item.json.new_followup_count, followup_sent_at: $('Build Follow Up Email').item.json.followup_sent_at, next_followup_scheduled_at: $('Build Follow Up Email').item.json.next_followup_scheduled_at, lead_status: $('Build Follow Up Email').item.json.new_lead_status, updated_at: $('Build Follow Up Email').item.json.updated_at }) }}",
+        "options": {}
+      },
+      "id": "clx08-0000-0000-0000-000000000008",
+      "name": "Update Follow Up Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx08-0000-0000-0000-000000000009",
+      "name": "No Due Follow-ups",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Due Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Due Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "IF Follow-ups Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Follow-ups Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Due Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Build Follow Up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Follow Up Email": {
+      "main": [
+        [
+          {
+            "node": "Send Follow Up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow Up Email": {
+      "main": [
+        [
+          {
+            "node": "Update Follow Up Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Follow Up Status": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-followup-v080",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-follow-up",
+  "tags": []
+}
