@@ -34,7 +34,7 @@ jobs:
     steps:
       # Download your repository code onto the virtual machine
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Validate every JSON file in the workflows/ folder
       # Python's json module is the most reliable JSON validator
@@ -119,7 +119,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Deploy each workflow file to your n8n instance
       # Uses n8n's REST API to import workflows automatically
