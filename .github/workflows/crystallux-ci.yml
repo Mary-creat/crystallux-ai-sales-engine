@@ -150,10 +150,12 @@ jobs:
             echo "Deploying $file..."
             
             response=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 30 \
+              --connect-timeout 10 \
               -X POST "$N8N_URL/api/v1/workflows" \
               -H "X-N8N-API-KEY: $N8N_API_KEY" \
               -H "Content-Type: application/json" \
-              -d @"$file")
+              -d @"$file") || true
             
             if [ "$response" = "200" ] || [ "$response" = "201" ]; then
               echo "✅ Successfully deployed: $file"
