@@ -71,14 +71,19 @@ jobs:
       # Verify that Phase 1 workflow exists
       # As you complete more phases, add them to this list
       - name: Check required workflow files exist
-        run: 
+        run: |
           echo "📋 Checking required workflow files..."
-          
+
           # Add new workflow filenames here as you complete each phase
           required_files=(
             "workflows/clx-lead-import.json"
+            "workflows/clx-lead-research.json"
+            "workflows/clx-lead-scoring.json"
+            "workflows/clx-business-signal-detection.json"
+            "workflows/clx-campaign-router.json"
+            "workflows/clx-outreach-generation.json"
           )
-          
+
           failed=0
           for file in "${required_files[@]}"; do
             if [ -f "$file" ]; then
@@ -88,12 +93,12 @@ jobs:
               failed=1
             fi
           done
-          
+
           if [ $failed -eq 1 ]; then
             echo "Pipeline failed — required workflow files are missing"
             exit 1
           fi
-          
+
           echo "✅ All required workflow files present"
 
   # ── Job 2: Deploy ────────────────────────────────────────────
