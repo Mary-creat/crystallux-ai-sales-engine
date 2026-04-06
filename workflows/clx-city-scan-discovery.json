@@ -67,14 +67,11 @@
       "parameters": {
         "method": "POST",
         "url": "https://places.googleapis.com/v1/places:searchText",
-        "authentication": "noAuth",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Goog-Api-Key",
-              "value": "AIzaSyCICRiL895PANEFGE2oJBGDQcSa6R0TQI8"
-            },
             {
               "name": "X-Goog-FieldMask",
               "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id"
@@ -97,7 +94,13 @@
       "position": [
         1160,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "5",
+          "name": "Google Maps"
+        }
+      }
     },
     {
       "parameters": {
@@ -426,7 +429,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-city-scan-v0114-places-new",
+  "versionId": "clx-city-scan-v0115-secure",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
