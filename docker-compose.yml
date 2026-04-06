@@ -24,6 +24,8 @@ services:
       - EXECUTIONS_MODE=regular
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
+      # Uncomment the line below after setting REDIS_PASSWORD in .env
+      # - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
       - N8N_HOST=${N8N_HOST}
       - WEBHOOK_URL=${WEBHOOK_URL}
@@ -60,6 +62,8 @@ services:
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
+      # Uncomment the line below after setting REDIS_PASSWORD in .env
+      # - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
     depends_on:
       - redis
@@ -76,9 +80,17 @@ services:
   # ── Redis ──────────────────────────────────────
   # Message queue between n8n main and workers
   # Required when EXECUTIONS_MODE=queue
+  # To enable Redis authentication:
+  #   1. Set REDIS_PASSWORD in your .env file
+  #   2. Uncomment the 'command' line below
+  #   3. Uncomment QUEUE_BULL_REDIS_PASSWORD in n8n and n8n-worker above
+  #   4. Run: docker compose down && docker compose up -d
+  #   See docs/setup/redis-security.md for full instructions
   redis:
     image: redis:7-alpine
     restart: always
+    # Uncomment to enable password authentication:
+    # command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     deploy:
@@ -91,4 +103,5 @@ services:
 # ── Persistent Volumes ─────────────────────────
 # Data survives container restarts
 volumes:
+  n8n_data:
   redis_data:
