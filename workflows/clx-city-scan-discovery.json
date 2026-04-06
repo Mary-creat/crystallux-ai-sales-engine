@@ -65,34 +65,43 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ 'https://www.googleapis.com/customsearch/v1?q=' + encodeURIComponent($('Split In Batches').item.json.industry + ' in ' + $('Split In Batches').item.json.city + ' Canada') + '&cx=652e034ebc03b473b&num=10' }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "url": "https://places.googleapis.com/v1/places:searchText",
+        "authentication": "noAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": []
+          "parameters": [
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "AIzaSyCICRiL895PANEFGE2oJBGDQcSa6R0TQI8"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ textQuery: $('Split In Batches').item.json.industry + ' in ' + $('Split In Batches').item.json.city + ' Canada' }) }}",
         "options": {}
       },
       "id": "clx11-0000-0000-0000-000000000005",
-      "name": "Search Google",
+      "name": "Search Google Maps",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1160,
         300
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "4",
-          "name": "Google Search"
-        }
-      }
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// CLX City Scan Discovery — Phase 11: Parse Search Results\n// Extracts business details from Google Custom Search API response\n// Response contains items[] with title, link, snippet, formattedUrl\n\ntry {\n  const response = $('Search Google').item.json;\n  const scanContext = $('Split In Batches').item.json;\n\n  console.log('[CLX City Scan] Parsing results for: ' + scanContext.industry + ' in ' + scanContext.city);\n  console.log('[CLX City Scan] Response keys: ' + Object.keys(response).join(', '));\n\n  const items = response.items || [];\n\n  console.log('[CLX City Scan] Results count: ' + items.length);\n\n  if (items.length === 0) {\n    console.log('[CLX City Scan] No results found for: ' + scanContext.industry + ' in ' + scanContext.city);\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n  const seen = {};\n\n  for (const item of items) {\n    // Extract business name from title — strip trailing location/suffix after dash or pipe\n    let name = (item.title || '').split(' - ')[0].split(' | ')[0].trim();\n    if (!name) continue;\n\n    // Deduplicate by name within same search\n    if (seen[name.toLowerCase()]) continue;\n    seen[name.toLowerCase()] = true;\n\n    businesses.push({\n      name: name,\n      website: item.link || '',\n      formatted_address: item.snippet || '',\n      formatted_phone_number: '',\n      place_id: '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  console.log('[CLX City Scan] Parsed ' + businesses.length + ' businesses for: ' + scanContext.industry + ' in ' + scanContext.city);\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  console.log('[CLX City Scan] ERROR parsing results: ' + error.message);\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
+        "jsCode": "// CLX City Scan Discovery — Phase 11: Parse Places Results\n// Extracts business details from Google Places API (New) response\n// Response contains places[] with displayName.text, formattedAddress,\n// nationalPhoneNumber, websiteUri, id\n\ntry {\n  const response = $('Search Google Maps').item.json;\n  const scanContext = $('Split In Batches').item.json;\n\n  console.log('[CLX City Scan] Parsing results for: ' + scanContext.industry + ' in ' + scanContext.city);\n  console.log('[CLX City Scan] Response keys: ' + Object.keys(response).join(', '));\n\n  const places = response.places || [];\n\n  console.log('[CLX City Scan] Places count: ' + places.length);\n\n  if (places.length === 0) {\n    console.log('[CLX City Scan] No results found for: ' + scanContext.industry + ' in ' + scanContext.city);\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n  const seen = {};\n\n  for (const place of places) {\n    const name = (place.displayName && place.displayName.text) ? place.displayName.text : '';\n    if (!name) continue;\n\n    // Deduplicate by name within same search\n    if (seen[name.toLowerCase()]) continue;\n    seen[name.toLowerCase()] = true;\n\n    businesses.push({\n      name: name,\n      formatted_address: place.formattedAddress || '',\n      phone: place.nationalPhoneNumber || '',\n      website: place.websiteUri || '',\n      place_id: place.id || '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  console.log('[CLX City Scan] Parsed ' + businesses.length + ' businesses for: ' + scanContext.industry + ' in ' + scanContext.city);\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  console.log('[CLX City Scan] ERROR parsing results: ' + error.message);\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
       },
       "id": "clx11-0000-0000-0000-000000000006",
       "name": "Parse Places Results",
@@ -138,7 +147,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX City Scan Discovery — Phase 11: Process Each Business\n// Converts Google Maps businesses into individual Crystallux lead items\n// Reads city/industry/product_type from Split In Batches as primary source\n\nconst data = $('Parse Places Results').item.json;\nconst scanContext = $('Split In Batches').item.json;\nconst businesses = data.businesses || [];\n\nif (businesses.length === 0) {\n  return { json: { skip: true } };\n}\n\nconst now = new Date().toISOString();\nconst city = scanContext.city;\nconst industry = scanContext.industry;\nconst productType = scanContext.product_type;\n\nconst leads = businesses.map(biz => ({\n  json: {\n    full_name: '',\n    email: '',\n    phone: biz.formatted_phone_number || '',\n    company: biz.name,\n    job_title: 'Owner',\n    industry: industry,\n    city: city,\n    source: 'google_maps',\n    lead_status: 'New Lead',\n    product_type: productType,\n    do_not_contact: false,\n    unsubscribed: false,\n    total_emails_sent: 0,\n    lead_score: 0,\n    assigned_to: '',\n    notes: 'Google Maps place_id: ' + (biz.place_id || '') + ' | Address: ' + (biz.formatted_address || '') + (biz.website ? ' | Website: ' + biz.website : ''),\n    updated_at: now\n  }\n}));\n\nreturn leads;"
+        "jsCode": "// CLX City Scan Discovery — Phase 11: Process Each Business\n// Converts Places API (New) businesses into Crystallux lead items\n// Reads city/industry/product_type from Split In Batches as primary source\n\nconst data = $('Parse Places Results').item.json;\nconst scanContext = $('Split In Batches').item.json;\nconst businesses = data.businesses || [];\n\nif (businesses.length === 0) {\n  return { json: { skip: true } };\n}\n\nconst now = new Date().toISOString();\nconst city = scanContext.city;\nconst industry = scanContext.industry;\nconst productType = scanContext.product_type;\n\nconst leads = businesses.map(biz => ({\n  json: {\n    full_name: '',\n    email: '',\n    phone: biz.phone || '',\n    company: biz.name,\n    job_title: 'Owner',\n    industry: industry,\n    city: city,\n    source: 'google_maps',\n    lead_status: 'New Lead',\n    product_type: productType,\n    do_not_contact: false,\n    unsubscribed: false,\n    total_emails_sent: 0,\n    lead_score: 0,\n    assigned_to: '',\n    notes: 'Places ID: ' + (biz.place_id || '') + ' | Address: ' + (biz.formatted_address || '') + (biz.website ? ' | Website: ' + biz.website : ''),\n    updated_at: now\n  }\n}));\n\nreturn leads;"
       },
       "id": "clx11-0000-0000-0000-000000000008",
       "name": "Process Each Business",
@@ -309,14 +318,14 @@
       "main": [
         [
           {
-            "node": "Search Google",
+            "node": "Search Google Maps",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Search Google": {
+    "Search Google Maps": {
       "main": [
         [
           {
@@ -417,7 +426,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-city-scan-v0113-custom-search",
+  "versionId": "clx-city-scan-v0114-places-new",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
