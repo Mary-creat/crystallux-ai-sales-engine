@@ -173,10 +173,20 @@
             {
               "name": "Authorization",
               "value": ""
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
             }
           ]
         },
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
       },
       "id": "clx11-0000-0000-0000-000000000009",
       "name": "Check Duplicate",
@@ -195,6 +205,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Check if Supabase returned any matching leads\n// Full response mode: $json.body is the array, $json.statusCode is the HTTP status\nconst lead = $('Parse Duplicate Check').item.json;\nconst response = $('Check Duplicate').item.json;\nconst body = response.body || response;\nconst results = Array.isArray(body) ? body : [];\nconst isDuplicate = results.length > 0;\n\nconsole.log('[CLX City Scan] Dedup check for: ' + lead.company + ' — duplicate: ' + isDuplicate);\n\nreturn { json: { ...lead, is_duplicate: String(isDuplicate) } };"
+      },
+      "id": "clx11-0000-0000-0000-000000000013",
+      "name": "Parse Duplicate Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -205,12 +228,11 @@
           "conditions": [
             {
               "id": "clx11-cond-not-duplicate",
-              "leftValue": "={{ $json.id }}",
-              "rightValue": "",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": "false",
               "operator": {
                 "type": "string",
-                "operation": "empty",
-                "singleValue": true
+                "operation": "equals"
               }
             }
           ],
@@ -223,7 +245,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2360,
+        2600,
         300
       ]
     },
@@ -252,7 +274,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ full_name: $('Process Each Business').item.json.full_name, email: $('Process Each Business').item.json.email, phone: $('Process Each Business').item.json.phone, company: $('Process Each Business').item.json.company, job_title: $('Process Each Business').item.json.job_title, industry: $('Process Each Business').item.json.industry, city: $('Process Each Business').item.json.city, source: $('Process Each Business').item.json.source, lead_status: $('Process Each Business').item.json.lead_status, product_type: $('Process Each Business').item.json.product_type, do_not_contact: $('Process Each Business').item.json.do_not_contact, unsubscribed: $('Process Each Business').item.json.unsubscribed, total_emails_sent: $('Process Each Business').item.json.total_emails_sent, lead_score: $('Process Each Business').item.json.lead_score, assigned_to: $('Process Each Business').item.json.assigned_to, notes: $('Process Each Business').item.json.notes, updated_at: $('Process Each Business').item.json.updated_at }) }}",
+        "jsonBody": "={{ JSON.stringify({ full_name: $('Parse Duplicate Check').item.json.full_name, email: $('Parse Duplicate Check').item.json.email, phone: $('Parse Duplicate Check').item.json.phone, company: $('Parse Duplicate Check').item.json.company, job_title: $('Parse Duplicate Check').item.json.job_title, industry: $('Parse Duplicate Check').item.json.industry, city: $('Parse Duplicate Check').item.json.city, source: $('Parse Duplicate Check').item.json.source, lead_status: $('Parse Duplicate Check').item.json.lead_status, product_type: $('Parse Duplicate Check').item.json.product_type, do_not_contact: $('Parse Duplicate Check').item.json.do_not_contact, unsubscribed: $('Parse Duplicate Check').item.json.unsubscribed, total_emails_sent: $('Parse Duplicate Check').item.json.total_emails_sent, lead_score: $('Parse Duplicate Check').item.json.lead_score, assigned_to: $('Parse Duplicate Check').item.json.assigned_to, notes: $('Parse Duplicate Check').item.json.notes, updated_at: $('Parse Duplicate Check').item.json.updated_at }) }}",
         "options": {}
       },
       "id": "clx11-0000-0000-0000-000000000011",
@@ -260,7 +282,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2600,
+        2840,
         300
       ],
       "credentials": {
@@ -380,6 +402,17 @@
       ]
     },
     "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Parse Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Duplicate Check": {
       "main": [
         [
           {
