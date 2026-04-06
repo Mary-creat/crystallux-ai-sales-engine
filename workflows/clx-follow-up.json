@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Contacted&followup_scheduled_at=lte.\" + new Date().toISOString() + \"&followup_count=lt.3&reply_detected=eq.false&select=id,full_name,email,company,followup_message,followup_scheduled_at,followup_count,lead_status,email_subject,outreach_sent_at&limit=5\" }}",
+        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Contacted&followup_scheduled_at=lte.\" + new Date().toISOString() + \"&followup_count=lt.3&reply_detected=eq.false&unsubscribed=eq.false&do_not_contact=eq.false&select=id,full_name,email,company,followup_message,followup_scheduled_at,followup_count,lead_status,email_subject,outreach_sent_at,total_emails_sent,unsubscribed,do_not_contact&limit=5\" }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -118,14 +118,65 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Follow Up — Phase 8\n// Reads lead from Split In Batches to avoid upstream node response contamination\n\nconst lead = $('Split In Batches').item.json;\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\n\n// Build subject line\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\n// Calculate next follow-up date and status based on sequence\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  // Follow-up 1 sent — schedule follow-up 2 in 5 days\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  // Follow-up 2 sent — schedule follow-up 3 in 10 days\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  // Follow-up 3 sent — sequence complete, no reply received\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx08-safety-dnc",
+              "leftValue": "={{ String($json.do_not_contact) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "clx08-safety-unsub",
+              "leftValue": "={{ String($json.unsubscribed) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "clx08-safety-limit",
+              "leftValue": "={{ String(Number($json.total_emails_sent || 0) < 5) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx08-0000-0000-0000-000000000010",
+      "name": "IF Safe To Send",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Follow Up — Phase 8\n// Reads lead from Split In Batches to avoid upstream node response contamination\n\nconst lead = $('Split In Batches').item.json;\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\n\n// Build subject line\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\n// Calculate next follow-up date and status based on sequence\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  // Follow-up 1 sent — schedule follow-up 2 in 5 days\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  // Follow-up 2 sent — schedule follow-up 3 in 10 days\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  // Follow-up 3 sent — sequence complete, no reply received\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};"
       },
       "id": "clx08-0000-0000-0000-000000000006",
       "name": "Build Follow Up Email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
+        1640,
         300
       ]
     },
@@ -141,7 +192,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1640,
+        1880,
         300
       ],
       "credentials": {
@@ -176,7 +227,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ followup_count: $('Build Follow Up Email').item.json.new_followup_count, followup_sent_at: $('Build Follow Up Email').item.json.followup_sent_at, next_followup_scheduled_at: $('Build Follow Up Email').item.json.next_followup_scheduled_at, lead_status: $('Build Follow Up Email').item.json.new_lead_status, updated_at: $('Build Follow Up Email').item.json.updated_at }) }}",
+        "jsonBody": "={{ JSON.stringify({ followup_count: $('Build Follow Up Email').item.json.new_followup_count, followup_sent_at: $('Build Follow Up Email').item.json.followup_sent_at, next_followup_scheduled_at: $('Build Follow Up Email').item.json.next_followup_scheduled_at, lead_status: $('Build Follow Up Email').item.json.new_lead_status, total_emails_sent: $('Build Follow Up Email').item.json.total_emails_sent, last_email_sent_at: $('Build Follow Up Email').item.json.last_email_sent_at, updated_at: $('Build Follow Up Email').item.json.updated_at }) }}",
         "options": {}
       },
       "id": "clx08-0000-0000-0000-000000000008",
@@ -184,7 +235,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1880,
+        2120,
         300
       ],
       "credentials": {
@@ -193,6 +244,17 @@
           "name": "Supabase Crystallux"
         }
       }
+    },
+    {
+      "parameters": {},
+      "id": "clx08-0000-0000-0000-000000000011",
+      "name": "Skip Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        500
+      ]
     },
     {
       "parameters": {},
@@ -263,7 +325,25 @@
       "main": [
         [
           {
+            "node": "IF Safe To Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Safe To Send": {
+      "main": [
+        [
+          {
             "node": "Build Follow Up Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Lead",
             "type": "main",
             "index": 0
           }
@@ -302,13 +382,24 @@
           }
         ]
       ]
+    },
+    "Skip Lead": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-followup-v081-prod",
+  "versionId": "clx-followup-v082-safety",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
