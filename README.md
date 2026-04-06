@@ -15,7 +15,7 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase 8 | CLX Follow Up (`clx-follow-up.json`) | Complete — Production Tested (v0.8.1) |
 | Phase 9 | CLX Booking (`clx-booking.json`) | Complete (v0.9.0) |
 | Phase 10 | CLX Pipeline Update (`clx-pipeline-update.json`) | Complete (v0.10.0) |
-| Phase 11 | CLX City Scan Discovery (`clx-city-scan-discovery.json`) | Complete (v0.11.0) |
+| Phase 11 | CLX City Scan Discovery (`clx-city-scan-discovery.json`) | Complete — Production Tested (v0.11.2) |
 
 ## Credentials Required
 
