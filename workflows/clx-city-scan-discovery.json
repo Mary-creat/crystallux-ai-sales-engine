@@ -65,14 +65,26 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' + encodeURIComponent($('Split In Batches').item.json.industry + ' in ' + $('Split In Batches').item.json.city + ' Canada') }}",
+        "method": "POST",
+        "url": "https://places.googleapis.com/v1/places:searchText",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpQueryAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": []
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id"
+            }
+          ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ textQuery: $('Split In Batches').item.json.industry + ' in ' + $('Split In Batches').item.json.city + ' Canada', maxResultCount: 20 }) }}",
         "options": {}
       },
       "id": "clx11-0000-0000-0000-000000000005",
@@ -84,7 +96,7 @@
         300
       ],
       "credentials": {
-        "httpQueryAuth": {
+        "httpHeaderAuth": {
           "id": "5",
           "name": "Google Maps"
         }
@@ -92,7 +104,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX City Scan Discovery — Phase 11: Parse Places Results\n// Extracts business details from Google Maps Places API response\n\ntry {\n  const response = $('Search Google Maps').item.json;\n  const scanContext = $('Split In Batches').item.json;\n\n  console.log('[CLX City Scan] Parsing results for: ' + scanContext.industry + ' in ' + scanContext.city);\n  console.log('[CLX City Scan] Response status: ' + (response.status || 'unknown'));\n  console.log('[CLX City Scan] Response keys: ' + Object.keys(response).join(', '));\n\n  // Google Maps Places text search returns results in response.results array\n  const results = response.results || [];\n\n  console.log('[CLX City Scan] Results count: ' + results.length);\n\n  if (results.length === 0) {\n    console.log('[CLX City Scan] No results found for: ' + scanContext.industry + ' in ' + scanContext.city);\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n\n  for (const place of results) {\n    if (!place.name) continue;\n\n    businesses.push({\n      name: place.name,\n      formatted_address: place.formatted_address || '',\n      formatted_phone_number: place.formatted_phone_number || '',\n      website: place.website || '',\n      place_id: place.place_id || '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  console.log('[CLX City Scan] Parsed ' + businesses.length + ' businesses for: ' + scanContext.industry + ' in ' + scanContext.city);\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  console.log('[CLX City Scan] ERROR parsing results: ' + error.message);\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
+        "jsCode": "// CLX City Scan Discovery — Phase 11: Parse Places Results\n// Extracts business details from Google Maps Places API (New) response\n// New API returns: places[] with displayName.text, formattedAddress,\n// nationalPhoneNumber, websiteUri, id\n\ntry {\n  const response = $('Search Google Maps').item.json;\n  const scanContext = $('Split In Batches').item.json;\n\n  console.log('[CLX City Scan] Parsing results for: ' + scanContext.industry + ' in ' + scanContext.city);\n  console.log('[CLX City Scan] Response keys: ' + Object.keys(response).join(', '));\n\n  // Places API (New) returns places array (not results)\n  const places = response.places || [];\n\n  console.log('[CLX City Scan] Places count: ' + places.length);\n\n  if (places.length === 0) {\n    console.log('[CLX City Scan] No results found for: ' + scanContext.industry + ' in ' + scanContext.city);\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n\n  for (const place of places) {\n    const name = (place.displayName && place.displayName.text) ? place.displayName.text : '';\n    if (!name) continue;\n\n    businesses.push({\n      name: name,\n      formatted_address: place.formattedAddress || '',\n      formatted_phone_number: place.nationalPhoneNumber || '',\n      website: place.websiteUri || '',\n      place_id: place.id || '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  console.log('[CLX City Scan] Parsed ' + businesses.length + ' businesses for: ' + scanContext.industry + ' in ' + scanContext.city);\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  console.log('[CLX City Scan] ERROR parsing results: ' + error.message);\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
       },
       "id": "clx11-0000-0000-0000-000000000006",
       "name": "Parse Places Results",
@@ -417,7 +429,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-city-scan-v0111-fix",
+  "versionId": "clx-city-scan-v0112-new-api",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
