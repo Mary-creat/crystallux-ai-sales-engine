@@ -67,16 +67,236 @@
       "parameters": {
         "rules": {
           "values": [
-            { "outputIndex": 0, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "research_lead", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 1, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "score_lead", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 2, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "generate_outreach", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 3, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "send_outreach", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 4, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "process_booking", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 5, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "get_pipeline_stats", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 6, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "scan_city", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 7, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "get_lead", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 8, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "update_lead_status", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputIndex": 9, "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.tool_name }}", "rightValue": "list_leads", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
+            {
+              "outputIndex": 0,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-research",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "research_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 1,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-score",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "score_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 2,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-gen-outreach",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "generate_outreach",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 3,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-send-outreach",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "send_outreach",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 4,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-booking",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "process_booking",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 5,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-pipeline",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "get_pipeline_stats",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 6,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-scan",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "scan_city",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 7,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-get-lead",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "get_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 8,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-update-status",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "update_lead_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputIndex": 9,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "clx12-sw-list-leads",
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "list_leads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
           ],
           "fallbackOutput": 10
         },
