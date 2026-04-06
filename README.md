@@ -15,6 +15,7 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase 8 | CLX Follow Up (`clx-follow-up.json`) | Complete — Production Tested (v0.8.1) |
 | Phase 9 | CLX Booking (`clx-booking.json`) | Complete (v0.9.0) |
 | Phase 10 | CLX Pipeline Update (`clx-pipeline-update.json`) | Complete (v0.10.0) |
+| Phase 11 | CLX City Scan Discovery (`clx-city-scan-discovery.json`) | Complete (v0.11.0) |
 
 ## Credentials Required
 
@@ -27,6 +28,7 @@ The following credentials must be configured in n8n before activating workflows:
 | `Google Search` | Header Auth | `X-Goog-Api-Key: <google_api_key>` — see [setup guide](docs/setup/google-search-setup.md) |
 | `Gmail` | Gmail OAuth2 | OAuth2 — see [setup guide](docs/setup/gmail-oauth-setup.md) |
 | `Calendly` | Header Auth | `Authorization: Bearer <token>` — see [setup guide](docs/setup/calendly-setup.md) |
+| `Google Maps` | Header Auth | `key: <google_maps_api_key>` — see [setup guide](docs/setup/google-maps-setup.md) |
 
 > **Post-import steps for `clx-lead-research.json`:**
 > 1. Re-assign credentials in n8n: open **Get New Leads**, **Update Lead in Supabase** → select `Supabase Crystallux` from the credential vault. Open **Claude Research Lead** → select `Claude Anthropic`.
@@ -41,6 +43,7 @@ The following credentials must be configured in n8n before activating workflows:
 | [Google Search Setup](docs/setup/google-search-setup.md) | How to get Google Custom Search API key and cx ID for Phase 4 |
 | [Gmail OAuth2 Setup](docs/setup/gmail-oauth-setup.md) | Step-by-step Gmail OAuth2 credential setup for Phase 7 email sending |
 | [Calendly Setup](docs/setup/calendly-setup.md) | Calendly API token setup for Phase 9 booking automation |
+| [Google Maps Setup](docs/setup/google-maps-setup.md) | Google Maps Places API setup for Phase 11 city scan discovery |
 
 ## Business Documentation
 

@@ -1,0 +1,436 @@
+{
+  "name": "CLX - City Scan Discovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "clx11-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX City Scan Discovery — Phase 11: Build Scan List\n// Creates all 35 city + industry combinations for Google Maps scanning\n\nconst cities = ['Toronto', 'Vancouver', 'Calgary', 'Ottawa', 'Mississauga'];\n\nconst industries = [\n  { query: 'insurance broker', product_type: 'insurance' },\n  { query: 'construction company', product_type: 'construction' },\n  { query: 'cleaning services', product_type: 'cleaning' },\n  { query: 'moving company', product_type: 'moving' },\n  { query: 'marketing agency', product_type: 'marketing' },\n  { query: 'consulting firm', product_type: 'consulting' },\n  { query: 'real estate agency', product_type: 'real_estate' }\n];\n\nconst scanList = [];\n\nfor (const city of cities) {\n  for (const ind of industries) {\n    scanList.push({\n      city: city,\n      industry: ind.query,\n      product_type: ind.product_type,\n      search_query: ind.query + ' in ' + city + ' Canada'\n    });\n  }\n}\n\nreturn scanList.map(item => ({ json: item }));"
+      },
+      "id": "clx11-0000-0000-0000-000000000002",
+      "name": "Build Scan List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx11-0000-0000-0000-000000000003",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "clx11-0000-0000-0000-000000000004",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        920,
+        300
+      ],
+      "webhookId": "clx11-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $('Split In Batches').item.json.search_query }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {}
+      },
+      "id": "clx11-0000-0000-0000-000000000005",
+      "name": "Search Google Maps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "5",
+          "name": "Google Maps"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX City Scan Discovery — Phase 11: Parse Places Results\n// Extracts business details from Google Maps Places API response\n\ntry {\n  const response = $('Search Google Maps').item.json;\n  const scanContext = $('Split In Batches').item.json;\n  const results = response.results || [];\n\n  if (results.length === 0) {\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n\n  for (const place of results) {\n    if (!place.name) continue;\n\n    businesses.push({\n      name: place.name,\n      formatted_address: place.formatted_address || '',\n      place_id: place.place_id || '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
+      },
+      "id": "clx11-0000-0000-0000-000000000006",
+      "name": "Parse Places Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx11-cond-results-found",
+              "leftValue": "={{ String($json.count) }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx11-0000-0000-0000-000000000007",
+      "name": "IF Results Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX City Scan Discovery — Phase 11: Process Each Business\n// Converts Google Maps businesses into individual Crystallux lead items\n// Returns one item per business for downstream dedup and insert\n\nconst data = $('Parse Places Results').item.json;\nconst businesses = data.businesses || [];\n\nif (businesses.length === 0) {\n  return { json: { skip: true } };\n}\n\nconst now = new Date().toISOString();\n\nconst leads = businesses.map(biz => ({\n  json: {\n    full_name: '',\n    email: '',\n    phone: '',\n    company: biz.name,\n    job_title: 'Owner',\n    industry: biz.industry,\n    city: biz.city,\n    source: 'google_maps',\n    lead_status: 'New Lead',\n    product_type: biz.product_type,\n    do_not_contact: false,\n    unsubscribed: false,\n    total_emails_sent: 0,\n    lead_score: 0,\n    assigned_to: '',\n    notes: 'Google Maps place_id: ' + biz.place_id + ' | Address: ' + biz.formatted_address,\n    updated_at: now\n  }\n}));\n\nreturn leads;"
+      },
+      "id": "clx11-0000-0000-0000-000000000008",
+      "name": "Process Each Business",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?company=eq.' + encodeURIComponent($json.company) + '&select=id,company&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx11-0000-0000-0000-000000000009",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx11-cond-not-duplicate",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx11-0000-0000-0000-000000000010",
+      "name": "IF Not Duplicate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ full_name: $('Process Each Business').item.json.full_name, email: $('Process Each Business').item.json.email, phone: $('Process Each Business').item.json.phone, company: $('Process Each Business').item.json.company, job_title: $('Process Each Business').item.json.job_title, industry: $('Process Each Business').item.json.industry, city: $('Process Each Business').item.json.city, source: $('Process Each Business').item.json.source, lead_status: $('Process Each Business').item.json.lead_status, product_type: $('Process Each Business').item.json.product_type, do_not_contact: $('Process Each Business').item.json.do_not_contact, unsubscribed: $('Process Each Business').item.json.unsubscribed, total_emails_sent: $('Process Each Business').item.json.total_emails_sent, lead_score: $('Process Each Business').item.json.lead_score, assigned_to: $('Process Each Business').item.json.assigned_to, notes: $('Process Each Business').item.json.notes, updated_at: $('Process Each Business').item.json.updated_at }) }}",
+        "options": {}
+      },
+      "id": "clx11-0000-0000-0000-000000000011",
+      "name": "Insert New Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx11-0000-0000-0000-000000000012",
+      "name": "No Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Scan List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scan List": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Search Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Google Maps": {
+      "main": [
+        [
+          {
+            "node": "Parse Places Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Places Results": {
+      "main": [
+        [
+          {
+            "node": "IF Results Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Results Found": {
+      "main": [
+        [
+          {
+            "node": "Process Each Business",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Business": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "IF Not Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Not Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Insert New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Insert New Lead": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Results": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-city-scan-v0110-prod",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-city-scan-discovery",
+  "tags": []
+}
