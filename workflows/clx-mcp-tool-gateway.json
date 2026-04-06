@@ -10,7 +10,7 @@
       "id": "clx12-0000-0000-0000-000000000001",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "typeVersion": 1.1,
       "position": [
         200,
         500
@@ -305,7 +305,7 @@
       "id": "clx12-0000-0000-0000-000000000004",
       "name": "Route Tool Call",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.2,
+      "typeVersion": 3,
       "position": [
         920,
         500
@@ -331,7 +331,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Handle Research Lead').item.json.update_body) }}",
@@ -345,7 +360,12 @@
         1440,
         -100
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -367,7 +387,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Handle Score Lead').item.json.update_body) }}",
@@ -381,7 +416,12 @@
         1440,
         20
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -403,7 +443,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Handle Generate Outreach').item.json.update_body) }}",
@@ -417,7 +472,12 @@
         1440,
         140
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -439,7 +499,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Handle Send Outreach').item.json.update_body) }}",
@@ -453,7 +528,12 @@
         1440,
         260
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -475,7 +555,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Handle Process Booking').item.json.update_body) }}",
@@ -489,7 +584,12 @@
         1440,
         380
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -498,7 +598,14 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0000-0000-0000-000000000020",
@@ -509,7 +616,12 @@
         1200,
         500
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -544,7 +656,14 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0000-0000-0000-000000000023",
@@ -555,7 +674,12 @@
         1200,
         740
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -564,7 +688,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ lead_status: $('Validate Request').item.json.tool_input.lead_status, notes: $('Validate Request').item.json.tool_input.notes || '', updated_at: new Date().toISOString() }) }}",
@@ -578,7 +717,12 @@
         1200,
         860
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -587,7 +731,14 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0000-0000-0000-000000000025",
@@ -598,7 +749,12 @@
         1200,
         980
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -620,7 +776,18 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ tool_name: $('Format Response').item.json.tool, tool_input: $('Validate Request').item.json.tool_input, tool_output: $('Format Response').item.json.data, success: $('Format Response').item.json.success, execution_time_ms: $('Format Response').item.json.execution_time_ms }) }}",
@@ -634,7 +801,12 @@
         1940,
         500
       ],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -668,7 +840,9 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($('Format Error Response').item.json) }}",
-        "options": { "responseCode": 400 }
+        "options": {
+          "responseCode": 400
+        }
       },
       "id": "clx12-0000-0000-0000-000000000034",
       "name": "Respond Error",
@@ -688,7 +862,7 @@
       "id": "clx12-0000-0000-0000-000000000040",
       "name": "Tool Registry Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "typeVersion": 1.1,
       "position": [
         200,
         1200
@@ -726,94 +900,356 @@
   ],
   "connections": {
     "Webhook Trigger": {
-      "main": [[ { "node": "Validate Request", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Validate Request": {
-      "main": [[ { "node": "IF Valid Request", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "IF Valid Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Valid Request": {
       "main": [
-        [ { "node": "Route Tool Call", "type": "main", "index": 0 } ],
-        [ { "node": "Format Error Response", "type": "main", "index": 0 } ]
+        [
+          {
+            "node": "Route Tool Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Route Tool Call": {
       "main": [
-        [ { "node": "Handle Research Lead", "type": "main", "index": 0 } ],
-        [ { "node": "Handle Score Lead", "type": "main", "index": 0 } ],
-        [ { "node": "Handle Generate Outreach", "type": "main", "index": 0 } ],
-        [ { "node": "Handle Send Outreach", "type": "main", "index": 0 } ],
-        [ { "node": "Handle Process Booking", "type": "main", "index": 0 } ],
-        [ { "node": "Execute Pipeline Stats", "type": "main", "index": 0 } ],
-        [ { "node": "Handle Scan City", "type": "main", "index": 0 } ],
-        [ { "node": "Execute Get Lead", "type": "main", "index": 0 } ],
-        [ { "node": "Execute Update Lead Status", "type": "main", "index": 0 } ],
-        [ { "node": "Execute List Leads", "type": "main", "index": 0 } ],
-        [ { "node": "Format Error Response", "type": "main", "index": 0 } ]
+        [
+          {
+            "node": "Handle Research Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Generate Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Send Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Process Booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Pipeline Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Scan City",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Get Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute List Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Handle Research Lead": {
-      "main": [[ { "node": "Execute Research Lead", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Execute Research Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Research Lead": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Score Lead": {
-      "main": [[ { "node": "Execute Score Lead", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Execute Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Score Lead": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Generate Outreach": {
-      "main": [[ { "node": "Execute Generate Outreach", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Execute Generate Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Generate Outreach": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Send Outreach": {
-      "main": [[ { "node": "Execute Send Outreach", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Execute Send Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Send Outreach": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Process Booking": {
-      "main": [[ { "node": "Execute Process Booking", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Execute Process Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Process Booking": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Pipeline Stats": {
-      "main": [[ { "node": "Calculate Pipeline Stats", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Calculate Pipeline Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Calculate Pipeline Stats": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Scan City": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Get Lead": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute Update Lead Status": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Execute List Leads": {
-      "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Response": {
-      "main": [[ { "node": "Log Tool Call", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Log Tool Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Log Tool Call": {
-      "main": [[ { "node": "Respond to Webhook", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Format Error Response": {
-      "main": [[ { "node": "Respond Error", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Tool Registry Webhook": {
-      "main": [[ { "node": "Build Tool List", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Build Tool List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Tool List": {
-      "main": [[ { "node": "Return Tool List", "type": "main", "index": 0 } ]]
+      "main": [
+        [
+          {
+            "node": "Return Tool List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
