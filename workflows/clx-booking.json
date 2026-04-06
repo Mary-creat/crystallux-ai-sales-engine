@@ -1,0 +1,535 @@
+{
+  "name": "CLX - Booking",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "clx09-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&select=id,full_name,email,company,job_title,industry,reply_text,research_summary,likely_business_need,lead_score&limit=10",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000002",
+      "name": "Get Replied Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx09-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000003",
+      "name": "IF Replied Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "clx09-0000-0000-0000-000000000005",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        300
+      ],
+      "webhookId": "clx09-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 512, messages: [{ role: 'user', content: 'You are a sales assistant for the Crystallux AI Sales Engine.\\n\\nAnalyze this reply from a prospect and determine if they are interested in learning more or booking a meeting.\\n\\nProspect: ' + $('Split In Batches').item.json.full_name + '\\nCompany: ' + $('Split In Batches').item.json.company + '\\nTheir reply: ' + ($('Split In Batches').item.json.reply_text || '').replace(/[\\n\\r]/g, ' ').replace(/\"/g, '\\\\\"') + '\\n\\nInterest signals include: yes, interested, sure, sounds good, tell me more, let\\'s talk, book a call, schedule, when are you free, how does this work, what\\'s the cost, can you show me, I\\'d like to learn more, send me details, let\\'s connect.\\n\\nNOT interested signals: no, not interested, remove me, unsubscribe, not now, maybe later, too busy, wrong person, stop emailing, please don\\'t contact me.\\n\\nReturn ONLY raw JSON no explanation no markdown:\\n{\\n  \"interest_detected\": true or false,\\n  \"confidence\": \"High\" or \"Medium\" or \"Low\",\\n  \"signal_type\": \"positive\" or \"negative\" or \"neutral\",\\n  \"recommended_action\": \"book_meeting\" or \"nurture\" or \"remove\"\\n}' }] }) }}",
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000006",
+      "name": "Claude Detect Interest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Booking — Phase 9: Parse Interest Response\n// Parse Claude AI interest detection response with error handling\n\ntry {\n  const lead = $('Split In Batches').item.json;\n  const response = $('Claude Detect Interest').item.json;\n\n  // Extract text content from Claude response\n  let rawText = '';\n  if (response.content && Array.isArray(response.content)) {\n    rawText = response.content.map(c => c.text || '').join('');\n  } else if (typeof response.content === 'string') {\n    rawText = response.content;\n  }\n\n  // Clean markdown fences if present\n  rawText = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/gi, '').trim();\n\n  const parsed = JSON.parse(rawText);\n\n  return {\n    json: {\n      ...lead,\n      interest_detected: String(parsed.interest_detected === true),\n      confidence: parsed.confidence || 'Low',\n      signal_type: parsed.signal_type || 'neutral',\n      recommended_action: parsed.recommended_action || 'nurture'\n    }\n  };\n} catch (error) {\n  // On parse failure, default to not interested to avoid false positives\n  const lead = $('Split In Batches').item.json;\n  return {\n    json: {\n      ...lead,\n      interest_detected: 'false',\n      confidence: 'Low',\n      signal_type: 'neutral',\n      recommended_action: 'nurture',\n      parse_error: error.message\n    }\n  };\n}"
+      },
+      "id": "clx09-0000-0000-0000-000000000007",
+      "name": "Parse Interest Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx09-cond-string-equals-true",
+              "leftValue": "={{ $json.interest_detected }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000008",
+      "name": "IF Interested",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.calendly.com/users/me",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000009",
+      "name": "Get Calendly Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "4",
+          "name": "Calendly"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Booking — Phase 9: Build Booking Email\n// Constructs warm personalized booking email with Calendly link\n\nconst lead = $('Split In Batches').item.json;\nconst calendlyResponse = $('Get Calendly Link').item.json;\n\n// Extract scheduling URL from Calendly response\nconst calendlyUrl = calendlyResponse.resource\n  ? calendlyResponse.resource.scheduling_url\n  : (calendlyResponse.scheduling_url || '');\n\nconst now = new Date().toISOString();\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\n\n// Build personalized subject\nconst subject = \"Let's find a time to connect\";\n\n// Build warm email body referencing their reply\nconst body = `Hi ${firstName},\\n\\nThank you for your response — it's great to hear back from you.\\n\\nI'd love to walk you through how we can help ${lead.company || 'your team'} achieve measurable results with AI-powered outreach that works around the clock.\\n\\nHere's a quick link to grab a time that works for you:\\n${calendlyUrl}\\n\\nIt's a short 15-minute call — no pressure, just a conversation to see if there's a fit.\\n\\nLooking forward to connecting,\\nThe Crystallux Team`;\n\nreturn {\n  json: {\n    id: lead.id,\n    full_name: lead.full_name,\n    email: lead.email,\n    company: lead.company,\n    subject: subject,\n    body: body,\n    calendly_link: calendlyUrl,\n    interest_detected: true,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    updated_at: now\n  }\n};"
+      },
+      "id": "clx09-0000-0000-0000-000000000010",
+      "name": "Build Booking Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Build Booking Email').item.json.email }}",
+        "subject": "={{ $('Build Booking Email').item.json.subject }}",
+        "message": "={{ $('Build Booking Email').item.json.body }}",
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000011",
+      "name": "Send Booking Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2600,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $('Build Booking Email').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ interest_detected: $('Build Booking Email').item.json.interest_detected, booking_email_sent: $('Build Booking Email').item.json.booking_email_sent, booking_email_sent_at: $('Build Booking Email').item.json.booking_email_sent_at, calendly_link: $('Build Booking Email').item.json.calendly_link, lead_status: $('Build Booking Email').item.json.lead_status, updated_at: $('Build Booking Email').item.json.updated_at }) }}",
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000012",
+      "name": "Update Lead Booked",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2840,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $('Parse Interest Response').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ interest_detected: false, lead_status: 'Not Interested', updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000013",
+      "name": "Update Not Interested",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        480
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx09-0000-0000-0000-000000000014",
+      "name": "No Replied Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Replied Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Replied Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Replied Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Replied Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Replied Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Claude Detect Interest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Detect Interest": {
+      "main": [
+        [
+          {
+            "node": "Parse Interest Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Interest Response": {
+      "main": [
+        [
+          {
+            "node": "IF Interested",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Interested": {
+      "main": [
+        [
+          {
+            "node": "Get Calendly Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Not Interested",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Calendly Link": {
+      "main": [
+        [
+          {
+            "node": "Build Booking Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Booking Email": {
+      "main": [
+        [
+          {
+            "node": "Send Booking Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Booking Email": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Booked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Booked": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Not Interested": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-booking-v090-prod",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-booking",
+  "tags": []
+}
