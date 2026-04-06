@@ -1,4 +1,7 @@
 # crystallux-ai-sales-engine
+
+**Crystallux v1.0 — COMPLETE**
+
 Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales system that operates as a digital sales employee. Built with n8n, Supabase, Apollo, Claude AI, and MCP. Self-hosted on Docker/Hostinger VPS.
 
 ## Build Phases
@@ -16,6 +19,7 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase 9 | CLX Booking (`clx-booking.json`) | Complete (v0.9.0) |
 | Phase 10 | CLX Pipeline Update (`clx-pipeline-update.json`) | Complete (v0.10.0) |
 | Phase 11 | CLX City Scan Discovery (`clx-city-scan-discovery.json`) | Complete — Production Tested (v0.11.2) |
+| Phase 12 | CLX MCP Tool Gateway (`clx-mcp-tool-gateway.json`) | Complete (v1.0.0) |
 
 ## Credentials Required
 
@@ -28,7 +32,7 @@ The following credentials must be configured in n8n before activating workflows:
 | `Google Search` | Header Auth | `X-Goog-Api-Key: <google_api_key>` — see [setup guide](docs/setup/google-search-setup.md) |
 | `Gmail` | Gmail OAuth2 | OAuth2 — see [setup guide](docs/setup/gmail-oauth-setup.md) |
 | `Calendly` | Header Auth | `Authorization: Bearer <token>` — see [setup guide](docs/setup/calendly-setup.md) |
-| `Google Maps` | Header Auth | `key: <google_maps_api_key>` — see [setup guide](docs/setup/google-maps-setup.md) |
+| `Google Maps` | Header Auth | `X-Goog-Api-Key: <google_maps_api_key>` — see [setup guide](docs/setup/google-maps-setup.md) |
 
 > **Post-import steps for `clx-lead-research.json`:**
 > 1. Re-assign credentials in n8n: open **Get New Leads**, **Update Lead in Supabase** → select `Supabase Crystallux` from the credential vault. Open **Claude Research Lead** → select `Claude Anthropic`.
@@ -44,6 +48,8 @@ The following credentials must be configured in n8n before activating workflows:
 | [Gmail OAuth2 Setup](docs/setup/gmail-oauth-setup.md) | Step-by-step Gmail OAuth2 credential setup for Phase 7 email sending |
 | [Calendly Setup](docs/setup/calendly-setup.md) | Calendly API token setup for Phase 9 booking automation |
 | [Google Maps Setup](docs/setup/google-maps-setup.md) | Google Maps Places API setup for Phase 11 city scan discovery |
+| [MCP Tool Registry](docs/architecture/mcp-tool-registry.md) | Complete reference for all 10 MCP tools with input/output schemas |
+| [MCP Gateway Setup](docs/setup/mcp-gateway-setup.md) | How to connect Claude AI agents to the Crystallux MCP gateway |
 
 ## Business Documentation
 
@@ -53,4 +59,15 @@ The following credentials must be configured in n8n before activating workflows:
 | [Service Packages](docs/business/service-packages.md) | Client-facing one-page overview of all four packages with comparison table and value propositions |
 | [Competitive Positioning](docs/business/competitive-positioning.md) | Market differentiation analysis — what competitors offer, what Crystallux offers, and why the combination is defensible |
 | [Client Onboarding](docs/business/client-onboarding.md) | Complete onboarding framework — discovery call questions, configuration checklist, setup steps, training outline, and 30-day success metrics |
+## MCP Gateway
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `POST /webhook/crystallux-mcp` | POST | Execute any tool call |
+| `GET /webhook/crystallux-tools` | GET | Discover all available tools |
+
+10 tools available: `research_lead`, `score_lead`, `generate_outreach`, `send_outreach`, `process_booking`, `get_pipeline_stats`, `scan_city`, `get_lead`, `update_lead_status`, `list_leads`
+
+See [MCP Tool Registry](docs/architecture/mcp-tool-registry.md) for complete documentation.
+
 # Auto-deploy enabled Sun Apr  5 15:02:52 EDT 2026
