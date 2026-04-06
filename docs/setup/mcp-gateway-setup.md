@@ -129,9 +129,51 @@ LIMIT 20;
 
 ---
 
+## Security — API Key Authentication
+
+The gateway requires an `X-MCP-API-Key` header on every request. Without it, the request is rejected with a 400 error.
+
+**Setting up the API key:**
+1. Generate a secret: `openssl rand -hex 32`
+2. Add to your `.env` as `MCP_WEBHOOK_SECRET`
+3. Include in every request:
+
+```bash
+curl -X POST https://automation.crystallux.org/webhook/crystallux-mcp \
+  -H "Content-Type: application/json" \
+  -H "X-MCP-API-Key: your-secret-here" \
+  -d '{"tool_name": "get_pipeline_stats", "tool_input": {}}'
+```
+
+---
+
+## Security — Rate Limiting (Nginx)
+
+Add this to your Nginx config to prevent abuse:
+
+```nginx
+# Rate limit zone: 100 requests/min per IP
+limit_req_zone $binary_remote_addr zone=mcp:10m rate=100r/m;
+
+server {
+    location /webhook/crystallux-mcp {
+        limit_req zone=mcp burst=10 nodelay;
+        proxy_pass http://localhost:5678;
+    }
+
+    location /webhook/crystallux-tools {
+        limit_req zone=mcp burst=5 nodelay;
+        proxy_pass http://localhost:5678;
+    }
+}
+```
+
+---
+
 ## Security Notes
 
-- The webhook URLs are public by default — consider adding API key validation
+- API key authentication is enforced on every MCP tool call
 - All tool calls are logged with input and output for audit
 - Supabase credentials are stored in n8n vault, never exposed
 - The gateway validates all required inputs before processing
+- Enable Supabase RLS — see [RLS Setup Guide](supabase-rls-setup.md)

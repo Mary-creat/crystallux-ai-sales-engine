@@ -1,138 +1,149 @@
 # Crystallux AI Sales Engine — Scaling Strategy
-## Architecture Decisions and Growth Path
+## Architecture Decisions and Growth Path (v1.0)
 
 ---
 
-## Phase Architecture Overview
+## Phase Architecture Overview — All 12 Phases Complete
 
 | Phase | Workflow | Trigger | Volume Limit | Status |
 |-------|----------|---------|-------------|--------|
 | Phase 1 | CLX Lead Import | Manual / Webhook | 500 leads/run | Complete |
 | Phase 2 | CLX Lead Research | Every 30 min | 50 leads/run | Complete |
 | Phase 3 | CLX Lead Scoring | Every 30 min | 50 leads/run | Complete |
-| Phase 4 | CLX Business Signal Detection | Every 60 min | 20 leads/run | In Progress |
-| Phase 5 | CLX Email Personalisation | Every 30 min | 25 leads/run | Planned |
-| Phase 6 | CLX Outreach Sequencer | Every 60 min | 10 leads/run | Planned |
+| Phase 4 | CLX Business Signal Detection | Every 60 min | 20 leads/run | Complete |
+| Phase 5 | CLX Campaign Router | Every 60 min | 25 leads/run | Complete |
+| Phase 6 | CLX Outreach Generation | On-demand | Variable | Complete |
+| Phase 7 | CLX Outreach Sender | Every 60 min | 5 leads/run | Complete — Production Tested |
+| Phase 8 | CLX Follow Up | Every 60 min | 5 leads/run | Complete — Production Tested |
+| Phase 9 | CLX Booking | Every 30 min | 10 leads/run | Complete |
+| Phase 10 | CLX Pipeline Update | Every 6 hours | All leads | Complete |
+| Phase 11 | CLX City Scan Discovery | Nightly (midnight) | 35 queries/run | Complete — Production Tested |
+| Phase 12 | CLX MCP Tool Gateway | Webhook (on-demand) | Unlimited | Complete |
 
 ---
 
-## Phase 4 — Business Signal Detection
+## Lead Lifecycle Flow
 
-### Purpose
-Elevate the Crystallux engine from static research to live intelligence. Instead of only knowing what a company does, Phase 4 detects what a company is *currently doing* — hiring, expanding, funding, pivoting, or struggling — and uses that to determine the optimal outreach campaign type and timing.
-
-### Architecture
 ```
-Supabase (Scored leads)
-  ↓
-Google Custom Search API (live internet signal)
-  ↓
-Claude AI (signal analysis and classification)
-  ↓
-Supabase (Signal Detected leads with campaign recommendation)
+Google Maps / Apollo → New Lead → Researched → Scored →
+Signal Detected → Campaign Assigned → Outreach Ready →
+Contacted → Replied → Booking Sent → Booked
 ```
 
-### Key Design Decisions
+---
 
-**Why Google Custom Search over a scraping solution?**
-Google's index is authoritative and current. Custom Search API results are structured, reliable, and within Google's terms of service. Scraping alternatives introduce fragility, IP blocking risk, and maintenance overhead. At $5/1,000 queries the cost is negligible at SMB scale.
+## Phase-by-Phase Architecture
 
-**Why filter to lead_score >= 50?**
-Signal detection costs money (Google API) and Claude API calls. Running it on every lead regardless of score would waste budget on low-quality leads. The 50-point threshold ensures only leads that passed research and scored above median receive the premium signal treatment.
+### Phase 1 — Lead Import (Apollo.io)
+Imports leads from Apollo.io People Search API. Deduplicates by email against existing leads.
 
-**Why a 3-second Wait node?**
-Google Custom Search API has rate limits. At batch size 1 with a 3-second wait, the maximum throughput is 20 requests/minute — well within Google's 100 queries per 100 seconds limit. This prevents rate limit errors without sacrificing meaningful throughput at current scale.
+### Phase 2 — Lead Research (Claude AI)
+Claude AI researches each company and produces research_summary, likely_business_need, and research_angle. 30-min schedule, batch 1, 2s wait.
 
-**Why 60-minute schedule instead of 30?**
-Phase 4 is more expensive per operation than Phases 2 and 3 (requires an external API call to Google). Running hourly keeps costs predictable and gives the Google API rate limits room to breathe.
+### Phase 3 — Lead Scoring (Claude AI)
+Claude AI scores leads 0-100 based on industry relevance, seniority, company size, and urgency. 30-min schedule, batch 1.
 
-### Output Fields
-| Field | Values | Purpose |
-|-------|--------|---------|
-| `detected_signal` | Free text | What the company is currently doing |
-| `growth_stage` | Startup / Growing / Established / Declining / Pivoting | Lifecycle classification |
-| `recommended_campaign_type` | automation_campaign / lead_generation_campaign / reputation_campaign / expansion_campaign / retention_campaign / general_outreach | Drives Phase 5 email template selection |
-| `signal_confidence` | High / Medium / Low | How much evidence supports the signal |
-| `outreach_timing` | Immediate / This Week / This Month | When to contact based on signal urgency |
+### Phase 4 — Business Signal Detection (Google Custom Search + Claude AI)
+Searches Google for live business signals (hiring, expanding, funding) and uses Claude to classify growth_stage and recommend_campaign_type. 60-min schedule, 20 leads/run, 3s wait. Only processes leads with score >= 50.
 
-### MCP Tool Interface
-```
-Tool name: detect_business_signal
-Input:  lead_id, company, industry, city, research_summary
-Output: detected_signal, growth_stage, recommended_campaign_type,
-        signal_confidence, outreach_timing
-```
+### Phase 5 — Campaign Router
+Routes scored leads to appropriate campaign types based on signal analysis. Sets recommended_campaign_type. 60-min schedule.
+
+### Phase 6 — Outreach Generation (Claude AI)
+Generates personalized email_subject, email_body, linkedin_message, and whatsapp_message using Claude AI. On-demand processing.
+
+### Phase 7 — Outreach Sender (Gmail)
+Sends outreach emails via Gmail OAuth. Includes safety guards: unsubscribed check, do_not_contact check, 5-email send limit. 60-min schedule, 60s wait between sends.
+
+### Phase 8 — Follow Up (Gmail)
+3-touch follow-up sequence at 3, 5, and 10 day intervals. Same safety guards as Phase 7. 60-min schedule.
+
+### Phase 9 — Booking (Claude AI + Calendly)
+Detects interest in prospect replies using Claude AI. Sends Calendly booking link for positive signals. 30-min schedule.
+
+### Phase 10 — Pipeline Update
+Runs every 6 hours. Counts leads at each status, calculates conversion rates, saves snapshots to pipeline_stats table, and flags stale leads.
+
+### Phase 11 — City Scan Discovery (Google Maps Places API)
+Nightly scan of 5 Canadian cities x 7 industries (35 queries) via Google Maps Places API (New). Discovers businesses, deduplicates by company name, inserts new leads.
+
+### Phase 12 — MCP Tool Gateway
+Webhook-based gateway exposing 10 MCP tools. Any AI agent can discover tools (GET /webhook/crystallux-tools) and execute them (POST /webhook/crystallux-mcp). Includes API key authentication, request validation, and tool call logging.
+
+---
+
+## Cost Scaling
+
+| Phase | Cost Driver | Per Lead Cost (est.) |
+|-------|------------|---------------------|
+| Phase 1 | Apollo API | ~$0.01 |
+| Phase 2 | Claude API (research) | ~$0.002 |
+| Phase 3 | Claude API (scoring) | ~$0.001 |
+| Phase 4 | Google API + Claude API | ~$0.007 |
+| Phase 5 | None (routing logic) | ~$0.000 |
+| Phase 6 | Claude API (generation) | ~$0.003 |
+| Phase 7 | Gmail (free) | ~$0.000 |
+| Phase 8 | Gmail (free) | ~$0.000 |
+| Phase 9 | Claude API + Calendly | ~$0.003 |
+| Phase 10 | None (Supabase queries) | ~$0.000 |
+| Phase 11 | Google Maps Places API | ~$0.032/search |
+| Phase 12 | None (routing) | ~$0.000 |
+
+**Total per fully-processed lead:** ~$0.03
+**City scan per night (35 queries):** ~$1.12
+
+At 1,000 leads/month: ~$30 in API costs + ~$34 city scan = ~$64/month
+At 10,000 leads/month: ~$300 in API costs + ~$34 city scan = ~$334/month
 
 ---
 
 ## General Scaling Principles
 
 ### Volume Scaling
-Each workflow is designed to process a limited batch per run and loop back for more. This prevents:
-- Claude API rate limit errors
-- Google API rate limit errors
-- n8n execution timeouts
-- Supabase connection pool exhaustion
-
-To increase throughput, increase the `limit` parameter in the Supabase GET query and reduce the schedule interval — do not increase batch size beyond 1.
-
-### Cost Scaling
-| Phase | Cost Driver | Per Lead Cost (est.) |
-|-------|------------|---------------------|
-| Phase 1 | Apollo API (lead import) | ~$0.01 |
-| Phase 2 | Claude API (research) | ~$0.002 |
-| Phase 3 | Claude API (scoring) | ~$0.001 |
-| Phase 4 | Google API + Claude API | ~$0.007 |
-| Phase 5 | Claude API (email) | ~$0.002 |
-| Phase 6 | Email/WhatsApp sending | ~$0.005 |
-
-**Total estimated cost per fully-processed lead:** ~$0.03
-
-At 1,000 leads/month: ~$30 in API costs.
-At 10,000 leads/month: ~$300 in API costs.
+Each workflow processes batch size 1 with wait nodes between API calls. To increase throughput:
+- Increase the `limit` parameter in Supabase GET queries
+- Reduce schedule intervals
+- Add n8n worker processes for parallel execution
 
 ### Multi-Tenant Scaling (White Label)
-For the White Label package, each client gets:
-- Dedicated Supabase project
+Each client gets:
+- Dedicated Supabase project (or schema-level isolation with RLS)
 - Separate n8n workflow instances with client-specific credentials
-- Independent scheduling to prevent API rate limit collisions between clients
+- Independent scheduling offset by 3 minutes per client
 - Separate Claude prompts configured for their industry
 
-At 10 white-label clients running simultaneously, offset each client's schedule by 3 minutes to distribute API load.
-
-### Database Scaling
-The current `leads` table is unindexed on `lead_status`. As volume grows, add:
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(lead_status);
-CREATE INDEX IF NOT EXISTS idx_leads_score  ON leads(lead_score DESC);
-```
-
-These two indexes will keep workflow query times under 10ms even at 100,000+ rows.
+### Database Performance
+Performance indexes covering all workflow queries are defined in `add_performance_indexes.sql`:
+- `idx_leads_lead_status` — all phase queries
+- `idx_leads_product_type` — campaign routing
+- `idx_leads_updated_at` — stale detection
+- `idx_leads_source` — analytics
+- Composite indexes for common query patterns
 
 ### Error Recovery
-Each workflow is designed to be re-runnable. If a workflow fails mid-batch:
-- Leads already processed have an updated `lead_status` and will not be reprocessed
-- Leads not yet processed remain at their previous status and will be picked up on the next run
-- No deduplication logic is needed because status-based filtering is the deduplication mechanism
+Every workflow is re-runnable. Status-based filtering prevents double-processing. Failed leads remain at their current status and get picked up on the next scheduled run.
 
 ### n8n Infrastructure Scaling
-Current setup: single Docker container on Hostinger VPS.
+Current: single Docker container + worker on Hostinger VPS.
 
-When to scale:
-- >500 workflow executions/day → add n8n worker process
-- >5,000 leads/month → upgrade VPS to 4 vCPU / 8GB RAM
-- >10 concurrent clients → consider n8n Cloud or dedicated worker queue
+| Threshold | Action |
+|-----------|--------|
+| >500 executions/day | Scale n8n-worker replicas to 2-3 |
+| >5,000 leads/month | Upgrade VPS to 4 vCPU / 8GB RAM |
+| >10 concurrent clients | Dedicated worker queue per client |
+| >50 concurrent clients | n8n Cloud or Kubernetes deployment |
 
 ---
 
-## Roadmap Beyond Phase 6
+## Roadmap Beyond v1.0
 
-| Future Phase | Capability |
-|-------------|-----------|
-| Phase 7 | WhatsApp outreach integration |
-| Phase 8 | LinkedIn connection and message automation |
-| Phase 9 | AI video personalisation (HeyGen or Synthesia API) |
-| Phase 10 | Full MCP agent layer — all phases callable as tools |
-| Phase 11 | Client-facing dashboard (Webflow + Supabase auth) |
-| Phase 12 | Referral engine automation |
+| Future Phase | Capability | Integration |
+|-------------|-----------|-------------|
+| Phase 13 | WhatsApp outreach | WhatsApp Business API |
+| Phase 14 | LinkedIn automation | LinkedIn API |
+| Phase 15 | AI video messages | HeyGen API |
+| Phase 16 | AI voice calls | Vapi.ai |
+| Phase 17 | Client dashboard | Webflow + Supabase Auth |
+| Phase 18 | Proposal and signing | DocuSign API |
+| Phase 19 | Payment processing | Stripe API |
+| Phase 20 | Referral engine | Internal automation |

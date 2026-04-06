@@ -36,6 +36,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       # Validate every JSON file in the workflows/ folder
       # Python's json module is the most reliable JSON validator
       # If any file is malformed, the pipeline stops here
@@ -82,6 +87,12 @@ jobs:
             "workflows/clx-business-signal-detection.json"
             "workflows/clx-campaign-router.json"
             "workflows/clx-outreach-generation.json"
+            "workflows/clx-outreach-sender.json"
+            "workflows/clx-follow-up.json"
+            "workflows/clx-booking.json"
+            "workflows/clx-pipeline-update.json"
+            "workflows/clx-city-scan-discovery.json"
+            "workflows/clx-mcp-tool-gateway.json"
           )
 
           failed=0

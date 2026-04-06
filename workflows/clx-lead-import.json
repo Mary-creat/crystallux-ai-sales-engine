@@ -24,13 +24,11 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.apollo.io/v1/mixed_people/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "hsg1FfXM2u6GmIykn26hBw"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -49,7 +47,13 @@
         208
       ],
       "id": "95763f4c-817d-4888-be36-bec65b982b2b",
-      "name": "Apollo - Search Leads"
+      "name": "Apollo - Search Leads",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "6",
+          "name": "Apollo API"
+        }
+      }
     },
     {
       "parameters": {

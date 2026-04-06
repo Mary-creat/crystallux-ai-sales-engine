@@ -27,6 +27,7 @@ The following credentials must be configured in n8n before activating workflows:
 
 | n8n Credential Name | Type | Headers Set |
 |---------------------|------|-------------|
+| `Apollo API` | Header Auth | `X-Api-Key: <apollo_api_key>` |
 | `Supabase Crystallux` | Header Auth | `apikey: <service_role_key>` |
 | `Claude Anthropic` | Header Auth | `x-api-key: <anthropic_api_key>` |
 | `Google Search` | Header Auth | `X-Goog-Api-Key: <google_api_key>` — see [setup guide](docs/setup/google-search-setup.md) |
@@ -50,6 +51,9 @@ The following credentials must be configured in n8n before activating workflows:
 | [Google Maps Setup](docs/setup/google-maps-setup.md) | Google Maps Places API setup for Phase 11 city scan discovery |
 | [MCP Tool Registry](docs/architecture/mcp-tool-registry.md) | Complete reference for all 10 MCP tools with input/output schemas |
 | [MCP Gateway Setup](docs/setup/mcp-gateway-setup.md) | How to connect Claude AI agents to the Crystallux MCP gateway |
+| [Redis Security](docs/setup/redis-security.md) | Redis password authentication setup with zero-downtime guide |
+| [Supabase RLS](docs/setup/supabase-rls-setup.md) | Row Level Security policies for production data protection |
+| [Infrastructure Audit](docs/architecture/infrastructure-audit.md) | Full system audit report with health scores and fix tracking |
 
 ## Business Documentation
 
