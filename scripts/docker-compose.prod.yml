@@ -1,0 +1,57 @@
+# Crystallux Production Docker Compose
+# Replaces the single 'docker run' command with a managed stack
+# Reuses the existing n8n_data volume — zero data loss
+#
+# Usage:
+#   cd ~/crystallux/n8n
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_HOST=automation.crystallux.org
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_TRUST_PROXY=true
+      - N8N_SECURE_COOKIE=true
+      - WEBHOOK_URL=https://automation.crystallux.org/
+      - GENERIC_TIMEZONE=America/Toronto
+      - SUPABASE_PROJECT_ID=zqwatouqmqgkmaslydbr
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - EXECUTIONS_MODE=regular
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: crystallux-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  n8n_data:
+    external: true
+  redis_data:
