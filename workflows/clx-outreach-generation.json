@@ -150,7 +150,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-6\", max_tokens: 2000, messages: [{ role: \"user\", content: $json.prompt }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-haiku-4-5-20251001\", max_tokens: 2000, messages: [{ role: \"user\", content: $json.prompt }] }) }}",
         "options": {}
       },
       "id": "clx06-0000-0000-0000-000000000007",
