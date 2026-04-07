@@ -57,7 +57,7 @@
       "id": "clx12-0000-0000-0000-000000000003",
       "name": "IF Valid Request",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
+      "typeVersion": 2,
       "position": [
         680,
         500
@@ -65,247 +65,59 @@
     },
     {
       "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.tool_name }}",
         "rules": {
-          "values": [
+          "rules": [
             {
-              "outputIndex": 0,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-research",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "research_lead",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "research_lead",
+              "output": 0
             },
             {
-              "outputIndex": 1,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-score",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "score_lead",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "score_lead",
+              "output": 1
             },
             {
-              "outputIndex": 2,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-gen-outreach",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "generate_outreach",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "generate_outreach",
+              "output": 2
             },
             {
-              "outputIndex": 3,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-send-outreach",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "send_outreach",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "send_outreach",
+              "output": 3
             },
             {
-              "outputIndex": 4,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-booking",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "process_booking",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "process_booking",
+              "output": 4
             },
             {
-              "outputIndex": 5,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-pipeline",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "get_pipeline_stats",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "get_pipeline_stats",
+              "output": 5
             },
             {
-              "outputIndex": 6,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-scan",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "scan_city",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "scan_city",
+              "output": 6
             },
             {
-              "outputIndex": 7,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-get-lead",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "get_lead",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "get_lead",
+              "output": 7
             },
             {
-              "outputIndex": 8,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-update-status",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "update_lead_status",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "update_lead_status",
+              "output": 8
             },
             {
-              "outputIndex": 9,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "clx12-sw-list-leads",
-                    "leftValue": "={{ $json.tool_name }}",
-                    "rightValue": "list_leads",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
+              "value2": "list_leads",
+              "output": 9
             }
-          ],
-          "fallbackOutput": 10
+          ]
         },
+        "fallbackOutput": 10,
         "options": {}
       },
       "id": "clx12-0000-0000-0000-000000000004",
       "name": "Route Tool Call",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
+      "typeVersion": 2,
       "position": [
         920,
         500
@@ -817,7 +629,7 @@
       "id": "clx12-0000-0000-0000-000000000032",
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "typeVersion": 1,
       "position": [
         2180,
         500
@@ -847,7 +659,7 @@
       "id": "clx12-0000-0000-0000-000000000034",
       "name": "Respond Error",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "typeVersion": 1,
       "position": [
         1160,
         700
@@ -891,7 +703,7 @@
       "id": "clx12-0000-0000-0000-000000000042",
       "name": "Return Tool List",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "typeVersion": 1,
       "position": [
         680,
         1200
