@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&unsubscribed=eq.false&do_not_contact=eq.false&select=id,full_name,email,company,job_title,industry,reply_text,research_summary,likely_business_need,lead_score,total_emails_sent,unsubscribed,do_not_contact&limit=10",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&unsubscribed=eq.false&do_not_contact=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,industry,reply_text,research_summary,likely_business_need,lead_score,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=10",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -281,7 +281,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Booking — Phase 9: Build Booking Email\n// Constructs warm personalized booking email with Calendly link\n\nconst lead = $('Split In Batches').item.json;\nconst calendlyResponse = $('Get Calendly Link').item.json;\n\n// Extract scheduling URL from Calendly response\nconst calendlyUrl = calendlyResponse.resource\n  ? calendlyResponse.resource.scheduling_url\n  : (calendlyResponse.scheduling_url || '');\n\nconst now = new Date().toISOString();\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\n\n// Build personalized subject\nconst subject = \"Let's find a time to connect\";\n\n// Build warm email body referencing their reply\nconst body = `Hi ${firstName},\\n\\nThank you for your response — it's great to hear back from you.\\n\\nI'd love to walk you through how we can help ${lead.company || 'your team'} achieve measurable results with AI-powered outreach that works around the clock.\\n\\nHere's a quick link to grab a time that works for you:\\n${calendlyUrl}\\n\\nIt's a short 15-minute call — no pressure, just a conversation to see if there's a fit.\\n\\nLooking forward to connecting,\\nThe Crystallux Team`;\n\nreturn {\n  json: {\n    id: lead.id,\n    full_name: lead.full_name,\n    email: lead.email,\n    company: lead.company,\n    subject: subject,\n    body: body,\n    calendly_link: calendlyUrl,\n    interest_detected: true,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now,\n    updated_at: now\n  }\n};"
+        "jsCode": "// CLX Booking — Phase 9: Build Booking Email\n// With 24-hour cooldown check and unsubscribe footer\n\nconst lead = $('Split In Batches').item.json;\n\n// GUARD 7: 24-hour cooldown\nconst hoursSinceLastEmail = lead.last_email_sent_at ?\n  (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return [];\nif (!lead.email || lead.email.trim() === '') return [];\nif ((Number(lead.total_emails_sent) || 0) >= 5) return [];\n\nconst calendlyResponse = $('Get Calendly Link').item.json;\nconst calendlyUrl = calendlyResponse.resource\n  ? calendlyResponse.resource.scheduling_url\n  : (calendlyResponse.scheduling_url || '');\n\nconst now = new Date().toISOString();\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\n\nconst subject = \"Let's find a time to connect\";\n\n// HTML formatted booking email\nconst body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333;max-width:600px;\">'\n  + '<p style=\"margin:0 0 16px 0;\">Hi ' + firstName + ',</p>'\n  + '<p style=\"margin:0 0 16px 0;\">Thank you for your response. I would love to walk you through how we can help ' + (lead.company || 'your team') + ' achieve measurable results with AI-powered outreach that works around the clock.</p>'\n  + '<p style=\"margin:0 0 16px 0;\">Here is a quick link to grab a time that works for you:<br><a href=\"' + calendlyUrl + '\" style=\"color:#2563eb;\">' + calendlyUrl + '</a></p>'\n  + '<p style=\"margin:0 0 16px 0;\">It is a short 15 minute call. No pressure, just a conversation to see if there is a fit.</p>'\n  + '<p style=\"margin:24px 0 0 0;\">Best regards,<br><strong>Mary</strong><br><span style=\"color:#666;font-size:13px;\">Growth Partner</span></p>'\n  + '</div>'\n  + '<br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\"><p style=\"font-size:11px;color:#999;font-family:Arial,sans-serif;\">To unsubscribe reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999;\">click here</a>.<br>Sent by Crystallux AI | info@crystallux.org</p>';\n\nreturn {\n  json: {\n    id: lead.id,\n    full_name: lead.full_name,\n    email: lead.email,\n    company: lead.company,\n    subject: subject,\n    body: body,\n    calendly_link: calendlyUrl,\n    interest_detected: true,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now,\n    updated_at: now\n  }\n};"
       },
       "id": "clx09-0000-0000-0000-000000000010",
       "name": "Build Booking Email",
@@ -296,8 +296,9 @@
       "parameters": {
         "sendTo": "={{ $('Build Booking Email').item.json.email }}",
         "subject": "={{ $('Build Booking Email').item.json.subject }}",
+        "emailType": "html",
         "message": "={{ $('Build Booking Email').item.json.body }}",
-        "options": {}
+        "options": { "appendAttributionToBody": false }
       },
       "id": "clx09-0000-0000-0000-000000000011",
       "name": "Send Booking Email",
