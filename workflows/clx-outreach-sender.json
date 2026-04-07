@@ -171,8 +171,11 @@
       "parameters": {
         "sendTo": "={{ $json.email }}",
         "subject": "={{ $json.email_subject }}",
+        "emailType": "html",
         "message": "={{ $json.email_body }}",
-        "options": {}
+        "options": {
+          "appendAttributionToBody": false
+        }
       },
       "id": "clx07-0000-0000-0000-000000000006",
       "name": "Send Email",
