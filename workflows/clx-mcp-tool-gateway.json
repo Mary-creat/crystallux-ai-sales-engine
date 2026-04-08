@@ -5,6 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "crystallux-mcp",
+        "responseMode": "responseNode",
         "options": {}
       },
       "id": "clx12-0001",
@@ -466,6 +467,7 @@
       "parameters": {
         "httpMethod": "GET",
         "path": "crystallux-tools",
+        "responseMode": "responseNode",
         "options": {}
       },
       "id": "clx12-0500",
