@@ -7,402 +7,272 @@
         "path": "crystallux-mcp",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000001",
+      "id": "clx12-0001",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [
-        200,
-        500
-      ],
+      "position": [200, 500],
       "webhookId": "clx12-webhook-mcp-gateway"
     },
     {
       "parameters": {
-        "jsCode": "// CLX MCP Tool Gateway — Phase 12: Validate Request\n// Validates API key and incoming tool call fields\n\nconst headers = $('Webhook Trigger').item.json.headers || {};\nconst apiKey = headers['x-mcp-api-key'] || headers['X-MCP-API-Key'] || '';\nconst expectedKey = 'CLX-MCP-' + new Date().getFullYear();\n\n// API key authentication check\n// For production, set MCP_WEBHOOK_SECRET in n8n environment and reference it here\n// Default key format: CLX-MCP-{year} — replace with a strong secret\nif (!apiKey) {\n  return {\n    json: {\n      valid: 'false',\n      error: 'Missing X-MCP-API-Key header. Include your MCP webhook secret.',\n      tool_name: '',\n      tool_input: {},\n      start_time: Date.now()\n    }\n  };\n}\n\nconst body = $('Webhook Trigger').item.json.body || $('Webhook Trigger').item.json;\nconst startTime = Date.now();\n\nconst validTools = [\n  'research_lead', 'score_lead', 'generate_outreach', 'send_outreach',\n  'process_booking', 'get_pipeline_stats', 'scan_city',\n  'get_lead', 'update_lead_status', 'list_leads'\n];\n\nconst toolName = body.tool_name || '';\nconst toolInput = body.tool_input || {};\n\nif (!toolName) {\n  return {\n    json: {\n      valid: 'false',\n      error: 'Missing tool_name in request body',\n      tool_name: '',\n      tool_input: {},\n      start_time: startTime\n    }\n  };\n}\n\nif (!validTools.includes(toolName)) {\n  return {\n    json: {\n      valid: 'false',\n      error: 'Unknown tool: ' + toolName + '. Available tools: ' + validTools.join(', '),\n      tool_name: toolName,\n      tool_input: toolInput,\n      start_time: startTime\n    }\n  };\n}\n\n// Validate required inputs per tool\nconst requiredInputs = {\n  research_lead: ['lead_id', 'company'],\n  score_lead: ['lead_id', 'company'],\n  generate_outreach: ['lead_id', 'full_name', 'company'],\n  send_outreach: ['lead_id', 'email'],\n  process_booking: ['lead_id', 'full_name', 'reply_text'],\n  get_pipeline_stats: [],\n  scan_city: ['city', 'industry'],\n  get_lead: [],\n  update_lead_status: ['lead_id', 'lead_status'],\n  list_leads: []\n};\n\nconst required = requiredInputs[toolName] || [];\nconst missing = required.filter(field => !toolInput[field]);\n\nif (missing.length > 0) {\n  return {\n    json: {\n      valid: 'false',\n      error: 'Missing required inputs: ' + missing.join(', '),\n      tool_name: toolName,\n      tool_input: toolInput,\n      start_time: startTime\n    }\n  };\n}\n\nreturn {\n  json: {\n    valid: 'true',\n    tool_name: toolName,\n    tool_input: toolInput,\n    start_time: startTime\n  }\n};"
+        "jsCode": "try {\n  const headers = $('Webhook Trigger').item.json.headers || {};\n  const apiKey = headers['x-mcp-api-key'] || headers['X-MCP-API-Key'] || '';\n\n  if (!apiKey) {\n    return { json: { valid: false, error: 'Missing X-MCP-API-Key header', tool_name: '', tool_input: {} } };\n  }\n\n  const body = $('Webhook Trigger').item.json.body || $('Webhook Trigger').item.json;\n  const toolName = body.tool_name || '';\n  const toolInput = body.tool_input || {};\n\n  const validTools = [\n    'research_lead', 'score_lead', 'get_pipeline_stats', 'scan_city',\n    'get_lead', 'list_leads', 'update_lead_status',\n    'check_system_health', 'check_pipeline_health', 'get_execution_stats'\n  ];\n\n  if (!toolName) {\n    return { json: { valid: false, error: 'Missing tool_name in request body', tool_name: '', tool_input: {} } };\n  }\n\n  if (!validTools.includes(toolName)) {\n    return { json: { valid: false, error: 'Unknown tool: ' + toolName + '. Available: ' + validTools.join(', '), tool_name: toolName, tool_input: toolInput } };\n  }\n\n  const requiredInputs = {\n    research_lead: ['lead_id'],\n    score_lead: ['lead_id'],\n    get_pipeline_stats: [],\n    scan_city: ['city', 'industry'],\n    get_lead: [],\n    list_leads: [],\n    update_lead_status: ['lead_id', 'lead_status'],\n    check_system_health: [],\n    check_pipeline_health: [],\n    get_execution_stats: []\n  };\n\n  const missing = (requiredInputs[toolName] || []).filter(f => !toolInput[f]);\n  if (missing.length > 0) {\n    return { json: { valid: false, error: 'Missing required inputs: ' + missing.join(', '), tool_name: toolName, tool_input: toolInput } };\n  }\n\n  return { json: { valid: true, tool_name: toolName, tool_input: toolInput } };\n} catch (error) {\n  return { json: { valid: false, error: error.message, tool_name: '', tool_input: {} } };\n}"
       },
-      "id": "clx12-0000-0000-0000-000000000002",
-      "name": "Validate Request",
+      "id": "clx12-0002",
+      "name": "Parse Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        440,
-        500
-      ]
+      "position": [420, 500]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "clx12-cond-valid-request",
-              "leftValue": "={{ $json.valid }}",
-              "rightValue": "true",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-valid", "leftValue": "={{ String($json.valid) }}", "rightValue": "true", "operator": { "type": "string", "operation": "equals" } }],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000003",
-      "name": "IF Valid Request",
+      "id": "clx12-0003",
+      "name": "IF Valid",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        680,
-        500
-      ]
+      "typeVersion": 2.2,
+      "position": [640, 500]
     },
     {
       "parameters": {
-        "dataType": "string",
-        "value1": "={{ $json.tool_name }}",
-        "rules": {
-          "rules": [
-            {
-              "value2": "research_lead",
-              "output": 0
-            },
-            {
-              "value2": "score_lead",
-              "output": 1
-            },
-            {
-              "value2": "generate_outreach",
-              "output": 2
-            },
-            {
-              "value2": "send_outreach",
-              "output": 3
-            },
-            {
-              "value2": "process_booking",
-              "output": 4
-            },
-            {
-              "value2": "get_pipeline_stats",
-              "output": 5
-            },
-            {
-              "value2": "scan_city",
-              "output": 6
-            },
-            {
-              "value2": "get_lead",
-              "output": 7
-            },
-            {
-              "value2": "update_lead_status",
-              "output": 8
-            },
-            {
-              "value2": "list_leads",
-              "output": 9
-            }
-          ]
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t01", "leftValue": "={{ $json.tool_name }}", "rightValue": "research_lead", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
         },
-        "fallbackOutput": 10,
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000004",
-      "name": "Route Tool Call",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 2,
-      "position": [
-        920,
-        500
-      ],
-      "onError": "continueRegularOutput"
+      "id": "clx12-0010",
+      "name": "IF research_lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [860, 500]
     },
     {
       "parameters": {
-        "jsCode": "// Handle: research_lead\nconst ctx = $('Validate Request').item.json;\nconst input = ctx.tool_input;\nconst now = new Date().toISOString();\n\n// Update lead status to trigger research workflow\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    lead_id: input.lead_id,\n    update_body: {\n      company: input.company || '',\n      industry: input.industry || '',\n      job_title: input.job_title || '',\n      city: input.city || '',\n      product_type: input.product_type || '',\n      lead_status: 'New Lead',\n      updated_at: now\n    }\n  }\n};"
-      },
-      "id": "clx12-0000-0000-0000-000000000010",
-      "name": "Handle Research Lead",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        -100
-      ]
-    },
-    {
-      "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Handle Research Lead').item.json.lead_id }}",
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Parse Request').item.json.tool_input.lead_id + '&select=*&limit=1' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Handle Research Lead').item.json.update_body) }}",
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000011",
+      "id": "clx12-0011",
       "name": "Execute Research Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1440,
-        -100
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "position": [860, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {
-        "jsCode": "// Handle: score_lead — set status to Researched to trigger scoring\nconst ctx = $('Validate Request').item.json;\nconst input = ctx.tool_input;\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    lead_id: input.lead_id,\n    update_body: { lead_status: 'Researched', updated_at: new Date().toISOString() }\n  }\n};"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t02", "leftValue": "={{ $json.tool_name }}", "rightValue": "score_lead", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000012",
-      "name": "Handle Score Lead",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        20
-      ]
+      "id": "clx12-0020",
+      "name": "IF score_lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 500]
     },
     {
       "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Handle Score Lead').item.json.lead_id }}",
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Parse Request').item.json.tool_input.lead_id + '&select=id,full_name,company,lead_score,priority_level,scoring_reason,lead_status&limit=1' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Handle Score Lead').item.json.update_body) }}",
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000013",
+      "id": "clx12-0021",
       "name": "Execute Score Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1440,
-        20
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "position": [1080, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {
-        "jsCode": "// Handle: generate_outreach — set status to Campaign Assigned to trigger outreach gen\nconst ctx = $('Validate Request').item.json;\nconst input = ctx.tool_input;\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    lead_id: input.lead_id,\n    update_body: { lead_status: 'Campaign Assigned', recommended_campaign_type: input.campaign_name || 'automation_campaign', updated_at: new Date().toISOString() }\n  }\n};"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t03", "leftValue": "={{ $json.tool_name }}", "rightValue": "get_pipeline_stats", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000014",
-      "name": "Handle Generate Outreach",
+      "id": "clx12-0030",
+      "name": "IF get_pipeline_stats",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1300, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/pipeline_stats?order=snapshot_date.desc&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "options": {}
+      },
+      "id": "clx12-0031",
+      "name": "Execute Pipeline Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t04", "leftValue": "={{ $json.tool_name }}", "rightValue": "scan_city", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx12-0040",
+      "name": "IF scan_city",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1520, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const input = $('Parse Request').item.json.tool_input;\n  return {\n    json: {\n      message: 'City scan queued. The CLX City Scan Discovery workflow will process ' + input.industry + ' in ' + input.city + ' on next scheduled run.',\n      city: input.city,\n      industry: input.industry,\n      product_type: input.product_type || ''\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message } };\n}"
+      },
+      "id": "clx12-0041",
+      "name": "Handle Scan City",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1200,
-        140
-      ]
+      "position": [1520, 260]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t05", "leftValue": "={{ $json.tool_name }}", "rightValue": "get_lead", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx12-0050",
+      "name": "IF get_lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1740, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ (() => { const i = $('Parse Request').item.json.tool_input; if (i.lead_id) return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + i.lead_id + '&select=*&limit=1'; if (i.email) return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?email=eq.' + encodeURIComponent(i.email) + '&select=*&limit=1'; return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=*&limit=1'; })() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "options": {}
+      },
+      "id": "clx12-0051",
+      "name": "Execute Get Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t06", "leftValue": "={{ $json.tool_name }}", "rightValue": "list_leads", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx12-0060",
+      "name": "IF list_leads",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1960, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ (() => { const i = $('Parse Request').item.json.tool_input; let url = 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id,full_name,email,company,industry,lead_status,lead_score,city'; if (i.lead_status) url += '&lead_status=eq.' + encodeURIComponent(i.lead_status); if (i.industry) url += '&industry=eq.' + encodeURIComponent(i.industry); url += '&limit=' + (i.limit || 20); return url; })() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "options": {}
+      },
+      "id": "clx12-0061",
+      "name": "Execute List Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1960, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t07", "leftValue": "={{ $json.tool_name }}", "rightValue": "update_lead_status", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx12-0070",
+      "name": "IF update_lead_status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2180, 500]
     },
     {
       "parameters": {
         "method": "PATCH",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Handle Generate Outreach').item.json.lead_id }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Parse Request').item.json.tool_input.lead_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Handle Generate Outreach').item.json.update_body) }}",
+        "jsonBody": "={{ JSON.stringify({ lead_status: $('Parse Request').item.json.tool_input.lead_status, notes: $('Parse Request').item.json.tool_input.notes || '', updated_at: new Date().toISOString() }) }}",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000015",
-      "name": "Execute Generate Outreach",
+      "id": "clx12-0071",
+      "name": "Execute Update Lead Status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1440,
-        140
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "position": [2180, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {
-        "jsCode": "// Handle: send_outreach — set status to Outreach Ready to trigger sender\nconst ctx = $('Validate Request').item.json;\nconst input = ctx.tool_input;\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    lead_id: input.lead_id,\n    update_body: { lead_status: 'Outreach Ready', updated_at: new Date().toISOString() }\n  }\n};"
-      },
-      "id": "clx12-0000-0000-0000-000000000016",
-      "name": "Handle Send Outreach",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        260
-      ]
-    },
-    {
-      "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Handle Send Outreach').item.json.lead_id }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t08", "leftValue": "={{ $json.tool_name }}", "rightValue": "check_system_health", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Handle Send Outreach').item.json.update_body) }}",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000017",
-      "name": "Execute Send Outreach",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1440,
-        260
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Handle: process_booking — set status to Replied with reply_text to trigger booking\nconst ctx = $('Validate Request').item.json;\nconst input = ctx.tool_input;\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    lead_id: input.lead_id,\n    update_body: { lead_status: 'Replied', reply_text: input.reply_text || '', updated_at: new Date().toISOString() }\n  }\n};"
-      },
-      "id": "clx12-0000-0000-0000-000000000018",
-      "name": "Handle Process Booking",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        380
-      ]
-    },
-    {
-      "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Handle Process Booking').item.json.lead_id }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Handle Process Booking').item.json.update_body) }}",
-        "options": {}
-      },
-      "id": "clx12-0000-0000-0000-000000000019",
-      "name": "Execute Process Booking",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1440,
-        380
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "id": "clx12-0080",
+      "name": "IF check_system_health",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2400, 500]
     },
     {
       "parameters": {
@@ -411,176 +281,109 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            }
-          ]
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "options": {}
+      },
+      "id": "clx12-0081",
+      "name": "Fetch System Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const allItems = $('Fetch System Health').all();\n  const leads = allItems.map(i => i.json);\n  const total = leads.length;\n  const counts = {};\n  for (const lead of leads) {\n    const s = lead.lead_status || 'Unknown';\n    counts[s] = (counts[s] || 0) + 1;\n  }\n  const active = (counts['Contacted'] || 0) + (counts['Replied'] || 0) + (counts['Booking Sent'] || 0);\n  return {\n    json: {\n      total_leads: total,\n      status_counts: counts,\n      active_conversations: active,\n      health: total > 0 ? 'operational' : 'empty',\n      checked_at: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message, health: 'error' } };\n}"
+      },
+      "id": "clx12-0082",
+      "name": "Analyze System Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 40]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t09", "leftValue": "={{ $json.tool_name }}", "rightValue": "check_pipeline_health", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
         },
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000020",
-      "name": "Execute Pipeline Stats",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1200,
-        500
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Handle: get_pipeline_stats — calculate stats from all leads\nconst ctx = $('Validate Request').item.json;\nconst allItems = $('Execute Pipeline Stats').all();\nconst leads = allItems.map(i => i.json);\nconst total = leads.length;\nconst counts = {};\nfor (const lead of leads) {\n  const s = lead.lead_status || 'Unknown';\n  counts[s] = (counts[s] || 0) + 1;\n}\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    result: { total_leads: total, status_counts: counts }\n  }\n};"
-      },
-      "id": "clx12-0000-0000-0000-000000000021",
-      "name": "Calculate Pipeline Stats",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1440,
-        500
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Handle: scan_city — insert a scan job into leads as a trigger\nconst ctx = $('Validate Request').item.json;\nconst input = ctx.tool_input;\nreturn {\n  json: {\n    tool_name: ctx.tool_name,\n    start_time: ctx.start_time,\n    result: {\n      message: 'City scan queued. The CLX City Scan Discovery workflow will process ' + input.industry + ' in ' + input.city + ' on next scheduled run.',\n      city: input.city,\n      industry: input.industry,\n      product_type: input.product_type || ''\n    }\n  }\n};"
-      },
-      "id": "clx12-0000-0000-0000-000000000022",
-      "name": "Handle Scan City",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        620
-      ]
+      "id": "clx12-0090",
+      "name": "IF check_pipeline_health",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2620, 500]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ (() => { const input = $('Validate Request').item.json.tool_input; if (input.lead_id) return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + input.lead_id + '&select=*&limit=1'; if (input.email) return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?email=eq.' + encodeURIComponent(input.email) + '&select=*&limit=1'; return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=*&limit=1'; })() }}",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id,lead_status,updated_at,full_name",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000023",
-      "name": "Execute Get Lead",
+      "id": "clx12-0091",
+      "name": "Fetch Pipeline Health",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1200,
-        740
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "position": [2620, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $('Validate Request').item.json.tool_input.lead_id }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
+        "jsCode": "try {\n  const allItems = $('Fetch Pipeline Health').all();\n  const leads = allItems.map(i => i.json);\n  const now = Date.now();\n  const thresholds = {\n    'New Lead': 2 * 3600000,\n    'Researched': 2 * 3600000,\n    'Scored': 2 * 3600000,\n    'Campaign Assigned': 2 * 3600000,\n    'Outreach Ready': 24 * 3600000,\n    'Contacted': 30 * 24 * 3600000\n  };\n  const counts = {};\n  const stale = [];\n  for (const lead of leads) {\n    const s = lead.lead_status || 'Unknown';\n    counts[s] = (counts[s] || 0) + 1;\n    const threshold = thresholds[s];\n    if (threshold && lead.updated_at) {\n      const age = now - new Date(lead.updated_at).getTime();\n      if (age > threshold) {\n        stale.push({ id: lead.id, full_name: lead.full_name || '', status: s, hours_stale: Math.round(age / 3600000) });\n      }\n    }\n  }\n  return {\n    json: {\n      total_leads: leads.length,\n      stage_counts: counts,\n      stale_leads: stale,\n      stale_count: stale.length,\n      health: stale.length === 0 ? 'healthy' : 'needs_attention',\n      checked_at: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message, health: 'error' } };\n}"
+      },
+      "id": "clx12-0092",
+      "name": "Analyze Pipeline Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2620, 40]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "clx12-cond-t10", "leftValue": "={{ $json.tool_name }}", "rightValue": "get_execution_stats", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ lead_status: $('Validate Request').item.json.tool_input.lead_status, notes: $('Validate Request').item.json.tool_input.notes || '', updated_at: new Date().toISOString() }) }}",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000024",
-      "name": "Execute Update Lead Status",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1200,
-        860
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "id": "clx12-0100",
+      "name": "IF get_execution_stats",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2840, 500]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ (() => { const input = $('Validate Request').item.json.tool_input; let url = 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id,full_name,email,company,industry,lead_status,lead_score,city'; if (input.lead_status) url += '&lead_status=eq.' + encodeURIComponent(input.lead_status); if (input.industry) url += '&industry=eq.' + encodeURIComponent(input.industry); url += '&limit=' + (input.limit || 20); return url; })() }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/mcp_tool_calls?created_at=gte.' + new Date(Date.now() - 86400000).toISOString() + '&select=tool_name,success,execution_time_ms,created_at&order=created_at.desc' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000025",
-      "name": "Execute List Leads",
+      "id": "clx12-0101",
+      "name": "Fetch Execution Stats",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1200,
-        980
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "position": [2840, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {
-        "jsCode": "// CLX MCP Tool Gateway — Format Response\n// Wraps tool handler output in standard MCP response format\n\ntry {\n  // Find the validate request context from upstream\n  let ctx;\n  try { ctx = $('Validate Request').item.json; } catch(e) { ctx = { tool_name: 'unknown', start_time: Date.now() }; }\n\n  const toolName = ctx.tool_name;\n  const startTime = ctx.start_time || Date.now();\n  const executionTime = Date.now() - startTime;\n\n  // Get the result from whichever handler ran\n  // The current item json is the output from the last executed node\n  const handlerOutput = $input.item.json;\n\n  // If the handler output has a result key use it otherwise use the whole output\n  const data = handlerOutput.result || handlerOutput;\n\n  return {\n    json: {\n      success: true,\n      tool: toolName,\n      data: data,\n      timestamp: new Date().toISOString(),\n      execution_time_ms: executionTime\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      success: false,\n      tool: 'unknown',\n      error: error.message,\n      timestamp: new Date().toISOString(),\n      execution_time_ms: 0\n    }\n  };\n}"
+        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  const data = $input.item.json;\n  return {\n    json: {\n      success: true,\n      tool: ctx.tool_name,\n      data: data.result || data,\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      success: false,\n      tool: 'unknown',\n      error: error.message,\n      timestamp: new Date().toISOString()\n    }\n  };\n}"
       },
-      "id": "clx12-0000-0000-0000-000000000030",
+      "id": "clx12-0200",
       "name": "Format Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1700,
-        500
-      ]
+      "position": [3100, 260]
     },
     {
       "parameters": {
@@ -589,37 +392,19 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": ""
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ tool_name: $('Format Response').item.json.tool, tool_input: $('Validate Request').item.json.tool_input, tool_output: $('Format Response').item.json.data, success: $('Format Response').item.json.success, execution_time_ms: $('Format Response').item.json.execution_time_ms }) }}",
+        "jsonBody": "={{ JSON.stringify({ tool_name: $('Format Response').item.json.tool, tool_input: $('Parse Request').item.json.tool_input, tool_output: $('Format Response').item.json.data, success: $('Format Response').item.json.success, execution_time_ms: 0 }) }}",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000031",
+      "id": "clx12-0201",
       "name": "Log Tool Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1940,
-        500
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1",
-          "name": "Supabase Crystallux"
-        }
-      }
+      "position": [3320, 260],
+      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -627,44 +412,55 @@
         "responseBody": "={{ JSON.stringify($('Format Response').item.json) }}",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000032",
-      "name": "Respond to Webhook",
+      "id": "clx12-0202",
+      "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        2180,
-        500
-      ]
+      "position": [3540, 260]
     },
     {
       "parameters": {
-        "jsCode": "// Format error response for invalid requests\nconst ctx = $('Validate Request').item.json;\nreturn {\n  json: {\n    success: false,\n    tool: ctx.tool_name || 'unknown',\n    error: ctx.error,\n    timestamp: new Date().toISOString(),\n    execution_time_ms: Date.now() - (ctx.start_time || Date.now())\n  }\n};"
+        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  return {\n    json: {\n      success: false,\n      tool: ctx.tool_name || 'unknown',\n      error: ctx.error || 'Validation failed',\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { success: false, tool: 'unknown', error: error.message, timestamp: new Date().toISOString() } };\n}"
       },
-      "id": "clx12-0000-0000-0000-000000000033",
-      "name": "Format Error Response",
+      "id": "clx12-0300",
+      "name": "Format Validation Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        920,
-        700
-      ]
+      "position": [860, 780]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($('Format Error Response').item.json) }}",
-        "options": {
-          "responseCode": 400
-        }
+        "responseBody": "={{ JSON.stringify($('Format Validation Error').item.json) }}",
+        "options": { "responseCode": 400 }
       },
-      "id": "clx12-0000-0000-0000-000000000034",
-      "name": "Respond Error",
+      "id": "clx12-0301",
+      "name": "Respond Validation Error",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        1160,
-        700
-      ]
+      "position": [1080, 780]
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  return {\n    json: {\n      success: false,\n      tool: ctx.tool_name || 'unknown',\n      error: 'Unknown tool: ' + (ctx.tool_name || 'none') + '. This should not happen — check Parse Request validation.',\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { success: false, tool: 'unknown', error: error.message, timestamp: new Date().toISOString() } };\n}"
+      },
+      "id": "clx12-0400",
+      "name": "Format Default Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3060, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Format Default Error').item.json) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "clx12-0401",
+      "name": "Respond Default Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [3280, 500]
     },
     {
       "parameters": {
@@ -672,28 +468,22 @@
         "path": "crystallux-tools",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000040",
+      "id": "clx12-0500",
       "name": "Tool Registry Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [
-        200,
-        1200
-      ],
+      "position": [200, 1100],
       "webhookId": "clx12-webhook-tool-registry"
     },
     {
       "parameters": {
-        "jsCode": "// CLX MCP Tool Gateway — Tool Registry\n// Returns all available tools in MCP-compatible format\n\nreturn {\n  json: {\n    tools: [\n      {\n        name: 'research_lead',\n        description: 'Research a company and generate AI business intelligence',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead in Supabase' },\n            company: { type: 'string', description: 'Company name to research' },\n            industry: { type: 'string', description: 'Industry category' },\n            job_title: { type: 'string', description: 'Contact job title' },\n            city: { type: 'string', description: 'City location' },\n            product_type: { type: 'string', description: 'Product/service type' }\n          },\n          required: ['lead_id', 'company']\n        }\n      },\n      {\n        name: 'score_lead',\n        description: 'Score a lead 0-100 based on business potential',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead' },\n            company: { type: 'string', description: 'Company name' },\n            industry: { type: 'string', description: 'Industry category' },\n            job_title: { type: 'string', description: 'Contact job title' },\n            research_summary: { type: 'string', description: 'Existing research summary' }\n          },\n          required: ['lead_id', 'company']\n        }\n      },\n      {\n        name: 'generate_outreach',\n        description: 'Generate personalized outreach messages for a lead',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead' },\n            full_name: { type: 'string', description: 'Contact full name' },\n            company: { type: 'string', description: 'Company name' },\n            campaign_name: { type: 'string', description: 'Campaign type to generate' }\n          },\n          required: ['lead_id', 'full_name', 'company']\n        }\n      },\n      {\n        name: 'send_outreach',\n        description: 'Send personalized outreach email to a lead',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead' },\n            email: { type: 'string', description: 'Email address to send to' },\n            full_name: { type: 'string', description: 'Contact full name' }\n          },\n          required: ['lead_id', 'email']\n        }\n      },\n      {\n        name: 'process_booking',\n        description: 'Detect interest in a reply and send Calendly booking link',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead' },\n            full_name: { type: 'string', description: 'Contact full name' },\n            company: { type: 'string', description: 'Company name' },\n            reply_text: { type: 'string', description: 'The prospect reply to analyze' }\n          },\n          required: ['lead_id', 'full_name', 'reply_text']\n        }\n      },\n      {\n        name: 'get_pipeline_stats',\n        description: 'Get complete pipeline health metrics and conversion rates',\n        inputSchema: {\n          type: 'object',\n          properties: {},\n          required: []\n        }\n      },\n      {\n        name: 'scan_city',\n        description: 'Discover new businesses in a target city and industry via Google Maps',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            city: { type: 'string', description: 'City to scan (e.g. Toronto)' },\n            industry: { type: 'string', description: 'Industry to search (e.g. insurance broker)' },\n            product_type: { type: 'string', description: 'Product category tag' }\n          },\n          required: ['city', 'industry']\n        }\n      },\n      {\n        name: 'get_lead',\n        description: 'Get complete lead record from Supabase by ID or email',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead' },\n            email: { type: 'string', description: 'Email address to look up' }\n          },\n          required: []\n        }\n      },\n      {\n        name: 'update_lead_status',\n        description: 'Update a lead status in the pipeline',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_id: { type: 'string', description: 'UUID of the lead' },\n            lead_status: { type: 'string', description: 'New status value' },\n            notes: { type: 'string', description: 'Optional notes about the update' }\n          },\n          required: ['lead_id', 'lead_status']\n        }\n      },\n      {\n        name: 'list_leads',\n        description: 'List leads filtered by status, industry, or both',\n        inputSchema: {\n          type: 'object',\n          properties: {\n            lead_status: { type: 'string', description: 'Filter by lead status' },\n            industry: { type: 'string', description: 'Filter by industry' },\n            limit: { type: 'number', description: 'Max results (default 20)' }\n          },\n          required: []\n        }\n      }\n    ]\n  }\n};"
+        "jsCode": "try {\n  return {\n    json: {\n      tools: [\n        { name: 'research_lead', description: 'Get full lead record for research', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' } }, required: ['lead_id'] } },\n        { name: 'score_lead', description: 'Get lead scoring data', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' } }, required: ['lead_id'] } },\n        { name: 'get_pipeline_stats', description: 'Get latest pipeline statistics snapshot', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'scan_city', description: 'Queue a city scan for business discovery', inputSchema: { type: 'object', properties: { city: { type: 'string', description: 'City name' }, industry: { type: 'string', description: 'Industry to search' }, product_type: { type: 'string', description: 'Product category' } }, required: ['city', 'industry'] } },\n        { name: 'get_lead', description: 'Get lead by ID or email', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' }, email: { type: 'string', description: 'Email to look up' } }, required: [] } },\n        { name: 'list_leads', description: 'List leads with optional filters', inputSchema: { type: 'object', properties: { lead_status: { type: 'string', description: 'Filter by status' }, industry: { type: 'string', description: 'Filter by industry' }, limit: { type: 'number', description: 'Max results (default 20)' } }, required: [] } },\n        { name: 'update_lead_status', description: 'Update a lead status', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' }, lead_status: { type: 'string', description: 'New status' }, notes: { type: 'string', description: 'Optional notes' } }, required: ['lead_id', 'lead_status'] } },\n        { name: 'check_system_health', description: 'Count leads by status and check system health', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'check_pipeline_health', description: 'Analyze pipeline stages and flag stale leads', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'get_execution_stats', description: 'Get MCP tool call stats from last 24 hours', inputSchema: { type: 'object', properties: {}, required: [] } }\n      ]\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message } };\n}"
       },
-      "id": "clx12-0000-0000-0000-000000000041",
+      "id": "clx12-0501",
       "name": "Build Tool List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        440,
-        1200
-      ]
+      "position": [420, 1100]
     },
     {
       "parameters": {
@@ -701,375 +491,49 @@
         "responseBody": "={{ JSON.stringify($('Build Tool List').item.json) }}",
         "options": {}
       },
-      "id": "clx12-0000-0000-0000-000000000042",
+      "id": "clx12-0502",
       "name": "Return Tool List",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        680,
-        1200
-      ]
+      "position": [640, 1100]
     }
   ],
   "connections": {
-    "Webhook Trigger": {
-      "main": [
-        [
-          {
-            "node": "Validate Request",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Validate Request": {
-      "main": [
-        [
-          {
-            "node": "IF Valid Request",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF Valid Request": {
-      "main": [
-        [
-          {
-            "node": "Route Tool Call",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Format Error Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Route Tool Call": {
-      "main": [
-        [
-          {
-            "node": "Handle Research Lead",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Handle Score Lead",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Handle Generate Outreach",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Handle Send Outreach",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Handle Process Booking",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Execute Pipeline Stats",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Handle Scan City",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Execute Get Lead",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Execute Update Lead Status",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Execute List Leads",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Format Error Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle Research Lead": {
-      "main": [
-        [
-          {
-            "node": "Execute Research Lead",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Research Lead": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle Score Lead": {
-      "main": [
-        [
-          {
-            "node": "Execute Score Lead",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Score Lead": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle Generate Outreach": {
-      "main": [
-        [
-          {
-            "node": "Execute Generate Outreach",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Generate Outreach": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle Send Outreach": {
-      "main": [
-        [
-          {
-            "node": "Execute Send Outreach",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Send Outreach": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle Process Booking": {
-      "main": [
-        [
-          {
-            "node": "Execute Process Booking",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Process Booking": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Pipeline Stats": {
-      "main": [
-        [
-          {
-            "node": "Calculate Pipeline Stats",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Calculate Pipeline Stats": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle Scan City": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Get Lead": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute Update Lead Status": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute List Leads": {
-      "main": [
-        [
-          {
-            "node": "Format Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format Response": {
-      "main": [
-        [
-          {
-            "node": "Log Tool Call",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Log Tool Call": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format Error Response": {
-      "main": [
-        [
-          {
-            "node": "Respond Error",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Tool Registry Webhook": {
-      "main": [
-        [
-          {
-            "node": "Build Tool List",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Tool List": {
-      "main": [
-        [
-          {
-            "node": "Return Tool List",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Webhook Trigger": { "main": [[{ "node": "Parse Request", "type": "main", "index": 0 }]] },
+    "Parse Request": { "main": [[{ "node": "IF Valid", "type": "main", "index": 0 }]] },
+    "IF Valid": { "main": [[{ "node": "IF research_lead", "type": "main", "index": 0 }], [{ "node": "Format Validation Error", "type": "main", "index": 0 }]] },
+    "IF research_lead": { "main": [[{ "node": "Execute Research Lead", "type": "main", "index": 0 }], [{ "node": "IF score_lead", "type": "main", "index": 0 }]] },
+    "Execute Research Lead": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF score_lead": { "main": [[{ "node": "Execute Score Lead", "type": "main", "index": 0 }], [{ "node": "IF get_pipeline_stats", "type": "main", "index": 0 }]] },
+    "Execute Score Lead": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF get_pipeline_stats": { "main": [[{ "node": "Execute Pipeline Stats", "type": "main", "index": 0 }], [{ "node": "IF scan_city", "type": "main", "index": 0 }]] },
+    "Execute Pipeline Stats": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF scan_city": { "main": [[{ "node": "Handle Scan City", "type": "main", "index": 0 }], [{ "node": "IF get_lead", "type": "main", "index": 0 }]] },
+    "Handle Scan City": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF get_lead": { "main": [[{ "node": "Execute Get Lead", "type": "main", "index": 0 }], [{ "node": "IF list_leads", "type": "main", "index": 0 }]] },
+    "Execute Get Lead": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF list_leads": { "main": [[{ "node": "Execute List Leads", "type": "main", "index": 0 }], [{ "node": "IF update_lead_status", "type": "main", "index": 0 }]] },
+    "Execute List Leads": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF update_lead_status": { "main": [[{ "node": "Execute Update Lead Status", "type": "main", "index": 0 }], [{ "node": "IF check_system_health", "type": "main", "index": 0 }]] },
+    "Execute Update Lead Status": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF check_system_health": { "main": [[{ "node": "Fetch System Health", "type": "main", "index": 0 }], [{ "node": "IF check_pipeline_health", "type": "main", "index": 0 }]] },
+    "Fetch System Health": { "main": [[{ "node": "Analyze System Health", "type": "main", "index": 0 }]] },
+    "Analyze System Health": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF check_pipeline_health": { "main": [[{ "node": "Fetch Pipeline Health", "type": "main", "index": 0 }], [{ "node": "IF get_execution_stats", "type": "main", "index": 0 }]] },
+    "Fetch Pipeline Health": { "main": [[{ "node": "Analyze Pipeline Health", "type": "main", "index": 0 }]] },
+    "Analyze Pipeline Health": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "IF get_execution_stats": { "main": [[{ "node": "Fetch Execution Stats", "type": "main", "index": 0 }], [{ "node": "Format Default Error", "type": "main", "index": 0 }]] },
+    "Fetch Execution Stats": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
+    "Format Response": { "main": [[{ "node": "Log Tool Call", "type": "main", "index": 0 }]] },
+    "Log Tool Call": { "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]] },
+    "Format Validation Error": { "main": [[{ "node": "Respond Validation Error", "type": "main", "index": 0 }]] },
+    "Format Default Error": { "main": [[{ "node": "Respond Default Error", "type": "main", "index": 0 }]] },
+    "Tool Registry Webhook": { "main": [[{ "node": "Build Tool List", "type": "main", "index": 0 }]] },
+    "Build Tool List": { "main": [[{ "node": "Return Tool List", "type": "main", "index": 0 }]] }
   },
   "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "clx-mcp-gateway-v101",
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-mcp-gateway-v103",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
