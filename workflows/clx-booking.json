@@ -298,7 +298,9 @@
         "subject": "={{ $('Build Booking Email').item.json.subject }}",
         "emailType": "html",
         "message": "={{ $('Build Booking Email').item.json.body }}",
-        "options": { "appendAttributionToBody": false }
+        "options": {
+          "appendAttributionToBody": false
+        }
       },
       "id": "clx09-0000-0000-0000-000000000011",
       "name": "Send Booking Email",
