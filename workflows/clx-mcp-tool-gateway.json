@@ -378,7 +378,7 @@
     },
     {
       "parameters": {
-        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  const data = $input.item.json;\n  return {\n    json: {\n      success: true,\n      tool: ctx.tool_name,\n      data: data.result || data,\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      success: false,\n      tool: 'unknown',\n      error: error.message,\n      timestamp: new Date().toISOString()\n    }\n  };\n}"
+        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  const allItems = $input.all();\n  let data;\n  if (allItems.length === 1) {\n    data = allItems[0].json.result || allItems[0].json;\n  } else {\n    data = allItems.map(i => i.json);\n  }\n  return {\n    json: {\n      success: true,\n      tool: ctx.tool_name,\n      data: data,\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      success: false,\n      tool: 'unknown',\n      error: error.message,\n      timestamp: new Date().toISOString()\n    }\n  };\n}"
       },
       "id": "clx12-0200",
       "name": "Format Response",
