@@ -430,6 +430,61 @@
         680,
         500
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx09-cond-email-not-null",
+              "leftValue": "={{ $('Split In Batches').item.json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "clx09-cond-email-not-empty",
+              "leftValue": "={{ $('Split In Batches').item.json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx09-0000-0000-0000-000000000017",
+      "name": "Has Email",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2600,
+        100
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx09-0000-0000-0000-000000000018",
+      "name": "No Email Available",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        100
+      ]
     }
   ],
   "connections": {
@@ -558,7 +613,36 @@
       "main": [
         [
           {
+            "node": "Has Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email": {
+      "main": [
+        [
+          {
             "node": "Build Booking Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Email Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Email Available": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
             "type": "main",
             "index": 0
           }
@@ -625,7 +709,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-booking-v095-overhaul",
+  "versionId": "clx-booking-v096-email-check",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
