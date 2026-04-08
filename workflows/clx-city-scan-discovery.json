@@ -229,10 +229,10 @@
             {
               "id": "clx11-cond-not-duplicate",
               "leftValue": "={{ $json.is_duplicate }}",
-              "rightValue": "false",
+              "rightValue": "true",
               "operator": {
                 "type": "string",
-                "operation": "equals"
+                "operation": "notEquals"
               }
             }
           ],
@@ -300,6 +300,17 @@
       "typeVersion": 1,
       "position": [
         1640,
+        500
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx11-0000-0000-0000-000000000014",
+      "name": "Skip Duplicate",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2840,
         500
       ]
     }
@@ -432,7 +443,24 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Skip Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Insert New Lead": {
