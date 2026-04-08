@@ -362,6 +362,17 @@
       ],
       "id": "8f47d043-7200-43e3-a1aa-b1743a23d7f1",
       "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        200
+      ],
+      "id": "clx01-0000-0000-0000-skip-duplicate",
+      "name": "Skip Duplicate"
     }
   ],
   "pinData": {},
@@ -415,7 +426,7 @@
         ],
         [
           {
-            "node": "Supabase - Store Lead",
+            "node": "Skip Duplicate",
             "type": "main",
             "index": 0
           }

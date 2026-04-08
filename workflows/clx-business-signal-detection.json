@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Scored&lead_score=gte.50&select=id,full_name,company,industry,job_title,city,lead_score,priority_level,research_summary,likely_business_need&limit=20",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Scored&lead_score=gte.50&select=id,full_name,company,industry,job_title,city,lead_score,priority_level,research_summary,likely_business_need,research_angle,product_type&limit=20",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -103,61 +103,6 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Google search query from lead data\nconst lead = $input.item.json;\n\nconst query = lead.company + ' ' + lead.city + ' hiring OR expansion OR funding OR growth OR automation 2024 2025';\n\nreturn {\n  json: {\n    id: lead.id,\n    full_name: lead.full_name,\n    company: lead.company,\n    industry: lead.industry,\n    job_title: lead.job_title,\n    city: lead.city,\n    lead_score: lead.lead_score,\n    priority_level: lead.priority_level,\n    research_summary: lead.research_summary,\n    likely_business_need: lead.likely_business_need,\n    search_query: query\n  }\n};"
-      },
-      "id": "clx04-0000-0000-0000-000000000006",
-      "name": "Build Search Query",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1400, 300]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "https://www.googleapis.com/customsearch/v1",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "key",
-              "value": ""
-            },
-            {
-              "name": "cx",
-              "value": "652e034ebc03b473b"
-            },
-            {
-              "name": "q",
-              "value": "={{ $json.search_query }}"
-            },
-            {
-              "name": "num",
-              "value": "5"
-            },
-            {
-              "name": "dateRestrict",
-              "value": "m6"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "clx04-0000-0000-0000-000000000007",
-      "name": "Google Search",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1640, 300],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "3",
-          "name": "Google Search"
-        }
-      }
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "authentication": "genericCredentialType",
@@ -177,14 +122,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (function() {\n  const lead = $('Build Search Query').item.json;\n  const searchData = $input.item.json;\n  \n  // Format search results into readable text\n  let resultsText = 'No search results found.';\n  if (searchData.items && searchData.items.length > 0) {\n    resultsText = searchData.items.map(function(item, i) {\n      return (i + 1) + '. ' + (item.title || '') + '\\n' + (item.snippet || '');\n    }).join('\\n\\n');\n  }\n  \n  const prompt = 'You are a business intelligence analyst for the Crystallux AI Sales Engine.\\n\\nAnalyze these search results about a company and identify the strongest business signal.\\n\\nCompany: ' + lead.company + '\\nIndustry: ' + lead.industry + '\\nCity: ' + lead.city + '\\nResearch Summary: ' + lead.research_summary + '\\n\\nSearch Results:\\n' + resultsText + '\\n\\nBased on these results identify:\\n1. What is this company currently doing or experiencing\\n2. What business signal does this represent\\n3. What type of outreach campaign would resonate most right now\\n\\nReturn ONLY raw JSON with no explanation no markdown no code blocks:\\n{\"detected_signal\": \"brief description of what the company is doing right now\", \"growth_stage\": \"Startup or Growing or Established or Declining or Pivoting\", \"recommended_campaign_type\": \"one of these exact values: automation_campaign or lead_generation_campaign or reputation_campaign or expansion_campaign or retention_campaign or general_outreach\", \"signal_confidence\": \"High or Medium or Low\", \"outreach_timing\": \"Immediate or This Week or This Month\"}';\n  \n  return JSON.stringify({\n    model: 'claude-haiku-4-5-20251001',\n    max_tokens: 512,\n    messages: [{ role: 'user', content: prompt }]\n  });\n})() }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content: 'You are a business intelligence analyst for the Crystallux AI Sales Engine.\\n\\nBased on what you know about this company and the research provided, identify the strongest business signal and recommend the best outreach strategy.\\n\\nCompany: ' + $('Split In Batches').item.json.company + '\\nIndustry: ' + $('Split In Batches').item.json.industry + '\\nCity: ' + $('Split In Batches').item.json.city + '\\nJob Title: ' + $('Split In Batches').item.json.job_title + '\\nProduct Type: ' + ($('Split In Batches').item.json.product_type || '') + '\\nLead Score: ' + $('Split In Batches').item.json.lead_score + '\\nResearch Summary: ' + ($('Split In Batches').item.json.research_summary || '') + '\\nLikely Business Need: ' + ($('Split In Batches').item.json.likely_business_need || '') + '\\nResearch Angle: ' + ($('Split In Batches').item.json.research_angle || '') + '\\n\\nAnalyze this company and determine:\\n1. What business signal is most relevant right now\\n2. What growth stage they are in\\n3. What campaign type would resonate most\\n4. How confident you are in the signal\\n5. When to reach out\\n\\nReturn ONLY raw JSON no explanation no markdown no code blocks:\\n{\\n  \"detected_signal\": \"brief description of the business signal\",\\n  \"growth_stage\": \"Startup\" or \"Growing\" or \"Established\" or \"Declining\" or \"Pivoting\",\\n  \"recommended_campaign_type\": \"automation_campaign\" or \"lead_generation_campaign\" or \"reputation_campaign\" or \"expansion_campaign\" or \"retention_campaign\" or \"general_outreach\",\\n  \"signal_confidence\": \"High\" or \"Medium\" or \"Low\",\\n  \"outreach_timing\": \"Immediate\" or \"This Week\" or \"This Month\"\\n}' }] }) }}",
         "options": {}
       },
       "id": "clx04-0000-0000-0000-000000000008",
       "name": "Claude Analyze Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1880, 300],
+      "position": [1400, 300],
       "credentials": {
         "httpHeaderAuth": {
           "id": "2",
@@ -194,13 +139,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse Claude signal analysis response\nconst response = $input.item.json;\nconst lead = $('Build Search Query').item.json;\n\n// Extract text content from Claude API response\nconst rawText = response.content[0].text;\n\n// Parse the JSON — handle markdown-wrapped responses safely\nlet signal;\ntry {\n  const cleaned = rawText\n    .replace(/```json/gi, '')\n    .replace(/```/g, '')\n    .trim();\n  signal = JSON.parse(cleaned);\n} catch (e) {\n  signal = {\n    detected_signal: 'Manual review needed — AI parse error: ' + e.message,\n    growth_stage: 'Established',\n    recommended_campaign_type: 'general_outreach',\n    signal_confidence: 'Low',\n    outreach_timing: 'This Month'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    id: lead.id,\n    detected_signal: signal.detected_signal || 'No signal detected',\n    growth_stage: signal.growth_stage || 'Established',\n    recommended_campaign_type: signal.recommended_campaign_type || 'general_outreach',\n    signal_confidence: signal.signal_confidence || 'Low',\n    outreach_timing: signal.outreach_timing || 'This Month',\n    lead_status: 'Signal Detected',\n    updated_at: now\n  }\n};"
+        "jsCode": "// Parse Claude signal analysis response\ntry {\n  const response = $('Claude Analyze Signal').item.json;\n  const lead = $('Split In Batches').item.json;\n\n  let rawText = '';\n  if (response.content && Array.isArray(response.content)) {\n    rawText = response.content.map(c => c.text || '').join('');\n  } else if (typeof response.content === 'string') {\n    rawText = response.content;\n  }\n\n  rawText = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/gi, '').trim();\n  const signal = JSON.parse(rawText);\n\n  const now = new Date().toISOString();\n\n  return {\n    json: {\n      id: lead.id,\n      detected_signal: signal.detected_signal || 'No signal detected',\n      growth_stage: signal.growth_stage || 'Established',\n      recommended_campaign_type: signal.recommended_campaign_type || 'general_outreach',\n      signal_confidence: signal.signal_confidence || 'Low',\n      outreach_timing: signal.outreach_timing || 'This Month',\n      lead_status: 'Signal Detected',\n      updated_at: now\n    }\n  };\n} catch (error) {\n  const lead = $('Split In Batches').item.json;\n  return {\n    json: {\n      id: lead.id,\n      detected_signal: 'Manual review needed — parse error: ' + error.message,\n      growth_stage: 'Established',\n      recommended_campaign_type: 'general_outreach',\n      signal_confidence: 'Low',\n      outreach_timing: 'This Month',\n      lead_status: 'Signal Detected',\n      updated_at: new Date().toISOString()\n    }\n  };\n}"
       },
       "id": "clx04-0000-0000-0000-000000000009",
       "name": "Parse Signal Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 300]
+      "position": [1640, 300]
     },
     {
       "parameters": {
@@ -234,7 +179,7 @@
       "name": "Update Lead Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2360, 300],
+      "position": [1880, 300],
       "credentials": {
         "httpHeaderAuth": {
           "id": "1",
@@ -308,28 +253,6 @@
       "main": [
         [
           {
-            "node": "Build Search Query",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Search Query": {
-      "main": [
-        [
-          {
-            "node": "Google Search",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Search": {
-      "main": [
-        [
-          {
             "node": "Claude Analyze Signal",
             "type": "main",
             "index": 0
@@ -375,7 +298,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-signal-v040",
+  "versionId": "clx-signal-v041-claude-only",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"

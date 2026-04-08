@@ -10,7 +10,8 @@ NC='\033[0m'
 list() {
   echo -e "${BLUE}Crystallux Workflows:${NC}"
   curl -s -X GET "$N8N_URL/api/v1/workflows" \
-    -H "X-N8N-API-KEY: $N8N_API_KEY"
+    -H "X-N8N-API-KEY: $N8N_API_KEY" \
+    -H "Content-Type: application/json"
 }
 
 deploy() {
@@ -32,6 +33,6 @@ case "$1" in
   deploy)  deploy "$2" ;;
   execute) execute "$2" ;;
   *)
-    echo "Usage: ./scripts/crystallux.sh [list|deploy <filename-no-ext>|execute <workflow-id>]"
+    echo "Usage: ./scripts/crystallux.sh [list|deploy|execute] [name]"
     ;;
 esac
