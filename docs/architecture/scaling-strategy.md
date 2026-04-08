@@ -105,11 +105,25 @@ Each workflow processes batch size 1 with wait nodes between API calls. To incre
 - Reduce schedule intervals
 - Add n8n worker processes for parallel execution
 
+### Multi-Client Architecture (v0.9.4+)
+The `clients` table in Supabase stores all client configurations:
+- Each client has their own Calendly link, notification email, and billing config
+- The Booking workflow dynamically looks up the correct client by matching `lead.product_type` to `client.industry`
+- Adding a new client = one INSERT into the `clients` table — no workflow changes needed
+- Deactivating a client = `UPDATE clients SET active = false` — leads fall back to defaults
+
+```sql
+-- Example: add a new client
+INSERT INTO clients (client_name, industry, calendly_link, notification_email, city, active, fee_per_booking)
+VALUES ('New Client', 'insurance', 'https://calendly.com/their-link', 'client@email.com', 'Vancouver', true, 200.00);
+```
+
 ### Multi-Tenant Scaling (White Label)
 Each client gets:
-- Dedicated Supabase project (or schema-level isolation with RLS)
-- Separate n8n workflow instances with client-specific credentials
-- Independent scheduling offset by 3 minutes per client
+- Row in the `clients` table with their own Calendly link and billing config
+- Leads matched by `product_type` → `industry` for automatic routing
+- Dedicated Supabase project (or schema-level isolation with RLS) at scale
+- Independent scheduling offset by 3 minutes per client at scale
 - Separate Claude prompts configured for their industry
 
 ### Database Performance

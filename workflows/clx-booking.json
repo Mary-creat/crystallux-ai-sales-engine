@@ -255,17 +255,22 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.calendly.com/users/me",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?industry=eq.' + encodeURIComponent($('Split In Batches').item.json.product_type || '') + '&active=eq.true&limit=1' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": []
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
         },
         "options": {}
       },
       "id": "clx09-0000-0000-0000-000000000009",
-      "name": "Get Calendly Link",
+      "name": "Get Client Config",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -274,14 +279,15 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "4",
-          "name": "Calendly"
+          "id": "1",
+          "name": "Supabase Crystallux"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const lead = $('Split In Batches').item.json;\nconst calendlyUrl = \"https://calendly.com/adesholaakintunde/free-moving-quote-toronto-gta\";\n\nconst subject = \"Let's find a time to connect — Free Moving Quote\";\n\nconst body = `Hi ${lead.full_name || 'there'},\n\nThank you for your interest in Blonai Moving Company.\n\nWe would love to help make your move stress-free and professional. Our team serves the entire Toronto GTA area.\n\nClick here to book your free no-obligation moving quote:\n${calendlyUrl}\n\nIt only takes 30 seconds to book and you will receive an instant confirmation.\n\nLooking forward to helping you with your move.\n\nBlonai Moving Company\nToronto GTA`;\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    calendly_link: calendlyUrl,\n    booking_email_sent: true,\n    booking_email_sent_at: new Date().toISOString(),\n    lead_status: 'Booking Sent',\n    updated_at: new Date().toISOString()\n  }\n};"
+        "jsCode": "const lead = $(\"Split In Batches\").item.json;\n\n// Get client config from Supabase (may be array or single object)\nlet client = {};\ntry {\n  const raw = $(\"Get Client Config\").item.json;\n  client = Array.isArray(raw) ? (raw[0] || {}) : (raw || {});\n} catch (e) {\n  client = {};\n}\n\nconst calendlyUrl = client.calendly_link || \"https://calendly.com/adesholaakintunde/free-moving-quote-toronto-gta\";\nconst notificationEmail = client.notification_email || \"info@crystallux.org\";\nconst clientName = client.client_name || \"Blonai Moving Company\";\n\nconst subject = \"Let's find a time to connect — Free Moving Quote\";\n\nconst body = `Hi ${lead.full_name || \"there\"},\n\nThank you for your interest in ${clientName}.\n\nWe would love to help make your move stress-free and professional. Our team serves the entire Toronto GTA area.\n\nClick here to book your free no-obligation moving quote:\n${calendlyUrl}\n\nIt only takes 30 seconds to book and you will receive an instant confirmation.\n\nLooking forward to helping you with your move.\n\n${clientName}\nToronto GTA`;\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    calendly_link: calendlyUrl,\n    notification_email: notificationEmail,\n    client_name: clientName,\n    booking_email_sent: true,\n    booking_email_sent_at: new Date().toISOString(),\n    lead_status: \"Booking Sent\",\n    updated_at: new Date().toISOString()\n  }\n};"
       },
       "id": "clx09-0000-0000-0000-000000000010",
       "name": "Build Booking Email",
@@ -534,7 +540,7 @@
       "main": [
         [
           {
-            "node": "Get Calendly Link",
+            "node": "Get Client Config",
             "type": "main",
             "index": 0
           }
@@ -548,7 +554,7 @@
         ]
       ]
     },
-    "Get Calendly Link": {
+    "Get Client Config": {
       "main": [
         [
           {

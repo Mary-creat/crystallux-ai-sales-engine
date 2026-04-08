@@ -201,6 +201,50 @@ Lists leads filtered by status, industry, or both.
 
 ---
 
+## Tool 11: check_system_health
+
+Counts leads by status and returns overall system health.
+
+**Input:** none
+
+**Output:** total_leads, status_counts, active_conversations, health ("operational" or "empty")
+
+---
+
+## Tool 12: check_pipeline_health
+
+Analyzes pipeline stages and flags stale leads based on age thresholds.
+
+**Input:** none
+
+**Output:** total_leads, stage_counts, stale_leads array, stale_count, health ("healthy" or "needs_attention")
+
+---
+
+## Tool 13: get_execution_stats
+
+Returns MCP tool call stats from the last 24 hours.
+
+**Input:** none
+
+**Output:** Array of recent tool calls with tool_name, success, execution_time_ms, created_at
+
+---
+
+## Tool 14: get_clients
+
+Lists all active Crystallux clients with their Calendly links and billing config.
+
+**Input:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| industry | string | no | Filter by industry (e.g. moving_services) |
+
+**Output:** Array of client objects with client_name, industry, calendly_link, notification_email, city, fee_per_booking, monthly_retainer
+
+---
+
 ## Future Tools (Coming Soon)
 
 | Tool | Description | Integration |
