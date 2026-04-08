@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&unsubscribed=eq.false&do_not_contact=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,industry,reply_text,research_summary,likely_business_need,lead_score,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=10",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&unsubscribed=eq.false&do_not_contact=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,industry,product_type,reply_text,research_summary,likely_business_need,lead_score,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=10",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -255,7 +255,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?industry=eq.' + encodeURIComponent($('Split In Batches').item.json.product_type || '') + '&active=eq.true&limit=1' }}",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?industry=eq.{{ $('Split In Batches').item.json.product_type }}&active=eq.true&select=*&limit=1",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -287,7 +287,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lead = $(\"Split In Batches\").item.json;\n\n// Get client config from Supabase (may be array or single object)\nlet client = {};\ntry {\n  const raw = $(\"Get Client Config\").item.json;\n  client = Array.isArray(raw) ? (raw[0] || {}) : (raw || {});\n} catch (e) {\n  client = {};\n}\n\nconst calendlyUrl = client.calendly_link || \"https://calendly.com/adesholaakintunde/free-moving-quote-toronto-gta\";\nconst notificationEmail = client.notification_email || \"info@crystallux.org\";\nconst clientName = client.client_name || \"Blonai Moving Company\";\n\nconst subject = \"Let's find a time to connect — Free Moving Quote\";\n\nconst body = `Hi ${lead.full_name || \"there\"},\n\nThank you for your interest in ${clientName}.\n\nWe would love to help make your move stress-free and professional. Our team serves the entire Toronto GTA area.\n\nClick here to book your free no-obligation moving quote:\n${calendlyUrl}\n\nIt only takes 30 seconds to book and you will receive an instant confirmation.\n\nLooking forward to helping you with your move.\n\n${clientName}\nToronto GTA`;\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    calendly_link: calendlyUrl,\n    notification_email: notificationEmail,\n    client_name: clientName,\n    booking_email_sent: true,\n    booking_email_sent_at: new Date().toISOString(),\n    lead_status: \"Booking Sent\",\n    updated_at: new Date().toISOString()\n  }\n};"
+        "jsCode": "const lead = $('Split In Batches').item.json;\n\nlet calendlyUrl = \"https://calendly.com/adesholaakintunde/free-moving-quote-toronto-gta\";\nlet clientName = \"Blonai Moving Company\";\nlet notificationEmail = \"akintundebowale@gmail.com\";\n\ntry {\n  const clientData = $('Get Client Config').first().json;\n  if (clientData && clientData.calendly_link) {\n    calendlyUrl = clientData.calendly_link;\n    clientName = clientData.client_name;\n    notificationEmail = clientData.notification_email;\n  }\n} catch(e) {\n}\n\nconst subject = \"Let's find a time — Free Moving Quote\";\n\nconst body = `Hi ${lead.full_name || 'there'},\n\nThank you for your interest in ${clientName}.\n\nWe would love to help make your move stress-free\\nand professional across Toronto GTA.\n\nClick here to book your free no-obligation quote:\\n${calendlyUrl}\n\nTakes 30 seconds to book. Confirmation sent instantly.\n\n${clientName}\\nToronto GTA`;\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    calendly_link: calendlyUrl,\n    client_name: clientName,\n    notification_email: notificationEmail,\n    booking_email_sent: true,\n    booking_email_sent_at: new Date().toISOString(),\n    lead_status: 'Booking Sent',\n    updated_at: new Date().toISOString()\n  }\n};"
       },
       "id": "clx09-0000-0000-0000-000000000010",
       "name": "Build Booking Email",
@@ -301,9 +301,9 @@
     {
       "parameters": {
         "sendTo": "={{ $('Build Booking Email').item.json.email }}",
-        "subject": "={{ $('Build Booking Email').item.json.subject }}",
+        "subject": "={{ $('Build Booking Email').item.json.booking_subject }}",
         "emailType": "html",
-        "message": "={{ $('Build Booking Email').item.json.body }}",
+        "message": "={{ $('Build Booking Email').item.json.booking_body }}",
         "options": {
           "appendAttributionToBody": false
         }
@@ -625,7 +625,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-booking-v091-safety",
+  "versionId": "clx-booking-v095-overhaul",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
