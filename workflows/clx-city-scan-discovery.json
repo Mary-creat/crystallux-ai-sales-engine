@@ -205,7 +205,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if Supabase returned any matching leads\n// Full response mode: $json.body is the array, $json.statusCode is the HTTP status\nconst lead = $('Parse Duplicate Check').item.json;\nconst response = $('Check Duplicate').item.json;\nconst body = response.body || response;\nconst results = Array.isArray(body) ? body : [];\nconst isDuplicate = results.length > 0;\n\nconsole.log('[CLX City Scan] Dedup check for: ' + lead.company + ' — duplicate: ' + isDuplicate);\n\nreturn { json: { ...lead, is_duplicate: String(isDuplicate) } };"
+        "jsCode": "// Check if Supabase returned any matching leads\n// Full response mode: $json.body is the array, $json.statusCode is the HTTP status\ntry {\n  const lead = $('Process Each Business').item.json;\n  const response = $('Check Duplicate').item.json;\n  const body = response.body || response;\n  const results = Array.isArray(body) ? body : [];\n  const isDuplicate = results.length > 0;\n\n  console.log('[CLX City Scan] Dedup check for: ' + lead.company + ' — duplicate: ' + isDuplicate);\n\n  return { json: { ...lead, is_duplicate: String(isDuplicate) } };\n} catch (error) {\n  console.log('[CLX City Scan] Dedup parse error: ' + error.message);\n  return { json: { ...$input.item.json, is_duplicate: 'false' } };\n}"
       },
       "id": "clx11-0000-0000-0000-000000000013",
       "name": "Parse Duplicate Check",
