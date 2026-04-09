@@ -7,7 +7,7 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 30
+              "minutesInterval": 15
             }
           ]
         }
@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Campaign%20Assigned&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,campaign_name,campaign_value_proposition,campaign_pain_point,campaign_call_to_action,campaign_tone&limit=10",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Campaign%20Assigned&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,campaign_name,campaign_value_proposition,campaign_pain_point,campaign_call_to_action,campaign_tone&limit=25",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
