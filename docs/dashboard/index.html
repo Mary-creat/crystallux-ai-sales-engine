@@ -126,6 +126,30 @@
   footer{text-align:center;padding:32px 20px;color:var(--text-dimmer);font-size:12px;border-top:1px solid var(--border);margin-top:48px}
   footer .brand{color:var(--primary);font-weight:600}
 
+  /* SETTINGS GEAR */
+  .gear-btn{background:transparent;border:1px solid var(--border);border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);transition:all .2s;margin-left:12px}
+  .gear-btn:hover{color:var(--primary);border-color:var(--primary);transform:rotate(30deg)}
+  .gear-btn svg{width:18px;height:18px}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
+  .modal-overlay.show{display:flex}
+  .modal{background:var(--bg-2);border:1px solid var(--border);border-radius:14px;padding:28px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+  .modal-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
+  .modal-subtitle{font-size:13px;color:var(--text-dim);margin-bottom:20px;line-height:1.5}
+  .modal-field{margin-bottom:14px}
+  .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.6px}
+  .modal-field input{width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'SF Mono',Consolas,monospace;font-size:13px;outline:none;transition:border-color .2s}
+  .modal-field input:focus{border-color:var(--primary)}
+  .modal-actions{display:flex;gap:10px;margin-top:22px;justify-content:flex-end}
+  .modal-btn{padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;border:none;font-family:inherit;transition:all .2s}
+  .modal-btn.primary{background:var(--primary);color:#fff}
+  .modal-btn.primary:hover{background:var(--primary-dark)}
+  .modal-btn.secondary{background:transparent;color:var(--text-dim);border:1px solid var(--border)}
+  .modal-btn.secondary:hover{color:var(--red);border-color:var(--red)}
+  .modal-note{font-size:11px;color:var(--text-dimmer);margin-top:14px;padding:10px 12px;background:var(--bg-3);border-radius:6px;border-left:3px solid var(--secondary);line-height:1.5}
+  .keys-required{text-align:center;padding:40px 20px;color:var(--text-dimmer);font-size:13px}
+
   @media (max-width:768px){
     header{padding:12px 16px;flex-wrap:wrap;gap:12px}
     nav ul{gap:14px}
@@ -147,8 +171,38 @@
       <li><a href="#settings">Settings</a></li>
     </ul>
   </nav>
-  <div class="status-pill"><div class="pulse-dot"></div>Engine Active</div>
+  <div style="display:flex;align-items:center">
+    <div class="status-pill"><div class="pulse-dot"></div>Engine Active</div>
+    <button class="gear-btn" id="settingsBtn" title="Settings — manage API keys" aria-label="Open settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
 </header>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-title">API Credentials</div>
+    <div class="modal-subtitle">Enter your API keys below. Keys are stored only in browser memory for this session and are cleared automatically when you close this tab.</div>
+    <div class="modal-field">
+      <label for="claudeKeyInput">Claude API Key</label>
+      <input id="claudeKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label for="supabaseKeyInput">Supabase Key</label>
+      <input id="supabaseKeyInput" type="password" placeholder="sb_secret_..." autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label for="mcpKeyInput">MCP API Key</label>
+      <input id="mcpKeyInput" type="password" placeholder="mcp-..." autocomplete="off" />
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" id="clearKeysBtn">Clear</button>
+      <button class="modal-btn primary" id="saveKeysBtn">Save</button>
+    </div>
+    <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies.</div>
+  </div>
+</div>
 
 <main>
   <!-- SECTION 1: PIPELINE STATS -->
@@ -187,7 +241,7 @@
   </section>
 
   <!-- SECTION 5: API STATUS -->
-  <section class="section" id="settings">
+  <section class="section" id="settings" style="display:none">
     <div class="section-title">API Status</div>
     <div class="api-grid" id="apiGrid"></div>
   </section>
@@ -208,7 +262,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.0</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.3</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -219,20 +273,28 @@
    ============================================================ */
 
 const SUPABASE_URL = 'https://zqwatouqmqgkmaslydbr.supabase.co';
-const SUPABASE_KEY = 'YOUR_SUPABASE_KEY_HERE';
 const MCP_GATEWAY = 'https://automation.crystallux.org/webhook/crystallux-mcp';
-const MCP_API_KEY = 'crystallux-mcp-2026-secret-key';
 const N8N_HEALTH = 'https://automation.crystallux.org/healthz';
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 
-// Anthropic API key — must be supplied at runtime via localStorage
-// localStorage.setItem('CLAUDE_API_KEY', 'sk-ant-...')
-const CLAUDE_KEY = localStorage.getItem('CLAUDE_API_KEY') || '';
-
-const supabaseHeaders = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': 'Bearer ' + SUPABASE_KEY
+// In-memory credential store. Lives only in this JS variable for this tab.
+// Cleared automatically when the tab closes — never persisted to disk, localStorage, or cookies.
+const credentials = {
+  claudeKey: '',
+  supabaseKey: '',
+  mcpKey: ''
 };
+
+function hasAllKeys() {
+  return !!(credentials.claudeKey && credentials.supabaseKey && credentials.mcpKey);
+}
+
+function supabaseHeaders() {
+  return {
+    'apikey': credentials.supabaseKey,
+    'Authorization': 'Bearer ' + credentials.supabaseKey
+  };
+}
 
 /* ---- SECTION 1: STAT CARDS ---- */
 const STATUS_BUCKETS = [
@@ -249,7 +311,7 @@ const STATUS_BUCKETS = [
 
 async function fetchPipelineStats() {
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders });
+    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders() });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     const counts = {};
@@ -274,7 +336,7 @@ const STATUS_COLOURS = {
 async function fetchRecentLeads() {
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source,updated_at&order=updated_at.desc&limit=20';
-    const res = await fetch(url, { headers: supabaseHeaders });
+    const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     const body = document.getElementById('leadsBody');
@@ -333,9 +395,10 @@ async function runAction(i) {
   btn.querySelector('.label').innerHTML = '<span class="spinner"></span> Running…';
   result.classList.remove('show');
   try {
+    if (!hasAllKeys()) { throw new Error('API keys not configured. Open settings to add them.'); }
     const res = await fetch(MCP_GATEWAY, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-MCP-API-Key': MCP_API_KEY },
+      headers: { 'Content-Type': 'application/json', 'X-MCP-API-Key': credentials.mcpKey },
       body: JSON.stringify({ tool: a.tool, arguments: a.args })
     });
     const text = await res.text();
@@ -353,13 +416,15 @@ async function runAction(i) {
 }
 
 /* ---- SECTION 4: CLAUDE CHAT ---- */
-const SYSTEM_PROMPT = "You are the Crystallux AI assistant. " +
-  "You control the Crystallux sales engine. " +
-  "You help the owner manage their AI sales platform. " +
-  "MCP Gateway: " + MCP_GATEWAY + " " +
-  "MCP API Key: " + MCP_API_KEY + " " +
-  "When asked to do something call the MCP gateway and report results in plain English. " +
-  "Available tools: scan_city, list_leads, get_pipeline_stats, research_lead, generate_outreach, send_outreach, process_booking, get_lead, update_lead_status";
+function buildSystemPrompt() {
+  return "You are the Crystallux AI assistant. " +
+    "You control the Crystallux sales engine. " +
+    "You help the owner manage their AI sales platform. " +
+    "MCP Gateway: " + MCP_GATEWAY + " " +
+    "MCP API Key: " + credentials.mcpKey + " " +
+    "When asked to do something call the MCP gateway and report results in plain English. " +
+    "Available tools: scan_city, list_leads, get_pipeline_stats, research_lead, generate_outreach, send_outreach, process_booking, get_lead, update_lead_status";
+}
 
 const chatHistory = [];
 
@@ -397,21 +462,21 @@ async function sendChat() {
   chatHistory.push({ role: 'user', content: text });
   addTyping();
   try {
-    if (!CLAUDE_KEY) {
-      throw new Error('Claude API key missing. Set localStorage.CLAUDE_API_KEY');
+    if (!credentials.claudeKey) {
+      throw new Error('Claude API key missing. Open settings to add it.');
     }
     const res = await fetch(CLAUDE_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_KEY,
+        'x-api-key': credentials.claudeKey,
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(),
         messages: chatHistory
       })
     });
@@ -436,7 +501,7 @@ async function checkApiStatus() {
       name: 'Supabase',
       detail: 'Lead database',
       check: async () => {
-        const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders });
+        const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders() });
         return r.ok;
       }
     },
@@ -449,8 +514,13 @@ async function checkApiStatus() {
     },
     {
       name: 'Claude API',
-      detail: CLAUDE_KEY ? 'Key …' + CLAUDE_KEY.slice(-4) : 'Key not set',
-      check: async () => !!CLAUDE_KEY
+      detail: credentials.claudeKey ? 'Key …' + credentials.claudeKey.slice(-4) : 'Key not set',
+      check: async () => !!credentials.claudeKey
+    },
+    {
+      name: 'MCP Gateway',
+      detail: credentials.mcpKey ? 'Key …' + credentials.mcpKey.slice(-4) : 'Key not set',
+      check: async () => !!credentials.mcpKey
     },
     {
       name: 'Hunter.io',
@@ -483,14 +553,69 @@ async function checkApiStatus() {
   }
 }
 
+/* ---- SETTINGS MODAL ---- */
+function openSettings() {
+  document.getElementById('claudeKeyInput').value = credentials.claudeKey;
+  document.getElementById('supabaseKeyInput').value = credentials.supabaseKey;
+  document.getElementById('mcpKeyInput').value = credentials.mcpKey;
+  document.getElementById('settingsModal').classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('show');
+}
+
+function saveKeys() {
+  credentials.claudeKey   = document.getElementById('claudeKeyInput').value.trim();
+  credentials.supabaseKey = document.getElementById('supabaseKeyInput').value.trim();
+  credentials.mcpKey      = document.getElementById('mcpKeyInput').value.trim();
+  if (hasAllKeys()) {
+    closeSettings();
+    document.getElementById('settings').style.display = '';
+    refreshAll();
+  } else {
+    alert('Please enter all three API keys to continue.');
+  }
+}
+
+function clearKeys() {
+  credentials.claudeKey = '';
+  credentials.supabaseKey = '';
+  credentials.mcpKey = '';
+  document.getElementById('claudeKeyInput').value = '';
+  document.getElementById('supabaseKeyInput').value = '';
+  document.getElementById('mcpKeyInput').value = '';
+  document.getElementById('settings').style.display = 'none';
+  document.getElementById('statGrid').innerHTML = '<div class="stat-card"><div class="stat-label">Locked</div><div class="stat-value" style="font-size:14px;color:var(--text-dimmer)">Enter API keys</div></div>';
+  document.getElementById('leadsBody').innerHTML = '<tr><td colspan="7" class="keys-required">Enter API keys in settings to load leads.</td></tr>';
+}
+
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+document.getElementById('saveKeysBtn').addEventListener('click', saveKeys);
+document.getElementById('clearKeysBtn').addEventListener('click', clearKeys);
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target.id === 'settingsModal' && hasAllKeys()) closeSettings();
+});
+
+/* Defensive: clear in-memory keys if the tab is hidden/closed. */
+window.addEventListener('beforeunload', () => {
+  credentials.claudeKey = '';
+  credentials.supabaseKey = '';
+  credentials.mcpKey = '';
+});
+
 /* ---- INIT + AUTO REFRESH ---- */
 function refreshAll() {
+  if (!hasAllKeys()) return;
   fetchPipelineStats();
   fetchRecentLeads();
   checkApiStatus();
 }
+
 renderActions();
-refreshAll();
+document.getElementById('statGrid').innerHTML = '<div class="stat-card"><div class="stat-label">Locked</div><div class="stat-value" style="font-size:14px;color:var(--text-dimmer)">Enter API keys</div></div>';
+document.getElementById('leadsBody').innerHTML = '<tr><td colspan="7" class="keys-required">Enter API keys in settings to load leads.</td></tr>';
+openSettings();
 setInterval(refreshAll, 60000);
 </script>
 </body>
