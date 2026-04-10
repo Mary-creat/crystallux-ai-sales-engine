@@ -20,6 +20,7 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase 10 | CLX Pipeline Update (`clx-pipeline-update.json`) | Complete (v0.10.0) |
 | Phase 11 | CLX City Scan Discovery (`clx-city-scan-discovery.json`) | Complete — Production Tested (v0.11.2) |
 | Phase 12 | CLX MCP Tool Gateway (`clx-mcp-tool-gateway.json`) | Complete (v1.0.0) |
+| Phase 14 | CLX B2C Discovery (`clx-b2c-discovery.json`) | Complete (v1.0.0) — 26 search queries across 6 B2C verticals |
 
 ## Credentials Required
 
@@ -54,6 +55,8 @@ The following credentials must be configured in n8n before activating workflows:
 | [Redis Security](docs/setup/redis-security.md) | Redis password authentication setup with zero-downtime guide |
 | [Supabase RLS](docs/setup/supabase-rls-setup.md) | Row Level Security policies for production data protection |
 | [Infrastructure Audit](docs/architecture/infrastructure-audit.md) | Full system audit report with health scores and fix tracking |
+| [API Requirements](docs/setup/api-requirements.md) | Master list of every API used (or planned) by Crystallux — cost, status, onboarding |
+| [Web Dashboard](docs/dashboard/index.html) | Crystallux operations dashboard — pipeline stats, recent leads, quick actions, Claude chat, API status |
 
 ## Business Documentation
 
