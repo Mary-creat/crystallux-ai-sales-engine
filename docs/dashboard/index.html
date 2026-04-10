@@ -27,7 +27,14 @@
     --red:#ef4444;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
   html,body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+  section[id]{scroll-margin-top:80px}
+
+  /* LOCAL FILE BANNER */
+  .local-banner{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;padding:12px 20px;border-radius:10px;font-size:13px;margin-bottom:24px;display:none;line-height:1.5}
+  .local-banner.show{display:block}
+  .local-banner strong{color:#fcd34d}
   a{color:inherit;text-decoration:none}
 
   /* HEADER */
@@ -164,11 +171,11 @@
   <div class="logo">Crystallux<span> AI</span></div>
   <nav>
     <ul>
-      <li><a href="#" class="active">Dashboard</a></li>
+      <li><a href="#dashboard" class="active">Dashboard</a></li>
       <li><a href="#leads">Leads</a></li>
       <li><a href="#pipeline">Pipeline</a></li>
       <li><a href="#clients">Clients</a></li>
-      <li><a href="#settings">Settings</a></li>
+      <li><a href="#" id="navSettings">Settings</a></li>
     </ul>
   </nav>
   <div style="display:flex;align-items:center">
@@ -205,8 +212,12 @@
 </div>
 
 <main>
+  <div class="local-banner" id="localBanner">
+    <strong>Running locally (file://)</strong> — some browser features may be restricted on the file:// protocol. If API calls fail, try serving this page over HTTP (for example <code>python -m http.server</code>) or open it from a hosted URL.
+  </div>
+
   <!-- SECTION 1: PIPELINE STATS -->
-  <section class="section" id="pipeline">
+  <section class="section" id="dashboard">
     <div class="section-title">Pipeline Stats</div>
     <div class="stat-grid" id="statGrid">
       <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value"><div class="spinner"></div></div></div>
@@ -235,13 +246,13 @@
   </section>
 
   <!-- SECTION 3: QUICK ACTIONS -->
-  <section class="section">
+  <section class="section" id="pipeline">
     <div class="section-title">Quick Actions</div>
     <div class="actions-grid" id="actionsGrid"></div>
   </section>
 
   <!-- SECTION 5: API STATUS -->
-  <section class="section" id="settings" style="display:none">
+  <section class="section" id="clients" style="display:none">
     <div class="section-title">API Status</div>
     <div class="api-grid" id="apiGrid"></div>
   </section>
@@ -262,7 +273,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.3</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.4</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -571,7 +582,7 @@ function saveKeys() {
   credentials.mcpKey      = document.getElementById('mcpKeyInput').value.trim();
   if (hasAllKeys()) {
     closeSettings();
-    document.getElementById('settings').style.display = '';
+    document.getElementById('clients').style.display = '';
     refreshAll();
   } else {
     alert('Please enter all three API keys to continue.');
@@ -585,7 +596,7 @@ function clearKeys() {
   document.getElementById('claudeKeyInput').value = '';
   document.getElementById('supabaseKeyInput').value = '';
   document.getElementById('mcpKeyInput').value = '';
-  document.getElementById('settings').style.display = 'none';
+  document.getElementById('clients').style.display = 'none';
   document.getElementById('statGrid').innerHTML = '<div class="stat-card"><div class="stat-label">Locked</div><div class="stat-value" style="font-size:14px;color:var(--text-dimmer)">Enter API keys</div></div>';
   document.getElementById('leadsBody').innerHTML = '<tr><td colspan="7" class="keys-required">Enter API keys in settings to load leads.</td></tr>';
 }
@@ -593,6 +604,7 @@ function clearKeys() {
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('saveKeysBtn').addEventListener('click', saveKeys);
 document.getElementById('clearKeysBtn').addEventListener('click', clearKeys);
+document.getElementById('navSettings').addEventListener('click', e => { e.preventDefault(); openSettings(); });
 document.getElementById('settingsModal').addEventListener('click', e => {
   if (e.target.id === 'settingsModal' && hasAllKeys()) closeSettings();
 });
@@ -610,6 +622,11 @@ function refreshAll() {
   fetchPipelineStats();
   fetchRecentLeads();
   checkApiStatus();
+}
+
+/* Detect local file:// usage and warn the user — some fetches behave differently. */
+if (window.location.protocol === 'file:') {
+  document.getElementById('localBanner').classList.add('show');
 }
 
 renderActions();
