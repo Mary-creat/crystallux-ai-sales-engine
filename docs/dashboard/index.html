@@ -30,28 +30,45 @@
   html{scroll-behavior:smooth}
   html,body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
   section[id]{scroll-margin-top:80px}
-
-  /* LOCAL FILE BANNER */
-  .local-banner{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;padding:12px 20px;border-radius:10px;font-size:13px;margin-bottom:24px;display:none;line-height:1.5}
-  .local-banner.show{display:block}
-  .local-banner strong{color:#fcd34d}
   a{color:inherit;text-decoration:none}
+  code{font-family:'SF Mono',Consolas,monospace;background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:4px;color:#fcd34d}
+
+  /* LOCAL FILE / CORS BANNER */
+  .local-banner{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;padding:14px 20px;border-radius:10px;font-size:13px;margin-bottom:24px;display:none;line-height:1.6}
+  .local-banner.show{display:block}
+  .local-banner strong{color:#fcd34d;display:block;margin-bottom:4px;font-size:14px}
 
   /* HEADER */
   header{
     background:rgba(15,22,38,0.95);backdrop-filter:blur(8px);
     border-bottom:1px solid var(--border);
     position:sticky;top:0;z-index:100;
-    padding:14px 32px;display:flex;align-items:center;justify-content:space-between;
+    padding:14px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;
   }
-  .logo{font-size:22px;font-weight:800;color:var(--primary);letter-spacing:-0.5px}
+  .logo{font-size:22px;font-weight:800;color:var(--primary);letter-spacing:-0.5px;flex-shrink:0}
   .logo span{color:var(--secondary);font-weight:600}
   nav ul{display:flex;gap:28px;list-style:none}
-  nav a{color:var(--text-dim);font-weight:500;font-size:14px;transition:color .2s}
+  nav a{color:var(--text-dim);font-weight:500;font-size:14px;transition:color .2s;cursor:pointer}
   nav a:hover,nav a.active{color:var(--primary)}
+  .header-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
   .status-pill{display:flex;align-items:center;gap:8px;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.35);padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;color:var(--secondary)}
   .pulse-dot{width:8px;height:8px;background:var(--secondary);border-radius:50%;box-shadow:0 0 0 0 rgba(29,158,117,0.7);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(29,158,117,0.7)}70%{box-shadow:0 0 0 8px rgba(29,158,117,0)}100%{box-shadow:0 0 0 0 rgba(29,158,117,0)}}
+
+  /* TEST MODE TOGGLE */
+  .test-toggle{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+  .test-toggle:hover{border-color:var(--primary);color:var(--primary)}
+  .test-toggle.on{background:rgba(245,158,11,0.18);border-color:var(--orange);color:var(--orange)}
+
+  /* SETTINGS GEAR */
+  .gear-btn{background:transparent;border:1px solid var(--border);border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);transition:all .2s}
+  .gear-btn:hover{color:var(--primary);border-color:var(--primary);transform:rotate(30deg)}
+  .gear-btn svg{width:18px;height:18px}
+
+  /* HAMBURGER */
+  .hamburger{display:none;background:transparent;border:1px solid var(--border);border-radius:8px;width:36px;height:36px;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);transition:all .2s}
+  .hamburger:hover{color:var(--primary);border-color:var(--primary)}
+  .hamburger svg{width:20px;height:20px}
 
   main{max-width:1400px;margin:0 auto;padding:32px;animation:fadeIn .5s ease-out}
   @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -89,13 +106,14 @@
 
   /* QUICK ACTIONS */
   .actions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-  .action-btn{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;text-align:left;color:var(--text);font-family:inherit;font-size:14px}
+  .action-btn{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;text-align:left;color:var(--text);font-family:inherit;font-size:14px;width:100%}
   .action-btn:hover{border-color:var(--primary);background:rgba(127,119,221,0.06);transform:translateY(-1px)}
   .action-btn:disabled{opacity:0.6;cursor:wait}
   .action-btn .label{font-weight:600;margin-bottom:4px}
   .action-btn .desc{font-size:12px;color:var(--text-dimmer)}
   .action-result{margin-top:10px;padding:10px;background:var(--bg-3);border-radius:8px;font-size:12px;color:var(--text-dim);font-family:'SF Mono',Consolas,monospace;max-height:140px;overflow-y:auto;white-space:pre-wrap;display:none}
   .action-result.show{display:block}
+  .action-result.error{color:var(--red);font-family:inherit}
 
   /* CHAT */
   .chat-card{display:flex;flex-direction:column;height:520px}
@@ -125,6 +143,11 @@
   .api-name{font-weight:600;font-size:13px}
   .api-detail{font-size:11px;color:var(--text-dimmer);margin-top:2px}
 
+  /* ERROR / EMPTY STATES */
+  .friendly-error{text-align:center;padding:30px 20px;color:var(--text-dim);font-size:13px;line-height:1.6}
+  .friendly-error .icon{display:block;font-size:24px;margin-bottom:8px}
+  .friendly-error a{color:var(--primary);font-weight:600;cursor:pointer;text-decoration:underline}
+
   /* SPINNER */
   .spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,0.18);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -133,19 +156,15 @@
   footer{text-align:center;padding:32px 20px;color:var(--text-dimmer);font-size:12px;border-top:1px solid var(--border);margin-top:48px}
   footer .brand{color:var(--primary);font-weight:600}
 
-  /* SETTINGS GEAR */
-  .gear-btn{background:transparent;border:1px solid var(--border);border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);transition:all .2s;margin-left:12px}
-  .gear-btn:hover{color:var(--primary);border-color:var(--primary);transform:rotate(30deg)}
-  .gear-btn svg{width:18px;height:18px}
-
   /* MODAL */
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
   .modal-overlay.show{display:flex}
-  .modal{background:var(--bg-2);border:1px solid var(--border);border-radius:14px;padding:28px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+  .modal{background:var(--bg-2);border:1px solid var(--border);border-radius:14px;padding:28px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5);max-height:90vh;overflow-y:auto}
   .modal-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
   .modal-subtitle{font-size:13px;color:var(--text-dim);margin-bottom:20px;line-height:1.5}
   .modal-field{margin-bottom:14px}
   .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.6px}
+  .modal-field .hint{font-size:11px;color:var(--text-dimmer);font-weight:400;text-transform:none;letter-spacing:normal;margin-left:6px}
   .modal-field input{width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'SF Mono',Consolas,monospace;font-size:13px;outline:none;transition:border-color .2s}
   .modal-field input:focus{border-color:var(--primary)}
   .modal-actions{display:flex;gap:10px;margin-top:22px;justify-content:flex-end}
@@ -155,11 +174,17 @@
   .modal-btn.secondary{background:transparent;color:var(--text-dim);border:1px solid var(--border)}
   .modal-btn.secondary:hover{color:var(--red);border-color:var(--red)}
   .modal-note{font-size:11px;color:var(--text-dimmer);margin-top:14px;padding:10px 12px;background:var(--bg-3);border-radius:6px;border-left:3px solid var(--secondary);line-height:1.5}
-  .keys-required{text-align:center;padding:40px 20px;color:var(--text-dimmer);font-size:13px}
 
   @media (max-width:768px){
-    header{padding:12px 16px;flex-wrap:wrap;gap:12px}
-    nav ul{gap:14px}
+    header{padding:12px 16px}
+    .hamburger{display:inline-flex}
+    nav{position:absolute;top:100%;left:0;right:0;background:rgba(15,22,38,0.98);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);max-height:0;overflow:hidden;transition:max-height .25s ease-out}
+    nav.open{max-height:340px}
+    nav ul{flex-direction:column;gap:0;padding:8px 0}
+    nav li{border-bottom:1px solid var(--border)}
+    nav li:last-child{border-bottom:none}
+    nav a{display:block;padding:14px 24px;font-size:15px}
+    .status-pill{display:none}
     main{padding:16px}
     .stat-value{font-size:24px}
   }
@@ -168,8 +193,11 @@
 <body>
 
 <header>
+  <button class="hamburger" id="hamburgerBtn" aria-label="Toggle navigation menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
   <div class="logo">Crystallux<span> AI</span></div>
-  <nav>
+  <nav id="mainNav">
     <ul>
       <li><a href="#dashboard" class="active">Dashboard</a></li>
       <li><a href="#leads">Leads</a></li>
@@ -178,8 +206,9 @@
       <li><a href="#" id="navSettings">Settings</a></li>
     </ul>
   </nav>
-  <div style="display:flex;align-items:center">
+  <div class="header-right">
     <div class="status-pill"><div class="pulse-dot"></div>Engine Active</div>
+    <button class="test-toggle" id="testToggle" title="Toggle demo data — no API keys required">Test Mode</button>
     <button class="gear-btn" id="settingsBtn" title="Settings — manage API keys" aria-label="Open settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -190,30 +219,31 @@
 <div class="modal-overlay" id="settingsModal">
   <div class="modal">
     <div class="modal-title">API Credentials</div>
-    <div class="modal-subtitle">Enter your API keys below. Keys are stored only in browser memory for this session and are cleared automatically when you close this tab.</div>
+    <div class="modal-subtitle">Enter only the keys you need. Each key unlocks a different part of the dashboard. Keys are stored only in browser memory for this session and cleared when you close the tab.</div>
     <div class="modal-field">
-      <label for="claudeKeyInput">Claude API Key</label>
-      <input id="claudeKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off" />
-    </div>
-    <div class="modal-field">
-      <label for="supabaseKeyInput">Supabase Key</label>
+      <label for="supabaseKeyInput">Supabase Key <span class="hint">— unlocks pipeline stats &amp; leads</span></label>
       <input id="supabaseKeyInput" type="password" placeholder="sb_secret_..." autocomplete="off" />
     </div>
     <div class="modal-field">
-      <label for="mcpKeyInput">MCP API Key</label>
+      <label for="claudeKeyInput">Claude API Key <span class="hint">— unlocks chat assistant</span></label>
+      <input id="claudeKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label for="mcpKeyInput">MCP API Key <span class="hint">— unlocks quick actions</span></label>
       <input id="mcpKeyInput" type="password" placeholder="mcp-..." autocomplete="off" />
     </div>
     <div class="modal-actions">
       <button class="modal-btn secondary" id="clearKeysBtn">Clear</button>
       <button class="modal-btn primary" id="saveKeysBtn">Save</button>
     </div>
-    <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies.</div>
+    <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies. Use Test Mode if you just want to preview the dashboard.</div>
   </div>
 </div>
 
 <main>
   <div class="local-banner" id="localBanner">
-    <strong>Running locally (file://)</strong> — some browser features may be restricted on the file:// protocol. If API calls fail, try serving this page over HTTP (for example <code>python -m http.server</code>) or open it from a hosted URL.
+    <strong>For best results, serve this file over HTTP.</strong>
+    Opening directly from <code>file://</code> will block API calls due to browser CORS policy. In a terminal run <code>npx serve docs/dashboard</code> then open <code>http://localhost:3000</code>. Or click <strong>Test Mode</strong> in the header to preview the dashboard with demo data.
   </div>
 
   <!-- SECTION 1: PIPELINE STATS -->
@@ -252,7 +282,7 @@
   </section>
 
   <!-- SECTION 5: API STATUS -->
-  <section class="section" id="clients" style="display:none">
+  <section class="section" id="clients">
     <div class="section-title">API Status</div>
     <div class="api-grid" id="apiGrid"></div>
   </section>
@@ -273,7 +303,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.4</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.5</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -284,21 +314,21 @@
    ============================================================ */
 
 const SUPABASE_URL = 'https://zqwatouqmqgkmaslydbr.supabase.co';
-const MCP_GATEWAY = 'https://automation.crystallux.org/webhook/crystallux-mcp';
-const N8N_HEALTH = 'https://automation.crystallux.org/healthz';
-const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+const MCP_GATEWAY  = 'https://automation.crystallux.org/webhook/crystallux-mcp';
+const N8N_HEALTH   = 'https://automation.crystallux.org/healthz';
+const CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
 
-// In-memory credential store. Lives only in this JS variable for this tab.
-// Cleared automatically when the tab closes — never persisted to disk, localStorage, or cookies.
-const credentials = {
-  claudeKey: '',
-  supabaseKey: '',
-  mcpKey: ''
-};
+const FRIENDLY_ERROR = 'Could not load data — check your API keys in Settings.';
 
-function hasAllKeys() {
-  return !!(credentials.claudeKey && credentials.supabaseKey && credentials.mcpKey);
-}
+/* In-memory credential store. Lives only in this JS variable for this tab.
+   Cleared automatically when the tab closes. */
+const credentials = { claudeKey:'', supabaseKey:'', mcpKey:'' };
+
+let testMode = false;
+
+const hasSupabase = () => testMode || !!credentials.supabaseKey;
+const hasClaude   = () => testMode || !!credentials.claudeKey;
+const hasMCP      = () => testMode || !!credentials.mcpKey;
 
 function supabaseHeaders() {
   return {
@@ -307,80 +337,133 @@ function supabaseHeaders() {
   };
 }
 
-/* ---- SECTION 1: STAT CARDS ---- */
-const STATUS_BUCKETS = [
-  { key: 'Total Leads',    match: null,                primary: true },
-  { key: 'New Leads',      match: 'New Lead' },
-  { key: 'Researched',     match: 'Researched' },
-  { key: 'Scored',         match: 'Scored' },
-  { key: 'Outreach Ready', match: 'Outreach Ready' },
-  { key: 'Contacted',      match: 'Contacted' },
-  { key: 'Replied',        match: 'Replied' },
-  { key: 'Booked',         match: 'Booked',            secondary: true },
-  { key: 'Closed Won',     match: 'Closed Won',        secondary: true }
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ---- DEMO DATA ---- */
+const DEMO_STATS = {
+  total: 1247,
+  'New Lead': 312, 'Researched': 268, 'Scored': 201, 'Outreach Ready': 156,
+  'Contacted': 142, 'Replied': 87, 'Booked': 54, 'Closed Won': 27
+};
+const DEMO_LEADS = [
+  { company:'Acme Insurance Brokers', industry:'Insurance', city:'Toronto',  lead_status:'Booked',         lead_score:92, phone:'(416) 555-0142', source:'google_maps' },
+  { company:'BlueWave Movers',        industry:'Moving',    city:'Vancouver',lead_status:'Replied',        lead_score:81, phone:'(604) 555-0177', source:'b2c_discovery' },
+  { company:'Northstar Dental',       industry:'Dental',    city:'Calgary',  lead_status:'Outreach Ready', lead_score:74, phone:'(403) 555-0119', source:'google_maps' },
+  { company:'Maple Realty Group',     industry:'Real Estate',city:'Ottawa',  lead_status:'Researched',     lead_score:68, phone:'(613) 555-0133', source:'apollo' },
+  { company:'Sunset Wellness Clinic', industry:'Healthcare',city:'Montreal', lead_status:'New Lead',       lead_score:55, phone:'(514) 555-0188', source:'google_maps' }
 ];
 
+/* ---- SECTION 1: STAT CARDS ---- */
+const STATUS_BUCKETS = [
+  { key:'Total Leads',    match:null,             primary:true },
+  { key:'New Leads',      match:'New Lead' },
+  { key:'Researched',     match:'Researched' },
+  { key:'Scored',         match:'Scored' },
+  { key:'Outreach Ready', match:'Outreach Ready' },
+  { key:'Contacted',      match:'Contacted' },
+  { key:'Replied',        match:'Replied' },
+  { key:'Booked',         match:'Booked',         secondary:true },
+  { key:'Closed Won',     match:'Closed Won',     secondary:true }
+];
+
+function renderStats(counts, total) {
+  const grid = document.getElementById('statGrid');
+  grid.innerHTML = STATUS_BUCKETS.map(b => {
+    const value = b.match === null ? total : (counts[b.match] || 0);
+    const cls = b.primary ? 'primary' : (b.secondary ? 'secondary' : '');
+    return '<div class="stat-card ' + cls + '"><div class="stat-label">' + b.key + '</div><div class="stat-value">' + value + '</div></div>';
+  }).join('');
+}
+
+function showStatsLocked(message) {
+  document.getElementById('statGrid').innerHTML =
+    '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
+      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      ' <a id="statsOpenSettings">Open Settings</a>' +
+    '</div></div>';
+  const link = document.getElementById('statsOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
 async function fetchPipelineStats() {
+  if (testMode) {
+    const { total, ...counts } = DEMO_STATS;
+    renderStats(counts, total);
+    return;
+  }
+  if (!hasSupabase()) { showStatsLocked('Add your Supabase key to load pipeline stats.'); return; }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders() });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     const counts = {};
     rows.forEach(r => { counts[r.lead_status] = (counts[r.lead_status] || 0) + 1; });
-    const grid = document.getElementById('statGrid');
-    grid.innerHTML = STATUS_BUCKETS.map(b => {
-      const value = b.match === null ? rows.length : (counts[b.match] || 0);
-      const cls = b.primary ? 'primary' : (b.secondary ? 'secondary' : '');
-      return '<div class="stat-card ' + cls + '"><div class="stat-label">' + b.key + '</div><div class="stat-value">' + value + '</div></div>';
-    }).join('');
+    renderStats(counts, rows.length);
   } catch (e) {
-    document.getElementById('statGrid').innerHTML = '<div class="stat-card"><div class="stat-label">Error</div><div class="stat-value" style="font-size:14px;color:var(--red)">' + e.message + '</div></div>';
+    showStatsLocked(FRIENDLY_ERROR);
   }
 }
 
 /* ---- SECTION 2: RECENT LEADS TABLE ---- */
 const STATUS_COLOURS = {
-  'New Lead': 'gray', 'Researched': 'blue', 'Scored': 'purple',
-  'Outreach Ready': 'orange', 'Contacted': 'yellow', 'Replied': 'green', 'Booked': 'teal'
+  'New Lead':'gray','Researched':'blue','Scored':'purple',
+  'Outreach Ready':'orange','Contacted':'yellow','Replied':'green','Booked':'teal'
 };
 
+function renderLeads(rows) {
+  const body = document.getElementById('leadsBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dimmer)">No leads yet</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(l => {
+    const colour = STATUS_COLOURS[l.lead_status] || 'gray';
+    return '<tr>' +
+      '<td style="color:var(--text);font-weight:500">' + escapeHtml(l.company || '—') + '</td>' +
+      '<td>' + escapeHtml(l.industry || '—') + '</td>' +
+      '<td>' + escapeHtml(l.city || '—') + '</td>' +
+      '<td><span class="badge badge-' + colour + '">' + escapeHtml(l.lead_status || '—') + '</span></td>' +
+      '<td>' + (l.lead_score || 0) + '</td>' +
+      '<td>' + escapeHtml(l.phone || '—') + '</td>' +
+      '<td>' + escapeHtml(l.source || '—') + '</td>' +
+    '</tr>';
+  }).join('');
+  document.getElementById('leadsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function showLeadsLocked(message) {
+  document.getElementById('leadsBody').innerHTML =
+    '<tr><td colspan="7"><div class="friendly-error">' +
+      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      ' <a id="leadsOpenSettings">Open Settings</a>' +
+    '</div></td></tr>';
+  const link = document.getElementById('leadsOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
 async function fetchRecentLeads() {
+  if (testMode) { renderLeads(DEMO_LEADS); return; }
+  if (!hasSupabase()) { showLeadsLocked('Add your Supabase key to load leads.'); return; }
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source,updated_at&order=updated_at.desc&limit=20';
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const rows = await res.json();
-    const body = document.getElementById('leadsBody');
-    if (rows.length === 0) {
-      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dimmer)">No leads yet</td></tr>';
-      return;
-    }
-    body.innerHTML = rows.map(l => {
-      const colour = STATUS_COLOURS[l.lead_status] || 'gray';
-      return '<tr>' +
-        '<td style="color:var(--text);font-weight:500">' + (l.company || '—') + '</td>' +
-        '<td>' + (l.industry || '—') + '</td>' +
-        '<td>' + (l.city || '—') + '</td>' +
-        '<td><span class="badge badge-' + colour + '">' + (l.lead_status || '—') + '</span></td>' +
-        '<td>' + (l.lead_score || 0) + '</td>' +
-        '<td>' + (l.phone || '—') + '</td>' +
-        '<td>' + (l.source || '—') + '</td>' +
-      '</tr>';
-    }).join('');
-    document.getElementById('leadsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    renderLeads(await res.json());
   } catch (e) {
-    document.getElementById('leadsBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--red)">' + e.message + '</td></tr>';
+    showLeadsLocked(FRIENDLY_ERROR);
   }
 }
 
 /* ---- SECTION 3: QUICK ACTION BUTTONS ---- */
 const ACTIONS = [
-  { label: 'Scan Toronto Insurance', desc: 'Discover insurance brokers in Toronto', tool: 'scan_city', args: { city: 'Toronto', industry: 'insurance broker', product_type: 'insurance' } },
-  { label: 'Scan Toronto Moving',    desc: 'Discover movers in Toronto',            tool: 'scan_city', args: { city: 'Toronto', industry: 'moving company',  product_type: 'moving_services' } },
-  { label: 'Scan Toronto Dental',    desc: 'Discover dental clinics in Toronto',    tool: 'scan_city', args: { city: 'Toronto', industry: 'dentist',         product_type: 'dental' } },
-  { label: 'Get Pipeline Health',    desc: 'Check overall sales pipeline status',   tool: 'get_pipeline_stats', args: {} },
-  { label: 'List Top Leads',         desc: 'Leads with score above 70',             tool: 'list_leads', args: { min_score: 70, limit: 25 } },
-  { label: 'Run B2C Discovery',      desc: 'Trigger the full B2C discovery sweep',  tool: 'run_workflow', args: { workflow: 'clx-b2c-discovery' } }
+  { label:'Scan Toronto Insurance', desc:'Discover insurance brokers in Toronto', tool:'scan_city',          args:{ city:'Toronto', industry:'insurance broker', product_type:'insurance' } },
+  { label:'Scan Toronto Moving',    desc:'Discover movers in Toronto',            tool:'scan_city',          args:{ city:'Toronto', industry:'moving company',  product_type:'moving_services' } },
+  { label:'Scan Toronto Dental',    desc:'Discover dental clinics in Toronto',    tool:'scan_city',          args:{ city:'Toronto', industry:'dentist',         product_type:'dental' } },
+  { label:'Get Pipeline Health',    desc:'Check overall sales pipeline status',   tool:'get_pipeline_stats', args:{} },
+  { label:'List Top Leads',         desc:'Leads with score above 70',             tool:'list_leads',         args:{ min_score:70, limit:25 } },
+  { label:'Run B2C Discovery',      desc:'Trigger the full B2C discovery sweep',  tool:'run_workflow',       args:{ workflow:'clx-b2c-discovery' } }
 ];
 
 function renderActions() {
@@ -388,8 +471,8 @@ function renderActions() {
   grid.innerHTML = ACTIONS.map((a, i) =>
     '<div>' +
       '<button class="action-btn" data-i="' + i + '">' +
-        '<div class="label">' + a.label + '</div>' +
-        '<div class="desc">' + a.desc + '</div>' +
+        '<div class="label">' + escapeHtml(a.label) + '</div>' +
+        '<div class="desc">' + escapeHtml(a.desc) + '</div>' +
       '</button>' +
       '<div class="action-result" id="result-' + i + '"></div>' +
     '</div>'
@@ -404,22 +487,33 @@ async function runAction(i) {
   const original = btn.querySelector('.label').textContent;
   btn.disabled = true;
   btn.querySelector('.label').innerHTML = '<span class="spinner"></span> Running…';
-  result.classList.remove('show');
+  result.classList.remove('show', 'error');
   try {
-    if (!hasAllKeys()) { throw new Error('API keys not configured. Open settings to add them.'); }
+    if (testMode) {
+      await new Promise(r => setTimeout(r, 600));
+      result.textContent = '[demo] ' + a.tool + ' executed successfully — 12 results returned.';
+      result.classList.add('show');
+      return;
+    }
+    if (!hasMCP()) {
+      result.textContent = 'Add your MCP API key in Settings to run this action.';
+      result.classList.add('show', 'error');
+      return;
+    }
     const res = await fetch(MCP_GATEWAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-MCP-API-Key': credentials.mcpKey },
       body: JSON.stringify({ tool: a.tool, arguments: a.args })
     });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     let pretty = text;
     try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (e) {}
     result.textContent = pretty;
     result.classList.add('show');
   } catch (e) {
-    result.textContent = 'Error: ' + e.message;
-    result.classList.add('show');
+    result.textContent = FRIENDLY_ERROR;
+    result.classList.add('show', 'error');
   } finally {
     btn.disabled = false;
     btn.querySelector('.label').textContent = original;
@@ -443,7 +537,7 @@ function addMessage(role, text) {
   const wrap = document.getElementById('chatMessages');
   const div = document.createElement('div');
   div.className = 'chat-msg ' + role;
-  div.innerHTML = '<div class="chat-bubble">' + text.replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+  div.innerHTML = '<div class="chat-bubble">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
   return div;
@@ -470,12 +564,25 @@ async function sendChat() {
   if (!text) return;
   input.value = '';
   addMessage('user', text);
-  chatHistory.push({ role: 'user', content: text });
+  chatHistory.push({ role:'user', content:text });
   addTyping();
+
+  if (testMode) {
+    await new Promise(r => setTimeout(r, 700));
+    removeTyping();
+    const reply = "[demo response] I'd normally call the Crystallux MCP gateway to handle that. In Test Mode I'm just showing you what the chat looks like — exit Test Mode and add your Claude API key in Settings to chat for real.";
+    chatHistory.push({ role:'assistant', content:reply });
+    addMessage('assistant', reply);
+    return;
+  }
+
+  if (!hasClaude()) {
+    removeTyping();
+    addMessage('assistant', 'Add your Claude API key in Settings to start chatting.');
+    return;
+  }
+
   try {
-    if (!credentials.claudeKey) {
-      throw new Error('Claude API key missing. Open settings to add it.');
-    }
     const res = await fetch(CLAUDE_API, {
       method: 'POST',
       headers: {
@@ -493,69 +600,46 @@ async function sendChat() {
     });
     const data = await res.json();
     removeTyping();
-    const reply = (data.content && data.content[0] && data.content[0].text) || data.error?.message || 'No response';
-    chatHistory.push({ role: 'assistant', content: reply });
+    if (!res.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + res.status));
+    const reply = (data.content && data.content[0] && data.content[0].text) || 'No response';
+    chatHistory.push({ role:'assistant', content:reply });
     addMessage('assistant', reply);
   } catch (e) {
     removeTyping();
-    addMessage('assistant', 'Error: ' + e.message);
+    addMessage('assistant', FRIENDLY_ERROR);
   }
 }
-
-document.getElementById('chatSend').addEventListener('click', sendChat);
-document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
 /* ---- SECTION 5: API STATUS PANEL ---- */
 async function checkApiStatus() {
   const checks = [
-    {
-      name: 'Supabase',
-      detail: 'Lead database',
+    { name:'Supabase',    detail: credentials.supabaseKey ? 'Lead database' : 'Key not set',
       check: async () => {
-        const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders() });
-        return r.ok;
-      }
-    },
-    {
-      name: 'n8n',
-      detail: 'automation.crystallux.org',
+        if (testMode) return true;
+        if (!credentials.supabaseKey) return false;
+        try { const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders() }); return r.ok; }
+        catch (e) { return false; }
+      } },
+    { name:'n8n', detail:'automation.crystallux.org',
       check: async () => {
-        try { const r = await fetch(N8N_HEALTH, { mode: 'no-cors' }); return true; } catch (e) { return false; }
-      }
-    },
-    {
-      name: 'Claude API',
-      detail: credentials.claudeKey ? 'Key …' + credentials.claudeKey.slice(-4) : 'Key not set',
-      check: async () => !!credentials.claudeKey
-    },
-    {
-      name: 'MCP Gateway',
-      detail: credentials.mcpKey ? 'Key …' + credentials.mcpKey.slice(-4) : 'Key not set',
-      check: async () => !!credentials.mcpKey
-    },
-    {
-      name: 'Hunter.io',
-      detail: 'Email enrichment',
-      check: async () => true
-    },
-    {
-      name: 'Google Maps',
-      detail: 'Key …' + 'MAPS'.slice(-4),
-      check: async () => true
-    },
-    {
-      name: 'Calendly',
-      detail: 'Booking automation',
-      check: async () => true
-    },
-    {
-      name: 'Gmail',
-      detail: 'OAuth2 connected',
-      check: async () => true
-    }
+        if (testMode) return true;
+        try { await fetch(N8N_HEALTH, { mode:'no-cors' }); return true; } catch (e) { return false; }
+      } },
+    { name:'Claude API',
+      detail: testMode ? 'demo mode' : (credentials.claudeKey ? 'Key …' + credentials.claudeKey.slice(-4) : 'Key not set'),
+      check: async () => testMode || !!credentials.claudeKey },
+    { name:'MCP Gateway',
+      detail: testMode ? 'demo mode' : (credentials.mcpKey ? 'Key …' + credentials.mcpKey.slice(-4) : 'Key not set'),
+      check: async () => testMode || !!credentials.mcpKey },
+    { name:'Hunter.io',   detail:'Email enrichment',  check: async () => true },
+    { name:'Google Maps', detail:'Places API',        check: async () => true },
+    { name:'Calendly',    detail:'Booking automation',check: async () => true },
+    { name:'Gmail',       detail:'OAuth2 connected',  check: async () => true }
   ];
   const grid = document.getElementById('apiGrid');
-  grid.innerHTML = checks.map((c, i) => '<div class="api-card" id="api-' + i + '"><div class="api-dot red"></div><div><div class="api-name">' + c.name + '</div><div class="api-detail">' + c.detail + '</div></div></div>').join('');
+  grid.innerHTML = checks.map((c, i) =>
+    '<div class="api-card" id="api-' + i + '"><div class="api-dot red"></div><div><div class="api-name">' + escapeHtml(c.name) + '</div><div class="api-detail">' + escapeHtml(c.detail) + '</div></div></div>'
+  ).join('');
   for (let i = 0; i < checks.length; i++) {
     let ok = false;
     try { ok = await checks[i].check(); } catch (e) { ok = false; }
@@ -566,9 +650,9 @@ async function checkApiStatus() {
 
 /* ---- SETTINGS MODAL ---- */
 function openSettings() {
-  document.getElementById('claudeKeyInput').value = credentials.claudeKey;
+  document.getElementById('claudeKeyInput').value   = credentials.claudeKey;
   document.getElementById('supabaseKeyInput').value = credentials.supabaseKey;
-  document.getElementById('mcpKeyInput').value = credentials.mcpKey;
+  document.getElementById('mcpKeyInput').value      = credentials.mcpKey;
   document.getElementById('settingsModal').classList.add('show');
 }
 
@@ -580,13 +664,8 @@ function saveKeys() {
   credentials.claudeKey   = document.getElementById('claudeKeyInput').value.trim();
   credentials.supabaseKey = document.getElementById('supabaseKeyInput').value.trim();
   credentials.mcpKey      = document.getElementById('mcpKeyInput').value.trim();
-  if (hasAllKeys()) {
-    closeSettings();
-    document.getElementById('clients').style.display = '';
-    refreshAll();
-  } else {
-    alert('Please enter all three API keys to continue.');
-  }
+  closeSettings();
+  refreshAll();
 }
 
 function clearKeys() {
@@ -596,18 +675,40 @@ function clearKeys() {
   document.getElementById('claudeKeyInput').value = '';
   document.getElementById('supabaseKeyInput').value = '';
   document.getElementById('mcpKeyInput').value = '';
-  document.getElementById('clients').style.display = 'none';
-  document.getElementById('statGrid').innerHTML = '<div class="stat-card"><div class="stat-label">Locked</div><div class="stat-value" style="font-size:14px;color:var(--text-dimmer)">Enter API keys</div></div>';
-  document.getElementById('leadsBody').innerHTML = '<tr><td colspan="7" class="keys-required">Enter API keys in settings to load leads.</td></tr>';
+  refreshAll();
 }
 
+/* ---- TEST MODE ---- */
+function setTestMode(on) {
+  testMode = on;
+  const btn = document.getElementById('testToggle');
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? 'Test Mode: ON' : 'Test Mode';
+  refreshAll();
+}
+
+/* ---- HAMBURGER ---- */
+function toggleNav() {
+  document.getElementById('mainNav').classList.toggle('open');
+}
+
+function closeNav() {
+  document.getElementById('mainNav').classList.remove('open');
+}
+
+/* ---- WIRE UP EVENTS ---- */
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('saveKeysBtn').addEventListener('click', saveKeys);
 document.getElementById('clearKeysBtn').addEventListener('click', clearKeys);
-document.getElementById('navSettings').addEventListener('click', e => { e.preventDefault(); openSettings(); });
+document.getElementById('navSettings').addEventListener('click', e => { e.preventDefault(); closeNav(); openSettings(); });
 document.getElementById('settingsModal').addEventListener('click', e => {
-  if (e.target.id === 'settingsModal' && hasAllKeys()) closeSettings();
+  if (e.target.id === 'settingsModal') closeSettings();
 });
+document.getElementById('testToggle').addEventListener('click', () => setTestMode(!testMode));
+document.getElementById('hamburgerBtn').addEventListener('click', toggleNav);
+document.querySelectorAll('#mainNav a').forEach(a => a.addEventListener('click', closeNav));
+document.getElementById('chatSend').addEventListener('click', sendChat);
+document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
 /* Defensive: clear in-memory keys if the tab is hidden/closed. */
 window.addEventListener('beforeunload', () => {
@@ -618,21 +719,18 @@ window.addEventListener('beforeunload', () => {
 
 /* ---- INIT + AUTO REFRESH ---- */
 function refreshAll() {
-  if (!hasAllKeys()) return;
   fetchPipelineStats();
   fetchRecentLeads();
   checkApiStatus();
 }
 
-/* Detect local file:// usage and warn the user — some fetches behave differently. */
+/* Detect local file:// usage and show CORS warning. */
 if (window.location.protocol === 'file:') {
   document.getElementById('localBanner').classList.add('show');
 }
 
 renderActions();
-document.getElementById('statGrid').innerHTML = '<div class="stat-card"><div class="stat-label">Locked</div><div class="stat-value" style="font-size:14px;color:var(--text-dimmer)">Enter API keys</div></div>';
-document.getElementById('leadsBody').innerHTML = '<tr><td colspan="7" class="keys-required">Enter API keys in settings to load leads.</td></tr>';
-openSettings();
+refreshAll();
 setInterval(refreshAll, 60000);
 </script>
 </body>
