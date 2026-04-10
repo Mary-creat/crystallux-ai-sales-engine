@@ -150,7 +150,13 @@
             { "name": "Prefer", "value": "return=representation" }
           ]
         },
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
       },
       "id": "clx14-0000-0000-0000-000000000009",
       "name": "Check Duplicate",
@@ -160,6 +166,16 @@
       "credentials": {
         "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C Discovery — Parse duplicate check response\n// Reads the Supabase array response and emits a string is_duplicate flag\ntry {\n  const lead = $('Process Each Business').item.json;\n  const response = $('Check Duplicate').item.json;\n  const body = response.body || response;\n  const results = Array.isArray(body) ? body : [];\n  const isDuplicate = results.length > 0;\n\n  console.log('[CLX B2C] Dedup check for: ' + lead.company + ' — duplicate: ' + isDuplicate);\n\n  return { json: { ...lead, is_duplicate: String(isDuplicate) } };\n} catch (error) {\n  console.log('[CLX B2C] Dedup parse error: ' + error.message);\n  return { json: { ...$input.item.json, is_duplicate: 'false' } };\n}"
+      },
+      "id": "clx14-0000-0000-0000-000000000014",
+      "name": "Parse Duplicate Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2240, 300]
     },
     {
       "parameters": {
@@ -173,11 +189,11 @@
           "conditions": [
             {
               "id": "clx14-cond-not-duplicate",
-              "leftValue": "={{ Array.isArray($json) ? $json.length : 0 }}",
-              "rightValue": "0",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": "true",
               "operator": {
-                "type": "number",
-                "operation": "equals"
+                "type": "string",
+                "operation": "notEquals"
               }
             }
           ],
@@ -207,7 +223,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Process Each Business').item.json) }}",
+        "jsonBody": "={{ JSON.stringify({ full_name: $('Parse Duplicate Check').item.json.full_name, email: $('Parse Duplicate Check').item.json.email, phone: $('Parse Duplicate Check').item.json.phone, company: $('Parse Duplicate Check').item.json.company, job_title: $('Parse Duplicate Check').item.json.job_title, industry: $('Parse Duplicate Check').item.json.industry, city: $('Parse Duplicate Check').item.json.city, source: $('Parse Duplicate Check').item.json.source, lead_status: $('Parse Duplicate Check').item.json.lead_status, product_type: $('Parse Duplicate Check').item.json.product_type, do_not_contact: $('Parse Duplicate Check').item.json.do_not_contact, unsubscribed: $('Parse Duplicate Check').item.json.unsubscribed, total_emails_sent: $('Parse Duplicate Check').item.json.total_emails_sent, lead_score: $('Parse Duplicate Check').item.json.lead_score, assigned_to: $('Parse Duplicate Check').item.json.assigned_to, notes: $('Parse Duplicate Check').item.json.notes, updated_at: $('Parse Duplicate Check').item.json.updated_at }) }}",
         "options": {}
       },
       "id": "clx14-0000-0000-0000-000000000011",
@@ -245,7 +261,8 @@
     "Parse Places Results": { "main": [[{ "node": "IF Results Found", "type": "main", "index": 0 }]] },
     "IF Results Found": { "main": [[{ "node": "Process Each Business", "type": "main", "index": 0 }], [{ "node": "No Results", "type": "main", "index": 0 }]] },
     "Process Each Business": { "main": [[{ "node": "Check Duplicate", "type": "main", "index": 0 }]] },
-    "Check Duplicate": { "main": [[{ "node": "IF Not Duplicate", "type": "main", "index": 0 }]] },
+    "Check Duplicate": { "main": [[{ "node": "Parse Duplicate Check", "type": "main", "index": 0 }]] },
+    "Parse Duplicate Check": { "main": [[{ "node": "IF Not Duplicate", "type": "main", "index": 0 }]] },
     "IF Not Duplicate": { "main": [[{ "node": "Insert Lead", "type": "main", "index": 0 }], [{ "node": "Skip Duplicate", "type": "main", "index": 0 }]] },
     "Insert Lead": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] },
     "Skip Duplicate": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] },
