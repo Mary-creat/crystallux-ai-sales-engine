@@ -31,8 +31,8 @@ if [ ! -z "$SUPABASE_ID" ]; then
   curl -s -X PATCH "$N8N_API/credentials/$SUPABASE_ID" \
     -H "$AUTH" \
     -H "Content-Type: application/json" \
-    -d "{\"data\":{\"json\":{\"headers\":{\"apikey\":\"$SUPABASE_SERVICE_KEY\",\"Authorization\":\"Bearer $SUPABASE_SERVICE_KEY\"}}}}"
-  echo "✅ Supabase Crystallux updated"
+    -d "{\"name\":\"Supabase Crystallux\",\"type\":\"httpHeaderAuth\",\"data\":{\"name\":\"apikey\",\"value\":\"$SUPABASE_SERVICE_KEY\"}}"
+  echo "✅ Supabase Crystallux updated (Header Auth)"
 else
   echo "❌ Supabase Crystallux not found"
 fi

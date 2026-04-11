@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Scored&lead_score=gte.50&select=id,full_name,company,industry,job_title,city,lead_score,priority_level,research_summary,likely_business_need,research_angle,product_type&limit=20",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -47,8 +47,7 @@
         300
       ],
       "credentials": {
-        "httpCustomAuth": {
-          "id": "XdqdFpzSHzWHvQIU",
+        "httpHeaderAuth": {
           "name": "Supabase Crystallux"
         }
       }
@@ -150,7 +149,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "5GbgZmWqc8ruTO2H",
           "name": "Claude Anthropic"
         }
       }
@@ -173,7 +171,7 @@
         "method": "PATCH",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $json.id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -205,8 +203,7 @@
         300
       ],
       "credentials": {
-        "httpCustomAuth": {
-          "id": "XdqdFpzSHzWHvQIU",
+        "httpHeaderAuth": {
           "name": "Supabase Crystallux"
         }
       }

@@ -1,10 +1,14 @@
-"""Update credential IDs in all workflow JSON files."""
+"""Standardize Supabase/Claude credential references in all workflow JSON files.
+
+Removes hardcoded credential IDs so n8n resolves credentials by name on import.
+Supabase nodes are forced to httpHeaderAuth (Header Auth).
+"""
 import json
 from pathlib import Path
 
 CRED_MAP = {
-    "Supabase Crystallux": {"type": "httpCustomAuth", "id": "XdqdFpzSHzWHvQIU"},
-    "Claude Anthropic":    {"type": "httpHeaderAuth", "id": "5GbgZmWqc8ruTO2H"},
+    "Supabase Crystallux": "httpHeaderAuth",
+    "Claude Anthropic":    "httpHeaderAuth",
 }
 
 workflows_dir = Path(__file__).parent.parent / "workflows"
@@ -19,6 +23,16 @@ for wf_file in sorted(workflows_dir.glob("*.json")):
         creds = node.get("credentials")
         if not isinstance(creds, dict):
             continue
+        uses_supabase = any(
+            isinstance(v, dict) and v.get("name") == "Supabase Crystallux"
+            for v in creds.values()
+        )
+        if uses_supabase:
+            params = node.get("parameters")
+            if isinstance(params, dict) and params.get("genericAuthType") != "httpHeaderAuth" \
+                    and "genericAuthType" in params:
+                params["genericAuthType"] = "httpHeaderAuth"
+                file_changes += 1
         new_creds = {}
         for cred_type, cred_obj in creds.items():
             if not isinstance(cred_obj, dict):
@@ -26,12 +40,11 @@ for wf_file in sorted(workflows_dir.glob("*.json")):
                 continue
             name = cred_obj.get("name")
             if name in CRED_MAP:
-                target = CRED_MAP[name]
-                expected_type = target["type"]
-                expected_id = target["id"]
-                if cred_type != expected_type or cred_obj.get("id") != expected_id:
+                expected_type = CRED_MAP[name]
+                new_entry = {"name": name}
+                if cred_type != expected_type or cred_obj != new_entry:
                     file_changes += 1
-                new_creds[expected_type] = {"id": expected_id, "name": name}
+                new_creds[expected_type] = new_entry
             else:
                 new_creds[cred_type] = cred_obj
         node["credentials"] = new_creds

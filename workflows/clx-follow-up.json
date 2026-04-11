@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Contacted&followup_scheduled_at=lte.\" + new Date().toISOString() + \"&followup_count=lt.3&reply_detected=eq.false&unsubscribed=eq.false&do_not_contact=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,followup_message,followup_scheduled_at,followup_count,lead_status,email_subject,outreach_sent_at,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=5\" }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -47,8 +47,7 @@
         300
       ],
       "credentials": {
-        "httpCustomAuth": {
-          "id": "XdqdFpzSHzWHvQIU",
+        "httpHeaderAuth": {
           "name": "Supabase Crystallux"
         }
       }
@@ -193,7 +192,7 @@
         "method": "PATCH",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $('Build Follow Up Email').item.json.id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -225,8 +224,7 @@
         300
       ],
       "credentials": {
-        "httpCustomAuth": {
-          "id": "XdqdFpzSHzWHvQIU",
+        "httpHeaderAuth": {
           "name": "Supabase Crystallux"
         }
       }
