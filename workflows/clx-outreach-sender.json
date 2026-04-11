@@ -23,7 +23,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Outreach%20Ready&unsubscribed=eq.false&do_not_contact=eq.false&reply_detected=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,email_subject,email_body,followup_message,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=5",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
         "options": {}
@@ -33,7 +33,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [440, 300],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {
@@ -122,7 +122,7 @@
         "method": "PATCH",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $json.id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
         "sendBody": true,
@@ -135,7 +135,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [2360, 300],
-      "credentials": { "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
     },
     {
       "parameters": {},

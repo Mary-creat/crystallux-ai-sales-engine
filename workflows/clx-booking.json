@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&unsubscribed=eq.false&do_not_contact=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,industry,product_type,reply_text,research_summary,likely_business_need,lead_score,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=10",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -47,7 +47,7 @@
         300
       ],
       "credentials": {
-        "httpHeaderAuth": {
+        "httpCustomAuth": {
           "id": "1",
           "name": "Supabase Crystallux"
         }
@@ -257,7 +257,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?industry=eq.{{ $('Split In Batches').item.json.product_type }}&active=eq.true&select=*&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -278,7 +278,7 @@
         200
       ],
       "credentials": {
-        "httpHeaderAuth": {
+        "httpCustomAuth": {
           "id": "1",
           "name": "Supabase Crystallux"
         }
@@ -328,7 +328,7 @@
         "method": "PATCH",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $('Build Booking Email').item.json.id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -360,7 +360,7 @@
         200
       ],
       "credentials": {
-        "httpHeaderAuth": {
+        "httpCustomAuth": {
           "id": "1",
           "name": "Supabase Crystallux"
         }
@@ -371,7 +371,7 @@
         "method": "PATCH",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $('Parse Interest Response').item.json.id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -403,7 +403,7 @@
         480
       ],
       "credentials": {
-        "httpHeaderAuth": {
+        "httpCustomAuth": {
           "id": "1",
           "name": "Supabase Crystallux"
         }

@@ -142,7 +142,7 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?company=eq.' + encodeURIComponent($json.company) + '&select=id,company&limit=1' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -164,7 +164,7 @@
       "typeVersion": 4.2,
       "position": [2120, 300],
       "credentials": {
-        "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" }
+        "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" }
       }
     },
     {
@@ -212,7 +212,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -232,7 +232,7 @@
       "typeVersion": 4.2,
       "position": [2600, 300],
       "credentials": {
-        "httpHeaderAuth": { "id": "1", "name": "Supabase Crystallux" }
+        "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" }
       }
     },
     {

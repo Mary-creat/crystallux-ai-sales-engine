@@ -23,7 +23,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing&limit=25",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -41,7 +41,7 @@
       "typeVersion": 4.2,
       "position": [440, 300],
       "credentials": {
-        "httpHeaderAuth": {
+        "httpCustomAuth": {
           "id": "1",
           "name": "Supabase Crystallux"
         }
@@ -116,7 +116,7 @@
         "method": "PATCH",
         "url": "={{ \"https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.\" + $json.id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -145,7 +145,7 @@
       "typeVersion": 4.2,
       "position": [1640, 300],
       "credentials": {
-        "httpHeaderAuth": {
+        "httpCustomAuth": {
           "id": "1",
           "name": "Supabase Crystallux"
         }
