@@ -263,11 +263,12 @@
     </div>
     <div class="modal-actions">
       <button class="modal-btn secondary" id="clearKeysBtn">Clear</button>
+      <button class="modal-btn secondary" id="clearSavedKeysBtn">Clear Saved Keys</button>
       <button class="modal-btn secondary" id="testSupabaseBtn">Test Supabase Connection</button>
       <button class="modal-btn primary" id="saveKeysBtn">Save</button>
     </div>
     <div id="testSupabaseResult" style="margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;display:none"></div>
-    <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies.</div>
+    <div class="modal-note">Keys are persisted in <strong>sessionStorage</strong> so they survive page refreshes within this browser session, and are cleared automatically when you close the tab. They are never written to localStorage, cookies, or any file.</div>
   </div>
 </div>
 
@@ -282,6 +283,8 @@
     </div>
   </div>
 </div>
+
+<div id="sessionToast" style="position:fixed;top:80px;right:20px;background:#14331f;color:#7ee28c;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.4)">Keys loaded from session</div>
 
 <main>
   <div class="local-banner" id="localBanner">
@@ -390,7 +393,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.9</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.10</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -965,6 +968,13 @@ function saveKeys() {
   credentials.claudeKey   = document.getElementById('claudeKeyInput').value.trim();
   credentials.supabaseKey = document.getElementById('supabaseKeyInput').value.trim();
   credentials.mcpKey      = document.getElementById('mcpKeyInput').value.trim();
+  try {
+    sessionStorage.setItem('clx_claude', credentials.claudeKey);
+    sessionStorage.setItem('clx_supabase', credentials.supabaseKey);
+    sessionStorage.setItem('clx_mcp', credentials.mcpKey);
+  } catch (e) {
+    console.log('[saveKeys] sessionStorage.setItem failed:', e);
+  }
   console.log('[saveKeys] credentials object after save:', {
     claudeKey: credentials.claudeKey ? '(set, len=' + credentials.claudeKey.length + ')' : '(empty)',
     supabaseKey: credentials.supabaseKey ? '(set, len=' + credentials.supabaseKey.length + ', prefix=' + credentials.supabaseKey.slice(0, 8) + ')' : '(empty)',
@@ -972,6 +982,47 @@ function saveKeys() {
   });
   closeSettings();
   refreshAll();
+}
+
+function clearSavedKeys() {
+  credentials.claudeKey = '';
+  credentials.supabaseKey = '';
+  credentials.mcpKey = '';
+  try {
+    sessionStorage.removeItem('clx_claude');
+    sessionStorage.removeItem('clx_supabase');
+    sessionStorage.removeItem('clx_mcp');
+  } catch (e) {
+    console.log('[clearSavedKeys] sessionStorage.removeItem failed:', e);
+  }
+  document.getElementById('claudeKeyInput').value = '';
+  document.getElementById('supabaseKeyInput').value = '';
+  document.getElementById('mcpKeyInput').value = '';
+  console.log('[clearSavedKeys] cleared in-memory + sessionStorage');
+  refreshAll();
+}
+
+function loadKeysFromSession() {
+  try {
+    const c = sessionStorage.getItem('clx_claude') || '';
+    const s = sessionStorage.getItem('clx_supabase') || '';
+    const m = sessionStorage.getItem('clx_mcp') || '';
+    if (c || s || m) {
+      credentials.claudeKey = c;
+      credentials.supabaseKey = s;
+      credentials.mcpKey = m;
+      console.log('[loadKeysFromSession] loaded keys from sessionStorage');
+      const toast = document.getElementById('sessionToast');
+      if (toast) {
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2500);
+      }
+      return true;
+    }
+  } catch (e) {
+    console.log('[loadKeysFromSession] read failed:', e);
+  }
+  return false;
 }
 
 async function testSupabaseConnection() {
@@ -1039,6 +1090,7 @@ function closeNav() {
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('saveKeysBtn').addEventListener('click', saveKeys);
 document.getElementById('clearKeysBtn').addEventListener('click', clearKeys);
+document.getElementById('clearSavedKeysBtn').addEventListener('click', clearSavedKeys);
 document.getElementById('testSupabaseBtn').addEventListener('click', testSupabaseConnection);
 document.getElementById('navSettings').addEventListener('click', e => { e.preventDefault(); closeNav(); openSettings(); });
 document.getElementById('settingsModal').addEventListener('click', e => {
@@ -1076,6 +1128,10 @@ if (window.location.protocol === 'file:') {
 }
 
 renderActions();
+const hadSessionKeys = loadKeysFromSession();
+if (!hadSessionKeys) {
+  openSettings();
+}
 refreshAll();
 setInterval(refreshAll, 60000);
 setInterval(fetchActivity, 300000);
