@@ -17,7 +17,15 @@ echo "Connected to n8n successfully"
 echo "Credentials found: $(echo $CREDS | grep -o '"name"' | wc -l)"
 
 # Update Supabase Crystallux
-SUPABASE_ID=$(echo $CREDS | grep -o '"id":"[^"]*","name":"Supabase Crystallux"' | grep -o '"id":"[^"]*"' | grep -o '[^"]*$' | head -1)
+SUPABASE_ID=$(echo "$CREDS" | python -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+creds = data.get('data', data) if isinstance(data, dict) else data
+for c in creds:
+    if c.get('name') == 'Supabase Crystallux':
+        print(c.get('id',''))
+        break
+")
 
 if [ ! -z "$SUPABASE_ID" ]; then
   curl -s -X PATCH "$N8N_API/credentials/$SUPABASE_ID" \
@@ -30,7 +38,18 @@ else
 fi
 
 # Update Claude Anthropic
-CLAUDE_ID=$(echo $CREDS | grep -o '"id":"[^"]*","name":"Claude Anthropic"' | grep -o '"id":"[^"]*"' | grep -o '[^"]*$' | head -1)
+CLAUDE_ID=$(echo "$CREDS" | python -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+creds = data.get('data', data) if isinstance(data, dict) else data
+for c in creds:
+    if c.get('name') == 'Claude Anthropic':
+        print(c.get('id',''))
+        break
+")
+
+echo "Supabase Crystallux ID: $SUPABASE_ID"
+echo "Claude Anthropic ID: $CLAUDE_ID"
 
 if [ ! -z "$CLAUDE_ID" ]; then
   curl -s -X PATCH "$N8N_API/credentials/$CLAUDE_ID" \
