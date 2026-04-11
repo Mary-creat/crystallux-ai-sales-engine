@@ -55,11 +55,6 @@
   .pulse-dot{width:8px;height:8px;background:var(--secondary);border-radius:50%;box-shadow:0 0 0 0 rgba(29,158,117,0.7);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(29,158,117,0.7)}70%{box-shadow:0 0 0 8px rgba(29,158,117,0)}100%{box-shadow:0 0 0 0 rgba(29,158,117,0)}}
 
-  /* TEST MODE TOGGLE */
-  .test-toggle{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
-  .test-toggle:hover{border-color:var(--primary);color:var(--primary)}
-  .test-toggle.on{background:rgba(245,158,11,0.18);border-color:var(--orange);color:var(--orange)}
-
   /* SETTINGS GEAR */
   .gear-btn{background:transparent;border:1px solid var(--border);border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);transition:all .2s}
   .gear-btn:hover{color:var(--primary);border-color:var(--primary);transform:rotate(30deg)}
@@ -208,7 +203,6 @@
   </nav>
   <div class="header-right">
     <div class="status-pill"><div class="pulse-dot"></div>Engine Active</div>
-    <button class="test-toggle" id="testToggle" title="Toggle demo data — no API keys required">Test Mode</button>
     <button class="gear-btn" id="settingsBtn" title="Settings — manage API keys" aria-label="Open settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -236,14 +230,14 @@
       <button class="modal-btn secondary" id="clearKeysBtn">Clear</button>
       <button class="modal-btn primary" id="saveKeysBtn">Save</button>
     </div>
-    <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies. Use Test Mode if you just want to preview the dashboard.</div>
+    <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies.</div>
   </div>
 </div>
 
 <main>
   <div class="local-banner" id="localBanner">
     <strong>For best results, serve this file over HTTP.</strong>
-    Opening directly from <code>file://</code> will block API calls due to browser CORS policy. In a terminal run <code>npx serve docs/dashboard</code> then open <code>http://localhost:3000</code>. Or click <strong>Test Mode</strong> in the header to preview the dashboard with demo data.
+    Opening directly from <code>file://</code> will block API calls due to browser CORS policy. In a terminal run <code>npx serve docs/dashboard</code> then open <code>http://localhost:3000</code>.
   </div>
 
   <!-- SECTION 1: PIPELINE STATS -->
@@ -303,7 +297,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.5</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.7</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -318,17 +312,16 @@ const MCP_GATEWAY  = 'https://automation.crystallux.org/webhook/crystallux-mcp';
 const N8N_HEALTH   = 'https://automation.crystallux.org/healthz';
 const CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
 
-const FRIENDLY_ERROR = 'Could not load data — check your API keys in Settings.';
+const NO_SUPABASE_MSG = 'No data — check your Supabase key in Settings';
+const FRIENDLY_ERROR  = 'Could not load data — check your API keys in Settings.';
 
 /* In-memory credential store. Lives only in this JS variable for this tab.
    Cleared automatically when the tab closes. */
 const credentials = { claudeKey:'', supabaseKey:'', mcpKey:'' };
 
-let testMode = false;
-
-const hasSupabase = () => testMode || !!credentials.supabaseKey;
-const hasClaude   = () => testMode || !!credentials.claudeKey;
-const hasMCP      = () => testMode || !!credentials.mcpKey;
+const hasSupabase = () => !!credentials.supabaseKey;
+const hasClaude   = () => !!credentials.claudeKey;
+const hasMCP      = () => !!credentials.mcpKey;
 
 function supabaseHeaders() {
   return {
@@ -340,20 +333,6 @@ function supabaseHeaders() {
 function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
-/* ---- DEMO DATA ---- */
-const DEMO_STATS = {
-  total: 1247,
-  'New Lead': 312, 'Researched': 268, 'Scored': 201, 'Outreach Ready': 156,
-  'Contacted': 142, 'Replied': 87, 'Booked': 54, 'Closed Won': 27
-};
-const DEMO_LEADS = [
-  { company:'Acme Insurance Brokers', industry:'Insurance', city:'Toronto',  lead_status:'Booked',         lead_score:92, phone:'(416) 555-0142', source:'google_maps' },
-  { company:'BlueWave Movers',        industry:'Moving',    city:'Vancouver',lead_status:'Replied',        lead_score:81, phone:'(604) 555-0177', source:'b2c_discovery' },
-  { company:'Northstar Dental',       industry:'Dental',    city:'Calgary',  lead_status:'Outreach Ready', lead_score:74, phone:'(403) 555-0119', source:'google_maps' },
-  { company:'Maple Realty Group',     industry:'Real Estate',city:'Ottawa',  lead_status:'Researched',     lead_score:68, phone:'(613) 555-0133', source:'apollo' },
-  { company:'Sunset Wellness Clinic', industry:'Healthcare',city:'Montreal', lead_status:'New Lead',       lead_score:55, phone:'(514) 555-0188', source:'google_maps' }
-];
 
 /* ---- SECTION 1: STAT CARDS ---- */
 const STATUS_BUCKETS = [
@@ -388,21 +367,17 @@ function showStatsLocked(message) {
 }
 
 async function fetchPipelineStats() {
-  if (testMode) {
-    const { total, ...counts } = DEMO_STATS;
-    renderStats(counts, total);
-    return;
-  }
-  if (!hasSupabase()) { showStatsLocked('Add your Supabase key to load pipeline stats.'); return; }
+  if (!hasSupabase()) { showStatsLocked(NO_SUPABASE_MSG); return; }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders() });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked(NO_SUPABASE_MSG); return; }
     const counts = {};
     rows.forEach(r => { counts[r.lead_status] = (counts[r.lead_status] || 0) + 1; });
     renderStats(counts, rows.length);
   } catch (e) {
-    showStatsLocked(FRIENDLY_ERROR);
+    showStatsLocked(NO_SUPABASE_MSG);
   }
 }
 
@@ -415,7 +390,7 @@ const STATUS_COLOURS = {
 function renderLeads(rows) {
   const body = document.getElementById('leadsBody');
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dimmer)">No leads yet</td></tr>';
+    showLeadsLocked(NO_SUPABASE_MSG);
     return;
   }
   body.innerHTML = rows.map(l => {
@@ -444,15 +419,14 @@ function showLeadsLocked(message) {
 }
 
 async function fetchRecentLeads() {
-  if (testMode) { renderLeads(DEMO_LEADS); return; }
-  if (!hasSupabase()) { showLeadsLocked('Add your Supabase key to load leads.'); return; }
+  if (!hasSupabase()) { showLeadsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source,updated_at&order=updated_at.desc&limit=20';
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source&order=updated_at.desc&limit=20';
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     renderLeads(await res.json());
   } catch (e) {
-    showLeadsLocked(FRIENDLY_ERROR);
+    showLeadsLocked(NO_SUPABASE_MSG);
   }
 }
 
@@ -490,12 +464,6 @@ async function runAction(i) {
   btn.querySelector('.label').innerHTML = '<span class="spinner"></span> Running…';
   result.classList.remove('show', 'error');
   try {
-    if (testMode) {
-      await new Promise(r => setTimeout(r, 600));
-      result.textContent = '[demo] ' + a.tool + ' executed successfully — 12 results returned.';
-      result.classList.add('show');
-      return;
-    }
     if (!hasMCP()) {
       result.textContent = 'Add your MCP API key in Settings to run this action.';
       result.classList.add('show', 'error');
@@ -570,15 +538,6 @@ async function sendChat() {
   chatHistory.push({ role:'user', content:text });
   addTyping();
 
-  if (testMode) {
-    await new Promise(r => setTimeout(r, 700));
-    removeTyping();
-    const reply = "[demo response] I'd normally call the Crystallux MCP gateway to handle that. In Test Mode I'm just showing you what the chat looks like — exit Test Mode and add your Claude API key in Settings to chat for real.";
-    chatHistory.push({ role:'assistant', content:reply });
-    addMessage('assistant', reply);
-    return;
-  }
-
   if (!hasClaude()) {
     removeTyping();
     addMessage('assistant', 'Add your Claude API key in Settings to start chatting.');
@@ -618,22 +577,20 @@ async function checkApiStatus() {
   const checks = [
     { name:'Supabase',    detail: credentials.supabaseKey ? 'Lead database' : 'Key not set',
       check: async () => {
-        if (testMode) return true;
         if (!credentials.supabaseKey) return false;
         try { const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders() }); return r.ok; }
         catch (e) { return false; }
       } },
     { name:'n8n', detail:'automation.crystallux.org',
       check: async () => {
-        if (testMode) return true;
         try { await fetch(N8N_HEALTH, { mode:'no-cors' }); return true; } catch (e) { return false; }
       } },
     { name:'Claude API',
-      detail: testMode ? 'demo mode' : (credentials.claudeKey ? 'Key …' + credentials.claudeKey.slice(-4) : 'Key not set'),
-      check: async () => testMode || !!credentials.claudeKey },
+      detail: credentials.claudeKey ? 'Key …' + credentials.claudeKey.slice(-4) : 'Key not set',
+      check: async () => !!credentials.claudeKey },
     { name:'MCP Gateway',
-      detail: testMode ? 'demo mode' : (credentials.mcpKey ? 'Key …' + credentials.mcpKey.slice(-4) : 'Key not set'),
-      check: async () => testMode || !!credentials.mcpKey },
+      detail: credentials.mcpKey ? 'Key …' + credentials.mcpKey.slice(-4) : 'Key not set',
+      check: async () => !!credentials.mcpKey },
     { name:'Hunter.io',   detail:'Email enrichment',  check: async () => true },
     { name:'Google Maps', detail:'Places API',        check: async () => true },
     { name:'Calendly',    detail:'Booking automation',check: async () => true },
@@ -681,15 +638,6 @@ function clearKeys() {
   refreshAll();
 }
 
-/* ---- TEST MODE ---- */
-function setTestMode(on) {
-  testMode = on;
-  const btn = document.getElementById('testToggle');
-  btn.classList.toggle('on', on);
-  btn.textContent = on ? 'Test Mode: ON' : 'Test Mode';
-  refreshAll();
-}
-
 /* ---- HAMBURGER ---- */
 function toggleNav() {
   document.getElementById('mainNav').classList.toggle('open');
@@ -707,7 +655,6 @@ document.getElementById('navSettings').addEventListener('click', e => { e.preven
 document.getElementById('settingsModal').addEventListener('click', e => {
   if (e.target.id === 'settingsModal') closeSettings();
 });
-document.getElementById('testToggle').addEventListener('click', () => setTestMode(!testMode));
 document.getElementById('hamburgerBtn').addEventListener('click', toggleNav);
 document.querySelectorAll('#mainNav a').forEach(a => a.addEventListener('click', closeNav));
 document.getElementById('chatSend').addEventListener('click', sendChat);
