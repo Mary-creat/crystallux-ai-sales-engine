@@ -263,8 +263,10 @@
     </div>
     <div class="modal-actions">
       <button class="modal-btn secondary" id="clearKeysBtn">Clear</button>
+      <button class="modal-btn secondary" id="testSupabaseBtn">Test Supabase Connection</button>
       <button class="modal-btn primary" id="saveKeysBtn">Save</button>
     </div>
+    <div id="testSupabaseResult" style="margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;display:none"></div>
     <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies.</div>
   </div>
 </div>
@@ -388,7 +390,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.8</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.9</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -415,10 +417,15 @@ const hasClaude   = () => !!credentials.claudeKey;
 const hasMCP      = () => !!credentials.mcpKey;
 
 function supabaseHeaders() {
-  return {
-    'apikey': credentials.supabaseKey,
-    'Authorization': 'Bearer ' + credentials.supabaseKey
+  const key = credentials.supabaseKey;
+  const headers = {
+    'apikey': key,
+    'Authorization': 'Bearer ' + key,
+    'Content-Type': 'application/json'
   };
+  console.log('[supabaseHeaders] key length:', key ? key.length : 0, 'prefix:', key ? key.slice(0, 8) : '(empty)');
+  console.log('[supabaseHeaders] returning:', { apikey: headers.apikey ? '(set)' : '(empty)', Authorization: headers.Authorization ? '(set)' : '(empty)', 'Content-Type': headers['Content-Type'] });
+  return headers;
 }
 
 function escapeHtml(s) {
@@ -958,8 +965,55 @@ function saveKeys() {
   credentials.claudeKey   = document.getElementById('claudeKeyInput').value.trim();
   credentials.supabaseKey = document.getElementById('supabaseKeyInput').value.trim();
   credentials.mcpKey      = document.getElementById('mcpKeyInput').value.trim();
+  console.log('[saveKeys] credentials object after save:', {
+    claudeKey: credentials.claudeKey ? '(set, len=' + credentials.claudeKey.length + ')' : '(empty)',
+    supabaseKey: credentials.supabaseKey ? '(set, len=' + credentials.supabaseKey.length + ', prefix=' + credentials.supabaseKey.slice(0, 8) + ')' : '(empty)',
+    mcpKey: credentials.mcpKey ? '(set)' : '(empty)'
+  });
   closeSettings();
   refreshAll();
+}
+
+async function testSupabaseConnection() {
+  const resultEl = document.getElementById('testSupabaseResult');
+  const key = document.getElementById('supabaseKeyInput').value.trim();
+  console.log('[testSupabase] input key length:', key.length, 'prefix:', key.slice(0, 8));
+  resultEl.style.display = 'block';
+  if (!key) {
+    resultEl.style.background = '#4a1a1a';
+    resultEl.style.color = '#ff8a8a';
+    resultEl.textContent = '✗ Enter a Supabase key first.';
+    return;
+  }
+  const headers = {
+    'apikey': key,
+    'Authorization': 'Bearer ' + key,
+    'Content-Type': 'application/json'
+  };
+  console.log('[testSupabase] fetch headers:', { apikey: '(len=' + key.length + ')', Authorization: 'Bearer (len=' + key.length + ')', 'Content-Type': headers['Content-Type'] });
+  resultEl.style.background = '#1a2a4a';
+  resultEl.style.color = '#8ab4ff';
+  resultEl.textContent = 'Testing…';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers });
+    console.log('[testSupabase] response status:', res.status, res.statusText);
+    if (res.ok) {
+      resultEl.style.background = '#14331f';
+      resultEl.style.color = '#7ee28c';
+      resultEl.textContent = '✓ Success — Supabase key works (HTTP ' + res.status + ').';
+    } else {
+      const body = await res.text();
+      console.log('[testSupabase] error body:', body);
+      resultEl.style.background = '#4a1a1a';
+      resultEl.style.color = '#ff8a8a';
+      resultEl.textContent = '✗ Failed — HTTP ' + res.status + ' ' + res.statusText + '. ' + body.slice(0, 160);
+    }
+  } catch (err) {
+    console.log('[testSupabase] fetch threw:', err);
+    resultEl.style.background = '#4a1a1a';
+    resultEl.style.color = '#ff8a8a';
+    resultEl.textContent = '✗ Network error — ' + err.message;
+  }
 }
 
 function clearKeys() {
@@ -985,6 +1039,7 @@ function closeNav() {
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('saveKeysBtn').addEventListener('click', saveKeys);
 document.getElementById('clearKeysBtn').addEventListener('click', clearKeys);
+document.getElementById('testSupabaseBtn').addEventListener('click', testSupabaseConnection);
 document.getElementById('navSettings').addEventListener('click', e => { e.preventDefault(); closeNav(); openSettings(); });
 document.getElementById('settingsModal').addEventListener('click', e => {
   if (e.target.id === 'settingsModal') closeSettings();
