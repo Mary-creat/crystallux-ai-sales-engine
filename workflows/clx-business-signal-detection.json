@@ -16,7 +16,10 @@
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
@@ -39,10 +42,13 @@
       "name": "Get Scored Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 300],
+      "position": [
+        440,
+        300
+      ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "1",
+          "id": "XdqdFpzSHzWHvQIU",
           "name": "Supabase Crystallux"
         }
       }
@@ -76,7 +82,10 @@
       "name": "IF Leads Found",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
@@ -87,7 +96,10 @@
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [920, 300]
+      "position": [
+        920,
+        300
+      ]
     },
     {
       "parameters": {
@@ -98,7 +110,10 @@
       "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1160, 300],
+      "position": [
+        1160,
+        300
+      ],
       "webhookId": "clx04-wait-webhook-001"
     },
     {
@@ -129,10 +144,13 @@
       "name": "Claude Analyze Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 300],
+      "position": [
+        1400,
+        300
+      ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "2",
+          "id": "5GbgZmWqc8ruTO2H",
           "name": "Claude Anthropic"
         }
       }
@@ -145,7 +163,10 @@
       "name": "Parse Signal Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 300]
+      "position": [
+        1640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -179,10 +200,13 @@
       "name": "Update Lead Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1880, 300],
+      "position": [
+        1880,
+        300
+      ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "1",
+          "id": "XdqdFpzSHzWHvQIU",
           "name": "Supabase Crystallux"
         }
       }
@@ -193,7 +217,10 @@
       "name": "No Scored Leads",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [680, 500]
+      "position": [
+        680,
+        500
+      ]
     }
   ],
   "connections": {

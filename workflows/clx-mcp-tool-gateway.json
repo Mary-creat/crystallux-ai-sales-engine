@@ -12,7 +12,10 @@
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 500],
+      "position": [
+        200,
+        500
+      ],
       "webhookId": "clx12-webhook-mcp-gateway"
     },
     {
@@ -23,13 +26,31 @@
       "name": "Parse Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 500]
+      "position": [
+        420,
+        500
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-valid", "leftValue": "={{ String($json.valid) }}", "rightValue": "true", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-valid",
+              "leftValue": "={{ String($json.valid) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -38,13 +59,31 @@
       "name": "IF Valid",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [640, 500]
+      "position": [
+        640,
+        500
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t01", "leftValue": "={{ $json.tool_name }}", "rightValue": "research_lead", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t01",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "research_lead",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -53,7 +92,10 @@
       "name": "IF research_lead",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [860, 500]
+      "position": [
+        860,
+        500
+      ]
     },
     {
       "parameters": {
@@ -62,21 +104,51 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0011",
       "name": "Execute Research Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [860, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        860,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t02", "leftValue": "={{ $json.tool_name }}", "rightValue": "score_lead", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t02",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "score_lead",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -85,7 +157,10 @@
       "name": "IF score_lead",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1080, 500]
+      "position": [
+        1080,
+        500
+      ]
     },
     {
       "parameters": {
@@ -94,21 +169,51 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0021",
       "name": "Execute Score Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1080, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        1080,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t03", "leftValue": "={{ $json.tool_name }}", "rightValue": "get_pipeline_stats", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t03",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "get_pipeline_stats",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -117,7 +222,10 @@
       "name": "IF get_pipeline_stats",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1300, 500]
+      "position": [
+        1300,
+        500
+      ]
     },
     {
       "parameters": {
@@ -126,21 +234,51 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0031",
       "name": "Execute Pipeline Stats",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        1300,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t04", "leftValue": "={{ $json.tool_name }}", "rightValue": "scan_city", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t04",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "scan_city",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -149,7 +287,10 @@
       "name": "IF scan_city",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1520, 500]
+      "position": [
+        1520,
+        500
+      ]
     },
     {
       "parameters": {
@@ -159,13 +300,31 @@
       "name": "Handle Scan City",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1520, 260]
+      "position": [
+        1520,
+        260
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t05", "leftValue": "={{ $json.tool_name }}", "rightValue": "get_lead", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t05",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "get_lead",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -174,7 +333,10 @@
       "name": "IF get_lead",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1740, 500]
+      "position": [
+        1740,
+        500
+      ]
     },
     {
       "parameters": {
@@ -183,21 +345,51 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0051",
       "name": "Execute Get Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1740, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        1740,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t06", "leftValue": "={{ $json.tool_name }}", "rightValue": "list_leads", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t06",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "list_leads",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -206,7 +398,10 @@
       "name": "IF list_leads",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1960, 500]
+      "position": [
+        1960,
+        500
+      ]
     },
     {
       "parameters": {
@@ -215,21 +410,51 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0061",
       "name": "Execute List Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1960, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        1960,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t07", "leftValue": "={{ $json.tool_name }}", "rightValue": "update_lead_status", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t07",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "update_lead_status",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -238,7 +463,10 @@
       "name": "IF update_lead_status",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2180, 500]
+      "position": [
+        2180,
+        500
+      ]
     },
     {
       "parameters": {
@@ -247,7 +475,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ lead_status: $('Parse Request').item.json.tool_input.lead_status, notes: $('Parse Request').item.json.tool_input.notes || '', updated_at: new Date().toISOString() }) }}",
@@ -257,14 +500,37 @@
       "name": "Execute Update Lead Status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2180, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        2180,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t08", "leftValue": "={{ $json.tool_name }}", "rightValue": "check_system_health", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t08",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "check_system_health",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -273,7 +539,10 @@
       "name": "IF check_system_health",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2400, 500]
+      "position": [
+        2400,
+        500
+      ]
     },
     {
       "parameters": {
@@ -282,15 +551,30 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0081",
       "name": "Fetch System Health",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2400, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        2400,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -300,13 +584,31 @@
       "name": "Analyze System Health",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2400, 40]
+      "position": [
+        2400,
+        40
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t09", "leftValue": "={{ $json.tool_name }}", "rightValue": "check_pipeline_health", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t09",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "check_pipeline_health",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -315,7 +617,10 @@
       "name": "IF check_pipeline_health",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2620, 500]
+      "position": [
+        2620,
+        500
+      ]
     },
     {
       "parameters": {
@@ -324,15 +629,30 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0091",
       "name": "Fetch Pipeline Health",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2620, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        2620,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -342,13 +662,31 @@
       "name": "Analyze Pipeline Health",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2620, 40]
+      "position": [
+        2620,
+        40
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx12-cond-t10", "leftValue": "={{ $json.tool_name }}", "rightValue": "get_execution_stats", "operator": { "type": "string", "operation": "equals" } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx12-cond-t10",
+              "leftValue": "={{ $json.tool_name }}",
+              "rightValue": "get_execution_stats",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -357,7 +695,10 @@
       "name": "IF get_execution_stats",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2840, 500]
+      "position": [
+        2840,
+        500
+      ]
     },
     {
       "parameters": {
@@ -366,15 +707,30 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx12-0101",
       "name": "Fetch Execution Stats",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2840, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        2840,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
@@ -384,7 +740,10 @@
       "name": "Format Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3100, 260]
+      "position": [
+        3100,
+        260
+      ]
     },
     {
       "parameters": {
@@ -393,7 +752,18 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ tool_name: $('Format Response').item.json.tool, tool_input: $('Parse Request').item.json.tool_input, tool_output: $('Format Response').item.json.data, success: $('Format Response').item.json.success, execution_time_ms: 0 }) }}",
@@ -403,8 +773,16 @@
       "name": "Log Tool Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3320, 260],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } },
+      "position": [
+        3320,
+        260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      },
       "onError": "continueRegularOutput"
     },
     {
@@ -417,7 +795,10 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [3540, 260]
+      "position": [
+        3540,
+        260
+      ]
     },
     {
       "parameters": {
@@ -427,19 +808,27 @@
       "name": "Format Validation Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 780]
+      "position": [
+        860,
+        780
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($('Format Validation Error').item.json) }}",
-        "options": { "responseCode": 400 }
+        "options": {
+          "responseCode": 400
+        }
       },
       "id": "clx12-0301",
       "name": "Respond Validation Error",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1080, 780]
+      "position": [
+        1080,
+        780
+      ]
     },
     {
       "parameters": {
@@ -449,19 +838,27 @@
       "name": "Format Default Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3060, 500]
+      "position": [
+        3060,
+        500
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($('Format Default Error').item.json) }}",
-        "options": { "responseCode": 400 }
+        "options": {
+          "responseCode": 400
+        }
       },
       "id": "clx12-0401",
       "name": "Respond Default Error",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [3280, 500]
+      "position": [
+        3280,
+        500
+      ]
     },
     {
       "parameters": {
@@ -474,7 +871,10 @@
       "name": "Tool Registry Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 1100],
+      "position": [
+        200,
+        1100
+      ],
       "webhookId": "clx12-webhook-tool-registry"
     },
     {
@@ -485,7 +885,10 @@
       "name": "Build Tool List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 1100]
+      "position": [
+        420,
+        1100
+      ]
     },
     {
       "parameters": {
@@ -497,44 +900,436 @@
       "name": "Return Tool List",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [640, 1100]
+      "position": [
+        640,
+        1100
+      ]
     }
   ],
   "connections": {
-    "Webhook Trigger": { "main": [[{ "node": "Parse Request", "type": "main", "index": 0 }]] },
-    "Parse Request": { "main": [[{ "node": "IF Valid", "type": "main", "index": 0 }]] },
-    "IF Valid": { "main": [[{ "node": "IF research_lead", "type": "main", "index": 0 }], [{ "node": "Format Validation Error", "type": "main", "index": 0 }]] },
-    "IF research_lead": { "main": [[{ "node": "Execute Research Lead", "type": "main", "index": 0 }], [{ "node": "IF score_lead", "type": "main", "index": 0 }]] },
-    "Execute Research Lead": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF score_lead": { "main": [[{ "node": "Execute Score Lead", "type": "main", "index": 0 }], [{ "node": "IF get_pipeline_stats", "type": "main", "index": 0 }]] },
-    "Execute Score Lead": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF get_pipeline_stats": { "main": [[{ "node": "Execute Pipeline Stats", "type": "main", "index": 0 }], [{ "node": "IF scan_city", "type": "main", "index": 0 }]] },
-    "Execute Pipeline Stats": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF scan_city": { "main": [[{ "node": "Handle Scan City", "type": "main", "index": 0 }], [{ "node": "IF get_lead", "type": "main", "index": 0 }]] },
-    "Handle Scan City": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF get_lead": { "main": [[{ "node": "Execute Get Lead", "type": "main", "index": 0 }], [{ "node": "IF list_leads", "type": "main", "index": 0 }]] },
-    "Execute Get Lead": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF list_leads": { "main": [[{ "node": "Execute List Leads", "type": "main", "index": 0 }], [{ "node": "IF update_lead_status", "type": "main", "index": 0 }]] },
-    "Execute List Leads": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF update_lead_status": { "main": [[{ "node": "Execute Update Lead Status", "type": "main", "index": 0 }], [{ "node": "IF check_system_health", "type": "main", "index": 0 }]] },
-    "Execute Update Lead Status": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF check_system_health": { "main": [[{ "node": "Fetch System Health", "type": "main", "index": 0 }], [{ "node": "IF check_pipeline_health", "type": "main", "index": 0 }]] },
-    "Fetch System Health": { "main": [[{ "node": "Analyze System Health", "type": "main", "index": 0 }]] },
-    "Analyze System Health": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF check_pipeline_health": { "main": [[{ "node": "Fetch Pipeline Health", "type": "main", "index": 0 }], [{ "node": "IF get_execution_stats", "type": "main", "index": 0 }]] },
-    "Fetch Pipeline Health": { "main": [[{ "node": "Analyze Pipeline Health", "type": "main", "index": 0 }]] },
-    "Analyze Pipeline Health": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "IF get_execution_stats": { "main": [[{ "node": "Fetch Execution Stats", "type": "main", "index": 0 }], [{ "node": "Format Default Error", "type": "main", "index": 0 }]] },
-    "Fetch Execution Stats": { "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]] },
-    "Format Response": { "main": [[{ "node": "Log Tool Call", "type": "main", "index": 0 }]] },
-    "Log Tool Call": { "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]] },
-    "Format Validation Error": { "main": [[{ "node": "Respond Validation Error", "type": "main", "index": 0 }]] },
-    "Format Default Error": { "main": [[{ "node": "Respond Default Error", "type": "main", "index": 0 }]] },
-    "Tool Registry Webhook": { "main": [[{ "node": "Build Tool List", "type": "main", "index": 0 }]] },
-    "Build Tool List": { "main": [[{ "node": "Return Tool List", "type": "main", "index": 0 }]] }
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "IF Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid": {
+      "main": [
+        [
+          {
+            "node": "IF research_lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF research_lead": {
+      "main": [
+        [
+          {
+            "node": "Execute Research Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF score_lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Research Lead": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF score_lead": {
+      "main": [
+        [
+          {
+            "node": "Execute Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF get_pipeline_stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Score Lead": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF get_pipeline_stats": {
+      "main": [
+        [
+          {
+            "node": "Execute Pipeline Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF scan_city",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Pipeline Stats": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF scan_city": {
+      "main": [
+        [
+          {
+            "node": "Handle Scan City",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF get_lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Scan City": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF get_lead": {
+      "main": [
+        [
+          {
+            "node": "Execute Get Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF list_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Get Lead": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF list_leads": {
+      "main": [
+        [
+          {
+            "node": "Execute List Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF update_lead_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute List Leads": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF update_lead_status": {
+      "main": [
+        [
+          {
+            "node": "Execute Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF check_system_health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF check_system_health": {
+      "main": [
+        [
+          {
+            "node": "Fetch System Health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF check_pipeline_health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch System Health": {
+      "main": [
+        [
+          {
+            "node": "Analyze System Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze System Health": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF check_pipeline_health": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pipeline Health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF get_execution_stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pipeline Health": {
+      "main": [
+        [
+          {
+            "node": "Analyze Pipeline Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Pipeline Health": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF get_execution_stats": {
+      "main": [
+        [
+          {
+            "node": "Fetch Execution Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Default Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Execution Stats": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Log Tool Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Tool Call": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Validation Error": {
+      "main": [
+        [
+          {
+            "node": "Respond Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Default Error": {
+      "main": [
+        [
+          {
+            "node": "Respond Default Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool Registry Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Tool List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Tool List": {
+      "main": [
+        [
+          {
+            "node": "Return Tool List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-mcp-gateway-v103",
   "meta": {
     "templateCredsSetupCompleted": false,

@@ -48,7 +48,7 @@
       ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "1",
+          "id": "XdqdFpzSHzWHvQIU",
           "name": "Supabase Crystallux"
         }
       }
@@ -201,7 +201,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "2",
+          "id": "5GbgZmWqc8ruTO2H",
           "name": "Claude Anthropic"
         }
       }
@@ -279,7 +279,7 @@
       ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "1",
+          "id": "XdqdFpzSHzWHvQIU",
           "name": "Supabase Crystallux"
         }
       },
@@ -361,7 +361,7 @@
       ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "1",
+          "id": "XdqdFpzSHzWHvQIU",
           "name": "Supabase Crystallux"
         }
       }
@@ -404,7 +404,7 @@
       ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "1",
+          "id": "XdqdFpzSHzWHvQIU",
           "name": "Supabase Crystallux"
         }
       }

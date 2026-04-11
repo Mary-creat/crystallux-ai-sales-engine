@@ -16,7 +16,10 @@
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
@@ -26,7 +29,10 @@
       "name": "Build B2C Scan List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 300]
+      "position": [
+        440,
+        300
+      ]
     },
     {
       "parameters": {
@@ -37,7 +43,10 @@
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
@@ -48,7 +57,10 @@
       "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [920, 300],
+      "position": [
+        920,
+        300
+      ],
       "webhookId": "clx14-wait-webhook-001"
     },
     {
@@ -79,7 +91,10 @@
       "name": "Search Google Maps",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1160, 300],
+      "position": [
+        1160,
+        300
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "5",
@@ -95,7 +110,10 @@
       "name": "Parse Places Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1400, 300]
+      "position": [
+        1400,
+        300
+      ]
     },
     {
       "parameters": {
@@ -125,7 +143,10 @@
       "name": "IF Results Found",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1640, 300]
+      "position": [
+        1640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -135,7 +156,10 @@
       "name": "Process Each Business",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1880, 300]
+      "position": [
+        1880,
+        300
+      ]
     },
     {
       "parameters": {
@@ -146,8 +170,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "options": {
@@ -162,9 +192,15 @@
       "name": "Check Duplicate",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2120, 300],
+      "position": [
+        2120,
+        300
+      ],
       "credentials": {
-        "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
       }
     },
     {
@@ -175,7 +211,10 @@
       "name": "Parse Duplicate Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2240, 300]
+      "position": [
+        2240,
+        300
+      ]
     },
     {
       "parameters": {
@@ -205,7 +244,10 @@
       "name": "IF Not Duplicate",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2360, 300]
+      "position": [
+        2360,
+        300
+      ]
     },
     {
       "parameters": {
@@ -216,9 +258,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "" },
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -230,9 +281,15 @@
       "name": "Insert Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 300],
+      "position": [
+        2600,
+        300
+      ],
       "credentials": {
-        "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
       }
     },
     {
@@ -241,7 +298,10 @@
       "name": "Skip Duplicate",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2600, 500]
+      "position": [
+        2600,
+        500
+      ]
     },
     {
       "parameters": {},
@@ -249,27 +309,187 @@
       "name": "No Results",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1640, 500]
+      "position": [
+        1640,
+        500
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger": { "main": [[{ "node": "Build B2C Scan List", "type": "main", "index": 0 }]] },
-    "Build B2C Scan List": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] },
-    "Split In Batches": { "main": [[{ "node": "Wait", "type": "main", "index": 0 }], []] },
-    "Wait": { "main": [[{ "node": "Search Google Maps", "type": "main", "index": 0 }]] },
-    "Search Google Maps": { "main": [[{ "node": "Parse Places Results", "type": "main", "index": 0 }]] },
-    "Parse Places Results": { "main": [[{ "node": "IF Results Found", "type": "main", "index": 0 }]] },
-    "IF Results Found": { "main": [[{ "node": "Process Each Business", "type": "main", "index": 0 }], [{ "node": "No Results", "type": "main", "index": 0 }]] },
-    "Process Each Business": { "main": [[{ "node": "Check Duplicate", "type": "main", "index": 0 }]] },
-    "Check Duplicate": { "main": [[{ "node": "Parse Duplicate Check", "type": "main", "index": 0 }]] },
-    "Parse Duplicate Check": { "main": [[{ "node": "IF Not Duplicate", "type": "main", "index": 0 }]] },
-    "IF Not Duplicate": { "main": [[{ "node": "Insert Lead", "type": "main", "index": 0 }], [{ "node": "Skip Duplicate", "type": "main", "index": 0 }]] },
-    "Insert Lead": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] },
-    "Skip Duplicate": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] },
-    "No Results": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] }
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build B2C Scan List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build B2C Scan List": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Search Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Google Maps": {
+      "main": [
+        [
+          {
+            "node": "Parse Places Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Places Results": {
+      "main": [
+        [
+          {
+            "node": "IF Results Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Results Found": {
+      "main": [
+        [
+          {
+            "node": "Process Each Business",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Business": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Parse Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Duplicate Check": {
+      "main": [
+        [
+          {
+            "node": "IF Not Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Not Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Insert Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Lead": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Results": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-b2c-discovery-v100",
   "meta": {
     "templateCredsSetupCompleted": false,

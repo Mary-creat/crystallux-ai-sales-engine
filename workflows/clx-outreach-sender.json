@@ -16,7 +16,10 @@
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
@@ -25,21 +28,52 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx07-0000-0000-0000-000000000002",
       "name": "Get Outreach Ready Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 300],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx07-cond-string-not-empty-001", "leftValue": "={{ $json.id }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx07-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -48,23 +82,38 @@
       "name": "IF Leads Found",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
-      "parameters": { "batchSize": 1, "options": {} },
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
       "id": "clx07-0000-0000-0000-000000000004",
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [920, 300]
+      "position": [
+        920,
+        300
+      ]
     },
     {
-      "parameters": { "amount": 60, "unit": "seconds" },
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
       "id": "clx07-0000-0000-0000-000000000005",
       "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1160, 300],
+      "position": [
+        1160,
+        300
+      ],
       "webhookId": "clx07-wait-webhook-001"
     },
     {
@@ -75,13 +124,32 @@
       "name": "Safety Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1400, 300]
+      "position": [
+        1400,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
-          "conditions": [{ "id": "clx07-safety-email-exists", "leftValue": "={{ $json.email }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } }],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx07-safety-email-exists",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -90,7 +158,10 @@
       "name": "IF Safe To Send",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1640, 300]
+      "position": [
+        1640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -98,14 +169,24 @@
         "subject": "={{ $json.email_subject }}",
         "emailType": "html",
         "message": "={{ $json.email_body_with_footer }}",
-        "options": { "appendAttributionToBody": false }
+        "options": {
+          "appendAttributionToBody": false
+        }
       },
       "id": "clx07-0000-0000-0000-000000000006",
       "name": "Send Email",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [1880, 300],
-      "credentials": { "gmailOAuth2": { "id": "3", "name": "Gmail" } }
+      "position": [
+        1880,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3",
+          "name": "Gmail"
+        }
+      }
     },
     {
       "parameters": {
@@ -115,7 +196,10 @@
       "name": "Calculate Follow Up",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 300]
+      "position": [
+        2120,
+        300
+      ]
     },
     {
       "parameters": {
@@ -124,7 +208,22 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "" }, { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ outreach_sent_at: $json.outreach_sent_at, followup_scheduled_at: $json.followup_scheduled_at, lead_status: $json.lead_status, outreach_channel: $json.outreach_channel, total_emails_sent: $json.total_emails_sent, last_email_sent_at: $json.last_email_sent_at, updated_at: $json.updated_at }) }}",
@@ -134,8 +233,16 @@
       "name": "Update Lead Contacted",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2360, 300],
-      "credentials": { "httpCustomAuth": { "id": "1", "name": "Supabase Crystallux" } }
+      "position": [
+        2360,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "XdqdFpzSHzWHvQIU",
+          "name": "Supabase Crystallux"
+        }
+      }
     },
     {
       "parameters": {},
@@ -143,7 +250,10 @@
       "name": "Skip Lead",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1880, 500]
+      "position": [
+        1880,
+        500
+      ]
     },
     {
       "parameters": {},
@@ -151,26 +261,159 @@
       "name": "No Outreach Leads",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [680, 500]
+      "position": [
+        680,
+        500
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger": { "main": [[{ "node": "Get Outreach Ready Leads", "type": "main", "index": 0 }]] },
-    "Get Outreach Ready Leads": { "main": [[{ "node": "IF Leads Found", "type": "main", "index": 0 }]] },
-    "IF Leads Found": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }], [{ "node": "No Outreach Leads", "type": "main", "index": 0 }]] },
-    "Split In Batches": { "main": [[{ "node": "Wait", "type": "main", "index": 0 }], []] },
-    "Wait": { "main": [[{ "node": "Safety Check", "type": "main", "index": 0 }]] },
-    "Safety Check": { "main": [[{ "node": "IF Safe To Send", "type": "main", "index": 0 }]] },
-    "IF Safe To Send": { "main": [[{ "node": "Send Email", "type": "main", "index": 0 }], [{ "node": "Skip Lead", "type": "main", "index": 0 }]] },
-    "Send Email": { "main": [[{ "node": "Calculate Follow Up", "type": "main", "index": 0 }]] },
-    "Calculate Follow Up": { "main": [[{ "node": "Update Lead Contacted", "type": "main", "index": 0 }]] },
-    "Update Lead Contacted": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] },
-    "Skip Lead": { "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]] }
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Outreach Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Outreach Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Outreach Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Safety Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safety Check": {
+      "main": [
+        [
+          {
+            "node": "IF Safe To Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Safe To Send": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Calculate Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Follow Up": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Contacted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Contacted": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Lead": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-sender-v072-antispam",
-  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
   "id": "clx-outreach-sender",
   "tags": []
 }
