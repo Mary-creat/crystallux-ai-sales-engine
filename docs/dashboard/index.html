@@ -459,10 +459,11 @@ async function fetchRecentLeads() {
 /* ---- SECTION 3: QUICK ACTION BUTTONS ---- */
 const ACTIONS = [
   { label:'Scan Toronto Insurance', desc:'Discover insurance brokers in Toronto', tool:'scan_city',          args:{ city:'Toronto', industry:'insurance broker', product_type:'insurance' } },
-  { label:'Scan Toronto Moving',    desc:'Discover movers in Toronto',            tool:'scan_city',          args:{ city:'Toronto', industry:'moving company',  product_type:'moving_services' } },
-  { label:'Scan Toronto Dental',    desc:'Discover dental clinics in Toronto',    tool:'scan_city',          args:{ city:'Toronto', industry:'dentist',         product_type:'dental' } },
+  { label:'Scan Toronto Moving',    desc:'Discover movers in Toronto',            tool:'scan_city',          args:{ city:'Toronto', industry:'moving services', product_type:'moving_services' } },
   { label:'Get Pipeline Health',    desc:'Check overall sales pipeline status',   tool:'get_pipeline_stats', args:{} },
-  { label:'List Top Leads',         desc:'Leads with score above 70',             tool:'list_leads',         args:{ min_score:70, limit:25 } },
+  { label:'List Top Leads',         desc:'Leads with score above 70',             tool:'list_leads',         args:{ limit:10, min_score:70 } },
+  { label:'Scan Toronto Dental',    desc:'Discover dental clinics in Toronto',    tool:'scan_city',          args:{ city:'Toronto', industry:'dental clinic',   product_type:'dental' } },
+  { label:'Refresh Pipeline Stats', desc:'Re-run the pipeline health snapshot',   tool:'get_pipeline_stats', args:{} },
   { label:'Run B2C Discovery',      desc:'Trigger the full B2C discovery sweep',  tool:'run_workflow',       args:{ workflow:'clx-b2c-discovery' } }
 ];
 
@@ -503,7 +504,7 @@ async function runAction(i) {
     const res = await fetch(MCP_GATEWAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-MCP-API-Key': credentials.mcpKey },
-      body: JSON.stringify({ tool: a.tool, arguments: a.args })
+      body: JSON.stringify({ tool_name: a.tool, tool_input: a.args })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
@@ -527,7 +528,9 @@ function buildSystemPrompt() {
     "You help the owner manage their AI sales platform. " +
     "MCP Gateway: " + MCP_GATEWAY + " " +
     "MCP API Key: " + credentials.mcpKey + " " +
-    "When asked to do something call the MCP gateway and report results in plain English. " +
+    "When calling the MCP gateway, send the key in the \"X-MCP-API-Key\" request header (NOT as an Authorization Bearer token). " +
+    "POST a JSON body in the form {\"tool_name\": \"<name>\", \"tool_input\": { ... }}. " +
+    "When asked to do something, call the MCP gateway and report results in plain English. " +
     "Available tools: scan_city, list_leads, get_pipeline_stats, research_lead, generate_outreach, send_outreach, process_booking, get_lead, update_lead_status";
 }
 
