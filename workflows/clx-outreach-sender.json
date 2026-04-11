@@ -48,6 +48,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
+          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -238,6 +239,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
+          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
