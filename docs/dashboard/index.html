@@ -99,6 +99,39 @@
   .badge-green{background:rgba(16,185,129,0.18);color:#34d399}
   .badge-teal{background:rgba(20,184,166,0.18);color:#2dd4bf}
 
+  /* EMAIL LOG ROW COLORS */
+  .emails-row-replied td{background:rgba(16,185,129,0.10)}
+  .emails-row-contacted td{background:rgba(59,130,246,0.10)}
+  .emails-row-booked td{background:rgba(20,184,166,0.10)}
+  .view-email-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+  .view-email-btn:hover{border-color:var(--primary);color:var(--primary)}
+  .email-body-pre{white-space:pre-wrap;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:var(--text-dim);background:var(--bg-3);padding:14px;border-radius:8px;max-height:50vh;overflow-y:auto;line-height:1.6}
+
+  /* CRM CLIENT CARDS */
+  .crm-note{background:rgba(127,119,221,0.08);border:1px solid rgba(127,119,221,0.3);color:var(--text-dim);padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:14px}
+  .client-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .client-card{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s}
+  .client-card:hover{border-color:var(--primary)}
+  .client-card h4{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
+  .client-card .client-industry{font-size:12px;color:var(--text-dimmer);margin-bottom:12px}
+  .client-card .client-links{font-size:12px;color:var(--text-dim);line-height:1.9;margin:10px 0}
+  .client-card .client-links a{color:var(--primary);text-decoration:none}
+  .client-card .client-links a:hover{text-decoration:underline}
+  .client-card .client-retainer{font-weight:600;color:var(--secondary)}
+  .client-card .view-leads-btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;width:100%;margin-top:8px;transition:background .2s}
+  .client-card .view-leads-btn:hover{background:var(--primary-dark)}
+
+  /* ACTIVITY FEED */
+  .activity-feed{display:flex;flex-direction:column}
+  .activity-item{display:flex;gap:14px;padding:14px 20px;border-bottom:1px solid rgba(42,52,84,0.5);align-items:flex-start}
+  .activity-item:last-child{border-bottom:none}
+  .activity-dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex-shrink:0;background:var(--primary)}
+  .activity-dot.green{background:var(--green)}
+  .activity-dot.teal{background:var(--teal)}
+  .activity-dot.blue{background:var(--blue)}
+  .activity-text{font-size:13px;color:var(--text);line-height:1.5}
+  .activity-text .activity-time{display:block;font-size:11px;color:var(--text-dimmer);margin-top:3px}
+
   /* QUICK ACTIONS */
   .actions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
   .action-btn{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s;text-align:left;color:var(--text);font-family:inherit;font-size:14px;width:100%}
@@ -196,8 +229,10 @@
     <ul>
       <li><a href="#dashboard" class="active">Dashboard</a></li>
       <li><a href="#leads">Leads</a></li>
+      <li><a href="#emails">Emails</a></li>
+      <li><a href="#crm">CRM</a></li>
+      <li><a href="#activity">Activity</a></li>
       <li><a href="#pipeline">Pipeline</a></li>
-      <li><a href="#clients">Clients</a></li>
       <li><a href="#" id="navSettings">Settings</a></li>
     </ul>
   </nav>
@@ -231,6 +266,18 @@
       <button class="modal-btn primary" id="saveKeysBtn">Save</button>
     </div>
     <div class="modal-note">Keys never leave your browser. They are held in a JavaScript variable for this tab only — not in localStorage, sessionStorage, or cookies.</div>
+  </div>
+</div>
+
+<!-- EMAIL VIEW MODAL -->
+<div class="modal-overlay" id="emailModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title" id="emailModalSubject">Email</div>
+    <div class="modal-subtitle" id="emailModalMeta">—</div>
+    <div class="email-body-pre" id="emailModalBody">—</div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" id="emailModalClose">Close</button>
+    </div>
   </div>
 </div>
 
@@ -269,6 +316,50 @@
     </div>
   </section>
 
+  <!-- SECTION 2B: RECENT EMAILS SENT -->
+  <section class="section" id="emails">
+    <div class="section-title">Recent Emails Sent</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Last 20 Outbound Emails</div>
+        <div style="font-size:12px;color:var(--text-dimmer)" id="emailsUpdated">—</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Company</th><th>Email</th><th>Subject</th><th>Sent At</th><th>Status</th><th>Emails Sent</th><th>Follow Ups</th><th></th></tr>
+          </thead>
+          <tbody id="emailsBody">
+            <tr><td colspan="8" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2C: CRM QUICK ACCESS -->
+  <section class="section" id="crm">
+    <div class="section-title">CRM Quick Access</div>
+    <div class="crm-note">Connect your client CRM in Settings to enable direct CRM access.</div>
+    <div class="client-grid" id="clientGrid">
+      <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+
+  <!-- SECTION 2D: AGENT ACTIVITY FEED -->
+  <section class="section" id="activity">
+    <div class="section-title">Agent Activity Feed</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Last 24 Hours</div>
+        <div style="font-size:12px;color:var(--text-dimmer)" id="activityUpdated">—</div>
+      </div>
+      <div class="activity-feed" id="activityFeed">
+        <div class="activity-item"><div style="text-align:center;width:100%;padding:20px"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION 3: QUICK ACTIONS -->
   <section class="section" id="pipeline">
     <div class="section-title">Quick Actions</div>
@@ -297,7 +388,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.7</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.8</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -427,6 +518,249 @@ async function fetchRecentLeads() {
     renderLeads(await res.json());
   } catch (e) {
     showLeadsLocked(NO_SUPABASE_MSG);
+  }
+}
+
+/* ---- SECTION 2B: RECENT EMAILS SENT ---- */
+const EMAIL_ROW_CLASS = {
+  'Replied':'emails-row-replied',
+  'Contacted':'emails-row-contacted',
+  'Booked':'emails-row-booked'
+};
+
+const emailCache = {};
+
+function formatDateTime(s) {
+  if (!s) return '—';
+  try {
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString();
+  } catch (e) { return '—'; }
+}
+
+function renderEmails(rows) {
+  const body = document.getElementById('emailsBody');
+  if (!rows.length) {
+    showEmailsLocked(NO_SUPABASE_MSG);
+    return;
+  }
+  body.innerHTML = rows.map((l, i) => {
+    const rowClass = EMAIL_ROW_CLASS[l.lead_status] || '';
+    const statusColour = STATUS_COLOURS[l.lead_status] || 'gray';
+    emailCache[i] = l;
+    return '<tr class="' + rowClass + '">' +
+      '<td style="color:var(--text);font-weight:500">' + escapeHtml(l.company || '—') + '</td>' +
+      '<td>' + escapeHtml(l.email || '—') + '</td>' +
+      '<td>' + escapeHtml(l.email_subject || '—') + '</td>' +
+      '<td>' + escapeHtml(formatDateTime(l.outreach_sent_at)) + '</td>' +
+      '<td><span class="badge badge-' + statusColour + '">' + escapeHtml(l.lead_status || '—') + '</span></td>' +
+      '<td style="text-align:center">' + (l.total_emails_sent || 0) + '</td>' +
+      '<td style="text-align:center">' + (l.followup_count || 0) + '</td>' +
+      '<td><button class="view-email-btn" data-email-i="' + i + '">View Full Email</button></td>' +
+    '</tr>';
+  }).join('');
+  document.getElementById('emailsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  document.querySelectorAll('[data-email-i]').forEach(btn =>
+    btn.addEventListener('click', () => openEmailModal(parseInt(btn.dataset.emailI)))
+  );
+}
+
+function showEmailsLocked(message) {
+  document.getElementById('emailsBody').innerHTML =
+    '<tr><td colspan="8"><div class="friendly-error">' +
+      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      ' <a id="emailsOpenSettings">Open Settings</a>' +
+    '</div></td></tr>';
+  const link = document.getElementById('emailsOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchRecentEmails() {
+  if (!hasSupabase()) { showEmailsLocked(NO_SUPABASE_MSG); return; }
+  try {
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,email,industry,city,email_subject,email_body,outreach_generated_at,outreach_sent_at,total_emails_sent,followup_count,lead_status&outreach_sent_at=not.is.null&order=outreach_sent_at.desc&limit=20';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) { showEmailsLocked(NO_SUPABASE_MSG); return; }
+    renderEmails(rows);
+  } catch (e) {
+    showEmailsLocked(NO_SUPABASE_MSG);
+  }
+}
+
+function openEmailModal(i) {
+  const l = emailCache[i];
+  if (!l) return;
+  document.getElementById('emailModalSubject').textContent = l.email_subject || '(no subject)';
+  document.getElementById('emailModalMeta').textContent =
+    (l.company || '—') + ' · ' + (l.email || '—') + ' · sent ' + formatDateTime(l.outreach_sent_at);
+  document.getElementById('emailModalBody').textContent = l.email_body || '(no body stored)';
+  document.getElementById('emailModal').classList.add('show');
+}
+
+function closeEmailModal() {
+  document.getElementById('emailModal').classList.remove('show');
+}
+
+/* ---- SECTION 2C: CRM QUICK ACCESS ---- */
+const CRM_BADGE_COLOUR = { 'HubSpot':'orange', 'Pipedrive':'green', 'None':'gray' };
+
+function crmLinkFor(client) {
+  const id = client.crm_account_id;
+  if (!id) return null;
+  if (client.crm_type === 'HubSpot')   return 'https://app.hubspot.com/contacts/' + encodeURIComponent(id);
+  if (client.crm_type === 'Pipedrive') return 'https://app.pipedrive.com/deal/' + encodeURIComponent(id);
+  return null;
+}
+
+function renderClients(rows) {
+  const grid = document.getElementById('clientGrid');
+  if (!rows.length) {
+    grid.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
+      '<span class="icon">📇</span>No active clients yet.</div></div>';
+    return;
+  }
+  grid.innerHTML = rows.map((c, i) => {
+    const crmType = c.crm_type || 'None';
+    const badgeColour = CRM_BADGE_COLOUR[crmType] || 'gray';
+    const crmUrl = crmLinkFor(c);
+    const crmLinkHtml = crmUrl
+      ? '<a href="' + escapeHtml(crmUrl) + '" target="_blank" rel="noopener">View in CRM ↗</a>'
+      : '<span style="color:var(--text-dimmer)">No CRM linked</span>';
+    const calendlyHtml = c.calendly_link
+      ? '<a href="' + escapeHtml(c.calendly_link) + '" target="_blank" rel="noopener">Calendly ↗</a>'
+      : '<span style="color:var(--text-dimmer)">—</span>';
+    const retainer = (typeof c.monthly_retainer === 'number')
+      ? ('$' + c.monthly_retainer.toLocaleString() + '/mo')
+      : '—';
+    return '<div class="client-card">' +
+      '<h4>' + escapeHtml(c.client_name || '—') + '</h4>' +
+      '<div class="client-industry">' + escapeHtml(c.industry || '—') + '</div>' +
+      '<span class="badge badge-' + badgeColour + '">' + escapeHtml(crmType) + '</span>' +
+      '<div class="client-links">' +
+        '• ' + crmLinkHtml + '<br>' +
+        '• ' + calendlyHtml + '<br>' +
+        '• ' + escapeHtml(c.notification_email || '—') + '<br>' +
+        '• <span class="client-retainer">' + escapeHtml(retainer) + '</span>' +
+      '</div>' +
+      '<button class="view-leads-btn" data-client-i="' + i + '">View Their Leads</button>' +
+    '</div>';
+  }).join('');
+  grid.querySelectorAll('[data-client-i]').forEach(btn =>
+    btn.addEventListener('click', () => filterLeadsByClient(rows[parseInt(btn.dataset.clientI)]))
+  );
+}
+
+function showClientsLocked(message) {
+  document.getElementById('clientGrid').innerHTML =
+    '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
+      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      ' <a id="clientsOpenSettings">Open Settings</a>' +
+    '</div></div>';
+  const link = document.getElementById('clientsOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchClients() {
+  if (!hasSupabase()) { showClientsLocked(NO_SUPABASE_MSG); return; }
+  try {
+    const url = SUPABASE_URL + '/rest/v1/clients?select=client_name,industry,crm_type,crm_account_id,calendly_link,notification_email,monthly_retainer,product_type&active=eq.true';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) { showClientsLocked(NO_SUPABASE_MSG); return; }
+    renderClients(rows);
+  } catch (e) {
+    showClientsLocked(NO_SUPABASE_MSG);
+  }
+}
+
+async function filterLeadsByClient(client) {
+  if (!client || !hasSupabase()) return;
+  const productType = client.product_type;
+  if (!productType) {
+    alert('This client has no product_type set — cannot filter leads.');
+    return;
+  }
+  try {
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source&product_type=eq.' + encodeURIComponent(productType) + '&order=updated_at.desc&limit=20';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    renderLeads(rows);
+    document.getElementById('leadsUpdated').textContent = 'Filtered by ' + (client.client_name || productType);
+    document.getElementById('leads').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    showLeadsLocked(NO_SUPABASE_MSG);
+  }
+}
+
+/* ---- SECTION 2D: AGENT ACTIVITY FEED ---- */
+function describeActivity(l) {
+  const company = l.company || 'A lead';
+  if (l.meeting_scheduled) return { text: company + ' booked a meeting', dot: 'teal', when: l.updated_at };
+  if (l.reply_detected)    return { text: company + ' replied',          dot: 'green', when: l.updated_at };
+  return { text: company + ' moved to ' + (l.lead_status || 'new status'), dot: 'blue', when: l.updated_at };
+}
+
+function relativeTime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+  const days = Math.floor(hours / 24);
+  return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+}
+
+function renderActivity(rows) {
+  const feed = document.getElementById('activityFeed');
+  if (!rows.length) {
+    feed.innerHTML = '<div class="activity-item"><div style="color:var(--text-dimmer);text-align:center;width:100%;padding:20px">No recent agent activity.</div></div>';
+    document.getElementById('activityUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    return;
+  }
+  feed.innerHTML = rows.map(l => {
+    const a = describeActivity(l);
+    return '<div class="activity-item">' +
+      '<div class="activity-dot ' + a.dot + '"></div>' +
+      '<div class="activity-text">' + escapeHtml(a.text) +
+        '<span class="activity-time">' + escapeHtml(relativeTime(a.when)) + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('activityUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function showActivityLocked(message) {
+  document.getElementById('activityFeed').innerHTML =
+    '<div class="activity-item"><div style="width:100%"><div class="friendly-error">' +
+      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      ' <a id="activityOpenSettings">Open Settings</a>' +
+    '</div></div></div>';
+  const link = document.getElementById('activityOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchActivity() {
+  if (!hasSupabase()) { showActivityLocked(NO_SUPABASE_MSG); return; }
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const orClause = 'or=(updated_at.gte.' + since + ',reply_detected.eq.true,meeting_scheduled.eq.true)';
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,lead_status,reply_detected,meeting_scheduled,updated_at&' + orClause + '&order=updated_at.desc&limit=30';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) { showActivityLocked(NO_SUPABASE_MSG); return; }
+    renderActivity(rows);
+  } catch (e) {
+    showActivityLocked(NO_SUPABASE_MSG);
   }
 }
 
@@ -655,6 +989,10 @@ document.getElementById('navSettings').addEventListener('click', e => { e.preven
 document.getElementById('settingsModal').addEventListener('click', e => {
   if (e.target.id === 'settingsModal') closeSettings();
 });
+document.getElementById('emailModalClose').addEventListener('click', closeEmailModal);
+document.getElementById('emailModal').addEventListener('click', e => {
+  if (e.target.id === 'emailModal') closeEmailModal();
+});
 document.getElementById('hamburgerBtn').addEventListener('click', toggleNav);
 document.querySelectorAll('#mainNav a').forEach(a => a.addEventListener('click', closeNav));
 document.getElementById('chatSend').addEventListener('click', sendChat);
@@ -671,6 +1009,9 @@ window.addEventListener('beforeunload', () => {
 function refreshAll() {
   fetchPipelineStats();
   fetchRecentLeads();
+  fetchRecentEmails();
+  fetchClients();
+  fetchActivity();
   checkApiStatus();
 }
 
@@ -682,6 +1023,7 @@ if (window.location.protocol === 'file:') {
 renderActions();
 refreshAll();
 setInterval(refreshAll, 60000);
+setInterval(fetchActivity, 300000);
 </script>
 </body>
 </html>
