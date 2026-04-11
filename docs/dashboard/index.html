@@ -393,7 +393,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.10</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.11</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -470,7 +470,7 @@ function showStatsLocked(message) {
 async function fetchPipelineStats() {
   if (!hasSupabase()) { showStatsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders() });
+    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked(NO_SUPABASE_MSG); return; }
@@ -523,7 +523,7 @@ async function fetchRecentLeads() {
   if (!hasSupabase()) { showLeadsLocked(NO_SUPABASE_MSG); return; }
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source&order=updated_at.desc&limit=20';
-    const res = await fetch(url, { headers: supabaseHeaders() });
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     renderLeads(await res.json());
   } catch (e) {
@@ -589,8 +589,8 @@ function showEmailsLocked(message) {
 async function fetchRecentEmails() {
   if (!hasSupabase()) { showEmailsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const url = SUPABASE_URL + '/rest/v1/leads?select=company,email,industry,city,email_subject,email_body,outreach_generated_at,outreach_sent_at,total_emails_sent,followup_count,lead_status&outreach_sent_at=not.is.null&order=outreach_sent_at.desc&limit=20';
-    const res = await fetch(url, { headers: supabaseHeaders() });
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,email,industry,city,email_subject,outreach_sent_at,total_emails_sent,followup_count,lead_status&outreach_sent_at=not.is.null&order=outreach_sent_at.desc&limit=20';
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     if (!Array.isArray(rows)) { showEmailsLocked(NO_SUPABASE_MSG); return; }
@@ -677,7 +677,7 @@ async function fetchClients() {
   if (!hasSupabase()) { showClientsLocked(NO_SUPABASE_MSG); return; }
   try {
     const url = SUPABASE_URL + '/rest/v1/clients?select=client_name,industry,crm_type,crm_account_id,calendly_link,notification_email,monthly_retainer,product_type&active=eq.true';
-    const res = await fetch(url, { headers: supabaseHeaders() });
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     if (!Array.isArray(rows)) { showClientsLocked(NO_SUPABASE_MSG); return; }
@@ -696,7 +696,7 @@ async function filterLeadsByClient(client) {
   }
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source&product_type=eq.' + encodeURIComponent(productType) + '&order=updated_at.desc&limit=20';
-    const res = await fetch(url, { headers: supabaseHeaders() });
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     renderLeads(rows);
@@ -761,10 +761,8 @@ function showActivityLocked(message) {
 async function fetchActivity() {
   if (!hasSupabase()) { showActivityLocked(NO_SUPABASE_MSG); return; }
   try {
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const orClause = 'or=(updated_at.gte.' + since + ',reply_detected.eq.true,meeting_scheduled.eq.true)';
-    const url = SUPABASE_URL + '/rest/v1/leads?select=company,lead_status,reply_detected,meeting_scheduled,updated_at&' + orClause + '&order=updated_at.desc&limit=30';
-    const res = await fetch(url, { headers: supabaseHeaders() });
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,lead_status,reply_detected,meeting_scheduled,updated_at&or=(reply_detected.eq.true,meeting_scheduled.eq.true)&order=updated_at.desc&limit=20';
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     if (!Array.isArray(rows)) { showActivityLocked(NO_SUPABASE_MSG); return; }
@@ -922,7 +920,7 @@ async function checkApiStatus() {
     { name:'Supabase',    detail: credentials.supabaseKey ? 'Lead database' : 'Key not set',
       check: async () => {
         if (!credentials.supabaseKey) return false;
-        try { const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders() }); return r.ok; }
+        try { const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders(), mode: 'cors' }); return r.ok; }
         catch (e) { return false; }
       } },
     { name:'n8n', detail:'automation.crystallux.org',
@@ -1046,7 +1044,7 @@ async function testSupabaseConnection() {
   resultEl.style.color = '#8ab4ff';
   resultEl.textContent = 'Testing…';
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers });
+    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers, mode: 'cors' });
     console.log('[testSupabase] response status:', res.status, res.statusText);
     if (res.ok) {
       resultEl.style.background = '#14331f';
