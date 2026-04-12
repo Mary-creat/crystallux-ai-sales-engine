@@ -393,7 +393,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.11</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.12</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -471,14 +471,17 @@ async function fetchPipelineStats() {
   if (!hasSupabase()) { showStatsLocked(NO_SUPABASE_MSG); return; }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
+    }
     const rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked(NO_SUPABASE_MSG); return; }
+    if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked('No leads found — table may be empty.'); return; }
     const counts = {};
     rows.forEach(r => { counts[r.lead_status] = (counts[r.lead_status] || 0) + 1; });
     renderStats(counts, rows.length);
   } catch (e) {
-    showStatsLocked(NO_SUPABASE_MSG);
+    showStatsLocked('Pipeline Stats error: ' + e.message);
   }
 }
 
@@ -524,10 +527,13 @@ async function fetchRecentLeads() {
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_status,lead_score,phone,source&order=updated_at.desc&limit=20';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
+    }
     renderLeads(await res.json());
   } catch (e) {
-    showLeadsLocked(NO_SUPABASE_MSG);
+    showLeadsLocked('Recent Leads error: ' + e.message);
   }
 }
 
@@ -591,12 +597,15 @@ async function fetchRecentEmails() {
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,email,industry,city,email_subject,outreach_sent_at,total_emails_sent,followup_count,lead_status&outreach_sent_at=not.is.null&order=outreach_sent_at.desc&limit=20';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
+    }
     const rows = await res.json();
-    if (!Array.isArray(rows)) { showEmailsLocked(NO_SUPABASE_MSG); return; }
+    if (!Array.isArray(rows)) { showEmailsLocked('Unexpected response format from Supabase.'); return; }
     renderEmails(rows);
   } catch (e) {
-    showEmailsLocked(NO_SUPABASE_MSG);
+    showEmailsLocked('Emails error: ' + e.message);
   }
 }
 
@@ -678,12 +687,15 @@ async function fetchClients() {
   try {
     const url = SUPABASE_URL + '/rest/v1/clients?select=client_name,industry,crm_type,crm_account_id,calendly_link,notification_email,monthly_retainer,product_type&active=eq.true';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
+    }
     const rows = await res.json();
-    if (!Array.isArray(rows)) { showClientsLocked(NO_SUPABASE_MSG); return; }
+    if (!Array.isArray(rows)) { showClientsLocked('Unexpected response format from Supabase.'); return; }
     renderClients(rows);
   } catch (e) {
-    showClientsLocked(NO_SUPABASE_MSG);
+    showClientsLocked('CRM error: ' + e.message);
   }
 }
 
@@ -763,12 +775,15 @@ async function fetchActivity() {
   try {
     const url = SUPABASE_URL + '/rest/v1/leads?select=company,lead_status,reply_detected,meeting_scheduled,updated_at&or=(reply_detected.eq.true,meeting_scheduled.eq.true)&order=updated_at.desc&limit=20';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
+    }
     const rows = await res.json();
-    if (!Array.isArray(rows)) { showActivityLocked(NO_SUPABASE_MSG); return; }
+    if (!Array.isArray(rows)) { showActivityLocked('Unexpected response format from Supabase.'); return; }
     renderActivity(rows);
   } catch (e) {
-    showActivityLocked(NO_SUPABASE_MSG);
+    showActivityLocked('Activity error: ' + e.message);
   }
 }
 
@@ -979,7 +994,7 @@ function saveKeys() {
     mcpKey: credentials.mcpKey ? '(set)' : '(empty)'
   });
   closeSettings();
-  refreshAll();
+  testAndLoad();
 }
 
 function clearSavedKeys() {
@@ -1109,6 +1124,46 @@ window.addEventListener('beforeunload', () => {
   credentials.supabaseKey = '';
   credentials.mcpKey = '';
 });
+
+/* ---- SHOW ERROR HELPER ---- */
+function showError(message) {
+  console.error('[showError]', message);
+  showStatsLocked('Connection failed: ' + message);
+  showLeadsLocked('Connection failed: ' + message);
+  showEmailsLocked('Connection failed: ' + message);
+  showClientsLocked('Connection failed: ' + message);
+  showActivityLocked('Connection failed: ' + message);
+}
+
+/* ---- TEST AND LOAD ---- */
+async function testAndLoad() {
+  if (!hasSupabase()) {
+    refreshAll();
+    return;
+  }
+  const testUrl = SUPABASE_URL + '/rest/v1/leads?select=id&limit=1';
+  try {
+    const res = await fetch(testUrl, {
+      headers: {
+        'apikey': credentials.supabaseKey,
+        'Authorization': 'Bearer ' + credentials.supabaseKey
+      }
+    });
+    if (res.ok) {
+      console.log('Supabase connection OK');
+      refreshAll();
+    } else {
+      const err = await res.text();
+      console.error('Supabase error:', res.status, err);
+      showError('HTTP ' + res.status + ' — ' + err.slice(0, 200));
+      checkApiStatus();
+    }
+  } catch (e) {
+    console.error('Fetch error:', e);
+    showError('Network error: ' + e.message);
+    checkApiStatus();
+  }
+}
 
 /* ---- INIT + AUTO REFRESH ---- */
 function refreshAll() {
