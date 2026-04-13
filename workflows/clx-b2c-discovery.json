@@ -273,8 +273,9 @@
           ]
         },
         "sendBody": true,
+        "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ full_name: $('Parse Duplicate Check').item.json.full_name, email: $('Parse Duplicate Check').item.json.email, phone: $('Parse Duplicate Check').item.json.phone, company: $('Parse Duplicate Check').item.json.company, job_title: $('Parse Duplicate Check').item.json.job_title, industry: $('Parse Duplicate Check').item.json.industry, city: $('Parse Duplicate Check').item.json.city, source: $('Parse Duplicate Check').item.json.source, lead_status: $('Parse Duplicate Check').item.json.lead_status, product_type: $('Parse Duplicate Check').item.json.product_type, do_not_contact: $('Parse Duplicate Check').item.json.do_not_contact, unsubscribed: $('Parse Duplicate Check').item.json.unsubscribed, total_emails_sent: $('Parse Duplicate Check').item.json.total_emails_sent, lead_score: $('Parse Duplicate Check').item.json.lead_score, assigned_to: $('Parse Duplicate Check').item.json.assigned_to, notes: $('Parse Duplicate Check').item.json.notes, updated_at: $('Parse Duplicate Check').item.json.updated_at }) }}",
+        "jsonBody": "={\n  \"full_name\": \"\",\n  \"email\": \"\",\n  \"phone\": \"{{ $('Parse Duplicate Check').item.json.phone }}\",\n  \"company\": \"{{ $('Parse Duplicate Check').item.json.company }}\",\n  \"industry\": \"{{ $('Parse Duplicate Check').item.json.industry }}\",\n  \"city\": \"{{ $('Parse Duplicate Check').item.json.city }}\",\n  \"source\": \"b2c_scan\",\n  \"lead_status\": \"New Lead\",\n  \"product_type\": \"{{ $('Parse Duplicate Check').item.json.product_type }}\",\n  \"do_not_contact\": false,\n  \"unsubscribed\": false,\n  \"total_emails_sent\": 0,\n  \"lead_score\": 0,\n  \"notes\": \"{{ $('Parse Duplicate Check').item.json.notes }}\"\n}",
         "options": {}
       },
       "id": "clx14-0000-0000-0000-000000000011",
@@ -490,7 +491,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "clx-b2c-discovery-v142",
+  "versionId": "clx-b2c-discovery-v144",
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
