@@ -393,7 +393,7 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.12</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.13</div>
   <div>© 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
@@ -437,21 +437,21 @@ function escapeHtml(s) {
 
 /* ---- SECTION 1: STAT CARDS ---- */
 const STATUS_BUCKETS = [
-  { key:'Total Leads',    match:null,             primary:true },
-  { key:'New Leads',      match:'New Lead' },
-  { key:'Researched',     match:'Researched' },
-  { key:'Scored',         match:'Scored' },
-  { key:'Outreach Ready', match:'Outreach Ready' },
-  { key:'Contacted',      match:'Contacted' },
-  { key:'Replied',        match:'Replied' },
-  { key:'Booked',         match:'Booked',         secondary:true },
-  { key:'Closed Won',     match:'Closed Won',     secondary:true }
+  { key:'Total Leads',    col:'total_leads',           primary:true },
+  { key:'New Leads',      col:'new_lead_count' },
+  { key:'Researched',     col:'researched_count' },
+  { key:'Scored',         col:'scored_count' },
+  { key:'Outreach Ready', col:'outreach_ready_count' },
+  { key:'Contacted',      col:'contacted_count' },
+  { key:'Replied',        col:'replied_count' },
+  { key:'Booking Sent',   col:'booking_sent_count' },
+  { key:'Booked',         col:'booked_count',          secondary:true }
 ];
 
-function renderStats(counts, total) {
+function renderStats(snapshot) {
   const grid = document.getElementById('statGrid');
   grid.innerHTML = STATUS_BUCKETS.map(b => {
-    const value = b.match === null ? total : (counts[b.match] || 0);
+    const value = snapshot[b.col] || 0;
     const cls = b.primary ? 'primary' : (b.secondary ? 'secondary' : '');
     return '<div class="stat-card ' + cls + '"><div class="stat-label">' + b.key + '</div><div class="stat-value">' + value + '</div></div>';
   }).join('');
@@ -470,16 +470,15 @@ function showStatsLocked(message) {
 async function fetchPipelineStats() {
   if (!hasSupabase()) { showStatsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=lead_status', { headers: supabaseHeaders(), mode: 'cors' });
+    const url = SUPABASE_URL + '/rest/v1/pipeline_stats?select=*&order=snapshot_date.desc&limit=1';
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
     }
     const rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked('No leads found — table may be empty.'); return; }
-    const counts = {};
-    rows.forEach(r => { counts[r.lead_status] = (counts[r.lead_status] || 0) + 1; });
-    renderStats(counts, rows.length);
+    if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked('No pipeline snapshot found yet.'); return; }
+    renderStats(rows[0]);
   } catch (e) {
     showStatsLocked('Pipeline Stats error: ' + e.message);
   }
