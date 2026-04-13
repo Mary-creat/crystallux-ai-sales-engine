@@ -50,7 +50,6 @@
       "name": "Apollo - Search Leads",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "6",
           "name": "Apollo API"
         }
       }
@@ -108,7 +107,6 @@
       "alwaysOutputData": false,
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -152,7 +150,6 @@
       "notesInFlow": false,
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       },

@@ -48,7 +48,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -183,7 +182,6 @@
       ],
       "credentials": {
         "gmailOAuth2": {
-          "id": "3",
           "name": "Gmail"
         }
       }
@@ -226,7 +224,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }

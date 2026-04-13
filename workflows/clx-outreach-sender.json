@@ -48,7 +48,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -183,14 +182,13 @@
       ],
       "credentials": {
         "gmailOAuth2": {
-          "id": "3",
           "name": "Gmail"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// CLX Outreach Sender — Calculate Follow Up and increment counters\nconst lead = $('Split In Batches').item.json;\n\nconst now = new Date();\nconst followupDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);\n\nreturn {\n  json: {\n    ...lead,\n    outreach_sent_at: now.toISOString(),\n    followup_scheduled_at: followupDate.toISOString(),\n    lead_status: 'Contacted',\n    outreach_channel: 'email',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};"
+        "jsCode": "// CLX Outreach Sender \u2014 Calculate Follow Up and increment counters\nconst lead = $('Split In Batches').item.json;\n\nconst now = new Date();\nconst followupDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);\n\nreturn {\n  json: {\n    ...lead,\n    outreach_sent_at: now.toISOString(),\n    followup_scheduled_at: followupDate.toISOString(),\n    lead_status: 'Contacted',\n    outreach_channel: 'email',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};"
       },
       "id": "clx07-0000-0000-0000-000000000007",
       "name": "Calculate Follow Up",
@@ -239,7 +237,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }

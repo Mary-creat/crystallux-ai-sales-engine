@@ -48,7 +48,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -201,8 +200,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "name": "Claude Anthropic",
-          "id": "5GbgZmWqc8ruTO2H"
+          "name": "Claude Anthropic"
         }
       }
     },
@@ -279,7 +277,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       },
@@ -318,7 +315,6 @@
       ],
       "credentials": {
         "gmailOAuth2": {
-          "id": "3",
           "name": "Gmail"
         }
       }
@@ -361,7 +357,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -404,7 +399,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }

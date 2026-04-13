@@ -48,7 +48,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -118,7 +117,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Enrichment — Extract Domain from Website URL in notes field\n// Notes format: 'Places ID: ChIJ... | Address: 123 Main St, Toronto, ON | Website: https://example.com'\n\nconst lead = $('Split In Batches').item.json;\nconst notes = lead.notes || '';\n\nconsole.log('Notes:', notes);\n\nlet domain = '';\ntry {\n  const websiteMatch = notes.match(/Website:\\s*(https?:\\/\\/\\S+)/i);\n  if (websiteMatch && websiteMatch[1]) {\n    const cleanUrl = websiteMatch[1]\n      .replace(/[|\\s].*$/, '')\n      .trim();\n    const urlObj = new URL(cleanUrl);\n    domain = urlObj.hostname.replace(/^www\\./, '');\n  }\n} catch(e) {\n  domain = '';\n}\n\nconsole.log('Domain found:', domain);\n\nreturn {\n  json: {\n    ...lead,\n    extracted_domain: domain\n  }\n};"
+        "jsCode": "// CLX Email Enrichment \u2014 Extract Domain from Website URL in notes field\n// Notes format: 'Places ID: ChIJ... | Address: 123 Main St, Toronto, ON | Website: https://example.com'\n\nconst lead = $('Split In Batches').item.json;\nconst notes = lead.notes || '';\n\nconsole.log('Notes:', notes);\n\nlet domain = '';\ntry {\n  const websiteMatch = notes.match(/Website:\\s*(https?:\\/\\/\\S+)/i);\n  if (websiteMatch && websiteMatch[1]) {\n    const cleanUrl = websiteMatch[1]\n      .replace(/[|\\s].*$/, '')\n      .trim();\n    const urlObj = new URL(cleanUrl);\n    domain = urlObj.hostname.replace(/^www\\./, '');\n  }\n} catch(e) {\n  domain = '';\n}\n\nconsole.log('Domain found:', domain);\n\nreturn {\n  json: {\n    ...lead,\n    extracted_domain: domain\n  }\n};"
       },
       "id": "clx13-0000-0000-0000-000000000006",
       "name": "Extract Domain",
@@ -181,7 +180,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Enrichment — Parse Hunter.io Response\n// Extracts the best email from Hunter.io domain search results\n// Priority: first verified email, then first email found\n\nconst response = $('Search Hunter').item.json;\nconst lead = $('Extract Domain').item.json;\n\nlet bestEmail = '';\n\ntry {\n  const data = response.data || {};\n  const emails = data.emails || [];\n\n  if (emails.length > 0) {\n    // Priority 1: first verified email\n    const verified = emails.find(e => e.verification && e.verification.status === 'valid');\n    if (verified) {\n      bestEmail = verified.value;\n    } else {\n      // Priority 2: first email found\n      bestEmail = emails[0].value || '';\n    }\n  }\n} catch (e) {\n  bestEmail = '';\n}\n\nreturn {\n  json: {\n    id: lead.id,\n    company: lead.company,\n    domain: lead.domain,\n    email: bestEmail\n  }\n};"
+        "jsCode": "// CLX Email Enrichment \u2014 Parse Hunter.io Response\n// Extracts the best email from Hunter.io domain search results\n// Priority: first verified email, then first email found\n\nconst response = $('Search Hunter').item.json;\nconst lead = $('Extract Domain').item.json;\n\nlet bestEmail = '';\n\ntry {\n  const data = response.data || {};\n  const emails = data.emails || [];\n\n  if (emails.length > 0) {\n    // Priority 1: first verified email\n    const verified = emails.find(e => e.verification && e.verification.status === 'valid');\n    if (verified) {\n      bestEmail = verified.value;\n    } else {\n      // Priority 2: first email found\n      bestEmail = emails[0].value || '';\n    }\n  }\n} catch (e) {\n  bestEmail = '';\n}\n\nreturn {\n  json: {\n    id: lead.id,\n    company: lead.company,\n    domain: lead.domain,\n    email: bestEmail\n  }\n};"
       },
       "id": "clx13-0000-0000-0000-000000000009",
       "name": "Parse Hunter Response",
@@ -264,7 +263,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }

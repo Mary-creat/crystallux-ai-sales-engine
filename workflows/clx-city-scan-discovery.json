@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX City Scan Discovery — Phase 11: Build Scan List\n// Creates all 35 city + industry combinations for Google Maps scanning\n\nconst cities = ['Toronto', 'Vancouver', 'Calgary', 'Ottawa', 'Mississauga'];\n\nconst industries = [\n  { query: 'insurance broker', product_type: 'insurance' },\n  { query: 'construction company', product_type: 'construction' },\n  { query: 'cleaning services', product_type: 'cleaning' },\n  { query: 'moving company', product_type: 'moving' },\n  { query: 'marketing agency', product_type: 'marketing' },\n  { query: 'consulting firm', product_type: 'consulting' },\n  { query: 'real estate agency', product_type: 'real_estate' }\n];\n\nconst scanList = [];\n\nfor (const city of cities) {\n  for (const ind of industries) {\n    scanList.push({\n      city: city,\n      industry: ind.query,\n      product_type: ind.product_type,\n      search_query: ind.query + ' in ' + city + ' Canada'\n    });\n  }\n}\n\nreturn scanList.map(item => ({ json: item }));"
+        "jsCode": "// CLX City Scan Discovery \u2014 Phase 11: Build Scan List\n// Creates all 35 city + industry combinations for Google Maps scanning\n\nconst cities = ['Toronto', 'Vancouver', 'Calgary', 'Ottawa', 'Mississauga'];\n\nconst industries = [\n  { query: 'insurance broker', product_type: 'insurance' },\n  { query: 'construction company', product_type: 'construction' },\n  { query: 'cleaning services', product_type: 'cleaning' },\n  { query: 'moving company', product_type: 'moving' },\n  { query: 'marketing agency', product_type: 'marketing' },\n  { query: 'consulting firm', product_type: 'consulting' },\n  { query: 'real estate agency', product_type: 'real_estate' }\n];\n\nconst scanList = [];\n\nfor (const city of cities) {\n  for (const ind of industries) {\n    scanList.push({\n      city: city,\n      industry: ind.query,\n      product_type: ind.product_type,\n      search_query: ind.query + ' in ' + city + ' Canada'\n    });\n  }\n}\n\nreturn scanList.map(item => ({ json: item }));"
       },
       "id": "clx11-0000-0000-0000-000000000002",
       "name": "Build Scan List",
@@ -97,14 +97,13 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "5",
           "name": "Google Maps"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// CLX City Scan Discovery — Phase 11: Parse Places Results\n// Extracts business details from Google Places API (New) response\n// Response contains places[] with displayName.text, formattedAddress,\n// nationalPhoneNumber, websiteUri, id\n\ntry {\n  const response = $('Search Google Maps').item.json;\n  const scanContext = $('Split In Batches').item.json;\n\n  console.log('[CLX City Scan] Parsing results for: ' + scanContext.industry + ' in ' + scanContext.city);\n  console.log('[CLX City Scan] Response keys: ' + Object.keys(response).join(', '));\n\n  const places = response.places || [];\n\n  console.log('[CLX City Scan] Places count: ' + places.length);\n\n  if (places.length === 0) {\n    console.log('[CLX City Scan] No results found for: ' + scanContext.industry + ' in ' + scanContext.city);\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n  const seen = {};\n\n  for (const place of places) {\n    const name = (place.displayName && place.displayName.text) ? place.displayName.text : '';\n    if (!name) continue;\n\n    // Deduplicate by name within same search\n    if (seen[name.toLowerCase()]) continue;\n    seen[name.toLowerCase()] = true;\n\n    businesses.push({\n      name: name,\n      formatted_address: place.formattedAddress || '',\n      phone: place.nationalPhoneNumber || '',\n      website: place.websiteUri || '',\n      place_id: place.id || '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  console.log('[CLX City Scan] Parsed ' + businesses.length + ' businesses for: ' + scanContext.industry + ' in ' + scanContext.city);\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  console.log('[CLX City Scan] ERROR parsing results: ' + error.message);\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
+        "jsCode": "// CLX City Scan Discovery \u2014 Phase 11: Parse Places Results\n// Extracts business details from Google Places API (New) response\n// Response contains places[] with displayName.text, formattedAddress,\n// nationalPhoneNumber, websiteUri, id\n\ntry {\n  const response = $('Search Google Maps').item.json;\n  const scanContext = $('Split In Batches').item.json;\n\n  console.log('[CLX City Scan] Parsing results for: ' + scanContext.industry + ' in ' + scanContext.city);\n  console.log('[CLX City Scan] Response keys: ' + Object.keys(response).join(', '));\n\n  const places = response.places || [];\n\n  console.log('[CLX City Scan] Places count: ' + places.length);\n\n  if (places.length === 0) {\n    console.log('[CLX City Scan] No results found for: ' + scanContext.industry + ' in ' + scanContext.city);\n    return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry } };\n  }\n\n  const businesses = [];\n  const seen = {};\n\n  for (const place of places) {\n    const name = (place.displayName && place.displayName.text) ? place.displayName.text : '';\n    if (!name) continue;\n\n    // Deduplicate by name within same search\n    if (seen[name.toLowerCase()]) continue;\n    seen[name.toLowerCase()] = true;\n\n    businesses.push({\n      name: name,\n      formatted_address: place.formattedAddress || '',\n      phone: place.nationalPhoneNumber || '',\n      website: place.websiteUri || '',\n      place_id: place.id || '',\n      city: scanContext.city,\n      industry: scanContext.industry,\n      product_type: scanContext.product_type,\n      search_query: scanContext.search_query\n    });\n  }\n\n  console.log('[CLX City Scan] Parsed ' + businesses.length + ' businesses for: ' + scanContext.industry + ' in ' + scanContext.city);\n\n  return { json: { businesses: businesses, count: businesses.length, city: scanContext.city, industry: scanContext.industry } };\n} catch (error) {\n  const scanContext = $('Split In Batches').item.json;\n  console.log('[CLX City Scan] ERROR parsing results: ' + error.message);\n  return { json: { businesses: [], count: 0, city: scanContext.city, industry: scanContext.industry, parse_error: error.message } };\n}"
       },
       "id": "clx11-0000-0000-0000-000000000006",
       "name": "Parse Places Results",
@@ -150,7 +149,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX City Scan Discovery — Phase 11: Process Each Business\n// Converts Places API (New) businesses into Crystallux lead items\n// Reads city/industry/product_type from Split In Batches as primary source\n\nconst data = $('Parse Places Results').item.json;\nconst scanContext = $('Split In Batches').item.json;\nconst businesses = data.businesses || [];\n\nif (businesses.length === 0) {\n  return { json: { skip: true } };\n}\n\nconst now = new Date().toISOString();\nconst city = scanContext.city;\nconst industry = scanContext.industry;\nconst productType = scanContext.product_type;\n\nconst leads = businesses.map(biz => ({\n  json: {\n    full_name: '',\n    email: '',\n    phone: biz.phone || '',\n    company: biz.name,\n    job_title: 'Owner',\n    industry: industry,\n    city: city,\n    source: 'google_maps',\n    lead_status: 'New Lead',\n    product_type: productType,\n    do_not_contact: false,\n    unsubscribed: false,\n    total_emails_sent: 0,\n    lead_score: 0,\n    assigned_to: '',\n    notes: 'Places ID: ' + (biz.place_id || '') + ' | Address: ' + (biz.formatted_address || '') + (biz.website ? ' | Website: ' + biz.website : ''),\n    updated_at: now\n  }\n}));\n\nreturn leads;"
+        "jsCode": "// CLX City Scan Discovery \u2014 Phase 11: Process Each Business\n// Converts Places API (New) businesses into Crystallux lead items\n// Reads city/industry/product_type from Split In Batches as primary source\n\nconst data = $('Parse Places Results').item.json;\nconst scanContext = $('Split In Batches').item.json;\nconst businesses = data.businesses || [];\n\nif (businesses.length === 0) {\n  return { json: { skip: true } };\n}\n\nconst now = new Date().toISOString();\nconst city = scanContext.city;\nconst industry = scanContext.industry;\nconst productType = scanContext.product_type;\n\nconst leads = businesses.map(biz => ({\n  json: {\n    full_name: '',\n    email: '',\n    phone: biz.phone || '',\n    company: biz.name,\n    job_title: 'Owner',\n    industry: industry,\n    city: city,\n    source: 'google_maps',\n    lead_status: 'New Lead',\n    product_type: productType,\n    do_not_contact: false,\n    unsubscribed: false,\n    total_emails_sent: 0,\n    lead_score: 0,\n    assigned_to: '',\n    notes: 'Places ID: ' + (biz.place_id || '') + ' | Address: ' + (biz.formatted_address || '') + (biz.website ? ' | Website: ' + biz.website : ''),\n    updated_at: now\n  }\n}));\n\nreturn leads;"
       },
       "id": "clx11-0000-0000-0000-000000000008",
       "name": "Process Each Business",
@@ -198,14 +197,13 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Check if Supabase returned any matching leads\n// Full response mode: $json.body is the array, $json.statusCode is the HTTP status\ntry {\n  const lead = $('Process Each Business').item.json;\n  const response = $('Check Duplicate').item.json;\n  const body = response.body || response;\n  const results = Array.isArray(body) ? body : [];\n  const isDuplicate = results.length > 0;\n\n  console.log('[CLX City Scan] Dedup check for: ' + lead.company + ' — duplicate: ' + isDuplicate);\n\n  return { json: { ...lead, is_duplicate: String(isDuplicate) } };\n} catch (error) {\n  console.log('[CLX City Scan] Dedup parse error: ' + error.message);\n  return { json: { ...$input.item.json, is_duplicate: 'false' } };\n}"
+        "jsCode": "// Check if Supabase returned any matching leads\n// Full response mode: $json.body is the array, $json.statusCode is the HTTP status\ntry {\n  const lead = $('Process Each Business').item.json;\n  const response = $('Check Duplicate').item.json;\n  const body = response.body || response;\n  const results = Array.isArray(body) ? body : [];\n  const isDuplicate = results.length > 0;\n\n  console.log('[CLX City Scan] Dedup check for: ' + lead.company + ' \u2014 duplicate: ' + isDuplicate);\n\n  return { json: { ...lead, is_duplicate: String(isDuplicate) } };\n} catch (error) {\n  console.log('[CLX City Scan] Dedup parse error: ' + error.message);\n  return { json: { ...$input.item.json, is_duplicate: 'false' } };\n}"
       },
       "id": "clx11-0000-0000-0000-000000000013",
       "name": "Parse Duplicate Check",
@@ -287,7 +285,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }

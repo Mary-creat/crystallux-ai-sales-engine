@@ -124,7 +124,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -189,7 +188,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -254,7 +252,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -365,7 +362,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -430,7 +426,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -506,7 +501,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -571,7 +565,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -649,7 +642,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -727,7 +719,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       }
@@ -779,7 +770,6 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "pTFl5SIhensUaU27",
           "name": "Supabase Crystallux"
         }
       },
@@ -832,7 +822,7 @@
     },
     {
       "parameters": {
-        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  return {\n    json: {\n      success: false,\n      tool: ctx.tool_name || 'unknown',\n      error: 'Unknown tool: ' + (ctx.tool_name || 'none') + '. This should not happen — check Parse Request validation.',\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { success: false, tool: 'unknown', error: error.message, timestamp: new Date().toISOString() } };\n}"
+        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  return {\n    json: {\n      success: false,\n      tool: ctx.tool_name || 'unknown',\n      error: 'Unknown tool: ' + (ctx.tool_name || 'none') + '. This should not happen \u2014 check Parse Request validation.',\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { success: false, tool: 'unknown', error: error.message, timestamp: new Date().toISOString() } };\n}"
       },
       "id": "clx12-0400",
       "name": "Format Default Error",
