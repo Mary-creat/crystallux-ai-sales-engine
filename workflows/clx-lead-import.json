@@ -57,7 +57,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Handle both Apollo's real response format and our mock data format\n// Apollo nests people inside items[0].json.people\n// Our Set node puts people directly on items[0].json.people too\n// But we need to handle the case where people might be a string\n\nlet people = [];\n\n// Try to get people from the incoming data\nconst rawPeople = items[0].json.people;\n\n// If rawPeople is a string (which happens when Set node sends JSON as text)\n// we parse it. If it's already an array, we use it directly.\nif (typeof rawPeople === 'string') {\n  people = JSON.parse(rawPeople);\n} else if (Array.isArray(rawPeople)) {\n  people = rawPeople;\n} else {\n  people = [];\n}\n\nreturn people.map(person => {\n  return {\n    json: {\n      // Core identity fields\n      full_name: person.name || \"\",\n      email: person.email || \"\",\n      phone: person.phone_numbers?.[0]?.sanitized_number || \"\",\n      \n      // Company and role fields\n      company: person.organization?.name || \"\",\n      job_title: person.title || \"\",\n      industry: person.organization?.industry || \"\",\n      \n      // Lead management fields\n      lead_score: 0,\n      interest: \"unknown\",\n      source: \"apollo\",\n      created_at: new Date().toISOString(),\n      lead_status: \"New Lead\",\n      pipeline_stage: \"Discovery\",\n      \n      // Business type field — critical for multi-service support\n      product_type: \"unassigned\",\n      \n      // Assignment and notes\n      assigned_to: \"\",\n      notes: \"\",\n      \n      // Location for city scan compatibility later\n      city: person.city || \"\",\n      linkedin_url: person.linkedin_url || \"\"\n    }\n  };\n});"
+        "jsCode": "// Handle both Apollo's real response format and our mock data format\n// Apollo nests people inside items[0].json.people\n// Our Set node puts people directly on items[0].json.people too\n// But we need to handle the case where people might be a string\n\nlet people = [];\n\n// Try to get people from the incoming data\nconst rawPeople = items[0].json.people;\n\n// If rawPeople is a string (which happens when Set node sends JSON as text)\n// we parse it. If it's already an array, we use it directly.\nif (typeof rawPeople === 'string') {\n  people = JSON.parse(rawPeople);\n} else if (Array.isArray(rawPeople)) {\n  people = rawPeople;\n} else {\n  people = [];\n}\n\nreturn people.map(person => {\n  return {\n    json: {\n      // Core identity fields\n      full_name: person.name || \"\",\n      email: person.email || \"\",\n      phone: person.phone_numbers?.[0]?.sanitized_number || \"\",\n      \n      // Company and role fields\n      company: person.organization?.name || \"\",\n      job_title: person.title || \"\",\n      industry: person.organization?.industry || \"\",\n      \n      // Lead management fields\n      lead_score: 0,\n      interest: \"unknown\",\n      source: \"apollo\",\n      created_at: new Date().toISOString(),\n      lead_status: \"New Lead\",\n      pipeline_stage: \"Discovery\",\n      \n      // Business type field \u2014 critical for multi-service support\n      product_type: \"unassigned\",\n      \n      // Assignment and notes\n      assigned_to: \"\",\n      notes: \"\",\n      \n      // Location for city scan compatibility later\n      city: person.city || \"\",\n      linkedin_url: person.linkedin_url || \"\"\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -70,74 +70,35 @@
     },
     {
       "parameters": {
-        "tableId": "=leads",
-        "fieldsUi": {
-          "fieldValues": [
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "fieldId": "full_name",
-              "fieldValue": "={{ $json.full_name }}"
+              "name": "Authorization",
+              "value": ""
             },
             {
-              "fieldId": "email",
-              "fieldValue": "={{ $json.email }}"
+              "name": "Content-Type",
+              "value": "application/json"
             },
             {
-              "fieldId": "company",
-              "fieldValue": "={{ $json.company }}"
-            },
-            {
-              "fieldId": "phone",
-              "fieldValue": "={{ $json.phone }}"
-            },
-            {
-              "fieldId": "job_title",
-              "fieldValue": "={{ $json.job_title }}"
-            },
-            {
-              "fieldId": "industry",
-              "fieldValue": "={{ $json.industry }}"
-            },
-            {
-              "fieldId": "lead_score",
-              "fieldValue": "={{ $json.lead_score }}"
-            },
-            {
-              "fieldId": "interest",
-              "fieldValue": "={{ $json.interest }}"
-            },
-            {
-              "fieldId": "source",
-              "fieldValue": "={{ $json.source }}"
-            },
-            {
-              "fieldId": "created_at",
-              "fieldValue": "={{ $json.created_at }}"
-            },
-            {
-              "fieldId": "lead_status",
-              "fieldValue": "={{ $json.lead_status }}"
-            },
-            {
-              "fieldId": "pipeline_stage",
-              "fieldValue": "={{ $json.pipeline_stage }}"
-            },
-            {
-              "fieldId": "product_type",
-              "fieldValue": "={{ $json.product_type }}"
-            },
-            {
-              "fieldId": "city",
-              "fieldValue": "={{ $json.city }}"
-            },
-            {
-              "fieldId": "linkedin_url",
-              "fieldValue": "={{ $json.linkedin_url }}"
+              "name": "Prefer",
+              "value": "return=representation"
             }
           ]
-        }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"full_name\": \"={{ $json.full_name }}\",\n  \"email\": \"={{ $json.email }}\",\n  \"company\": \"={{ $json.company }}\",\n  \"phone\": \"={{ $json.phone }}\",\n  \"job_title\": \"={{ $json.job_title }}\",\n  \"industry\": \"={{ $json.industry }}\",\n  \"lead_score\": \"={{ $json.lead_score }}\",\n  \"interest\": \"={{ $json.interest }}\",\n  \"source\": \"={{ $json.source }}\",\n  \"created_at\": \"={{ $json.created_at }}\",\n  \"lead_status\": \"={{ $json.lead_status }}\",\n  \"pipeline_stage\": \"={{ $json.pipeline_stage }}\",\n  \"product_type\": \"={{ $json.product_type }}\",\n  \"city\": \"={{ $json.city }}\",\n  \"linkedin_url\": \"={{ $json.linkedin_url }}\"\n}",
+        "options": {}
       },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         1248,
         0
@@ -146,29 +107,41 @@
       "name": "Supabase - Store Lead",
       "alwaysOutputData": false,
       "credentials": {
-        "supabaseApi": {
-          "id": "bnJtZL81TsUGP8dj",
-          "name": "Supabase account"
+        "httpHeaderAuth": {
+          "id": "pTFl5SIhensUaU27",
+          "name": "Supabase Crystallux"
         }
       }
     },
     {
       "parameters": {
-        "operation": "getAll",
-        "tableId": "leads",
-        "limit": 1,
-        "filters": {
-          "conditions": [
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?email=eq.' + encodeURIComponent($json.email) + '&select=id,email&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "keyName": "email",
-              "condition": "eq",
-              "keyValue": "={{ $json.email }}"
+              "name": "Authorization",
+              "value": ""
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
             }
           ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
         }
       },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         592,
         0
@@ -178,9 +151,9 @@
       "alwaysOutputData": true,
       "notesInFlow": false,
       "credentials": {
-        "supabaseApi": {
-          "id": "bnJtZL81TsUGP8dj",
-          "name": "Supabase account"
+        "httpHeaderAuth": {
+          "id": "pTFl5SIhensUaU27",
+          "name": "Supabase Crystallux"
         }
       },
       "onError": "continueRegularOutput"

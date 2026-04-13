@@ -135,13 +135,14 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "name": "Claude Anthropic"
+          "name": "Claude Anthropic",
+          "id": "5GbgZmWqc8ruTO2H"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Parse Claude response and extract research fields\nconst response = $('Claude Research Lead').item.json;\nconst leadId = $('Split In Batches').item.json.id;\n\n// Extract text content from Claude API response\nconst rawText = response.content[0].text;\n\n// Parse the JSON — handle markdown-wrapped responses safely\nlet research;\ntry {\n  const cleaned = rawText\n    .replace(/```json/gi, '')\n    .replace(/```/g, '')\n    .trim();\n  research = JSON.parse(cleaned);\n} catch (e) {\n  research = {\n    research_summary: rawText.substring(0, 500),\n    likely_business_need: 'Manual review needed',\n    research_angle: 'General outreach'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    id: leadId,\n    research_summary: research.research_summary || '',\n    likely_business_need: research.likely_business_need || '',\n    research_angle: research.research_angle || '',\n    lead_status: 'Researched',\n    researched_at: now,\n    updated_at: now\n  }\n};"
+        "jsCode": "// Parse Claude response and extract research fields\nconst response = $('Claude Research Lead').item.json;\nconst leadId = $('Split In Batches').item.json.id;\n\n// Extract text content from Claude API response\nconst rawText = response.content[0].text;\n\n// Parse the JSON \u2014 handle markdown-wrapped responses safely\nlet research;\ntry {\n  const cleaned = rawText\n    .replace(/```json/gi, '')\n    .replace(/```/g, '')\n    .trim();\n  research = JSON.parse(cleaned);\n} catch (e) {\n  research = {\n    research_summary: rawText.substring(0, 500),\n    likely_business_need: 'Manual review needed',\n    research_angle: 'General outreach'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    id: leadId,\n    research_summary: research.research_summary || '',\n    likely_business_need: research.likely_business_need || '',\n    research_angle: research.research_angle || '',\n    lead_status: 'Researched',\n    researched_at: now,\n    updated_at: now\n  }\n};"
       },
       "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000006",
       "name": "Parse Claude Response",

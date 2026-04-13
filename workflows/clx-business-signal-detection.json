@@ -150,13 +150,14 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "name": "Claude Anthropic"
+          "name": "Claude Anthropic",
+          "id": "5GbgZmWqc8ruTO2H"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Parse Claude signal analysis response\ntry {\n  const response = $('Claude Analyze Signal').item.json;\n  const lead = $('Split In Batches').item.json;\n\n  let rawText = '';\n  if (response.content && Array.isArray(response.content)) {\n    rawText = response.content.map(c => c.text || '').join('');\n  } else if (typeof response.content === 'string') {\n    rawText = response.content;\n  }\n\n  rawText = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/gi, '').trim();\n  const signal = JSON.parse(rawText);\n\n  const now = new Date().toISOString();\n\n  return {\n    json: {\n      id: lead.id,\n      detected_signal: signal.detected_signal || 'No signal detected',\n      growth_stage: signal.growth_stage || 'Established',\n      recommended_campaign_type: signal.recommended_campaign_type || 'general_outreach',\n      signal_confidence: signal.signal_confidence || 'Low',\n      outreach_timing: signal.outreach_timing || 'This Month',\n      lead_status: 'Signal Detected',\n      updated_at: now\n    }\n  };\n} catch (error) {\n  const lead = $('Split In Batches').item.json;\n  return {\n    json: {\n      id: lead.id,\n      detected_signal: 'Manual review needed — parse error: ' + error.message,\n      growth_stage: 'Established',\n      recommended_campaign_type: 'general_outreach',\n      signal_confidence: 'Low',\n      outreach_timing: 'This Month',\n      lead_status: 'Signal Detected',\n      updated_at: new Date().toISOString()\n    }\n  };\n}"
+        "jsCode": "// Parse Claude signal analysis response\ntry {\n  const response = $('Claude Analyze Signal').item.json;\n  const lead = $('Split In Batches').item.json;\n\n  let rawText = '';\n  if (response.content && Array.isArray(response.content)) {\n    rawText = response.content.map(c => c.text || '').join('');\n  } else if (typeof response.content === 'string') {\n    rawText = response.content;\n  }\n\n  rawText = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/gi, '').trim();\n  const signal = JSON.parse(rawText);\n\n  const now = new Date().toISOString();\n\n  return {\n    json: {\n      id: lead.id,\n      detected_signal: signal.detected_signal || 'No signal detected',\n      growth_stage: signal.growth_stage || 'Established',\n      recommended_campaign_type: signal.recommended_campaign_type || 'general_outreach',\n      signal_confidence: signal.signal_confidence || 'Low',\n      outreach_timing: signal.outreach_timing || 'This Month',\n      lead_status: 'Signal Detected',\n      updated_at: now\n    }\n  };\n} catch (error) {\n  const lead = $('Split In Batches').item.json;\n  return {\n    json: {\n      id: lead.id,\n      detected_signal: 'Manual review needed \u2014 parse error: ' + error.message,\n      growth_stage: 'Established',\n      recommended_campaign_type: 'general_outreach',\n      signal_confidence: 'Low',\n      outreach_timing: 'This Month',\n      lead_status: 'Signal Detected',\n      updated_at: new Date().toISOString()\n    }\n  };\n}"
       },
       "id": "clx04-0000-0000-0000-000000000009",
       "name": "Parse Signal Response",
