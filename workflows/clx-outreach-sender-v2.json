@@ -1,0 +1,506 @@
+{
+  "name": "CLX - Outreach Sender v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 60
+            }
+          ]
+        }
+      },
+      "id": "clx07v2-0001-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_daily_send_count",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {}
+      },
+      "id": "clx07v2-0002-0000-0000-000000000002",
+      "name": "Check Daily Send Limit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json || {};\nconst remaining = Number(data.remaining ?? 0);\nconst count = Number(data.count ?? 0);\nconst limit = Number(data.limit ?? 450);\nreturn { json: { daily_count: count, daily_limit: limit, daily_remaining: remaining, can_send: remaining >= 5 } };"
+      },
+      "id": "clx07v2-0003-0000-0000-000000000003",
+      "name": "Parse Send Limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx07v2-cond-can-send",
+              "leftValue": "={{ $json.can_send }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx07v2-0004-0000-0000-000000000004",
+      "name": "IF Under Limit",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {},
+      "id": "clx07v2-0005-0000-0000-000000000005",
+      "name": "Daily Limit Reached",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [920, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Outreach%20Ready&unsubscribed=eq.false&do_not_contact=eq.false&reply_detected=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,city,industry,client_id,email_subject,email_body,followup_message,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact,clients(notification_email,calendly_link)&limit=5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx07v2-0006-0000-0000-000000000006",
+      "name": "Get Outreach Ready Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx07v2-cond-leads-found",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx07v2-0007-0000-0000-000000000007",
+      "name": "IF Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {},
+      "id": "clx07v2-0008-0000-0000-000000000008",
+      "name": "No Outreach Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1400, 500]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx07v2-0009-0000-0000-000000000009",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "let leads = [];\ntry { leads = $('Get Outreach Ready Leads').all(); } catch (e) {}\nreturn { json: { run_complete: true, leads_attempted: leads.length, note: 'Per-lead outcomes are recorded in scan_errors (email_sent_log / email_sent_no_update / send_failed)', finished_at: new Date().toISOString() } };"
+      },
+      "id": "clx07v2-0018-0000-0000-000000000018",
+      "name": "Send Batch Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 500]
+    },
+    {
+      "parameters": {},
+      "id": "clx07v2-0019-0000-0000-000000000019",
+      "name": "Notify Hook (Future)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1880, 500]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "clx07v2-000a-0000-0000-00000000000a",
+      "name": "Wait 30s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1880, 300],
+      "webhookId": "clx07v2-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Split In Batches').item.json;\nconst skip = (reason) => ({ json: { ...lead, skip: true, reason } });\nif (!lead.email || String(lead.email).trim() === '') return skip('no_email');\nif (lead.do_not_contact === true) return skip('do_not_contact');\nif (lead.unsubscribed === true) return skip('unsubscribed');\nif ((Number(lead.total_emails_sent) || 0) >= 5) return skip('cap_reached');\nconst hoursSinceLastEmail = lead.last_email_sent_at ? (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return skip('cooldown_24h');\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #ddd;margin:20px 0\">' +\n  '<p style=\"font-size:11px;color:#888;line-height:1.5\">' +\n  'You received this because your business was found in a public directory. ' +\n  'If you prefer not to hear from us, <a href=\"mailto:unsubscribe@crystallux.org?subject=Unsubscribe%20' + encodeURIComponent(lead.email || '') + '\">click here to unsubscribe</a>.' +\n  '<br>Crystallux | Ontario, Canada</p>';\nconst emailBody = (lead.email_body || '') + unsubFooter;\nreturn { json: { ...lead, skip: false, email_body_with_footer: emailBody } };"
+      },
+      "id": "clx07v2-000b-0000-0000-00000000000b",
+      "name": "Safety Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx07v2-cond-not-skipped",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEqual", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx07v2-000c-0000-0000-00000000000c",
+      "name": "IF Safe To Send",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2360, 300]
+    },
+    {
+      "parameters": {},
+      "id": "clx07v2-000d-0000-0000-00000000000d",
+      "name": "Skip Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2600, 500]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $json.email_body_with_footer }}",
+        "options": {
+          "appendAttributionToBody": false
+        }
+      },
+      "id": "clx07v2-000e-0000-0000-00000000000e",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2600, 300],
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.item.json || {};\nconst lead = $('Split In Batches').item.json;\nconst errorObj = incoming.error || $input.item.error;\nconst sendOk = !errorObj && !!(incoming.id || incoming.threadId || incoming.labelIds || incoming.messageId);\nreturn { json: { ...lead, send_ok: sendOk, send_error: errorObj ? (errorObj.message || (typeof errorObj === 'string' ? errorObj : JSON.stringify(errorObj))) : null, gmail_message_id: incoming.id || incoming.messageId || null, gmail_thread_id: incoming.threadId || null } };"
+      },
+      "id": "clx07v2-000f-0000-0000-00000000000f",
+      "name": "Handle Send Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2840, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx07v2-cond-send-ok",
+              "leftValue": "={{ $json.send_ok }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx07v2-0010-0000-0000-000000000010",
+      "name": "IF Send OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3080, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\nconst now = new Date();\nconst followupDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);\nconst clientObj = item.clients || {};\nreturn { json: { ...item, p_lead_id: item.id, p_outreach_sent_at: now.toISOString(), p_followup_scheduled_at: followupDate.toISOString(), p_lead_status: 'Contacted', p_outreach_channel: 'email', p_total_emails_sent: (Number(item.total_emails_sent) || 0) + 1, p_last_email_sent_at: now.toISOString(), client_notification_email: clientObj.notification_email || null, client_calendly_link: clientObj.calendly_link || null } };"
+      },
+      "id": "clx07v2-0011-0000-0000-000000000011",
+      "name": "Calculate Follow Up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3320, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead_after_send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.p_lead_id, p_outreach_sent_at: $json.p_outreach_sent_at, p_followup_scheduled_at: $json.p_followup_scheduled_at, p_lead_status: $json.p_lead_status, p_outreach_channel: $json.p_outreach_channel, p_total_emails_sent: $json.p_total_emails_sent, p_last_email_sent_at: $json.p_last_email_sent_at }) }}",
+        "options": {}
+      },
+      "id": "clx07v2-0012-0000-0000-000000000012",
+      "name": "Update Lead RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3560, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json || {};\nconst errorObj = item.error || $input.item.error;\nconst updateFailed = !!errorObj;\nreturn { json: { workflow_name: 'CLX-Outreach-Sender-v2', node_name: updateFailed ? 'email_sent_no_update' : 'email_sent_log', error_code: updateFailed ? 'UPDATE_FAILED_AFTER_SEND' : 'OK', error_message: updateFailed ? ('Email sent but lead update failed: ' + (errorObj.message || JSON.stringify(errorObj))) : 'Email sent and lead updated', input_data: { lead_id: item.p_lead_id || item.id, recipient: item.email, subject: item.email_subject, gmail_message_id: item.gmail_message_id, gmail_thread_id: item.gmail_thread_id, city: item.city, industry: item.industry, client_id: item.client_id, client_notification_email: item.client_notification_email, sent_at: item.p_outreach_sent_at } } };"
+      },
+      "id": "clx07v2-0013-0000-0000-000000000013",
+      "name": "Build Send Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: $json.workflow_name, node_name: $json.node_name, error_code: $json.error_code, error_message: $json.error_message, input_data: $json.input_data }) }}",
+        "options": {}
+      },
+      "id": "clx07v2-0014-0000-0000-000000000014",
+      "name": "Log Send Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4040, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "clx07v2-0015-0000-0000-000000000015",
+      "name": "Notify Client (Future)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [4280, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/mark_lead_send_failed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.id, p_error_message: $json.send_error || 'Unknown send error' }) }}",
+        "options": {}
+      },
+      "id": "clx07v2-0016-0000-0000-000000000016",
+      "name": "Mark Send Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3080, 500],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'CLX-Outreach-Sender-v2', node_name: 'send_failed', error_code: 'GMAIL_SEND_FAILED', error_message: $json.send_error || 'Unknown Gmail error', input_data: { lead_id: $json.id, recipient: $json.email, subject: $json.email_subject, city: $json.city, industry: $json.industry, client_id: $json.client_id } }) }}",
+        "options": {}
+      },
+      "id": "clx07v2-0017-0000-0000-000000000017",
+      "name": "Log Send Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3320, 500],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Check Daily Send Limit", "type": "main", "index": 0 }]]
+    },
+    "Check Daily Send Limit": {
+      "main": [[{ "node": "Parse Send Limit", "type": "main", "index": 0 }]]
+    },
+    "Parse Send Limit": {
+      "main": [[{ "node": "IF Under Limit", "type": "main", "index": 0 }]]
+    },
+    "IF Under Limit": {
+      "main": [
+        [{ "node": "Get Outreach Ready Leads", "type": "main", "index": 0 }],
+        [{ "node": "Daily Limit Reached", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Outreach Ready Leads": {
+      "main": [[{ "node": "IF Leads Found", "type": "main", "index": 0 }]]
+    },
+    "IF Leads Found": {
+      "main": [
+        [{ "node": "Split In Batches", "type": "main", "index": 0 }],
+        [{ "node": "No Outreach Leads", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [{ "node": "Wait 30s", "type": "main", "index": 0 }],
+        [{ "node": "Send Batch Complete", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Batch Complete": {
+      "main": [[{ "node": "Notify Hook (Future)", "type": "main", "index": 0 }]]
+    },
+    "Wait 30s": {
+      "main": [[{ "node": "Safety Check", "type": "main", "index": 0 }]]
+    },
+    "Safety Check": {
+      "main": [[{ "node": "IF Safe To Send", "type": "main", "index": 0 }]]
+    },
+    "IF Safe To Send": {
+      "main": [
+        [{ "node": "Send Email", "type": "main", "index": 0 }],
+        [{ "node": "Skip Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Skip Lead": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    },
+    "Send Email": {
+      "main": [[{ "node": "Handle Send Result", "type": "main", "index": 0 }]]
+    },
+    "Handle Send Result": {
+      "main": [[{ "node": "IF Send OK", "type": "main", "index": 0 }]]
+    },
+    "IF Send OK": {
+      "main": [
+        [{ "node": "Calculate Follow Up", "type": "main", "index": 0 }],
+        [{ "node": "Mark Send Failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calculate Follow Up": {
+      "main": [[{ "node": "Update Lead RPC", "type": "main", "index": 0 }]]
+    },
+    "Update Lead RPC": {
+      "main": [[{ "node": "Build Send Log", "type": "main", "index": 0 }]]
+    },
+    "Build Send Log": {
+      "main": [[{ "node": "Log Send Success", "type": "main", "index": 0 }]]
+    },
+    "Log Send Success": {
+      "main": [[{ "node": "Notify Client (Future)", "type": "main", "index": 0 }]]
+    },
+    "Notify Client (Future)": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    },
+    "Mark Send Failed": {
+      "main": [[{ "node": "Log Send Error", "type": "main", "index": 0 }]]
+    },
+    "Log Send Error": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-sender-v2-hardened",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "clx-outreach-sender-v2",
+  "tags": []
+}
