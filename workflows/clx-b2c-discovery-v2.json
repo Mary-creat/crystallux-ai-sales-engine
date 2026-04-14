@@ -1,0 +1,567 @@
+{
+  "name": "CLX - B2C Discovery v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "clx15-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C Discovery v2 \u2014 Build search query list\n// 43 queries \u00d7 5 GTA cities = 215 scan combinations\n\nconst cities = ['Toronto', 'Mississauga', 'Brampton', 'Vaughan', 'Markham'];\n\nconst queries = [\n  // Moving services (7)\n  { query: 'local moving company',         industry: 'moving services',  product_type: 'moving_services' },\n  { query: 'long distance movers',         industry: 'moving services',  product_type: 'moving_services' },\n  { query: 'residential movers',           industry: 'moving services',  product_type: 'moving_services' },\n  { query: 'apartment movers',             industry: 'moving services',  product_type: 'moving_services' },\n  { query: 'piano movers',                 industry: 'moving services',  product_type: 'moving_services' },\n  { query: 'furniture movers',             industry: 'moving services',  product_type: 'moving_services' },\n  { query: 'moving and storage',           industry: 'moving services',  product_type: 'moving_services' },\n\n  // Insurance (4)\n  { query: 'auto insurance broker',        industry: 'insurance',         product_type: 'insurance' },\n  { query: 'home insurance broker',        industry: 'insurance',         product_type: 'insurance' },\n  { query: 'life insurance agent',         industry: 'insurance',         product_type: 'insurance' },\n  { query: 'health insurance broker',      industry: 'insurance',         product_type: 'insurance' },\n\n  // Dental (3)\n  { query: 'dentist',                      industry: 'dental',            product_type: 'dental' },\n  { query: 'cosmetic dentist',             industry: 'dental',            product_type: 'dental' },\n  { query: 'pediatric dentist',            industry: 'dental',            product_type: 'dental' },\n\n  // Hair and beauty (3)\n  { query: 'hair salon',                   industry: 'hair and beauty',   product_type: 'beauty' },\n  { query: 'beauty salon',                 industry: 'hair and beauty',   product_type: 'beauty' },\n  { query: 'nail salon',                   industry: 'hair and beauty',   product_type: 'beauty' },\n\n  // Cleaning services (3)\n  { query: 'residential cleaning service', industry: 'cleaning services', product_type: 'cleaning_services' },\n  { query: 'house cleaning',               industry: 'cleaning services', product_type: 'cleaning_services' },\n  { query: 'maid service',                 industry: 'cleaning services', product_type: 'cleaning_services' },\n\n  // Construction (6)\n  { query: 'home renovation contractor',   industry: 'construction',      product_type: 'construction' },\n  { query: 'kitchen renovation',           industry: 'construction',      product_type: 'construction' },\n  { query: 'bathroom renovation',          industry: 'construction',      product_type: 'construction' },\n  { query: 'roofing contractor',           industry: 'construction',      product_type: 'construction' },\n  { query: 'landscaping contractor',       industry: 'construction',      product_type: 'construction' },\n  { query: 'general contractor',           industry: 'construction',      product_type: 'construction' },\n\n  // Kijiji-style active demand signals (7)\n  { query: 'moving help wanted',                     industry: 'moving services',   product_type: 'moving_services' },\n  { query: 'last minute movers',                     industry: 'moving services',   product_type: 'moving_services' },\n  { query: 'same day moving service',                industry: 'moving services',   product_type: 'moving_services' },\n  { query: 'cleaner wanted',                         industry: 'cleaning services', product_type: 'cleaning_services' },\n  { query: 'deep cleaning service',                  industry: 'cleaning services', product_type: 'cleaning_services' },\n  { query: 'emergency dentist',                      industry: 'dental',            product_type: 'dental' },\n  { query: 'walk in dental clinic',                  industry: 'dental',            product_type: 'dental' },\n\n  // New-business insurance signals (4)\n  { query: 'commercial insurance broker',            industry: 'insurance',         product_type: 'insurance' },\n  { query: 'business liability insurance',           industry: 'insurance',         product_type: 'insurance' },\n  { query: 'small business insurance broker',        industry: 'insurance',         product_type: 'insurance' },\n  { query: 'key person insurance agent',             industry: 'insurance',         product_type: 'insurance' },\n\n  // Commercial moving signals (3)\n  { query: 'office movers',                          industry: 'moving services',   product_type: 'moving_services' },\n  { query: 'commercial movers',                      industry: 'moving services',   product_type: 'moving_services' },\n  { query: 'business relocation services',           industry: 'moving services',   product_type: 'moving_services' },\n\n  // New-home signals (3)\n  { query: 'new home movers',                        industry: 'moving services',   product_type: 'moving_services' },\n  { query: 'new homeowner insurance',                industry: 'insurance',         product_type: 'insurance' },\n  { query: 'family dentist accepting new patients',  industry: 'dental',            product_type: 'dental' }\n];\n\nconsole.log('[CLX B2C v2] Total queries: ' + queries.length);\n\nconst scanList = [];\nfor (const city of cities) {\n  for (const q of queries) {\n    scanList.push({\n      city: city,\n      industry: q.industry,\n      product_type: q.product_type,\n      search_query: q.query + ' in ' + city + ' Canada'\n    });\n  }\n}\n\nconsole.log('[CLX B2C v2] Total scan combinations: ' + scanList.length);\n\nreturn scanList.map(item => ({ json: item }));"
+      },
+      "id": "clx15-0000-0000-0000-000000000002",
+      "name": "Build B2C Scan List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx15-0000-0000-0000-000000000003",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "amount": 4,
+        "unit": "seconds"
+      },
+      "id": "clx15-0000-0000-0000-000000000004",
+      "name": "Wait 4s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [920, 300],
+      "webhookId": "clx15-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://places.googleapis.com/v1/places:searchText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ textQuery: $('Split In Batches').item.json.search_query }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "clx15-0000-0000-0000-000000000005",
+      "name": "Search Google Maps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Google Maps"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C v2 \u2014 Handle Maps Error\n// Inspects the Search Google Maps response. If the node failed or the body\n// carries a Google error, flags the item so IF Maps OK can route to\n// Log Maps Error. Otherwise passes through the raw places response.\nconst ctx = $('Split In Batches').item.json;\nconst raw = $input.item.json || {};\n\n// continueOnFail leaves an error property on the item when the HTTP call failed\nconst httpError = raw.error || raw.errorMessage || null;\nconst statusCode = raw.statusCode || (raw.headers && raw.headers.status) || null;\n\n// Google Places error shape: { error: { code, message, status } }\nconst body = raw.body || raw;\nconst googleError = body && body.error && (body.error.message || body.error.status) ? body.error : null;\n\nconst httpFailed = (typeof statusCode === 'number' && statusCode >= 400);\nconst hasError = Boolean(httpError || googleError || httpFailed);\n\nif (hasError) {\n  const code = googleError ? String(googleError.code || googleError.status || 'google_error')\n             : httpFailed ? String(statusCode)\n             : 'unknown';\n  const message = googleError ? (googleError.message || googleError.status || 'Google Places error')\n                : httpError ? String(httpError)\n                : 'HTTP ' + statusCode;\n  console.log('[CLX B2C v2] Maps error for \"' + ctx.search_query + '\": ' + message);\n  return {\n    json: {\n      has_error: true,\n      error_code: code,\n      error_message: message,\n      input_data: ctx,\n      ...ctx\n    }\n  };\n}\n\n// Success path \u2014 forward the body so Parse Places Results can read `places`\nreturn {\n  json: {\n    has_error: false,\n    ...ctx,\n    places: (body && body.places) || []\n  }\n};"
+      },
+      "id": "clx15-0000-0000-0000-000000000006",
+      "name": "Handle Maps Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx15-cond-maps-ok",
+              "leftValue": "={{ String($json.has_error) }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx15-0000-0000-0000-000000000007",
+      "name": "IF Maps OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'CLX-B2C-Discovery', node_name: 'Search Google Maps', error_code: $json.error_code, error_message: $json.error_message, input_data: $json.input_data }) }}",
+        "options": {}
+      },
+      "id": "clx15-0000-0000-0000-000000000008",
+      "name": "Log Maps Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 500],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C v2 \u2014 Parse Places Results\n// Reads the places array forwarded by Handle Maps Error and builds\n// a deduped business list for this scan query.\nconst data = $input.item.json || {};\nconst ctx = $('Split In Batches').item.json;\nconst places = Array.isArray(data.places) ? data.places : [];\n\nif (places.length === 0) {\n  return { json: { businesses: [], count: 0, results_found: 0, ...ctx } };\n}\n\nconst businesses = [];\nconst seen = {};\n\nfor (const place of places) {\n  const name = (place.displayName && place.displayName.text) ? place.displayName.text : '';\n  if (!name) continue;\n  const key = name.toLowerCase();\n  if (seen[key]) continue;\n  seen[key] = true;\n\n  businesses.push({\n    name: name,\n    formatted_address: place.formattedAddress || '',\n    phone: place.nationalPhoneNumber || '',\n    website: place.websiteUri || '',\n    place_id: place.id || '',\n    city: ctx.city,\n    industry: ctx.industry,\n    product_type: ctx.product_type,\n    search_query: ctx.search_query\n  });\n}\n\nconsole.log('[CLX B2C v2] Parsed ' + businesses.length + ' businesses for query: ' + ctx.search_query);\n\nreturn {\n  json: {\n    businesses: businesses,\n    count: businesses.length,\n    results_found: businesses.length,\n    ...ctx\n  }\n};"
+      },
+      "id": "clx15-0000-0000-0000-000000000009",
+      "name": "Parse Places Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx15-cond-results-found",
+              "leftValue": "={{ String($json.count) }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx15-0000-0000-0000-000000000010",
+      "name": "IF Results Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2040, 300]
+    },
+    {
+      "parameters": {},
+      "id": "clx15-0000-0000-0000-000000000011",
+      "name": "No Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2040, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C v2 \u2014 Process Each Business\n// Emits one item per business, mapped to the Supabase RPC parameter names\n// (p_* prefix) for insert_lead_if_not_exists. Uses null (not empty strings)\n// for unknown fields so Supabase defaults / RPC logic behave correctly.\nconst data = $('Parse Places Results').item.json;\nconst businesses = data.businesses || [];\nif (businesses.length === 0) return [];\n\nreturn businesses.map(biz => ({\n  json: {\n    p_full_name: null,\n    p_email: null,\n    p_phone: biz.phone || null,\n    p_company: biz.name,\n    p_job_title: 'Owner',\n    p_industry: biz.industry,\n    p_city: biz.city,\n    p_source: 'google_maps_discovery',\n    p_lead_status: 'New Lead',\n    p_product_type: biz.product_type,\n    p_notes: 'Places ID: ' + (biz.place_id || '') + ' | Address: ' + (biz.formatted_address || '') + (biz.website ? ' | Website: ' + biz.website : ''),\n    _scan_city: biz.city,\n    _scan_query: biz.search_query,\n    _scan_industry: biz.industry,\n    _scan_product_type: biz.product_type\n  }\n}));"
+      },
+      "id": "clx15-0000-0000-0000-000000000012",
+      "name": "Process Each Business",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2280, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/insert_lead_if_not_exists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_full_name: $json.p_full_name, p_email: $json.p_email, p_phone: $json.p_phone, p_company: $json.p_company, p_job_title: $json.p_job_title, p_industry: $json.p_industry, p_city: $json.p_city, p_source: $json.p_source, p_lead_status: $json.p_lead_status, p_product_type: $json.p_product_type, p_notes: $json.p_notes }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "clx15-0000-0000-0000-000000000013",
+      "name": "Call RPC Insert Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2520, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C v2 \u2014 Parse RPC Response\n// Reads the insert_lead_if_not_exists response. Handles three cases:\n//   1. HTTP error (continueOnFail left an error shape) \u2192 log to scan_errors, emit duplicate (to loop back)\n//   2. status = 'inserted' \u2192 forward as inserted\n//   3. status = 'duplicate' \u2192 forward as duplicate\nconst input = $input.item.json || {};\nconst ctx = $('Process Each Business').item.json || {};\nconst company = ctx.p_company || 'unknown';\n\n// Detect HTTP-layer failure (continueOnFail)\nconst httpErr = input.error || input.errorMessage || null;\nconst statusCode = typeof input.statusCode === 'number' ? input.statusCode : null;\nconst httpFailed = httpErr || (statusCode !== null && statusCode >= 400);\n\nif (httpFailed) {\n  const message = httpErr ? String(httpErr) : ('HTTP ' + statusCode);\n  console.log('[CLX B2C v2] RPC failure for ' + company + ': ' + message);\n  return {\n    json: {\n      status: 'error',\n      error_code: httpErr ? 'rpc_error' : String(statusCode),\n      error_message: message,\n      company: company,\n      _scan_city: ctx._scan_city,\n      _scan_query: ctx._scan_query,\n      _scan_industry: ctx._scan_industry,\n      _scan_product_type: ctx._scan_product_type,\n      input_data: ctx\n    }\n  };\n}\n\n// Supabase returns the RPC result in `body`. For a record-returning function\n// it comes back as an array; for a composite-returning function it may be an object.\nconst body = input.body !== undefined ? input.body : input;\nlet rec = null;\nif (Array.isArray(body)) {\n  rec = body[0] || null;\n} else if (body && typeof body === 'object') {\n  rec = body;\n}\n\nconst status = rec && rec.status ? String(rec.status).toLowerCase() : 'unknown';\nconst id = rec && rec.id ? rec.id : null;\n\nconsole.log('[CLX B2C v2] RPC ' + status + ' for ' + company + (id ? ' (id=' + id + ')' : ''));\n\nreturn {\n  json: {\n    status: status,\n    id: id,\n    company: company,\n    _scan_city: ctx._scan_city,\n    _scan_query: ctx._scan_query,\n    _scan_industry: ctx._scan_industry,\n    _scan_product_type: ctx._scan_product_type\n  }\n};"
+      },
+      "id": "clx15-0000-0000-0000-000000000014",
+      "name": "Parse RPC Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2760, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx15-cond-inserted",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "inserted",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx15-0000-0000-0000-000000000015",
+      "name": "IF Inserted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'CLX-B2C-Discovery', search_query: $json._scan_query, city: $json._scan_city, industry: $json._scan_industry, product_type: $json._scan_product_type, results_found: 1, new_leads_inserted: 1, duplicates_skipped: 0, errors: 0 }) }}",
+        "options": {}
+      },
+      "id": "clx15-0000-0000-0000-000000000016",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3240, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx15-0000-0000-0000-000000000017",
+      "name": "Skip Duplicate",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3240, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_log?workflow_name=eq.CLX-B2C-Discovery&scanned_at=gte.' + new Date(new Date().setHours(0,0,0,0)).toISOString() + '&select=results_found,new_leads_inserted,duplicates_skipped,errors' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "count=exact"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "clx15-0000-0000-0000-000000000018",
+      "name": "Fetch Today Scan Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 600],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX B2C v2 \u2014 Scan Complete Summary\n// Aggregates today's scan_log entries and emits a single summary item.\n// Connect this to Slack / email / webhook later \u2014 for now it is a no-op\n// endpoint that prints the totals to the execution log.\nconst resp = $('Fetch Today Scan Log').item.json || {};\nconst body = resp.body !== undefined ? resp.body : resp;\nconst rows = Array.isArray(body) ? body : [];\n\nlet results = 0, inserted = 0, duplicates = 0, errors = 0;\nfor (const r of rows) {\n  results   += Number(r.results_found       || 0);\n  inserted  += Number(r.new_leads_inserted  || 0);\n  duplicates += Number(r.duplicates_skipped || 0);\n  errors    += Number(r.errors              || 0);\n}\n\nconst summary = {\n  workflow: 'CLX-B2C-Discovery',\n  run_completed_at: new Date().toISOString(),\n  scan_log_rows: rows.length,\n  totals: {\n    results_found: results,\n    new_leads_inserted: inserted,\n    duplicates_skipped: duplicates,\n    errors: errors\n  },\n  message: '[CLX B2C v2] Daily scan complete \u2014 ' + inserted + ' new leads, ' + duplicates + ' duplicates, ' + errors + ' errors across ' + rows.length + ' logged batches.'\n};\n\nconsole.log(summary.message);\nreturn { json: summary };"
+      },
+      "id": "clx15-0000-0000-0000-000000000019",
+      "name": "Scan Complete Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 600]
+    },
+    {
+      "parameters": {},
+      "id": "clx15-0000-0000-0000-000000000020",
+      "name": "Notify Hook (NoOp)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1400, 600]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          { "node": "Build B2C Scan List", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build B2C Scan List": {
+      "main": [
+        [
+          { "node": "Split In Batches", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          { "node": "Fetch Today Scan Log", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Wait 4s", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Wait 4s": {
+      "main": [
+        [
+          { "node": "Search Google Maps", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Search Google Maps": {
+      "main": [
+        [
+          { "node": "Handle Maps Error", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Handle Maps Error": {
+      "main": [
+        [
+          { "node": "IF Maps OK", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Maps OK": {
+      "main": [
+        [
+          { "node": "Parse Places Results", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Log Maps Error", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Maps Error": {
+      "main": [
+        [
+          { "node": "Split In Batches", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Places Results": {
+      "main": [
+        [
+          { "node": "IF Results Found", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Results Found": {
+      "main": [
+        [
+          { "node": "Process Each Business", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "No Results", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "No Results": {
+      "main": [
+        [
+          { "node": "Split In Batches", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Process Each Business": {
+      "main": [
+        [
+          { "node": "Call RPC Insert Lead", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Call RPC Insert Lead": {
+      "main": [
+        [
+          { "node": "Parse RPC Response", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse RPC Response": {
+      "main": [
+        [
+          { "node": "IF Inserted", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Inserted": {
+      "main": [
+        [
+          { "node": "Log Success", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Skip Duplicate", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          { "node": "Split In Batches", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Skip Duplicate": {
+      "main": [
+        [
+          { "node": "Split In Batches", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Today Scan Log": {
+      "main": [
+        [
+          { "node": "Scan Complete Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Scan Complete Summary": {
+      "main": [
+        [
+          { "node": "Notify Hook (NoOp)", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-b2c-discovery-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "clx-b2c-discovery-v2",
+  "tags": []
+}

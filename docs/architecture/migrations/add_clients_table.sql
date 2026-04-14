@@ -15,6 +15,17 @@ CREATE TABLE IF NOT EXISTS clients (
   fee_per_booking DECIMAL,
   monthly_retainer DECIMAL,
   notes TEXT,
+  -- CRM integration
+  crm_type TEXT CHECK (crm_type IN ('hubspot','pipedrive','salesforce','smart_moving','zoho','none')),
+  crm_api_key TEXT,
+  crm_account_id TEXT,
+  crm_pipeline_id TEXT,
+  crm_sync_enabled BOOLEAN DEFAULT false,
+  crm_last_sync TIMESTAMPTZ,
+  -- S3 / object storage integration
+  s3_bucket TEXT,
+  s3_folder TEXT,
+  s3_sync_enabled BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
