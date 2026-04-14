@@ -9,10 +9,10 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase | Workflow | Status |
 |-------|----------|--------|
 | Phase 1 | CLX Lead Import (`clx-lead-import.json`) | Complete |
-| Phase 2 | CLX Lead Research (`clx-lead-research.json`) | In Progress (v0.2.0) |
+| Phase 2 | CLX Lead Research (`clx-lead-research.json`) | Complete (v0.2.0) |
 | Phase 3 | CLX Lead Scoring (`clx-lead-scoring.json`) | Complete (v0.3.0) |
-| Phase 4 | CLX Business Signal Detection (`clx-business-signal-detection.json`) | In Progress (v0.4.0) |
-| Phase 5 | CLX Campaign Router (`clx-campaign-router.json`) | In Progress (v0.5.0) |
+| Phase 4 | CLX Business Signal Detection (`clx-business-signal-detection.json`) | Complete (v0.4.0) |
+| Phase 5 | CLX Campaign Router (`clx-campaign-router.json`) | Complete (v0.5.0) |
 | Phase 6 | CLX Outreach Generation (`clx-outreach-generation.json`) | Complete (v0.6.0) |
 | Phase 7 | CLX Outreach Sender (`clx-outreach-sender.json`) | Complete — Production Tested (v0.7.0) |
 | Phase 8 | CLX Follow Up (`clx-follow-up.json`) | Complete — Production Tested (v0.8.1) |
@@ -20,7 +20,7 @@ Crystallux Universal AI Sales Engine — A fully autonomous AI-powered sales sys
 | Phase 10 | CLX Pipeline Update (`clx-pipeline-update.json`) | Complete (v0.10.0) |
 | Phase 11 | CLX City Scan Discovery (`clx-city-scan-discovery.json`) | Complete — Production Tested (v0.11.2) |
 | Phase 12 | CLX MCP Tool Gateway (`clx-mcp-tool-gateway.json`) | Complete (v1.0.0) |
-| Phase 14 | CLX B2C Discovery (`clx-b2c-discovery.json`) | Complete (v1.0.0) — 26 search queries across 6 B2C verticals |
+| Phase 14 | CLX B2C Discovery (`clx-b2c-discovery-v2.1.json`) | Complete (v2.1) — smart scanning, multi-tenant, auto client assignment |
 
 ## Credentials Required
 
