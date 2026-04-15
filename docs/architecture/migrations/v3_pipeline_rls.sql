@@ -1,44 +1,91 @@
 -- v3_pipeline_rls.sql
--- Enables RLS on pipeline_stats and grants execute on the RPC functions the
--- workflows call. Run once in Supabase SQL editor.
+-- Enables RLS on pipeline_stats and re-grants execute on the RPC functions the
+-- workflows call. Run once in the Supabase SQL editor.
 --
--- NOTE: `CREATE POLICY IF NOT EXISTS` is not supported by Postgres, so the
--- idempotent pattern below is DROP POLICY IF EXISTS then CREATE POLICY.
+-- ----------------------------------------------------------------------------
+-- Function signature audit (verified against repo SQL migrations before shipping)
+-- ----------------------------------------------------------------------------
+-- All six GRANT EXECUTE signatures below match the CREATE OR REPLACE FUNCTION
+-- signatures defined in:
 --
--- NOTE: The GRANT EXECUTE lines name specific function signatures. If any
--- signature below does not match what is actually deployed in Supabase, the
--- corresponding GRANT will error. Verify against `\df` or pg_proc before
--- running — or run each GRANT individually so partial failure is obvious.
+--   update_lead(uuid, jsonb)
+--     -> docs/architecture/migrations/v2.2.1_fix_update_lead_rpc.sql:28
+--
+--   insert_lead_if_not_exists(text, text, text, text, text, text, text, text,
+--                             text, text, text)   -- 11 text params, all DEFAULT NULL
+--     -> docs/architecture/migrations/v2.1_smart_scanning.sql:103
+--
+--   upsert_scan_tracker(text, text, text, text, integer)
+--     -> docs/architecture/migrations/v2.1_smart_scanning.sql:33
+--
+--   update_lead_after_send(uuid, timestamptz, timestamptz, text, text, integer,
+--                          timestamptz)
+--     -> docs/architecture/migrations/v2_outreach_sender.sql:12
+--
+--   mark_lead_send_failed(uuid, text)
+--     -> docs/architecture/migrations/v2_outreach_sender.sql:53
+--
+--   get_daily_send_count()
+--     -> docs/architecture/migrations/v2_outreach_sender.sql:78
+--
+-- If Supabase has drifted from the repo (someone hand-edited a function), the
+-- corresponding GRANT will error with "function ... does not exist". Run each
+-- GRANT on its own if you need to pinpoint a drift — the RLS block and the
+-- six GRANTs are independent statements.
+--
+-- ----------------------------------------------------------------------------
+-- pipeline_stats RLS — operational note
+-- ----------------------------------------------------------------------------
+-- Enabling RLS on a previously unrestricted table blocks ALL access from the
+-- anon/authenticated roles until policies land. The ALTER TABLE and the two
+-- CREATE POLICY blocks should be run in a single transaction (psql / SQL
+-- editor runs the whole file in one transaction by default) so there is no
+-- window where the table is readable-by-nobody. If you run them line by line,
+-- run the ALTER TABLE last.
+--
+-- If anything else in Supabase reads pipeline_stats (dashboards, other
+-- workflows, manual queries), sanity-check it still works after this lands.
 
--- ---------------------------------------------------------------------------
--- 1. pipeline_stats RLS
--- ---------------------------------------------------------------------------
--- Enabling RLS on a table that has no policies blocks ALL access from the
--- anon/authenticated roles until policies are created. If anything else in
--- Supabase (dashboards, other workflows, manual queries) reads pipeline_stats,
--- confirm it still works after this runs.
+
+-- ============================================================================
+-- 1. pipeline_stats RLS + idempotent anon policies
+-- ============================================================================
 
 ALTER TABLE pipeline_stats ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Allow anon insert on pipeline_stats" ON pipeline_stats;
-CREATE POLICY "Allow anon insert on pipeline_stats"
-  ON pipeline_stats
-  FOR INSERT
-  TO anon
-  WITH CHECK (true);
+-- Idempotent CREATE POLICY via DO block (Postgres does not support
+-- `CREATE POLICY IF NOT EXISTS`). Swallows the duplicate_object SQLSTATE 42710
+-- on re-run so the migration stays idempotent.
 
-DROP POLICY IF EXISTS "Allow anon select on pipeline_stats" ON pipeline_stats;
-CREATE POLICY "Allow anon select on pipeline_stats"
-  ON pipeline_stats
-  FOR SELECT
-  TO anon
-  USING (true);
+DO $$
+BEGIN
+  CREATE POLICY "Allow anon insert on pipeline_stats"
+    ON pipeline_stats
+    FOR INSERT
+    TO anon
+    WITH CHECK (true);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
--- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  CREATE POLICY "Allow anon select on pipeline_stats"
+    ON pipeline_stats
+    FOR SELECT
+    TO anon
+    USING (true);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+
+-- ============================================================================
 -- 2. Function execute grants (belt and suspenders)
--- ---------------------------------------------------------------------------
--- The workflows already call update_lead successfully (it has SECURITY DEFINER
--- + grant to anon). These re-grants cover the other RPCs the pipeline uses.
+-- ============================================================================
+-- update_lead already has SECURITY DEFINER + a prior GRANT; these statements
+-- are idempotent no-ops in the steady state and guarantee role coverage after
+-- any future role changes.
 
 GRANT EXECUTE ON FUNCTION update_lead(uuid, jsonb)
   TO anon, authenticated, service_role;

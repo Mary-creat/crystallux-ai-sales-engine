@@ -1,0 +1,312 @@
+{
+  "name": "CLX - Campaign Router v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "clx05-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing&limit=25",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx05-0000-0000-0000-000000000002",
+      "name": "Get Signal Detected Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx05-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx05-0000-0000-0000-000000000003",
+      "name": "IF Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx05-0000-0000-0000-000000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "clx05-0000-0000-0000-000000000005",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        300
+      ],
+      "webhookId": "clx05-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Campaign Router — Phase 5\n// Reads product_type and recommended_campaign_type from lead\n// Returns correct campaign configuration with all original lead fields\n\nconst lead = $input.item.json;\n\n// Normalise inputs — lowercase and trim for reliable matching\nconst productType = (lead.product_type || '').toLowerCase().trim();\nconst campaignType = (lead.recommended_campaign_type || '').toLowerCase().trim();\n\n// ─────────────────────────────────────────────\n// CAMPAIGN ROUTING TABLE\n// ─────────────────────────────────────────────\nconst campaigns = {\n  insurance: {\n    automation_campaign: {\n      campaign_name: 'Insurance Process Automation',\n      campaign_value_proposition: 'Automate policy renewals, client follow-up, and claims processing',\n      campaign_pain_point: 'Manual processes eating into agent productivity and client retention',\n      campaign_call_to_action: 'Book a 15-minute demo to see how we automate your renewal pipeline',\n      campaign_tone: 'Professional and consultative'\n    },\n    lead_generation_campaign: {\n      campaign_name: 'Insurance Lead Generation',\n      campaign_value_proposition: 'AI-powered lead discovery for insurance brokers',\n      campaign_pain_point: 'Inconsistent lead flow and high cost per acquisition',\n      campaign_call_to_action: 'Let us show you 50 pre-qualified leads in your market this week',\n      campaign_tone: 'Results-focused and direct'\n    }\n  },\n  construction: {\n    expansion_campaign: {\n      campaign_name: 'Construction Growth Support',\n      campaign_value_proposition: 'Scale your project pipeline without scaling your admin team',\n      campaign_pain_point: 'Growth creating operational bottlenecks and missed opportunities',\n      campaign_call_to_action: 'See how construction companies use AI to manage 3x more projects',\n      campaign_tone: 'Practical and growth-oriented'\n    },\n    lead_generation_campaign: {\n      campaign_name: 'Construction Lead Acquisition',\n      campaign_value_proposition: 'Find commercial and residential project opportunities automatically',\n      campaign_pain_point: 'Relying on referrals and word of mouth for new business',\n      campaign_call_to_action: 'Book a call to see live leads in your construction niche',\n      campaign_tone: 'Direct and ROI-focused'\n    }\n  },\n  cleaning_services: {\n    automation_campaign: {\n      campaign_name: 'Cleaning Business Automation',\n      campaign_value_proposition: 'Automate booking, follow-up, scheduling, and client communication',\n      campaign_pain_point: 'Too much time on admin, not enough time on growth',\n      campaign_call_to_action: 'See how cleaning companies double bookings without extra staff',\n      campaign_tone: 'Friendly and practical'\n    },\n    retention_campaign: {\n      campaign_name: 'Client Retention for Cleaning Services',\n      campaign_value_proposition: 'Keep clients longer with automated check-ins and loyalty sequences',\n      campaign_pain_point: 'High client churn requiring constant new client acquisition',\n      campaign_call_to_action: 'Book a demo to see our client retention automation in action',\n      campaign_tone: 'Warm and relationship-focused'\n    }\n  },\n  moving_services: {\n    lead_generation_campaign: {\n      campaign_name: 'Moving Company Lead Engine',\n      campaign_value_proposition: 'Find homeowners planning to move before they call your competitors',\n      campaign_pain_point: 'Competing on price instead of being first to reach ready-to-move homeowners',\n      campaign_call_to_action: 'See 20 homeowners in your area actively planning a move right now',\n      campaign_tone: 'Urgent and opportunity-focused'\n    },\n    automation_campaign: {\n      campaign_name: 'Moving Business Automation',\n      campaign_value_proposition: 'Automate quotes, follow-up, and booking confirmations',\n      campaign_pain_point: 'Losing leads because follow-up is slow or inconsistent',\n      campaign_call_to_action: 'Book a demo to see how we automate your entire booking pipeline',\n      campaign_tone: 'Efficient and results-focused'\n    }\n  },\n  liquidation: {\n    lead_generation_campaign: {\n      campaign_name: 'Liquidation Buyer Network',\n      campaign_value_proposition: 'Connect with verified bulk buyers actively looking for inventory',\n      campaign_pain_point: 'Slow liquidation cycles and unpredictable buyer pipeline',\n      campaign_call_to_action: 'Let us show you buyers in your category looking for stock right now',\n      campaign_tone: 'Direct and transaction-focused'\n    },\n    general_outreach: {\n      campaign_name: 'Liquidation Buyer Network',\n      campaign_value_proposition: 'Connect with verified bulk buyers actively looking for inventory',\n      campaign_pain_point: 'Slow liquidation cycles and unpredictable buyer pipeline',\n      campaign_call_to_action: 'Let us show you buyers in your category looking for stock right now',\n      campaign_tone: 'Direct and transaction-focused'\n    }\n  },\n  ai_automation: {\n    general_outreach: {\n      campaign_name: 'AI Automation Partnership',\n      campaign_value_proposition: 'White-label or resell our AI sales engine to your clients',\n      campaign_pain_point: 'Clients asking for AI automation but lacking the technical depth to deliver',\n      campaign_call_to_action: 'Let us show you how to add AI sales automation to your service offering',\n      campaign_tone: 'Peer-to-peer and collaborative'\n    },\n    automation_campaign: {\n      campaign_name: 'AI Automation Partnership',\n      campaign_value_proposition: 'White-label or resell our AI sales engine to your clients',\n      campaign_pain_point: 'Clients asking for AI automation but lacking the technical depth to deliver',\n      campaign_call_to_action: 'Let us show you how to add AI sales automation to your service offering',\n      campaign_tone: 'Peer-to-peer and collaborative'\n    }\n  },\n  consulting: {\n    automation_campaign: {\n      campaign_name: 'Consulting Practice Growth',\n      campaign_value_proposition: 'Automate your lead generation and client onboarding pipeline',\n      campaign_pain_point: 'Too much time finding clients, not enough time serving them',\n      campaign_call_to_action: 'Book a call to see how consultants use AI to fill their pipeline',\n      campaign_tone: 'Strategic and peer-level'\n    },\n    lead_generation_campaign: {\n      campaign_name: 'Consulting Practice Growth',\n      campaign_value_proposition: 'Automate your lead generation and client onboarding pipeline',\n      campaign_pain_point: 'Too much time finding clients, not enough time serving them',\n      campaign_call_to_action: 'Book a call to see how consultants use AI to fill their pipeline',\n      campaign_tone: 'Strategic and peer-level'\n    }\n  }\n};\n\n// Default fallback for any unmatched product_type / campaign_type combination\nconst defaultCampaign = {\n  campaign_name: 'Crystallux AI Sales Engine',\n  campaign_value_proposition: 'Automate your entire sales process with AI',\n  campaign_pain_point: 'Manual sales processes limiting growth potential',\n  campaign_call_to_action: 'Book a 15-minute demo to see Crystallux in action',\n  campaign_tone: 'Professional and curious'\n};\n\n// ─────────────────────────────────────────────\n// ROUTING LOGIC\n// ─────────────────────────────────────────────\nlet config = defaultCampaign;\n\nif (campaigns[productType]) {\n  if (campaigns[productType][campaignType]) {\n    // Exact match on both product_type and campaign_type\n    config = campaigns[productType][campaignType];\n  } else {\n    // Product type matched but campaign type did not — use first available\n    const firstKey = Object.keys(campaigns[productType])[0];\n    config = campaigns[productType][firstKey];\n  }\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    // Preserve all original lead fields\n    ...lead,\n    // Campaign assignment\n    campaign_name: config.campaign_name,\n    campaign_type: lead.recommended_campaign_type || 'general_outreach',\n    campaign_value_proposition: config.campaign_value_proposition,\n    campaign_pain_point: config.campaign_pain_point,\n    campaign_call_to_action: config.campaign_call_to_action,\n    campaign_tone: config.campaign_tone,\n    // Status update\n    lead_status: 'Campaign Assigned',\n    updated_at: now\n  }\n};"
+      },
+      "id": "clx05-0000-0000-0000-000000000006",
+      "name": "Route Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx05-0000-0000-0000-000000000008",
+      "name": "No Signal Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Campaign Router v2 — Prep Update Campaign\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    campaign_name: item.campaign_name,\n    campaign_type: item.campaign_type,\n    campaign_value_proposition: item.campaign_value_proposition,\n    campaign_pain_point: item.campaign_pain_point,\n    campaign_call_to_action: item.campaign_call_to_action,\n    campaign_tone: item.campaign_tone,\n    lead_status: 'Campaign Assigned'\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status, campaign: item.campaign_name }));\n\nreturn [{ json: { ...item, rpc_body: JSON.stringify(body) } }];"
+      },
+      "id": "clx-cr-v2-prep-001",
+      "name": "Prep Update Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-cr-v2-rpc-001",
+      "name": "RPC Update Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-cr-v2-summary-001",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Signal Detected Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Signal Detected Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Signal Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Route Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Campaign": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Campaign": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Campaign": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-campaign-router-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-campaign-router-v2",
+  "tags": []
+}

@@ -1,0 +1,363 @@
+{
+  "name": "CLX - Business Signal Detection v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "clx04-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Scored&lead_score=gte.50&select=id,full_name,company,industry,job_title,city,lead_score,priority_level,research_summary,likely_business_need,research_angle,product_type&limit=20",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx04-0000-0000-0000-000000000002",
+      "name": "Get Scored Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx04-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx04-0000-0000-0000-000000000003",
+      "name": "IF Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx04-0000-0000-0000-000000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "clx04-0000-0000-0000-000000000005",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        300
+      ],
+      "webhookId": "clx04-wait-webhook-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content: 'You are a business intelligence analyst for the Crystallux AI Sales Engine.\\n\\nBased on what you know about this company and the research provided, identify the strongest business signal and recommend the best outreach strategy.\\n\\nCompany: ' + $('Split In Batches').first().json.company + '\\nIndustry: ' + $('Split In Batches').first().json.industry + '\\nCity: ' + $('Split In Batches').first().json.city + '\\nJob Title: ' + $('Split In Batches').first().json.job_title + '\\nProduct Type: ' + ($('Split In Batches').first().json.product_type || '') + '\\nLead Score: ' + $('Split In Batches').first().json.lead_score + '\\nResearch Summary: ' + ($('Split In Batches').first().json.research_summary || '') + '\\nLikely Business Need: ' + ($('Split In Batches').first().json.likely_business_need || '') + '\\nResearch Angle: ' + ($('Split In Batches').first().json.research_angle || '') + '\\n\\nAnalyze this company and determine:\\n1. What business signal is most relevant right now\\n2. What growth stage they are in\\n3. What campaign type would resonate most\\n4. How confident you are in the signal\\n5. When to reach out\\n\\nReturn ONLY raw JSON no explanation no markdown no code blocks:\\n{\\n  \"detected_signal\": \"brief description of the business signal\",\\n  \"growth_stage\": \"Startup\" or \"Growing\" or \"Established\" or \"Declining\" or \"Pivoting\",\\n  \"recommended_campaign_type\": \"automation_campaign\" or \"lead_generation_campaign\" or \"reputation_campaign\" or \"expansion_campaign\" or \"retention_campaign\" or \"general_outreach\",\\n  \"signal_confidence\": \"High\" or \"Medium\" or \"Low\",\\n  \"outreach_timing\": \"Immediate\" or \"This Week\" or \"This Month\"\\n}' }] }) }}",
+        "options": {}
+      },
+      "id": "clx04-0000-0000-0000-000000000008",
+      "name": "Claude Analyze Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Claude Anthropic"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Business Signal Detection v2 — Parse Signal Response\n\nconst response = $input.item.json;\nconst lead = $('Split In Batches').first().json;\n\nlet rawText = '';\nif (response && response.content && Array.isArray(response.content)) {\n  rawText = response.content.map(c => c.text || '').join('');\n} else if (response && typeof response.content === 'string') {\n  rawText = response.content;\n}\nrawText = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/gi, '').trim();\n\nlet signal;\ntry {\n  signal = JSON.parse(rawText);\n} catch (e) {\n  signal = {\n    detected_signal: 'Manual review needed — parse error: ' + e.message,\n    growth_stage: 'Established',\n    recommended_campaign_type: 'general_outreach',\n    signal_confidence: 'Low',\n    outreach_timing: 'This Month'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    id: lead.id,\n    detected_signal: signal.detected_signal || 'No signal detected',\n    growth_stage: signal.growth_stage || 'Established',\n    recommended_campaign_type: signal.recommended_campaign_type || 'general_outreach',\n    signal_confidence: signal.signal_confidence || 'Low',\n    outreach_timing: signal.outreach_timing || 'This Month',\n    lead_status: 'Signal Detected',\n    updated_at: now\n  }\n}];"
+      },
+      "id": "clx04-0000-0000-0000-000000000009",
+      "name": "Parse Signal Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx04-0000-0000-0000-000000000011",
+      "name": "No Scored Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Business Signal Detection v2 — Prep Update Signal\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    detected_signal: item.detected_signal,\n    growth_stage: item.growth_stage,\n    recommended_campaign_type: item.recommended_campaign_type,\n    signal_confidence: item.signal_confidence,\n    outreach_timing: item.outreach_timing,\n    lead_status: 'Signal Detected'\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status, signal: item.detected_signal }));\n\nreturn [{ json: { ...item, rpc_body: JSON.stringify(body) } }];"
+      },
+      "id": "clx-bsd-v2-prep-001",
+      "name": "Prep Update Signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-bsd-v2-rpc-001",
+      "name": "RPC Update Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-bsd-v2-summary-001",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Scored Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Scored Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Scored Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Claude Analyze Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Analyze Signal": {
+      "main": [
+        [
+          {
+            "node": "Parse Signal Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Signal Response": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Signal": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Signal": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-business-signal-detection-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-business-signal-detection-v2",
+  "tags": []
+}
