@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?email=is.null&notes=like.*Website*&email_enriched=eq.false&do_not_contact=eq.false&select=id,full_name,company,industry,city,notes&limit=15",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?or=(email.is.null,email.eq.)&email_enriched=eq.false&do_not_contact=eq.false&notes=like.*Website:*&select=id,full_name,company,industry,city,notes,lead_status&limit=15",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
