@@ -220,8 +220,8 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $json.id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -243,7 +243,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.id, p_fields: { email: $json.email, email_enriched: true, email_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() } }) }}",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, email_enriched: true, email_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() }) }}",
         "options": {}
       },
       "id": "clx-es-0011",
@@ -336,8 +336,8 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $json.id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -359,7 +359,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.id, p_fields: { email: $json.email, email_enriched: true, email_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() } }) }}",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, email_enriched: true, email_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() }) }}",
         "options": {}
       },
       "id": "clx-es-0015",
@@ -375,8 +375,8 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + $json.id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -398,7 +398,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.id, p_fields: { email_enriched: true, email_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() } }) }}",
+        "jsonBody": "={{ JSON.stringify({ email_enriched: true, email_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() }) }}",
         "options": {}
       },
       "id": "clx-es-0016",
