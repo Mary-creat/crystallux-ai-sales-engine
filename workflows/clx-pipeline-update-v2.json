@@ -1,0 +1,395 @@
+{
+  "name": "CLX - Pipeline Update v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "clx10-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id,lead_status,updated_at&limit=5000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx10-0000-0000-0000-000000000002",
+      "name": "Get Pipeline Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Pipeline Update — Phase 10: Calculate Statistics\n// Counts leads at each status, calculates conversion rates, identifies stale leads\n\ntry {\n  const allItems = $input.all();\n  const leads = allItems.map(item => item.json);\n  const now = new Date();\n\n  // --- Count leads at each status ---\n  const statusMap = {\n    'New Lead': 0,\n    'Researched': 0,\n    'Scored': 0,\n    'Signal Detected': 0,\n    'Campaign Assigned': 0,\n    'Outreach Ready': 0,\n    'Contacted': 0,\n    'Replied': 0,\n    'Booking Sent': 0,\n    'Booked': 0,\n    'Closed Lost': 0,\n    'Not Interested': 0\n  };\n\n  for (const lead of leads) {\n    const status = lead.lead_status || '';\n    if (statusMap.hasOwnProperty(status)) {\n      statusMap[status]++;\n    }\n  }\n\n  const totalLeads = leads.length;\n\n  // --- Calculate conversion rates ---\n  function rate(numerator, denominator) {\n    if (denominator === 0) return 0;\n    return Math.round((numerator / denominator) * 10000) / 100;\n  }\n\n  // Cumulative: leads that passed through each stage\n  const passedResearch = totalLeads - statusMap['New Lead'];\n  const passedScore = passedResearch - statusMap['Researched'];\n  const passedOutreach = passedScore - statusMap['Scored'] - statusMap['Signal Detected'] - statusMap['Campaign Assigned'] - statusMap['Outreach Ready'];\n  const passedReply = statusMap['Replied'] + statusMap['Booking Sent'] + statusMap['Booked'];\n  const passedBooking = statusMap['Booking Sent'] + statusMap['Booked'];\n\n  const importToResearchRate = rate(passedResearch, totalLeads);\n  const researchToScoreRate = rate(passedScore, passedResearch || 1);\n  const scoreToOutreachRate = rate(statusMap['Contacted'] + passedReply + statusMap['Closed Lost'], passedScore || 1);\n  const outreachToReplyRate = rate(passedReply, statusMap['Contacted'] + passedReply + statusMap['Closed Lost'] || 1);\n  const replyToBookingRate = rate(passedBooking, passedReply || 1);\n  const conversionRateOverall = rate(statusMap['Booked'], totalLeads);\n\n  // --- Identify stale leads ---\n  const staleThresholds = {\n    'New Lead': 2 * 60 * 60 * 1000,\n    'Researched': 2 * 60 * 60 * 1000,\n    'Scored': 2 * 60 * 60 * 1000,\n    'Campaign Assigned': 2 * 60 * 60 * 1000,\n    'Outreach Ready': 24 * 60 * 60 * 1000,\n    'Contacted': 30 * 24 * 60 * 60 * 1000\n  };\n\n  const staleLeads = [];\n  for (const lead of leads) {\n    const status = lead.lead_status || '';\n    const threshold = staleThresholds[status];\n    if (threshold) {\n      const updatedAt = new Date(lead.updated_at);\n      const age = now.getTime() - updatedAt.getTime();\n      if (age > threshold) {\n        const hoursStale = Math.round(age / (60 * 60 * 1000));\n        let thresholdLabel = '';\n        if (threshold <= 2 * 60 * 60 * 1000) {\n          thresholdLabel = '2 hours';\n        } else if (threshold <= 24 * 60 * 60 * 1000) {\n          thresholdLabel = '24 hours';\n        } else {\n          thresholdLabel = '30 days';\n        }\n        staleLeads.push({\n          id: lead.id,\n          lead_status: status,\n          stale_reason: 'Stuck at ' + status + ' for ' + hoursStale + ' hours (threshold: ' + thresholdLabel + ')',\n          stale_detected_at: now.toISOString()\n        });\n      }\n    }\n  }\n\n  // --- Build stats object ---\n  const stats = {\n    snapshot_date: now.toISOString().split('T')[0],\n    total_leads: totalLeads,\n    new_lead_count: statusMap['New Lead'],\n    researched_count: statusMap['Researched'],\n    scored_count: statusMap['Scored'],\n    signal_detected_count: statusMap['Signal Detected'],\n    campaign_assigned_count: statusMap['Campaign Assigned'],\n    outreach_ready_count: statusMap['Outreach Ready'],\n    contacted_count: statusMap['Contacted'],\n    replied_count: statusMap['Replied'],\n    booking_sent_count: statusMap['Booking Sent'],\n    booked_count: statusMap['Booked'],\n    closed_lost_count: statusMap['Closed Lost'],\n    not_interested_count: statusMap['Not Interested'],\n    import_to_research_rate: importToResearchRate,\n    research_to_score_rate: researchToScoreRate,\n    score_to_outreach_rate: scoreToOutreachRate,\n    outreach_to_reply_rate: outreachToReplyRate,\n    reply_to_booking_rate: replyToBookingRate,\n    conversion_rate_overall: conversionRateOverall\n  };\n\n  return {\n    json: {\n      stats: stats,\n      stale_leads: staleLeads,\n      stale_count: staleLeads.length\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      stats: null,\n      stale_leads: [],\n      stale_count: 0,\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "clx10-0000-0000-0000-000000000003",
+      "name": "Calculate Statistics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/pipeline_stats",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Calculate Statistics').first().json.stats) }}",
+        "options": {}
+      },
+      "id": "clx10-0000-0000-0000-000000000004",
+      "name": "Save Pipeline Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?is_stale=eq.false&or=(and(lead_status.eq.New Lead,updated_at.lt.' + new Date(Date.now() - 2*60*60*1000).toISOString() + '),and(lead_status.eq.Researched,updated_at.lt.' + new Date(Date.now() - 2*60*60*1000).toISOString() + '),and(lead_status.eq.Scored,updated_at.lt.' + new Date(Date.now() - 2*60*60*1000).toISOString() + '),and(lead_status.eq.Campaign Assigned,updated_at.lt.' + new Date(Date.now() - 2*60*60*1000).toISOString() + '),and(lead_status.eq.Outreach Ready,updated_at.lt.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '),and(lead_status.eq.Contacted,updated_at.lt.' + new Date(Date.now() - 30*24*60*60*1000).toISOString() + '))&select=id,lead_status,updated_at,full_name,email&limit=50' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx10-0000-0000-0000-000000000005",
+      "name": "Get Stale Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx10-cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx10-0000-0000-0000-000000000006",
+      "name": "IF Stale Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx10-0000-0000-0000-000000000007",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "clx10-0000-0000-0000-000000000008",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1880,
+        300
+      ],
+      "webhookId": "clx10-wait-webhook-001"
+    },
+    {
+      "parameters": {},
+      "id": "clx10-0000-0000-0000-000000000010",
+      "name": "No Stale Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Pipeline Update v2 — Prep Update Stale\n// Marks a lead as stale with a reason string.\n\nconst item = $input.item.json;\nconst now = new Date().toISOString();\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    is_stale: true,\n    stale_reason: 'Stuck at ' + item.lead_status + ' since ' + item.updated_at,\n    stale_detected_at: now\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: item.lead_status, path: 'stale' }));\n\nreturn [{ json: { ...item, rpc_body: JSON.stringify(body) } }];"
+      },
+      "id": "clx-pu-v2-prep-001",
+      "name": "Prep Update Stale",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-pu-v2-rpc-001",
+      "name": "RPC Update Stale",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-pu-v2-summary-001",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Pipeline Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pipeline Stats": {
+      "main": [
+        [
+          {
+            "node": "Calculate Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Statistics": {
+      "main": [
+        [
+          {
+            "node": "Save Pipeline Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Pipeline Stats": {
+      "main": [
+        [
+          {
+            "node": "Get Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Stale Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Stale Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Stale Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Stale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Stale": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Stale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Stale": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-pipeline-update-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-pipeline-update-v2",
+  "tags": []
+}

@@ -1,0 +1,363 @@
+{
+  "name": "CLX - Lead Research v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&select=id,full_name,company,industry,job_title,city,product_type&limit=25",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000002",
+      "name": "Get New Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-string-not-empty-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000003",
+      "name": "IF Leads Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-haiku-4-5-20251001\", max_tokens: 1024, messages: [{ role: \"user\", content: \"You are a B2B sales intelligence analyst for the Crystallux AI Sales Engine.\\n\\nAnalyze this lead and return ONLY a raw JSON object. No markdown, no code blocks, no explanation.\\n\\nLead Details:\\nCompany: \" + $json.company + \"\\nIndustry: \" + $json.industry + \"\\nJob Title: \" + $json.job_title + \"\\nCity: \" + $json.city + \"\\nProduct Type: \" + $json.product_type + \"\\n\\nReturn a JSON object with exactly these three string fields:\\n- research_summary: 2-3 sentences about this company and their market position\\n- likely_business_need: the single most likely business challenge this company faces\\n- research_angle: the specific outreach angle to use when contacting this lead\" }] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000005",
+      "name": "Claude Research Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Claude Anthropic"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Lead Research v2 — Parse Claude Response\n// Reads Claude API response via $input.item.json and the current lead\n// via $('Split In Batches').first().json (stable first-item accessor).\n\nconst response = $input.item.json;\nconst lead = $('Split In Batches').first().json;\n\nconst rawText = (response && response.content && response.content[0] && response.content[0].text) || '';\n\nlet research;\ntry {\n  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n  research = JSON.parse(cleaned);\n} catch (e) {\n  research = {\n    research_summary: rawText.substring(0, 500),\n    likely_business_need: 'Manual review needed',\n    research_angle: 'General outreach'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    id: lead.id,\n    research_summary: research.research_summary || '',\n    likely_business_need: research.likely_business_need || '',\n    research_angle: research.research_angle || '',\n    lead_status: 'Researched',\n    researched_at: now,\n    updated_at: now\n  }\n}];"
+      },
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000006",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000008",
+      "name": "No New Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "clx-lr-v2-wait-001",
+      "name": "Wait 3s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        300
+      ],
+      "webhookId": "clx-lr-v2-wait-001-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Lead Research v2 — Prep Update Lead\n// Builds the RPC body from $input.item.json (the Parse output for this lead).\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    research_summary: item.research_summary,\n    likely_business_need: item.likely_business_need,\n    research_angle: item.research_angle,\n    lead_status: 'Researched',\n    researched_at: item.researched_at\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status }));\n\nreturn [{ json: { ...item, rpc_body: JSON.stringify(body) } }];"
+      },
+      "id": "clx-lr-v2-prep-001",
+      "name": "Prep Update Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-lr-v2-rpc-001",
+      "name": "RPC Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-lr-v2-summary-001",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Leads": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 3s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Research Lead": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3s": {
+      "main": [
+        [
+          {
+            "node": "Claude Research Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Lead": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-lead-research-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-lead-research-v2",
+  "tags": []
+}
