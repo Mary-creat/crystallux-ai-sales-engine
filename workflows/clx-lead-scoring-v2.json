@@ -136,7 +136,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Lead Scoring v2 — Parse Scoring Response\n\nconst response = $input.item.json;\nconst lead = $('Split In Batches').first().json;\n\nconst rawText = (response && response.content && response.content[0] && response.content[0].text) || '';\n\nlet scoring;\ntry {\n  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n  scoring = JSON.parse(cleaned);\n} catch (e) {\n  scoring = {\n    lead_score: 0,\n    priority_level: 'Low',\n    decision_maker_probability: 'Low',\n    company_size_estimate: 'SMB',\n    scoring_reason: 'Manual review needed — AI parse error: ' + e.message\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    id: lead.id,\n    lead_score: typeof scoring.lead_score === 'number' ? scoring.lead_score : 0,\n    priority_level: scoring.priority_level || 'Low',\n    decision_maker_probability: scoring.decision_maker_probability || 'Low',\n    company_size_estimate: scoring.company_size_estimate || 'SMB',\n    scoring_reason: scoring.scoring_reason || '',\n    lead_status: 'Scored',\n    updated_at: now\n  }\n}];"
+        "jsCode": "// CLX Lead Scoring v2 — Parse Scoring Response\n\nconst response = $input.item.json;\nconst lead = $('Split In Batches').first().json;\n\nconst rawText = (response && response.content && response.content[0] && response.content[0].text) || '';\n\nlet scoring;\ntry {\n  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n  scoring = JSON.parse(cleaned);\n} catch (e) {\n  scoring = {\n    lead_score: 0,\n    priority_level: 'Low',\n    decision_maker_probability: 'Low',\n    company_size_estimate: 'SMB',\n    scoring_reason: 'Manual review needed — AI parse error: ' + e.message\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    id: lead.id,\n    lead_score: typeof scoring.lead_score === 'number' ? scoring.lead_score : 0,\n    priority_level: scoring.priority_level || 'Low',\n    decision_maker_probability: scoring.decision_maker_probability || 'Low',\n    company_size_estimate: scoring.company_size_estimate || 'SMB',\n    scoring_reason: scoring.scoring_reason || '',\n    lead_status: 'Scored',\n    updated_at: now\n  }\n};",
+        "mode": "runOnceForEachItem"
       },
       "id": "clx03-0000-0000-0000-000000000006",
       "name": "Parse Scoring Response",
@@ -175,7 +176,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Lead Scoring v2 — Prep Update Score\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    lead_score: item.lead_score,\n    priority_level: item.priority_level,\n    decision_maker_probability: item.decision_maker_probability,\n    company_size_estimate: item.company_size_estimate,\n    scoring_reason: item.scoring_reason,\n    lead_status: 'Scored'\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status, score: item.lead_score }));\n\nreturn [{ json: { ...item, rpc_body: JSON.stringify(body) } }];"
+        "jsCode": "// CLX Lead Scoring v2 — Prep Update Score\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    lead_score: item.lead_score,\n    priority_level: item.priority_level,\n    decision_maker_probability: item.decision_maker_probability,\n    company_size_estimate: item.company_size_estimate,\n    scoring_reason: item.scoring_reason,\n    lead_status: 'Scored'\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status, score: item.lead_score }));\n\nreturn { json: { ...item, rpc_body: JSON.stringify(body) } };",
+        "mode": "runOnceForEachItem"
       },
       "id": "clx-ls-v2-prep-001",
       "name": "Prep Update Score",

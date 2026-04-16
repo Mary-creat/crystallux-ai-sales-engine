@@ -136,7 +136,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Lead Research v2 — Parse Claude Response\n// Reads Claude API response via $input.item.json and the current lead\n// via $('Split In Batches').first().json (stable first-item accessor).\n\nconst response = $input.item.json;\nconst lead = $('Split In Batches').first().json;\n\nconst rawText = (response && response.content && response.content[0] && response.content[0].text) || '';\n\nlet research;\ntry {\n  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n  research = JSON.parse(cleaned);\n} catch (e) {\n  research = {\n    research_summary: rawText.substring(0, 500),\n    likely_business_need: 'Manual review needed',\n    research_angle: 'General outreach'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    id: lead.id,\n    research_summary: research.research_summary || '',\n    likely_business_need: research.likely_business_need || '',\n    research_angle: research.research_angle || '',\n    lead_status: 'Researched',\n    researched_at: now,\n    updated_at: now\n  }\n}];"
+        "jsCode": "// CLX Lead Research v2 — Parse Claude Response\n// Reads Claude API response via $input.item.json and the current lead\n// via $('Split In Batches').first().json (stable first-item accessor).\n\nconst response = $input.item.json;\nconst lead = $('Split In Batches').first().json;\n\nconst rawText = (response && response.content && response.content[0] && response.content[0].text) || '';\n\nlet research;\ntry {\n  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n  research = JSON.parse(cleaned);\n} catch (e) {\n  research = {\n    research_summary: rawText.substring(0, 500),\n    likely_business_need: 'Manual review needed',\n    research_angle: 'General outreach'\n  };\n}\n\nconst now = new Date().toISOString();\n\nreturn {\n  json: {\n    id: lead.id,\n    research_summary: research.research_summary || '',\n    likely_business_need: research.likely_business_need || '',\n    research_angle: research.research_angle || '',\n    lead_status: 'Researched',\n    researched_at: now,\n    updated_at: now\n  }\n};",
+        "mode": "runOnceForEachItem"
       },
       "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000006",
       "name": "Parse Claude Response",
@@ -175,7 +176,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Lead Research v2 — Prep Update Lead\n// Builds the RPC body from $input.item.json (the Parse output for this lead).\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    research_summary: item.research_summary,\n    likely_business_need: item.likely_business_need,\n    research_angle: item.research_angle,\n    lead_status: 'Researched',\n    researched_at: item.researched_at\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status }));\n\nreturn [{ json: { ...item, rpc_body: JSON.stringify(body) } }];"
+        "jsCode": "// CLX Lead Research v2 — Prep Update Lead\n// Builds the RPC body from $input.item.json (the Parse output for this lead).\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    research_summary: item.research_summary,\n    likely_business_need: item.likely_business_need,\n    research_angle: item.research_angle,\n    lead_status: 'Researched',\n    researched_at: item.researched_at\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status }));\n\nreturn { json: { ...item, rpc_body: JSON.stringify(body) } };",
+        "mode": "runOnceForEachItem"
       },
       "id": "clx-lr-v2-prep-001",
       "name": "Prep Update Lead",
