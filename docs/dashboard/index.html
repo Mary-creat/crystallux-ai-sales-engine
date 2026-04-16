@@ -688,15 +688,16 @@ function showStatsLocked(message) {
 async function fetchPipelineStats() {
   if (!hasSupabase()) { showStatsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const url = SUPABASE_URL + '/rest/v1/leads?select=lead_status';
-    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
+    const url = SUPABASE_URL + '/rest/v1/leads?select=lead_status&limit=5000';
+    const res = await fetch(url, { headers: supabaseCountHeaders(), mode: 'cors' });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
     }
     const rows = await res.json();
     if (!Array.isArray(rows)) { showStatsLocked('Unexpected response.'); return; }
-    const total = rows.length;
+    const rangeHeader = res.headers.get('content-range');
+    const total = rangeHeader ? parseInt(rangeHeader.split('/')[1], 10) || rows.length : rows.length;
     const counts = {};
     rows.forEach(r => {
       const s = r.lead_status || 'New Lead';
