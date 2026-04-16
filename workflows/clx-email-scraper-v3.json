@@ -7,7 +7,7 @@
           "interval": [
             {
               "field": "hours",
-              "hoursInterval": 2
+              "hoursInterval": 1
             }
           ]
         }
@@ -23,8 +23,31 @@
     },
     {
       "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "clx-es-cfg-dryrun",
+              "name": "dry_run",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-es-0030",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        340,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?or=(email.is.null,email.eq.)&email_enriched=eq.false&do_not_contact=eq.false&notes=like.*Website:*&select=id,full_name,company,industry,city,notes,lead_status&limit=15",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?or=(email.is.null,email.eq.)&email_enriched=eq.false&do_not_contact=eq.false&website=not.is.null&or=(lead_type.is.null,lead_type.neq.test)&select=id,full_name,company,industry,city,website,lead_status&limit=50",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -34,7 +57,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
+        520,
         300
       ],
       "continueOnFail": true,
@@ -75,7 +98,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        680,
+        760,
         300
       ]
     },
@@ -89,13 +112,13 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        920,
+        1000,
         300
       ]
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper v3 — Extract website URL from notes field\n// Mode: runOnceForEachItem — processes one lead per SIB iteration.\n// Notes format: \"Places ID: ChIJ... | Address: 70 Don Park Rd | Website: https://example.com/\"\n\nconst lead = $input.item.json;\nconst notes = typeof lead.notes === 'string' ? lead.notes : '';\n\nlet websiteUrl = '';\nlet baseUrl = '';\nlet contactUrl = '';\nlet matched = false;\nlet rawMatch = '';\n\ntry {\n  const m = notes.match(/Website:\\s*(https?:\\/\\/[^\\s|,]+)/i);\n  if (m && m[1]) {\n    matched = true;\n    rawMatch = m[1];\n    const cleaned = rawMatch.trim().replace(/[.,;]+$/, '');\n    const u = new URL(cleaned);\n    baseUrl = u.protocol + '//' + u.hostname;\n    websiteUrl = baseUrl + (u.pathname && u.pathname !== '/' ? u.pathname : '');\n    contactUrl = baseUrl + '/contact';\n  }\n} catch (e) {\n  console.log('[clx-email-scraper] URL parse error for lead ' + lead.id + ': ' + e.message + ' (raw=' + rawMatch + ')');\n  websiteUrl = '';\n  baseUrl = '';\n  contactUrl = '';\n}\n\nconsole.log('[clx-email-scraper] lead=' + lead.id + ' notes_len=' + notes.length + ' regex_matched=' + matched + ' website_url=' + websiteUrl);\n\nreturn {\n  json: {\n    id: lead.id,\n    full_name: lead.full_name,\n    company: lead.company,\n    industry: lead.industry,\n    city: lead.city,\n    notes: notes,\n    website_url: websiteUrl,\n    base_url: baseUrl,\n    contact_url: contactUrl\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Read website URL from column (no regex)\n// Mode: runOnceForEachItem — processes one lead per SIB iteration.\n\nconst lead = $input.item.json;\nconst lead_id = lead.id;\nconst website = lead.website || '';\n\nif (!website || website.trim() === '') {\n  return { json: { id: lead_id, website_url: null, has_url: false } };\n}\n\n// Normalize: strip trailing slashes, ensure https\nlet url = website.trim();\nif (!url.startsWith('http')) url = 'https://' + url;\n\n// Build contact page fallback (homepage URL + /contact)\nconst contact_url = url.replace(/\\/$/, '') + '/contact';\n\nconsole.log('[clx-email-scraper] lead=' + lead_id + ' website_url=' + url);\n\nreturn {\n  json: {\n    id: lead_id,\n    website_url: url,\n    contact_url: contact_url,\n    has_url: true,\n    company: lead.company\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0005",
@@ -103,7 +126,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
+        1240,
         300
       ]
     },
@@ -137,7 +160,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1400,
+        1480,
         300
       ]
     },
@@ -151,7 +174,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1640,
+        1720,
         300
       ],
       "webhookId": "clx-es-wait-webhook-001"
@@ -189,7 +212,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1880,
+        1960,
         300
       ],
       "continueOnFail": true,
@@ -197,7 +220,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper v2.1 — Extract emails from homepage HTML\n// Reads fetched HTML from $input.first() and the lead context from Extract URL via $('Extract URL').first().\n\nconst fetched = $input.item.json;\nconst lead = ($('Extract URL').first() || {}).json || {};\n\nlet html = '';\nif (typeof fetched === 'string') {\n  html = fetched;\n} else if (fetched && typeof fetched.data === 'string') {\n  html = fetched.data;\n} else if (fetched && typeof fetched.body === 'string') {\n  html = fetched.body;\n} else if (fetched) {\n  try { html = JSON.stringify(fetched); } catch (e) { html = ''; }\n}\n\nconst BLACKLIST_DOMAINS = [\n  'example.com','test.com','wixpress.com','googleapis.com','w3.org',\n  'schema.org','wordpress.org','jquery.com','cloudflare.com','google.com',\n  'facebook.com','twitter.com','instagram.com','godaddy.com','hostinger.com',\n  'squarespace.com','wix.com','shopify.com','mailchimp.com'\n];\nconst BAD_SUFFIXES = ['.png','.jpg','.jpeg','.gif','.svg','.css','.js'];\nconst PRIORITY = ['info@','contact@','hello@','admin@','booking@'];\n\nconst emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\nconst raw = html.match(emailRegex) || [];\n\nconst cleaned = [];\nfor (const e of raw) {\n  const low = e.toLowerCase();\n  if (low.length > 60) continue;\n  if (BAD_SUFFIXES.some(s => low.endsWith(s))) continue;\n  if (BLACKLIST_DOMAINS.some(d => low.endsWith('@' + d) || low.endsWith('.' + d))) continue;\n  if (!cleaned.includes(low)) cleaned.push(low);\n}\n\nlet bestEmail = '';\nfor (const prefix of PRIORITY) {\n  const hit = cleaned.find(e => e.startsWith(prefix));\n  if (hit) { bestEmail = hit; break; }\n}\nif (!bestEmail && cleaned.length > 0) bestEmail = cleaned[0];\n\nconsole.log('[clx-email-scraper] homepage extract lead=' + lead.id + ' html_len=' + html.length + ' email=' + bestEmail);\n\nreturn {\n  json: {\n    id: lead.id,\n    company: lead.company,\n    website_url: lead.website_url,\n    base_url: lead.base_url,\n    contact_url: lead.contact_url,\n    email: bestEmail,\n    source_page: 'homepage'\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Extract emails from homepage HTML\n\nconst fetched = $input.item.json;\nconst lead = ($('Extract URL').first() || {}).json || {};\n\nlet html = '';\nif (typeof fetched === 'string') {\n  html = fetched;\n} else if (fetched && typeof fetched.data === 'string') {\n  html = fetched.data;\n} else if (fetched && typeof fetched.body === 'string') {\n  html = fetched.body;\n} else if (fetched) {\n  try { html = JSON.stringify(fetched); } catch (e) { html = ''; }\n}\n\nconst BLACKLIST_DOMAINS = [\n  'example.com','test.com','wixpress.com','googleapis.com','w3.org',\n  'schema.org','wordpress.org','jquery.com','cloudflare.com','google.com',\n  'facebook.com','twitter.com','instagram.com','godaddy.com','hostinger.com',\n  'squarespace.com','wix.com','shopify.com','mailchimp.com'\n];\nconst FREE_EMAIL_DOMAINS = ['gmail.com','outlook.com','yahoo.com','hotmail.com'];\nconst PERSONAL_SUBSTRINGS = ['crystallux.org','adesholaakintunde','kemmygracious'];\nconst BAD_SUFFIXES = ['.png','.jpg','.jpeg','.gif','.svg','.css','.js'];\nconst PRIORITY = ['info@','contact@','hello@','admin@','booking@'];\n\nconst emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\nconst raw = html.match(emailRegex) || [];\n\nconst cleaned = [];\nfor (const e of raw) {\n  const low = e.toLowerCase();\n  if (low.length > 60) continue;\n  if (BAD_SUFFIXES.some(s => low.endsWith(s))) continue;\n  if (BLACKLIST_DOMAINS.some(d => low.endsWith('@' + d) || low.endsWith('.' + d))) continue;\n  const domain = low.split('@')[1] || '';\n  if (FREE_EMAIL_DOMAINS.includes(domain)) continue;\n  if (PERSONAL_SUBSTRINGS.some(p => low.includes(p))) continue;\n  if (!cleaned.includes(low)) cleaned.push(low);\n}\n\nlet bestEmail = '';\nfor (const prefix of PRIORITY) {\n  const hit = cleaned.find(e => e.startsWith(prefix));\n  if (hit) { bestEmail = hit; break; }\n}\nif (!bestEmail && cleaned.length > 0) bestEmail = cleaned[0];\n\nconsole.log('[clx-email-scraper] homepage extract lead=' + lead.id + ' html_len=' + html.length + ' email=' + bestEmail);\n\nreturn {\n  json: {\n    id: lead.id,\n    company: lead.company,\n    website_url: lead.website_url,\n    contact_url: lead.contact_url,\n    email: bestEmail,\n    source_page: 'homepage'\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0009",
@@ -205,7 +228,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2120,
+        2200,
         300
       ]
     },
@@ -239,7 +262,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2360,
+        2440,
         300
       ]
     },
@@ -276,7 +299,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2600,
+        2680,
         420
       ],
       "continueOnFail": true,
@@ -284,7 +307,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper v2.1 — Extract emails from /contact page HTML\n\nconst fetched = $input.item.json;\nconst lead = ($('Extract URL').first() || {}).json || {};\n\nlet html = '';\nif (typeof fetched === 'string') {\n  html = fetched;\n} else if (fetched && typeof fetched.data === 'string') {\n  html = fetched.data;\n} else if (fetched && typeof fetched.body === 'string') {\n  html = fetched.body;\n} else if (fetched) {\n  try { html = JSON.stringify(fetched); } catch (e) { html = ''; }\n}\n\nconst BLACKLIST_DOMAINS = [\n  'example.com','test.com','wixpress.com','googleapis.com','w3.org',\n  'schema.org','wordpress.org','jquery.com','cloudflare.com','google.com',\n  'facebook.com','twitter.com','instagram.com','godaddy.com','hostinger.com',\n  'squarespace.com','wix.com','shopify.com','mailchimp.com'\n];\nconst BAD_SUFFIXES = ['.png','.jpg','.jpeg','.gif','.svg','.css','.js'];\nconst PRIORITY = ['info@','contact@','hello@','admin@','booking@'];\n\nconst emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\nconst raw = html.match(emailRegex) || [];\n\nconst cleaned = [];\nfor (const e of raw) {\n  const low = e.toLowerCase();\n  if (low.length > 60) continue;\n  if (BAD_SUFFIXES.some(s => low.endsWith(s))) continue;\n  if (BLACKLIST_DOMAINS.some(d => low.endsWith('@' + d) || low.endsWith('.' + d))) continue;\n  if (!cleaned.includes(low)) cleaned.push(low);\n}\n\nlet bestEmail = '';\nfor (const prefix of PRIORITY) {\n  const hit = cleaned.find(e => e.startsWith(prefix));\n  if (hit) { bestEmail = hit; break; }\n}\nif (!bestEmail && cleaned.length > 0) bestEmail = cleaned[0];\n\nconsole.log('[clx-email-scraper] contact extract lead=' + lead.id + ' html_len=' + html.length + ' email=' + bestEmail);\n\nreturn {\n  json: {\n    id: lead.id,\n    company: lead.company,\n    website_url: lead.website_url,\n    base_url: lead.base_url,\n    contact_url: lead.contact_url,\n    email: bestEmail,\n    source_page: 'contact'\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Extract emails from /contact page HTML\n\nconst fetched = $input.item.json;\nconst lead = ($('Extract URL').first() || {}).json || {};\n\nlet html = '';\nif (typeof fetched === 'string') {\n  html = fetched;\n} else if (fetched && typeof fetched.data === 'string') {\n  html = fetched.data;\n} else if (fetched && typeof fetched.body === 'string') {\n  html = fetched.body;\n} else if (fetched) {\n  try { html = JSON.stringify(fetched); } catch (e) { html = ''; }\n}\n\nconst BLACKLIST_DOMAINS = [\n  'example.com','test.com','wixpress.com','googleapis.com','w3.org',\n  'schema.org','wordpress.org','jquery.com','cloudflare.com','google.com',\n  'facebook.com','twitter.com','instagram.com','godaddy.com','hostinger.com',\n  'squarespace.com','wix.com','shopify.com','mailchimp.com'\n];\nconst FREE_EMAIL_DOMAINS = ['gmail.com','outlook.com','yahoo.com','hotmail.com'];\nconst PERSONAL_SUBSTRINGS = ['crystallux.org','adesholaakintunde','kemmygracious'];\nconst BAD_SUFFIXES = ['.png','.jpg','.jpeg','.gif','.svg','.css','.js'];\nconst PRIORITY = ['info@','contact@','hello@','admin@','booking@'];\n\nconst emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\nconst raw = html.match(emailRegex) || [];\n\nconst cleaned = [];\nfor (const e of raw) {\n  const low = e.toLowerCase();\n  if (low.length > 60) continue;\n  if (BAD_SUFFIXES.some(s => low.endsWith(s))) continue;\n  if (BLACKLIST_DOMAINS.some(d => low.endsWith('@' + d) || low.endsWith('.' + d))) continue;\n  const domain = low.split('@')[1] || '';\n  if (FREE_EMAIL_DOMAINS.includes(domain)) continue;\n  if (PERSONAL_SUBSTRINGS.some(p => low.includes(p))) continue;\n  if (!cleaned.includes(low)) cleaned.push(low);\n}\n\nlet bestEmail = '';\nfor (const prefix of PRIORITY) {\n  const hit = cleaned.find(e => e.startsWith(prefix));\n  if (hit) { bestEmail = hit; break; }\n}\nif (!bestEmail && cleaned.length > 0) bestEmail = cleaned[0];\n\nconsole.log('[clx-email-scraper] contact extract lead=' + lead.id + ' html_len=' + html.length + ' email=' + bestEmail);\n\nreturn {\n  json: {\n    id: lead.id,\n    company: lead.company,\n    website_url: lead.website_url,\n    contact_url: lead.contact_url,\n    email: bestEmail,\n    source_page: 'contact'\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0013",
@@ -292,7 +315,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2840,
+        2920,
         420
       ]
     },
@@ -326,7 +349,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3080,
+        3160,
         420
       ]
     },
@@ -337,7 +360,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1640,
+        1720,
         500
       ]
     },
@@ -348,13 +371,13 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        680,
+        760,
         500
       ]
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper — Run summary (fires once Split In Batches is done)\n\nconst items = $input.all();\nconst processed = items.length;\n\nconsole.log('[clx-email-scraper] Run complete. Processed ' + processed + ' leads this run.');\n\nreturn {\n  json: {\n    workflow: 'clx-email-scraper-v1',\n    processed_count: processed,\n    finished_at: new Date().toISOString()\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Run summary (fires once Split In Batches is done)\n\nconst items = $input.all();\nconst processed = items.length;\nconst dryRun = $('Config').first().json.dry_run;\n\nconsole.log('[clx-email-scraper] Run complete. Processed ' + processed + ' leads this run. dry_run=' + dryRun);\n\nreturn {\n  json: {\n    workflow: 'clx-email-scraper-v3',\n    processed_count: processed,\n    dry_run: dryRun,\n    finished_at: new Date().toISOString()\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0019",
@@ -362,13 +385,13 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
+        1240,
         500
       ]
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper v2.2 — Prep Update Homepage\n// Builds the RPC body from $input.item.json so nothing depends on\n// n8n expression resolution at the HTTP node level.\n\nconst item = $input.item.json || {};\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    email: item.email,\n    email_enriched: true,\n    email_enriched_at: new Date().toISOString()\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({\n  lead_id: item.id,\n  email: item.email || 'none',\n  path: 'homepage'\n}));\n\nreturn {\n  json: {\n    id: item.id,\n    email: item.email,\n    rpc_body: JSON.stringify(body)\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Prep Update Homepage\n\nconst item = $input.item.json || {};\nconst dryRun = $('Config').first().json.dry_run;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    email: item.email,\n    email_enriched: true,\n    email_enriched_at: new Date().toISOString()\n  }\n};\n\nif (dryRun) {\n  console.log('[clx-email-scraper] DRY RUN — would write: ' + JSON.stringify({ lead_id: item.id, email: item.email, path: 'homepage' }));\n} else {\n  console.log('[clx-email-scraper] PREP UPDATE: ' + JSON.stringify({ lead_id: item.id, email: item.email || 'none', path: 'homepage' }));\n}\n\nreturn {\n  json: {\n    id: item.id,\n    email: item.email,\n    rpc_body: body\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0021",
@@ -376,7 +399,40 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
+        2680,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-es-cond-not-dryrun-hp",
+              "leftValue": "={{ $('Config').first().json.dry_run }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-es-0031",
+      "name": "IF Not Dry Run HP",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2920,
         120
       ]
     },
@@ -405,8 +461,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2840,
-        120
+        3160,
+        60
       ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
@@ -418,7 +474,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper v2.2 — Prep Update Contact\n// Builds the RPC body from $input.item.json so nothing depends on\n// n8n expression resolution at the HTTP node level.\n\nconst item = $input.item.json || {};\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    email: item.email,\n    email_enriched: true,\n    email_enriched_at: new Date().toISOString()\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({\n  lead_id: item.id,\n  email: item.email || 'none',\n  path: 'contact'\n}));\n\nreturn {\n  json: {\n    id: item.id,\n    email: item.email,\n    rpc_body: JSON.stringify(body)\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Prep Update Contact\n\nconst item = $input.item.json || {};\nconst dryRun = $('Config').first().json.dry_run;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    email: item.email,\n    email_enriched: true,\n    email_enriched_at: new Date().toISOString()\n  }\n};\n\nif (dryRun) {\n  console.log('[clx-email-scraper] DRY RUN — would write: ' + JSON.stringify({ lead_id: item.id, email: item.email, path: 'contact' }));\n} else {\n  console.log('[clx-email-scraper] PREP UPDATE: ' + JSON.stringify({ lead_id: item.id, email: item.email || 'none', path: 'contact' }));\n}\n\nreturn {\n  json: {\n    id: item.id,\n    email: item.email,\n    rpc_body: body\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0023",
@@ -426,8 +482,41 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3320,
-        280
+        3400,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-es-cond-not-dryrun-contact",
+              "leftValue": "={{ $('Config').first().json.dry_run }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-es-0032",
+      "name": "IF Not Dry Run Contact",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3640,
+        320
       ]
     },
     {
@@ -455,8 +544,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3560,
-        280
+        3880,
+        260
       ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
@@ -468,7 +557,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Email Scraper v2.2 — Prep Update NoEmail\n// Marks the lead as enriched with no email found.\n\nconst item = $input.item.json || {};\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    email_enriched: true,\n    email_enriched_at: new Date().toISOString()\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({\n  lead_id: item.id,\n  email: 'none',\n  path: 'noemail'\n}));\n\nreturn {\n  json: {\n    id: item.id,\n    rpc_body: JSON.stringify(body)\n  }\n};",
+        "jsCode": "// CLX Email Scraper v3 — Prep Update NoEmail\n// Marks the lead as enriched with no email found.\n\nconst item = $input.item.json || {};\nconst dryRun = $('Config').first().json.dry_run;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    email_enriched: true,\n    email_enriched_at: new Date().toISOString()\n  }\n};\n\nif (dryRun) {\n  console.log('[clx-email-scraper] DRY RUN — would write: ' + JSON.stringify({ lead_id: item.id, email: 'none', path: 'noemail' }));\n} else {\n  console.log('[clx-email-scraper] PREP UPDATE: ' + JSON.stringify({ lead_id: item.id, email: 'none', path: 'noemail' }));\n}\n\nreturn {\n  json: {\n    id: item.id,\n    rpc_body: body\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-es-0025",
@@ -476,7 +565,40 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3320,
+        3400,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-es-cond-not-dryrun-noemail",
+              "leftValue": "={{ $('Config').first().json.dry_run }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-es-0033",
+      "name": "IF Not Dry Run NoEmail",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3640,
         520
       ]
     },
@@ -505,8 +627,95 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3560,
+        3880,
         520
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Email Scraper v3 — Check RPC result and log errors to scan_errors\n\nconst response = $input.item.json;\n\n// Identify which lead was processed (try each Prep Update path)\nlet leadId = 'unknown';\ntry { leadId = $('Prep Update Homepage').first().json.id; } catch(e) {}\nif (leadId === 'unknown') try { leadId = $('Prep Update Contact').first().json.id; } catch(e) {}\nif (leadId === 'unknown') try { leadId = $('Prep Update No Email').first().json.id; } catch(e) {}\n\n// Detect error in Supabase RPC response\nconst responseStr = JSON.stringify(response);\nconst isError = !!(response.error || response.message || (response.code && response.code !== '200'));\n\nif (isError) {\n  console.log('[clx-email-scraper] RPC FAILED lead=' + leadId + ' response=' + responseStr.substring(0, 300));\n  return {\n    json: {\n      rpc_error: true,\n      error_body: JSON.stringify({\n        lead_id: leadId,\n        error_code: 'scraper_write_failed',\n        error_message: responseStr.substring(0, 500),\n        created_at: new Date().toISOString()\n      })\n    }\n  };\n}\n\nconsole.log('[clx-email-scraper] RPC OK lead=' + leadId);\nreturn { json: { rpc_error: false, lead_id: leadId } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-es-0034",
+      "name": "Check RPC Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-es-cond-rpc-failed",
+              "leftValue": "={{ $json.rpc_error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-es-0035",
+      "name": "IF RPC Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.error_body }}",
+        "options": {}
+      },
+      "id": "clx-es-0036",
+      "name": "Log Scan Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4600,
+        200
       ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
@@ -519,6 +728,17 @@
   ],
   "connections": {
     "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
       "main": [
         [
           {
@@ -711,7 +931,25 @@
       "main": [
         [
           {
+            "node": "IF Not Dry Run HP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Not Dry Run HP": {
+      "main": [
+        [
+          {
             "node": "RPC Update Homepage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split In Batches",
             "type": "main",
             "index": 0
           }
@@ -722,7 +960,7 @@
       "main": [
         [
           {
-            "node": "Split In Batches",
+            "node": "Check RPC Result",
             "type": "main",
             "index": 0
           }
@@ -733,7 +971,25 @@
       "main": [
         [
           {
+            "node": "IF Not Dry Run Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Not Dry Run Contact": {
+      "main": [
+        [
+          {
             "node": "RPC Update Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split In Batches",
             "type": "main",
             "index": 0
           }
@@ -744,7 +1000,7 @@
       "main": [
         [
           {
-            "node": "Split In Batches",
+            "node": "Check RPC Result",
             "type": "main",
             "index": 0
           }
@@ -755,7 +1011,25 @@
       "main": [
         [
           {
+            "node": "IF Not Dry Run NoEmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Not Dry Run NoEmail": {
+      "main": [
+        [
+          {
             "node": "RPC Update No Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split In Batches",
             "type": "main",
             "index": 0
           }
@@ -763,6 +1037,46 @@
       ]
     },
     "RPC Update No Email": {
+      "main": [
+        [
+          {
+            "node": "Check RPC Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check RPC Result": {
+      "main": [
+        [
+          {
+            "node": "IF RPC Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF RPC Failed": {
+      "main": [
+        [
+          {
+            "node": "Log Scan Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Scan Error": {
       "main": [
         [
           {
