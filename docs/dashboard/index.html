@@ -45,8 +45,9 @@
     position:sticky;top:0;z-index:100;
     padding:14px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;
   }
-  .logo{font-size:22px;font-weight:800;color:var(--primary);letter-spacing:-0.5px;flex-shrink:0}
+  .logo{font-size:22px;font-weight:800;color:var(--primary);letter-spacing:-0.5px;flex-shrink:0;display:flex;align-items:center;gap:10px}
   .logo span{color:var(--secondary);font-weight:600}
+  .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--primary),var(--secondary));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;font-weight:800;box-shadow:0 2px 12px rgba(127,119,221,0.3)}
   nav ul{display:flex;gap:28px;list-style:none}
   nav a{color:var(--text-dim);font-weight:500;font-size:14px;transition:color .2s;cursor:pointer}
   nav a:hover,nav a.active{color:var(--primary)}
@@ -69,7 +70,21 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
   .section{margin-bottom:36px}
-  .section-title{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-dimmer);margin-bottom:14px;font-weight:600}
+  .section-title{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-dimmer);margin-bottom:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+
+  /* HERO / BRAND STRIP */
+  .hero-strip{background:linear-gradient(135deg,rgba(127,119,221,0.12),rgba(29,158,117,0.08));border:1px solid rgba(127,119,221,0.2);border-radius:16px;padding:28px 32px;margin-bottom:32px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  .hero-left{display:flex;align-items:center;gap:18px}
+  .hero-logo{width:56px;height:56px;background:linear-gradient(135deg,var(--primary),var(--secondary));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;font-weight:800;box-shadow:0 4px 20px rgba(127,119,221,0.3);flex-shrink:0}
+  .hero-text h1{font-size:24px;font-weight:800;color:var(--text);letter-spacing:-0.5px}
+  .hero-text p{font-size:13px;color:var(--text-dim);margin-top:2px}
+  .hero-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .hero-stat{text-align:center;padding:0 16px}
+  .hero-stat .hero-stat-value{font-size:22px;font-weight:700;color:var(--primary)}
+  .hero-stat .hero-stat-label{font-size:11px;color:var(--text-dimmer);text-transform:uppercase;letter-spacing:0.6px;margin-top:2px}
+  .hero-divider{width:1px;height:40px;background:var(--border)}
+  .refresh-indicator{font-size:11px;color:var(--text-dimmer);display:flex;align-items:center;gap:6px}
+  .refresh-indicator .refresh-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 
   /* STAT CARDS */
   .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:14px}
@@ -98,6 +113,7 @@
   .badge-yellow{background:rgba(234,179,8,0.18);color:#facc15}
   .badge-green{background:rgba(16,185,129,0.18);color:#34d399}
   .badge-teal{background:rgba(20,184,166,0.18);color:#2dd4bf}
+  .badge-red{background:rgba(239,68,68,0.18);color:#f87171}
 
   /* EMAIL LOG ROW COLORS */
   .emails-row-replied td{background:rgba(16,185,129,0.10)}
@@ -129,6 +145,9 @@
   .activity-dot.green{background:var(--green)}
   .activity-dot.teal{background:var(--teal)}
   .activity-dot.blue{background:var(--blue)}
+  .activity-dot.orange{background:var(--orange)}
+  .activity-dot.purple{background:var(--purple)}
+  .activity-dot.red{background:var(--red)}
   .activity-text{font-size:13px;color:var(--text);line-height:1.5}
   .activity-text .activity-time{display:block;font-size:11px;color:var(--text-dimmer);margin-top:3px}
 
@@ -139,7 +158,7 @@
   .action-btn:disabled{opacity:0.6;cursor:wait}
   .action-btn .label{font-weight:600;margin-bottom:4px}
   .action-btn .desc{font-size:12px;color:var(--text-dimmer)}
-  .action-result{margin-top:10px;padding:10px;background:var(--bg-3);border-radius:8px;font-size:12px;color:var(--text-dim);font-family:'SF Mono',Consolas,monospace;max-height:140px;overflow-y:auto;white-space:pre-wrap;display:none}
+  .action-result{margin-top:10px;padding:10px;background:var(--bg-3);border-radius:8px;font-size:12px;color:var(--text-dim);font-family:'SF Mono',Consolas,monospace;max-height:300px;overflow-y:auto;white-space:pre-wrap;display:none}
   .action-result.show{display:block}
   .action-result.error{color:var(--red);font-family:inherit}
 
@@ -168,8 +187,63 @@
   .api-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   .api-dot.green{background:var(--green);box-shadow:0 0 8px var(--green)}
   .api-dot.red{background:var(--red);box-shadow:0 0 8px var(--red)}
+  .api-dot.yellow{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}
   .api-name{font-weight:600;font-size:13px}
   .api-detail{font-size:11px;color:var(--text-dimmer);margin-top:2px}
+
+  /* SCAN MONITOR */
+  .scan-stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:18px}
+  .scan-stat{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .scan-stat .scan-stat-value{font-size:28px;font-weight:700;color:var(--text)}
+  .scan-stat .scan-stat-label{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-dimmer);font-weight:600;margin-top:4px}
+  .scan-stat.highlight .scan-stat-value{color:var(--secondary)}
+  .scan-stat.warn .scan-stat-value{color:var(--orange)}
+  .scan-stat.danger .scan-stat-value{color:var(--red)}
+
+  /* ENRICHMENT PROGRESS */
+  .enrichment-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+  .enrichment-card{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center}
+  .enrichment-card .enrich-value{font-size:28px;font-weight:700}
+  .enrichment-card .enrich-label{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-dimmer);font-weight:600;margin-top:4px}
+  .progress-bar-wrap{background:var(--bg-3);border-radius:99px;height:10px;overflow:hidden;margin-top:10px}
+  .progress-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary),var(--secondary));transition:width .6s ease}
+
+  /* FUNNEL */
+  .funnel-wrap{display:flex;flex-direction:column;gap:10px;padding:20px}
+  .funnel-row{display:flex;align-items:center;gap:14px}
+  .funnel-label{width:130px;font-size:12px;font-weight:600;color:var(--text-dim);text-align:right;flex-shrink:0}
+  .funnel-bar-track{flex:1;background:var(--bg-3);border-radius:6px;height:28px;position:relative;overflow:hidden}
+  .funnel-bar{height:100%;border-radius:6px;transition:width .6s ease;display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:700;color:#fff;min-width:fit-content}
+  .funnel-bar.green{background:linear-gradient(90deg,#10b981,#059669)}
+  .funnel-bar.blue{background:linear-gradient(90deg,#3b82f6,#2563eb)}
+  .funnel-bar.purple{background:linear-gradient(90deg,#8b5cf6,#7c3aed)}
+  .funnel-bar.orange{background:linear-gradient(90deg,#f59e0b,#d97706)}
+  .funnel-bar.yellow{background:linear-gradient(90deg,#eab308,#ca8a04)}
+  .funnel-bar.teal{background:linear-gradient(90deg,#14b8a6,#0d9488)}
+  .funnel-bar.gray{background:linear-gradient(90deg,#6b7280,#4b5563)}
+  .funnel-bar.red{background:linear-gradient(90deg,#ef4444,#dc2626)}
+  .funnel-count{font-size:12px;color:var(--text-dimmer);width:50px;text-align:right;flex-shrink:0}
+
+  /* TIMELINE */
+  .timeline-feed{display:flex;flex-direction:column}
+  .timeline-item{display:flex;gap:14px;padding:12px 20px;border-bottom:1px solid rgba(42,52,84,0.5);align-items:center}
+  .timeline-item:last-child{border-bottom:none}
+  .timeline-item:hover{background:rgba(127,119,221,0.04)}
+  .timeline-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .timeline-company{font-size:13px;font-weight:600;color:var(--text);min-width:160px}
+  .timeline-status{flex:1}
+  .timeline-time{font-size:11px;color:var(--text-dimmer);white-space:nowrap}
+
+  /* CLIENT PERFORMANCE */
+  .perf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .perf-card{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;transition:border-color .2s}
+  .perf-card:hover{border-color:var(--primary)}
+  .perf-card h4{font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .perf-card h4 .perf-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--primary),var(--secondary));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;flex-shrink:0}
+  .perf-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .perf-stat{text-align:center;padding:8px;background:var(--bg-3);border-radius:8px}
+  .perf-stat .perf-num{font-size:20px;font-weight:700}
+  .perf-stat .perf-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-dimmer);margin-top:2px}
 
   /* ERROR / EMPTY STATES */
   .friendly-error{text-align:center;padding:30px 20px;color:var(--text-dim);font-size:13px;line-height:1.6}
@@ -195,7 +269,7 @@
   .modal-field .hint{font-size:11px;color:var(--text-dimmer);font-weight:400;text-transform:none;letter-spacing:normal;margin-left:6px}
   .modal-field input{width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'SF Mono',Consolas,monospace;font-size:13px;outline:none;transition:border-color .2s}
   .modal-field input:focus{border-color:var(--primary)}
-  .modal-actions{display:flex;gap:10px;margin-top:22px;justify-content:flex-end}
+  .modal-actions{display:flex;gap:10px;margin-top:22px;justify-content:flex-end;flex-wrap:wrap}
   .modal-btn{padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;border:none;font-family:inherit;transition:all .2s}
   .modal-btn.primary{background:var(--primary);color:#fff}
   .modal-btn.primary:hover{background:var(--primary-dark)}
@@ -215,6 +289,13 @@
     .status-pill{display:none}
     main{padding:16px}
     .stat-value{font-size:24px}
+    .hero-strip{padding:20px;flex-direction:column;text-align:center}
+    .hero-left{flex-direction:column}
+    .hero-right{justify-content:center}
+    .hero-divider{width:40px;height:1px}
+    .funnel-label{width:80px;font-size:11px}
+    .timeline-company{min-width:100px}
+    .perf-grid{grid-template-columns:1fr}
   }
 </style>
 </head>
@@ -224,7 +305,10 @@
   <button class="hamburger" id="hamburgerBtn" aria-label="Toggle navigation menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
-  <div class="logo">Crystallux<span> AI</span></div>
+  <div class="logo">
+    <div class="logo-icon">C</div>
+    Crystallux<span> AI</span>
+  </div>
   <nav id="mainNav">
     <ul>
       <li><a href="#dashboard" class="active">Dashboard</a></li>
@@ -232,7 +316,7 @@
       <li><a href="#emails">Emails</a></li>
       <li><a href="#crm">CRM</a></li>
       <li><a href="#activity">Activity</a></li>
-      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#actions">Actions</a></li>
       <li><a href="#" id="navSettings">Settings</a></li>
     </ul>
   </nav>
@@ -251,20 +335,20 @@
     <div class="modal-subtitle">Enter only the keys you need. Each key unlocks a different part of the dashboard. Keys are stored only in browser memory for this session and cleared when you close the tab.</div>
     <div class="modal-field">
       <label for="supabaseKeyInput">Supabase Key <span class="hint">— unlocks pipeline stats &amp; leads</span></label>
-      <input id="supabaseKeyInput" type="password" placeholder="sb_secret_..." autocomplete="off" />
+      <input id="supabaseKeyInput" type="password" placeholder="eyJhbGci..." autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label for="n8nUrlInput">n8n URL <span class="hint">— automation server (default: automation.crystallux.org)</span></label>
+      <input id="n8nUrlInput" type="text" placeholder="https://automation.crystallux.org" autocomplete="off" />
     </div>
     <div class="modal-field">
       <label for="claudeKeyInput">Claude API Key <span class="hint">— unlocks chat assistant</span></label>
       <input id="claudeKeyInput" type="password" placeholder="sk-ant-..." autocomplete="off" />
     </div>
-    <div class="modal-field">
-      <label for="mcpKeyInput">MCP API Key <span class="hint">— unlocks quick actions</span></label>
-      <input id="mcpKeyInput" type="password" placeholder="mcp-..." autocomplete="off" />
-    </div>
     <div class="modal-actions">
       <button class="modal-btn secondary" id="clearKeysBtn">Clear</button>
       <button class="modal-btn secondary" id="clearSavedKeysBtn">Clear Saved Keys</button>
-      <button class="modal-btn secondary" id="testSupabaseBtn">Test Supabase Connection</button>
+      <button class="modal-btn secondary" id="testSupabaseBtn">Test Supabase</button>
       <button class="modal-btn primary" id="saveKeysBtn">Save</button>
     </div>
     <div id="testSupabaseResult" style="margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;display:none"></div>
@@ -292,15 +376,92 @@
     Opening directly from <code>file://</code> will block API calls due to browser CORS policy. In a terminal run <code>npx serve docs/dashboard</code> then open <code>http://localhost:3000</code>.
   </div>
 
-  <!-- SECTION 1: PIPELINE STATS -->
+  <!-- HERO / BRAND STRIP -->
+  <div class="hero-strip" id="heroStrip">
+    <div class="hero-left">
+      <div class="hero-logo">C</div>
+      <div class="hero-text">
+        <h1>Crystallux Sales Engine</h1>
+        <p>AI-powered lead discovery, outreach &amp; booking automation</p>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-stat">
+        <div class="hero-stat-value" id="heroTotal">—</div>
+        <div class="hero-stat-label">Total Leads</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-value" id="heroEmailed" style="color:var(--secondary)">—</div>
+        <div class="hero-stat-label">Emailed</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-value" id="heroBooked" style="color:var(--teal)">—</div>
+        <div class="hero-stat-label">Booked</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="refresh-indicator">
+        <div class="refresh-dot"></div>
+        <span id="refreshTimer">Auto-refresh: 60s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: PIPELINE STATS (live from leads table) -->
   <section class="section" id="dashboard">
-    <div class="section-title">Pipeline Stats</div>
+    <div class="section-title">Pipeline Stats — Live</div>
     <div class="stat-grid" id="statGrid">
       <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value"><div class="spinner"></div></div></div>
     </div>
   </section>
 
-  <!-- SECTION 2: RECENT LEADS -->
+  <!-- SECTION: SCAN MONITOR -->
+  <section class="section" id="scanMonitor">
+    <div class="section-title">Scan Monitor — Today</div>
+    <div class="scan-stats-grid" id="scanStatsGrid">
+      <div class="scan-stat"><div class="scan-stat-value"><div class="spinner"></div></div><div class="scan-stat-label">Loading…</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Last 7 Days Scan History</div>
+        <div style="font-size:12px;color:var(--text-dimmer)" id="scanUpdated">—</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Scans</th><th>New Leads</th><th>Duplicates</th><th>Errors</th></tr>
+          </thead>
+          <tbody id="scanHistoryBody">
+            <tr><td colspan="5" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: EMAIL ENRICHMENT PROGRESS -->
+  <section class="section" id="enrichment">
+    <div class="section-title">Email Enrichment Progress</div>
+    <div class="enrichment-grid" id="enrichmentGrid">
+      <div class="enrichment-card"><div class="enrich-value"><div class="spinner"></div></div><div class="enrich-label">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- SECTION: LEAD PIPELINE FUNNEL -->
+  <section class="section" id="funnel">
+    <div class="section-title">Lead Pipeline Funnel</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Leads by Stage</div>
+      </div>
+      <div class="funnel-wrap" id="funnelWrap">
+        <div style="text-align:center;padding:30px"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: RECENT LEADS -->
   <section class="section" id="leads">
     <div class="section-title">Recent Leads</div>
     <div class="card">
@@ -321,7 +482,7 @@
     </div>
   </section>
 
-  <!-- SECTION 2B: RECENT EMAILS SENT -->
+  <!-- SECTION: RECENT EMAILS SENT -->
   <section class="section" id="emails">
     <div class="section-title">Recent Emails Sent</div>
     <div class="card">
@@ -342,7 +503,29 @@
     </div>
   </section>
 
-  <!-- SECTION 2C: CRM QUICK ACCESS -->
+  <!-- SECTION: RECENT ACTIVITY TIMELINE -->
+  <section class="section" id="activity">
+    <div class="section-title">Recent Activity Timeline</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Last 20 Status Changes</div>
+        <div style="font-size:12px;color:var(--text-dimmer)" id="timelineUpdated">—</div>
+      </div>
+      <div class="timeline-feed" id="timelineFeed">
+        <div class="timeline-item"><div style="text-align:center;width:100%;padding:20px"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION: CLIENT PERFORMANCE CARDS -->
+  <section class="section" id="clientPerf">
+    <div class="section-title">Client Performance</div>
+    <div class="perf-grid" id="perfGrid">
+      <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+
+  <!-- SECTION: CRM QUICK ACCESS -->
   <section class="section" id="crm">
     <div class="section-title">CRM Quick Access</div>
     <div class="crm-note">Connect your client CRM in Settings to enable direct CRM access.</div>
@@ -351,33 +534,19 @@
     </div>
   </section>
 
-  <!-- SECTION 2D: AGENT ACTIVITY FEED -->
-  <section class="section" id="activity">
-    <div class="section-title">Agent Activity Feed</div>
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Last 24 Hours</div>
-        <div style="font-size:12px;color:var(--text-dimmer)" id="activityUpdated">—</div>
-      </div>
-      <div class="activity-feed" id="activityFeed">
-        <div class="activity-item"><div style="text-align:center;width:100%;padding:20px"><div class="spinner"></div></div></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SECTION 3: QUICK ACTIONS -->
-  <section class="section" id="pipeline">
+  <!-- SECTION: QUICK ACTIONS (Supabase-powered, no MCP) -->
+  <section class="section" id="actions">
     <div class="section-title">Quick Actions</div>
     <div class="actions-grid" id="actionsGrid"></div>
   </section>
 
-  <!-- SECTION 5: API STATUS -->
-  <section class="section" id="clients">
+  <!-- SECTION: API STATUS -->
+  <section class="section" id="apiStatus">
     <div class="section-title">API Status</div>
     <div class="api-grid" id="apiGrid"></div>
   </section>
 
-  <!-- SECTION 4: CHAT -->
+  <!-- SECTION: CHAT -->
   <section class="section">
     <div class="section-title">Crystallux AI Assistant</div>
     <div class="card chat-card">
@@ -393,74 +562,123 @@
 </main>
 
 <footer>
-  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v1.4.13</div>
-  <div>© 2026 Crystallux | Licensed Insurance Broker</div>
+  <div><span class="brand">Crystallux Universal AI Sales Engine</span> &nbsp;v2.0.0</div>
+  <div>&copy; 2026 Crystallux | Licensed Insurance Broker</div>
   <div>info@crystallux.org</div>
 </footer>
 
 <script>
 /* ============================================================
-   CRYSTALLUX DASHBOARD
+   CRYSTALLUX DASHBOARD v2.0
    ============================================================ */
 
 const SUPABASE_URL = 'https://zqwatouqmqgkmaslydbr.supabase.co';
-const MCP_GATEWAY  = 'https://automation.crystallux.org/webhook/crystallux-mcp';
-const N8N_HEALTH   = 'https://automation.crystallux.org/healthz';
 const CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
 
 const NO_SUPABASE_MSG = 'No data — check your Supabase key in Settings';
 const FRIENDLY_ERROR  = 'Could not load data — check your API keys in Settings.';
 
-/* In-memory credential store. Lives only in this JS variable for this tab.
-   Cleared automatically when the tab closes. */
-const credentials = { claudeKey:'', supabaseKey:'', mcpKey:'' };
+const credentials = { claudeKey:'', supabaseKey:'', n8nUrl:'' };
 
 const hasSupabase = () => !!credentials.supabaseKey;
 const hasClaude   = () => !!credentials.claudeKey;
-const hasMCP      = () => !!credentials.mcpKey;
+const getN8nUrl   = () => credentials.n8nUrl || 'https://automation.crystallux.org';
 
 function supabaseHeaders() {
   const key = credentials.supabaseKey;
-  const headers = {
+  return {
     'apikey': key,
     'Authorization': 'Bearer ' + key,
     'Content-Type': 'application/json'
   };
-  console.log('[supabaseHeaders] key length:', key ? key.length : 0, 'prefix:', key ? key.slice(0, 8) : '(empty)');
-  console.log('[supabaseHeaders] returning:', { apikey: headers.apikey ? '(set)' : '(empty)', Authorization: headers.Authorization ? '(set)' : '(empty)', 'Content-Type': headers['Content-Type'] });
-  return headers;
+}
+
+function supabaseCountHeaders() {
+  const h = supabaseHeaders();
+  h['Prefer'] = 'count=exact';
+  return h;
 }
 
 function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-/* ---- SECTION 1: STAT CARDS ---- */
-const STATUS_BUCKETS = [
-  { key:'Total Leads',    col:'total_leads',           primary:true },
-  { key:'New Leads',      col:'new_lead_count' },
-  { key:'Researched',     col:'researched_count' },
-  { key:'Scored',         col:'scored_count' },
-  { key:'Outreach Ready', col:'outreach_ready_count' },
-  { key:'Contacted',      col:'contacted_count' },
-  { key:'Replied',        col:'replied_count' },
-  { key:'Booking Sent',   col:'booking_sent_count' },
-  { key:'Booked',         col:'booked_count',          secondary:true }
+function formatDateTime(s) {
+  if (!s) return '—';
+  try {
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString();
+  } catch (e) { return '—'; }
+}
+
+function relativeTime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+  const days = Math.floor(hours / 24);
+  return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function showLocked(elementId, message, settingsLinkId) {
+  const el = document.getElementById(elementId);
+  el.innerHTML =
+    '<div class="friendly-error">' +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
+      ' <a id="' + settingsLinkId + '">Open Settings</a>' +
+    '</div>';
+  const link = document.getElementById(settingsLinkId);
+  if (link) link.addEventListener('click', openSettings);
+}
+
+/* ================================================================
+   SECTION 1: PIPELINE STATS (live from leads table)
+   ================================================================ */
+const PIPELINE_STAGES = [
+  { key:'New Lead',       color:'gray' },
+  { key:'Researched',     color:'blue' },
+  { key:'Scored',         color:'purple' },
+  { key:'Outreach Ready', color:'orange' },
+  { key:'Contacted',      color:'yellow' },
+  { key:'Replied',        color:'green' },
+  { key:'Booking Sent',   color:'teal' },
+  { key:'Booked',         color:'teal' },
+  { key:'Lost',           color:'red' }
 ];
 
-function renderStats(snapshot) {
+let latestPipelineCounts = {};
+
+function renderStats(total, counts) {
   const grid = document.getElementById('statGrid');
-  grid.innerHTML = STATUS_BUCKETS.map(b => {
-    const value = snapshot[b.col] || 0;
-    const cls = b.primary ? 'primary' : (b.secondary ? 'secondary' : '');
-    return '<div class="stat-card ' + cls + '"><div class="stat-label">' + b.key + '</div><div class="stat-value">' + value + '</div></div>';
-  }).join('');
+  let html = '<div class="stat-card primary"><div class="stat-label">Total Leads</div><div class="stat-value">' + total + '</div></div>';
+  PIPELINE_STAGES.forEach(s => {
+    const val = counts[s.key] || 0;
+    if (val === 0 && (s.key === 'Lost' || s.key === 'Booking Sent')) return;
+    const cls = s.key === 'Booked' ? 'secondary' : '';
+    html += '<div class="stat-card ' + cls + '"><div class="stat-label">' + escapeHtml(s.key) + '</div><div class="stat-value">' + val + '</div></div>';
+  });
+  grid.innerHTML = html;
+
+  // Update hero stats
+  document.getElementById('heroTotal').textContent = total;
+  document.getElementById('heroEmailed').textContent = (counts['Contacted'] || 0) + (counts['Replied'] || 0) + (counts['Booking Sent'] || 0) + (counts['Booked'] || 0);
+  document.getElementById('heroBooked').textContent = counts['Booked'] || 0;
 }
 
 function showStatsLocked(message) {
   document.getElementById('statGrid').innerHTML =
     '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
-      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
       ' <a id="statsOpenSettings">Open Settings</a>' +
     '</div></div>';
   const link = document.getElementById('statsOpenSettings');
@@ -470,30 +688,197 @@ function showStatsLocked(message) {
 async function fetchPipelineStats() {
   if (!hasSupabase()) { showStatsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const url = SUPABASE_URL + '/rest/v1/pipeline_stats?select=*&order=snapshot_date.desc&limit=1';
+    const url = SUPABASE_URL + '/rest/v1/leads?select=lead_status';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
     }
     const rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) { showStatsLocked('No pipeline snapshot found yet.'); return; }
-    renderStats(rows[0]);
+    if (!Array.isArray(rows)) { showStatsLocked('Unexpected response.'); return; }
+    const total = rows.length;
+    const counts = {};
+    rows.forEach(r => {
+      const s = r.lead_status || 'New Lead';
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    latestPipelineCounts = counts;
+    renderStats(total, counts);
+    renderFunnel(total, counts);
   } catch (e) {
     showStatsLocked('Pipeline Stats error: ' + e.message);
   }
 }
 
-/* ---- SECTION 2: RECENT LEADS TABLE ---- */
+/* ================================================================
+   SECTION: LEAD PIPELINE FUNNEL
+   ================================================================ */
+const FUNNEL_COLORS = {
+  'New Lead':'gray','Researched':'blue','Scored':'purple',
+  'Outreach Ready':'orange','Contacted':'yellow','Replied':'green',
+  'Booking Sent':'teal','Booked':'teal','Lost':'red'
+};
+
+const FUNNEL_TYPE = {
+  'New Lead':'active','Researched':'active','Scored':'active',
+  'Outreach Ready':'active','Contacted':'active','Replied':'active',
+  'Booking Sent':'active','Booked':'active','Lost':'lost'
+};
+
+function renderFunnel(total, counts) {
+  const wrap = document.getElementById('funnelWrap');
+  if (total === 0) {
+    wrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-dimmer)">No leads yet.</div>';
+    return;
+  }
+  const maxCount = Math.max(...Object.values(counts), 1);
+  let html = '';
+  PIPELINE_STAGES.forEach(s => {
+    const val = counts[s.key] || 0;
+    if (val === 0 && (s.key === 'Lost' || s.key === 'Booking Sent')) return;
+    const pct = Math.max((val / maxCount) * 100, 3);
+    const colorClass = FUNNEL_COLORS[s.key] || 'gray';
+    html += '<div class="funnel-row">' +
+      '<div class="funnel-label">' + escapeHtml(s.key) + '</div>' +
+      '<div class="funnel-bar-track"><div class="funnel-bar ' + colorClass + '" style="width:' + pct.toFixed(1) + '%">' + val + '</div></div>' +
+      '<div class="funnel-count">' + (total > 0 ? Math.round(val / total * 100) : 0) + '%</div>' +
+    '</div>';
+  });
+  wrap.innerHTML = html;
+}
+
+/* ================================================================
+   SECTION: SCAN MONITOR
+   ================================================================ */
+function renderScanToday(rows) {
+  const grid = document.getElementById('scanStatsGrid');
+  let scans = 0, newLeads = 0, dupes = 0, errors = 0;
+  rows.forEach(r => {
+    scans += r.scan_count || 1;
+    newLeads += r.new_leads_found || 0;
+    dupes += r.duplicates_skipped || 0;
+    errors += r.error_count || 0;
+  });
+  grid.innerHTML =
+    '<div class="scan-stat highlight"><div class="scan-stat-value">' + scans + '</div><div class="scan-stat-label">Scans Today</div></div>' +
+    '<div class="scan-stat highlight"><div class="scan-stat-value">' + newLeads + '</div><div class="scan-stat-label">New Leads Found</div></div>' +
+    '<div class="scan-stat warn"><div class="scan-stat-value">' + dupes + '</div><div class="scan-stat-label">Duplicates Skipped</div></div>' +
+    '<div class="scan-stat' + (errors > 0 ? ' danger' : '') + '"><div class="scan-stat-value">' + errors + '</div><div class="scan-stat-label">Errors</div></div>';
+}
+
+function renderScanHistory(rows) {
+  const body = document.getElementById('scanHistoryBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-dimmer)">No scan history available.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r =>
+    '<tr>' +
+      '<td style="color:var(--text);font-weight:500">' + escapeHtml(r.scan_date || r.scanned_date || '—') + '</td>' +
+      '<td>' + (r.total_scans || r.scan_count || 0) + '</td>' +
+      '<td style="color:var(--green)">' + (r.new_leads_found || 0) + '</td>' +
+      '<td style="color:var(--orange)">' + (r.duplicates_skipped || 0) + '</td>' +
+      '<td style="color:' + ((r.error_count || 0) > 0 ? 'var(--red)' : 'var(--text-dim)') + '">' + (r.error_count || 0) + '</td>' +
+    '</tr>'
+  ).join('');
+  document.getElementById('scanUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function showScanLocked(message) {
+  document.getElementById('scanStatsGrid').innerHTML =
+    '<div class="scan-stat" style="grid-column:1/-1"><div class="friendly-error">' +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
+      ' <a id="scanOpenSettings">Open Settings</a>' +
+    '</div></div>';
+  document.getElementById('scanHistoryBody').innerHTML =
+    '<tr><td colspan="5"><div class="friendly-error">' + escapeHtml(message) + '</div></td></tr>';
+  const link = document.getElementById('scanOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchScanMonitor() {
+  if (!hasSupabase()) { showScanLocked(NO_SUPABASE_MSG); return; }
+  try {
+    // Today's scans
+    const today = todayISO();
+    const todayUrl = SUPABASE_URL + '/rest/v1/scan_log?select=*&scanned_at=gte.' + today + 'T00:00:00';
+    const todayRes = await fetch(todayUrl, { headers: supabaseHeaders(), mode: 'cors' });
+    if (todayRes.ok) {
+      const todayRows = await todayRes.json();
+      if (Array.isArray(todayRows)) renderScanToday(todayRows);
+      else renderScanToday([]);
+    } else {
+      renderScanToday([]);
+    }
+
+    // 7-day history from dashboard_scan_summary view
+    const histUrl = SUPABASE_URL + '/rest/v1/dashboard_scan_summary?select=*&order=scan_date.desc&limit=7';
+    const histRes = await fetch(histUrl, { headers: supabaseHeaders(), mode: 'cors' });
+    if (histRes.ok) {
+      const histRows = await histRes.json();
+      if (Array.isArray(histRows)) renderScanHistory(histRows);
+      else renderScanHistory([]);
+    } else {
+      renderScanHistory([]);
+    }
+  } catch (e) {
+    showScanLocked('Scan Monitor error: ' + e.message);
+  }
+}
+
+/* ================================================================
+   SECTION: EMAIL ENRICHMENT PROGRESS
+   ================================================================ */
+function renderEnrichment(total, hasEmail) {
+  const noEmail = total - hasEmail;
+  const pct = total > 0 ? Math.round(hasEmail / total * 100) : 0;
+  const grid = document.getElementById('enrichmentGrid');
+  grid.innerHTML =
+    '<div class="enrichment-card"><div class="enrich-value" style="color:var(--primary)">' + total + '</div><div class="enrich-label">Total Leads</div></div>' +
+    '<div class="enrichment-card"><div class="enrich-value" style="color:var(--green)">' + hasEmail + '</div><div class="enrich-label">With Email</div></div>' +
+    '<div class="enrichment-card"><div class="enrich-value" style="color:var(--orange)">' + noEmail + '</div><div class="enrich-label">Without Email</div></div>' +
+    '<div class="enrichment-card" style="grid-column:1/-1"><div class="enrich-value" style="color:var(--secondary)">' + pct + '%</div><div class="enrich-label">Enrichment Rate</div><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div></div>';
+}
+
+function showEnrichmentLocked(message) {
+  document.getElementById('enrichmentGrid').innerHTML =
+    '<div class="enrichment-card" style="grid-column:1/-1"><div class="friendly-error">' +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
+      ' <a id="enrichOpenSettings">Open Settings</a>' +
+    '</div></div>';
+  const link = document.getElementById('enrichOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchEnrichment() {
+  if (!hasSupabase()) { showEnrichmentLocked(NO_SUPABASE_MSG); return; }
+  try {
+    const url = SUPABASE_URL + '/rest/v1/leads?select=email';
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) { showEnrichmentLocked('Unexpected response.'); return; }
+    const total = rows.length;
+    const hasEmail = rows.filter(r => r.email && r.email.trim() !== '').length;
+    renderEnrichment(total, hasEmail);
+  } catch (e) {
+    showEnrichmentLocked('Enrichment error: ' + e.message);
+  }
+}
+
+/* ================================================================
+   SECTION: RECENT LEADS TABLE
+   ================================================================ */
 const STATUS_COLOURS = {
   'New Lead':'gray','Researched':'blue','Scored':'purple',
-  'Outreach Ready':'orange','Contacted':'yellow','Replied':'green','Booked':'teal'
+  'Outreach Ready':'orange','Contacted':'yellow','Replied':'green',
+  'Booking Sent':'teal','Booked':'teal','Lost':'red'
 };
 
 function renderLeads(rows) {
   const body = document.getElementById('leadsBody');
   if (!rows.length) {
-    showLeadsLocked(NO_SUPABASE_MSG);
+    showLeadsLocked('No leads found.');
     return;
   }
   body.innerHTML = rows.map(l => {
@@ -514,7 +899,7 @@ function renderLeads(rows) {
 function showLeadsLocked(message) {
   document.getElementById('leadsBody').innerHTML =
     '<tr><td colspan="7"><div class="friendly-error">' +
-      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
       ' <a id="leadsOpenSettings">Open Settings</a>' +
     '</div></td></tr>';
   const link = document.getElementById('leadsOpenSettings');
@@ -536,7 +921,9 @@ async function fetchRecentLeads() {
   }
 }
 
-/* ---- SECTION 2B: RECENT EMAILS SENT ---- */
+/* ================================================================
+   SECTION: RECENT EMAILS SENT
+   ================================================================ */
 const EMAIL_ROW_CLASS = {
   'Replied':'emails-row-replied',
   'Contacted':'emails-row-contacted',
@@ -545,19 +932,10 @@ const EMAIL_ROW_CLASS = {
 
 const emailCache = {};
 
-function formatDateTime(s) {
-  if (!s) return '—';
-  try {
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleString();
-  } catch (e) { return '—'; }
-}
-
 function renderEmails(rows) {
   const body = document.getElementById('emailsBody');
   if (!rows.length) {
-    showEmailsLocked(NO_SUPABASE_MSG);
+    showEmailsLocked('No outbound emails found.');
     return;
   }
   body.innerHTML = rows.map((l, i) => {
@@ -572,7 +950,7 @@ function renderEmails(rows) {
       '<td><span class="badge badge-' + statusColour + '">' + escapeHtml(l.lead_status || '—') + '</span></td>' +
       '<td style="text-align:center">' + (l.total_emails_sent || 0) + '</td>' +
       '<td style="text-align:center">' + (l.followup_count || 0) + '</td>' +
-      '<td><button class="view-email-btn" data-email-i="' + i + '">View Full Email</button></td>' +
+      '<td><button class="view-email-btn" data-email-i="' + i + '">View</button></td>' +
     '</tr>';
   }).join('');
   document.getElementById('emailsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -584,7 +962,7 @@ function renderEmails(rows) {
 function showEmailsLocked(message) {
   document.getElementById('emailsBody').innerHTML =
     '<tr><td colspan="8"><div class="friendly-error">' +
-      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
       ' <a id="emailsOpenSettings">Open Settings</a>' +
     '</div></td></tr>';
   const link = document.getElementById('emailsOpenSettings');
@@ -594,14 +972,14 @@ function showEmailsLocked(message) {
 async function fetchRecentEmails() {
   if (!hasSupabase()) { showEmailsLocked(NO_SUPABASE_MSG); return; }
   try {
-    const url = SUPABASE_URL + '/rest/v1/leads?select=company,email,industry,city,email_subject,outreach_sent_at,total_emails_sent,followup_count,lead_status&outreach_sent_at=not.is.null&order=outreach_sent_at.desc&limit=20';
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,email,email_subject,outreach_sent_at,lead_status,total_emails_sent,followup_count,email_body&outreach_sent_at=not.is.null&order=outreach_sent_at.desc&limit=20';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
     }
     const rows = await res.json();
-    if (!Array.isArray(rows)) { showEmailsLocked('Unexpected response format from Supabase.'); return; }
+    if (!Array.isArray(rows)) { showEmailsLocked('Unexpected response format.'); return; }
     renderEmails(rows);
   } catch (e) {
     showEmailsLocked('Emails error: ' + e.message);
@@ -622,7 +1000,120 @@ function closeEmailModal() {
   document.getElementById('emailModal').classList.remove('show');
 }
 
-/* ---- SECTION 2C: CRM QUICK ACCESS ---- */
+/* ================================================================
+   SECTION: RECENT ACTIVITY TIMELINE
+   ================================================================ */
+function renderTimeline(rows) {
+  const feed = document.getElementById('timelineFeed');
+  if (!rows.length) {
+    feed.innerHTML = '<div class="timeline-item"><div style="color:var(--text-dimmer);text-align:center;width:100%;padding:20px">No recent activity.</div></div>';
+    document.getElementById('timelineUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    return;
+  }
+  feed.innerHTML = rows.map(l => {
+    const color = STATUS_COLOURS[l.lead_status] || 'gray';
+    return '<div class="timeline-item">' +
+      '<div class="timeline-dot" style="background:var(--' + color + ')"></div>' +
+      '<div class="timeline-company">' + escapeHtml(l.company || '—') + '</div>' +
+      '<div class="timeline-status"><span class="badge badge-' + color + '">' + escapeHtml(l.lead_status || '—') + '</span></div>' +
+      '<div class="timeline-time">' + escapeHtml(relativeTime(l.updated_at)) + '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('timelineUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function showTimelineLocked(message) {
+  document.getElementById('timelineFeed').innerHTML =
+    '<div class="timeline-item"><div style="width:100%"><div class="friendly-error">' +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
+      ' <a id="timelineOpenSettings">Open Settings</a>' +
+    '</div></div></div>';
+  const link = document.getElementById('timelineOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchTimeline() {
+  if (!hasSupabase()) { showTimelineLocked(NO_SUPABASE_MSG); return; }
+  try {
+    const url = SUPABASE_URL + '/rest/v1/leads?select=company,lead_status,updated_at&order=updated_at.desc&limit=20';
+    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) { showTimelineLocked('Unexpected response.'); return; }
+    renderTimeline(rows);
+  } catch (e) {
+    showTimelineLocked('Timeline error: ' + e.message);
+  }
+}
+
+/* ================================================================
+   SECTION: CLIENT PERFORMANCE CARDS
+   ================================================================ */
+function renderPerformance(clients, leads) {
+  const grid = document.getElementById('perfGrid');
+  if (!clients.length) {
+    grid.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error"><span class="icon">&#128202;</span>No active clients found.</div></div>';
+    return;
+  }
+  // Build lookup: client_id -> { total, contacted, replied, booked, emails_sent }
+  const perf = {};
+  leads.forEach(l => {
+    const cid = l.client_id;
+    if (!cid) return;
+    if (!perf[cid]) perf[cid] = { total:0, contacted:0, replied:0, booked:0, emails_sent:0 };
+    perf[cid].total++;
+    if (l.lead_status === 'Contacted') perf[cid].contacted++;
+    if (l.lead_status === 'Replied') perf[cid].replied++;
+    if (l.lead_status === 'Booked' || l.lead_status === 'Booking Sent') perf[cid].booked++;
+    perf[cid].emails_sent += l.total_emails_sent || 0;
+  });
+
+  grid.innerHTML = clients.map(c => {
+    const p = perf[c.id] || { total:0, contacted:0, replied:0, booked:0, emails_sent:0 };
+    const initials = (c.client_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    return '<div class="perf-card">' +
+      '<h4><div class="perf-icon">' + escapeHtml(initials) + '</div>' + escapeHtml(c.client_name || '—') + '</h4>' +
+      '<div class="perf-stats">' +
+        '<div class="perf-stat"><div class="perf-num" style="color:var(--primary)">' + p.total + '</div><div class="perf-lbl">Total Leads</div></div>' +
+        '<div class="perf-stat"><div class="perf-num" style="color:var(--blue)">' + p.emails_sent + '</div><div class="perf-lbl">Emails Sent</div></div>' +
+        '<div class="perf-stat"><div class="perf-num" style="color:var(--green)">' + p.replied + '</div><div class="perf-lbl">Replies</div></div>' +
+        '<div class="perf-stat"><div class="perf-num" style="color:var(--teal)">' + p.booked + '</div><div class="perf-lbl">Bookings</div></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function showPerfLocked(message) {
+  document.getElementById('perfGrid').innerHTML =
+    '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
+      ' <a id="perfOpenSettings">Open Settings</a>' +
+    '</div></div>';
+  const link = document.getElementById('perfOpenSettings');
+  if (link) link.addEventListener('click', openSettings);
+}
+
+async function fetchClientPerformance() {
+  if (!hasSupabase()) { showPerfLocked(NO_SUPABASE_MSG); return; }
+  try {
+    const [clientsRes, leadsRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/clients?select=id,client_name&active=eq.true', { headers: supabaseHeaders(), mode: 'cors' }),
+      fetch(SUPABASE_URL + '/rest/v1/leads?select=client_id,lead_status,total_emails_sent', { headers: supabaseHeaders(), mode: 'cors' })
+    ]);
+    if (!clientsRes.ok) throw new Error('Clients HTTP ' + clientsRes.status);
+    if (!leadsRes.ok) throw new Error('Leads HTTP ' + leadsRes.status);
+    const clients = await clientsRes.json();
+    const leads = await leadsRes.json();
+    if (!Array.isArray(clients) || !Array.isArray(leads)) { showPerfLocked('Unexpected response.'); return; }
+    renderPerformance(clients, leads);
+  } catch (e) {
+    showPerfLocked('Performance error: ' + e.message);
+  }
+}
+
+/* ================================================================
+   SECTION: CRM QUICK ACCESS
+   ================================================================ */
 const CRM_BADGE_COLOUR = { 'HubSpot':'orange', 'Pipedrive':'green', 'None':'gray' };
 
 function crmLinkFor(client) {
@@ -637,7 +1128,7 @@ function renderClients(rows) {
   const grid = document.getElementById('clientGrid');
   if (!rows.length) {
     grid.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
-      '<span class="icon">📇</span>No active clients yet.</div></div>';
+      '<span class="icon">&#128199;</span>No active clients yet.</div></div>';
     return;
   }
   grid.innerHTML = rows.map((c, i) => {
@@ -645,10 +1136,10 @@ function renderClients(rows) {
     const badgeColour = CRM_BADGE_COLOUR[crmType] || 'gray';
     const crmUrl = crmLinkFor(c);
     const crmLinkHtml = crmUrl
-      ? '<a href="' + escapeHtml(crmUrl) + '" target="_blank" rel="noopener">View in CRM ↗</a>'
+      ? '<a href="' + escapeHtml(crmUrl) + '" target="_blank" rel="noopener">View in CRM &#x2197;</a>'
       : '<span style="color:var(--text-dimmer)">No CRM linked</span>';
     const calendlyHtml = c.calendly_link
-      ? '<a href="' + escapeHtml(c.calendly_link) + '" target="_blank" rel="noopener">Calendly ↗</a>'
+      ? '<a href="' + escapeHtml(c.calendly_link) + '" target="_blank" rel="noopener">Calendly &#x2197;</a>'
       : '<span style="color:var(--text-dimmer)">—</span>';
     const retainer = (typeof c.monthly_retainer === 'number')
       ? ('$' + c.monthly_retainer.toLocaleString() + '/mo')
@@ -658,10 +1149,10 @@ function renderClients(rows) {
       '<div class="client-industry">' + escapeHtml(c.industry || '—') + '</div>' +
       '<span class="badge badge-' + badgeColour + '">' + escapeHtml(crmType) + '</span>' +
       '<div class="client-links">' +
-        '• ' + crmLinkHtml + '<br>' +
-        '• ' + calendlyHtml + '<br>' +
-        '• ' + escapeHtml(c.notification_email || '—') + '<br>' +
-        '• <span class="client-retainer">' + escapeHtml(retainer) + '</span>' +
+        '&bull; ' + crmLinkHtml + '<br>' +
+        '&bull; ' + calendlyHtml + '<br>' +
+        '&bull; ' + escapeHtml(c.notification_email || '—') + '<br>' +
+        '&bull; <span class="client-retainer">' + escapeHtml(retainer) + '</span>' +
       '</div>' +
       '<button class="view-leads-btn" data-client-i="' + i + '">View Their Leads</button>' +
     '</div>';
@@ -674,7 +1165,7 @@ function renderClients(rows) {
 function showClientsLocked(message) {
   document.getElementById('clientGrid').innerHTML =
     '<div class="stat-card" style="grid-column:1/-1"><div class="friendly-error">' +
-      '<span class="icon">🔒</span>' + escapeHtml(message) +
+      '<span class="icon">&#128274;</span>' + escapeHtml(message) +
       ' <a id="clientsOpenSettings">Open Settings</a>' +
     '</div></div>';
   const link = document.getElementById('clientsOpenSettings');
@@ -686,12 +1177,9 @@ async function fetchClients() {
   try {
     const url = SUPABASE_URL + '/rest/v1/clients?select=client_name,industry,crm_type,crm_account_id,calendly_link,notification_email,monthly_retainer,product_type&active=eq.true';
     const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
-    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
-    if (!Array.isArray(rows)) { showClientsLocked('Unexpected response format from Supabase.'); return; }
+    if (!Array.isArray(rows)) { showClientsLocked('Unexpected response.'); return; }
     renderClients(rows);
   } catch (e) {
     showClientsLocked('CRM error: ' + e.message);
@@ -718,83 +1206,73 @@ async function filterLeadsByClient(client) {
   }
 }
 
-/* ---- SECTION 2D: AGENT ACTIVITY FEED ---- */
-function describeActivity(l) {
-  const company = l.company || 'A lead';
-  if (l.meeting_scheduled) return { text: company + ' booked a meeting', dot: 'teal', when: l.updated_at };
-  if (l.reply_detected)    return { text: company + ' replied',          dot: 'green', when: l.updated_at };
-  return { text: company + ' moved to ' + (l.lead_status || 'new status'), dot: 'blue', when: l.updated_at };
-}
-
-function relativeTime(s) {
-  if (!s) return '';
-  const d = new Date(s);
-  if (isNaN(d.getTime())) return '';
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1)  return 'just now';
-  if (mins < 60) return mins + ' min ago';
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
-  const days = Math.floor(hours / 24);
-  return days + ' day' + (days === 1 ? '' : 's') + ' ago';
-}
-
-function renderActivity(rows) {
-  const feed = document.getElementById('activityFeed');
-  if (!rows.length) {
-    feed.innerHTML = '<div class="activity-item"><div style="color:var(--text-dimmer);text-align:center;width:100%;padding:20px">No recent agent activity.</div></div>';
-    document.getElementById('activityUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
-    return;
-  }
-  feed.innerHTML = rows.map(l => {
-    const a = describeActivity(l);
-    return '<div class="activity-item">' +
-      '<div class="activity-dot ' + a.dot + '"></div>' +
-      '<div class="activity-text">' + escapeHtml(a.text) +
-        '<span class="activity-time">' + escapeHtml(relativeTime(a.when)) + '</span>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-  document.getElementById('activityUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
-}
-
-function showActivityLocked(message) {
-  document.getElementById('activityFeed').innerHTML =
-    '<div class="activity-item"><div style="width:100%"><div class="friendly-error">' +
-      '<span class="icon">🔒</span>' + escapeHtml(message) +
-      ' <a id="activityOpenSettings">Open Settings</a>' +
-    '</div></div></div>';
-  const link = document.getElementById('activityOpenSettings');
-  if (link) link.addEventListener('click', openSettings);
-}
-
-async function fetchActivity() {
-  if (!hasSupabase()) { showActivityLocked(NO_SUPABASE_MSG); return; }
-  try {
-    const url = SUPABASE_URL + '/rest/v1/leads?select=company,lead_status,reply_detected,meeting_scheduled,updated_at&or=(reply_detected.eq.true,meeting_scheduled.eq.true)&order=updated_at.desc&limit=20';
-    const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error('HTTP ' + res.status + ' — ' + body.slice(0, 200));
-    }
-    const rows = await res.json();
-    if (!Array.isArray(rows)) { showActivityLocked('Unexpected response format from Supabase.'); return; }
-    renderActivity(rows);
-  } catch (e) {
-    showActivityLocked('Activity error: ' + e.message);
-  }
-}
-
-/* ---- SECTION 3: QUICK ACTION BUTTONS ---- */
+/* ================================================================
+   SECTION: QUICK ACTIONS (Supabase-powered, no MCP/webhook)
+   ================================================================ */
 const ACTIONS = [
-  { label:'Scan Toronto Insurance', desc:'Discover insurance brokers in Toronto', tool:'scan_city',          args:{ city:'Toronto', industry:'insurance broker', product_type:'insurance' } },
-  { label:'Scan Toronto Moving',    desc:'Discover movers in Toronto',            tool:'scan_city',          args:{ city:'Toronto', industry:'moving services', product_type:'moving_services' } },
-  { label:'Get Pipeline Health',    desc:'Check overall sales pipeline status',   tool:'get_pipeline_stats', args:{} },
-  { label:'List Top Leads',         desc:'Leads with score above 70',             tool:'list_leads',         args:{ limit:10, min_score:70 } },
-  { label:'Scan Toronto Dental',    desc:'Discover dental clinics in Toronto',    tool:'scan_city',          args:{ city:'Toronto', industry:'dental clinic',   product_type:'dental' } },
-  { label:'Refresh Pipeline Stats', desc:'Re-run the pipeline health snapshot',   tool:'get_pipeline_stats', args:{} },
-  { label:'Run B2C Discovery',      desc:'Trigger the full B2C discovery sweep',  tool:'run_workflow',       args:{ workflow:'clx-b2c-discovery' } }
+  {
+    label: 'Top Leads',
+    desc: 'Show leads with score above 70',
+    run: async () => {
+      const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_score,lead_status,email&lead_score=gte.70&order=lead_score.desc&limit=20';
+      const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const rows = await res.json();
+      if (!rows.length) return 'No leads with score > 70 found.';
+      return rows.map((r, i) =>
+        (i + 1) + '. ' + (r.company || '—') + ' — Score: ' + (r.lead_score || 0) + ' — ' + (r.lead_status || '—') + (r.email ? ' — ' + r.email : '')
+      ).join('\n');
+    }
+  },
+  {
+    label: 'Pipeline Health',
+    desc: 'Show conversion rates across stages',
+    run: async () => {
+      const url = SUPABASE_URL + '/rest/v1/leads?select=lead_status';
+      const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const rows = await res.json();
+      const total = rows.length;
+      if (total === 0) return 'No leads in pipeline.';
+      const counts = {};
+      rows.forEach(r => {
+        const s = r.lead_status || 'Unknown';
+        counts[s] = (counts[s] || 0) + 1;
+      });
+      let out = 'Pipeline Health Report\n' + '='.repeat(40) + '\nTotal Leads: ' + total + '\n\n';
+      PIPELINE_STAGES.forEach(s => {
+        const val = counts[s.key] || 0;
+        const pct = Math.round(val / total * 100);
+        const bar = '\u2588'.repeat(Math.max(Math.round(pct / 3), val > 0 ? 1 : 0));
+        out += s.key.padEnd(16) + ('' + val).padStart(5) + '  ' + (pct + '%').padStart(4) + '  ' + bar + '\n';
+      });
+      // Conversion rates
+      const contacted = (counts['Contacted'] || 0) + (counts['Replied'] || 0) + (counts['Booking Sent'] || 0) + (counts['Booked'] || 0);
+      const replied = (counts['Replied'] || 0) + (counts['Booking Sent'] || 0) + (counts['Booked'] || 0);
+      const booked = counts['Booked'] || 0;
+      out += '\nConversion Rates:\n';
+      out += '  Outreach > Contact: ' + (total > 0 ? Math.round(contacted / total * 100) : 0) + '%\n';
+      out += '  Contact > Reply:    ' + (contacted > 0 ? Math.round(replied / contacted * 100) : 0) + '%\n';
+      out += '  Reply > Booking:    ' + (replied > 0 ? Math.round(booked / replied * 100) : 0) + '%\n';
+      return out;
+    }
+  },
+  {
+    label: 'Recent Discoveries',
+    desc: 'Show leads added today',
+    run: async () => {
+      const today = todayISO();
+      const url = SUPABASE_URL + '/rest/v1/leads?select=company,industry,city,lead_score,source&date_created=gte.' + today + '&order=date_created.desc&limit=20';
+      const res = await fetch(url, { headers: supabaseHeaders(), mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const rows = await res.json();
+      if (!rows.length) return 'No new leads discovered today.';
+      return 'Today\'s Discoveries (' + rows.length + ' leads)\n' + '='.repeat(40) + '\n' +
+        rows.map((r, i) =>
+          (i + 1) + '. ' + (r.company || '—') + ' — ' + (r.industry || '—') + ' — ' + (r.city || '—') + (r.lead_score ? ' (score: ' + r.lead_score + ')' : '')
+        ).join('\n');
+    }
+  }
 ];
 
 function renderActions() {
@@ -820,24 +1298,16 @@ async function runAction(i) {
   btn.querySelector('.label').innerHTML = '<span class="spinner"></span> Running…';
   result.classList.remove('show', 'error');
   try {
-    if (!hasMCP()) {
-      result.textContent = 'Add your MCP API key in Settings to run this action.';
+    if (!hasSupabase()) {
+      result.textContent = 'Add your Supabase key in Settings to run this action.';
       result.classList.add('show', 'error');
       return;
     }
-    const res = await fetch(MCP_GATEWAY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-MCP-API-Key': credentials.mcpKey },
-      body: JSON.stringify({ tool_name: a.tool, tool_input: a.args })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    let pretty = text;
-    try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (e) {}
-    result.textContent = pretty;
+    const output = await a.run();
+    result.textContent = output;
     result.classList.add('show');
   } catch (e) {
-    result.textContent = FRIENDLY_ERROR;
+    result.textContent = 'Error: ' + e.message;
     result.classList.add('show', 'error');
   } finally {
     btn.disabled = false;
@@ -845,17 +1315,15 @@ async function runAction(i) {
   }
 }
 
-/* ---- SECTION 4: CLAUDE CHAT ---- */
+/* ================================================================
+   SECTION: CLAUDE CHAT
+   ================================================================ */
 function buildSystemPrompt() {
   return "You are the Crystallux AI assistant. " +
-    "You control the Crystallux sales engine. " +
     "You help the owner manage their AI sales platform. " +
-    "MCP Gateway: " + MCP_GATEWAY + " " +
-    "MCP API Key: " + credentials.mcpKey + " " +
-    "When calling the MCP gateway, send the key in the \"X-MCP-API-Key\" request header (NOT as an Authorization Bearer token). " +
-    "POST a JSON body in the form {\"tool_name\": \"<name>\", \"tool_input\": { ... }}. " +
-    "When asked to do something, call the MCP gateway and report results in plain English. " +
-    "Available tools: scan_city, list_leads, get_pipeline_stats, research_lead, generate_outreach, send_outreach, process_booking, get_lead, update_lead_status";
+    "You have access to live data from the Supabase database. " +
+    "When asked about leads, pipeline, or stats, provide helpful analysis and suggestions. " +
+    "Available lead statuses: New Lead, Researched, Scored, Outreach Ready, Contacted, Replied, Booking Sent, Booked, Lost.";
 }
 
 const chatHistory = [];
@@ -928,29 +1396,35 @@ async function sendChat() {
   }
 }
 
-/* ---- SECTION 5: API STATUS PANEL ---- */
+/* ================================================================
+   SECTION: API STATUS (Supabase, n8n, Claude only)
+   ================================================================ */
 async function checkApiStatus() {
+  const n8nHealthUrl = getN8nUrl() + '/healthz';
   const checks = [
-    { name:'Supabase',    detail: credentials.supabaseKey ? 'Lead database' : 'Key not set',
+    { name:'Supabase',
+      detail: credentials.supabaseKey ? 'Lead database' : 'Key not set',
       check: async () => {
         if (!credentials.supabaseKey) return false;
-        try { const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders(), mode: 'cors' }); return r.ok; }
-        catch (e) { return false; }
-      } },
-    { name:'n8n', detail:'automation.crystallux.org',
+        try {
+          const r = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers: supabaseHeaders(), mode: 'cors' });
+          return r.ok;
+        } catch (e) { return false; }
+      }
+    },
+    { name:'n8n Automation',
+      detail: getN8nUrl(),
       check: async () => {
-        try { await fetch(N8N_HEALTH, { mode:'no-cors' }); return true; } catch (e) { return false; }
-      } },
+        try { await fetch(n8nHealthUrl, { mode:'no-cors' }); return true; } catch (e) { return false; }
+      }
+    },
     { name:'Claude API',
-      detail: credentials.claudeKey ? 'Key …' + credentials.claudeKey.slice(-4) : 'Key not set',
-      check: async () => !!credentials.claudeKey },
-    { name:'MCP Gateway',
-      detail: credentials.mcpKey ? 'Key …' + credentials.mcpKey.slice(-4) : 'Key not set',
-      check: async () => !!credentials.mcpKey },
-    { name:'Hunter.io',   detail:'Email enrichment',  check: async () => true },
+      detail: credentials.claudeKey ? 'Key \u2026' + credentials.claudeKey.slice(-4) : 'Key not set',
+      check: async () => !!credentials.claudeKey
+    },
     { name:'Google Maps', detail:'Places API',        check: async () => true },
-    { name:'Calendly',    detail:'Booking automation',check: async () => true },
-    { name:'Gmail',       detail:'OAuth2 connected',  check: async () => true }
+    { name:'Calendly',    detail:'Booking automation', check: async () => true },
+    { name:'Gmail',       detail:'OAuth2 connected',   check: async () => true }
   ];
   const grid = document.getElementById('apiGrid');
   grid.innerHTML = checks.map((c, i) =>
@@ -964,11 +1438,13 @@ async function checkApiStatus() {
   }
 }
 
-/* ---- SETTINGS MODAL ---- */
+/* ================================================================
+   SETTINGS MODAL
+   ================================================================ */
 function openSettings() {
   document.getElementById('claudeKeyInput').value   = credentials.claudeKey;
-  document.getElementById('supabaseKeyInput').value = credentials.supabaseKey;
-  document.getElementById('mcpKeyInput').value      = credentials.mcpKey;
+  document.getElementById('supabaseKeyInput').value  = credentials.supabaseKey;
+  document.getElementById('n8nUrlInput').value       = credentials.n8nUrl;
   document.getElementById('settingsModal').classList.add('show');
 }
 
@@ -979,19 +1455,12 @@ function closeSettings() {
 function saveKeys() {
   credentials.claudeKey   = document.getElementById('claudeKeyInput').value.trim();
   credentials.supabaseKey = document.getElementById('supabaseKeyInput').value.trim();
-  credentials.mcpKey      = document.getElementById('mcpKeyInput').value.trim();
+  credentials.n8nUrl      = document.getElementById('n8nUrlInput').value.trim();
   try {
     sessionStorage.setItem('clx_claude', credentials.claudeKey);
     sessionStorage.setItem('clx_supabase', credentials.supabaseKey);
-    sessionStorage.setItem('clx_mcp', credentials.mcpKey);
-  } catch (e) {
-    console.log('[saveKeys] sessionStorage.setItem failed:', e);
-  }
-  console.log('[saveKeys] credentials object after save:', {
-    claudeKey: credentials.claudeKey ? '(set, len=' + credentials.claudeKey.length + ')' : '(empty)',
-    supabaseKey: credentials.supabaseKey ? '(set, len=' + credentials.supabaseKey.length + ', prefix=' + credentials.supabaseKey.slice(0, 8) + ')' : '(empty)',
-    mcpKey: credentials.mcpKey ? '(set)' : '(empty)'
-  });
+    sessionStorage.setItem('clx_n8n_url', credentials.n8nUrl);
+  } catch (e) {}
   closeSettings();
   testAndLoad();
 }
@@ -999,18 +1468,15 @@ function saveKeys() {
 function clearSavedKeys() {
   credentials.claudeKey = '';
   credentials.supabaseKey = '';
-  credentials.mcpKey = '';
+  credentials.n8nUrl = '';
   try {
     sessionStorage.removeItem('clx_claude');
     sessionStorage.removeItem('clx_supabase');
-    sessionStorage.removeItem('clx_mcp');
-  } catch (e) {
-    console.log('[clearSavedKeys] sessionStorage.removeItem failed:', e);
-  }
+    sessionStorage.removeItem('clx_n8n_url');
+  } catch (e) {}
   document.getElementById('claudeKeyInput').value = '';
   document.getElementById('supabaseKeyInput').value = '';
-  document.getElementById('mcpKeyInput').value = '';
-  console.log('[clearSavedKeys] cleared in-memory + sessionStorage');
+  document.getElementById('n8nUrlInput').value = '';
   refreshAll();
 }
 
@@ -1018,12 +1484,11 @@ function loadKeysFromSession() {
   try {
     const c = sessionStorage.getItem('clx_claude') || '';
     const s = sessionStorage.getItem('clx_supabase') || '';
-    const m = sessionStorage.getItem('clx_mcp') || '';
-    if (c || s || m) {
+    const n = sessionStorage.getItem('clx_n8n_url') || '';
+    if (c || s || n) {
       credentials.claudeKey = c;
       credentials.supabaseKey = s;
-      credentials.mcpKey = m;
-      console.log('[loadKeysFromSession] loaded keys from sessionStorage');
+      credentials.n8nUrl = n;
       const toast = document.getElementById('sessionToast');
       if (toast) {
         toast.style.display = 'block';
@@ -1031,21 +1496,18 @@ function loadKeysFromSession() {
       }
       return true;
     }
-  } catch (e) {
-    console.log('[loadKeysFromSession] read failed:', e);
-  }
+  } catch (e) {}
   return false;
 }
 
 async function testSupabaseConnection() {
   const resultEl = document.getElementById('testSupabaseResult');
   const key = document.getElementById('supabaseKeyInput').value.trim();
-  console.log('[testSupabase] input key length:', key.length, 'prefix:', key.slice(0, 8));
   resultEl.style.display = 'block';
   if (!key) {
     resultEl.style.background = '#4a1a1a';
     resultEl.style.color = '#ff8a8a';
-    resultEl.textContent = '✗ Enter a Supabase key first.';
+    resultEl.textContent = '\u2717 Enter a Supabase key first.';
     return;
   }
   const headers = {
@@ -1053,43 +1515,41 @@ async function testSupabaseConnection() {
     'Authorization': 'Bearer ' + key,
     'Content-Type': 'application/json'
   };
-  console.log('[testSupabase] fetch headers:', { apikey: '(len=' + key.length + ')', Authorization: 'Bearer (len=' + key.length + ')', 'Content-Type': headers['Content-Type'] });
   resultEl.style.background = '#1a2a4a';
   resultEl.style.color = '#8ab4ff';
-  resultEl.textContent = 'Testing…';
+  resultEl.textContent = 'Testing\u2026';
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', { headers, mode: 'cors' });
-    console.log('[testSupabase] response status:', res.status, res.statusText);
     if (res.ok) {
       resultEl.style.background = '#14331f';
       resultEl.style.color = '#7ee28c';
-      resultEl.textContent = '✓ Success — Supabase key works (HTTP ' + res.status + ').';
+      resultEl.textContent = '\u2713 Success — Supabase key works (HTTP ' + res.status + ').';
     } else {
       const body = await res.text();
-      console.log('[testSupabase] error body:', body);
       resultEl.style.background = '#4a1a1a';
       resultEl.style.color = '#ff8a8a';
-      resultEl.textContent = '✗ Failed — HTTP ' + res.status + ' ' + res.statusText + '. ' + body.slice(0, 160);
+      resultEl.textContent = '\u2717 Failed — HTTP ' + res.status + ' ' + res.statusText + '. ' + body.slice(0, 160);
     }
   } catch (err) {
-    console.log('[testSupabase] fetch threw:', err);
     resultEl.style.background = '#4a1a1a';
     resultEl.style.color = '#ff8a8a';
-    resultEl.textContent = '✗ Network error — ' + err.message;
+    resultEl.textContent = '\u2717 Network error — ' + err.message;
   }
 }
 
 function clearKeys() {
   credentials.claudeKey = '';
   credentials.supabaseKey = '';
-  credentials.mcpKey = '';
+  credentials.n8nUrl = '';
   document.getElementById('claudeKeyInput').value = '';
   document.getElementById('supabaseKeyInput').value = '';
-  document.getElementById('mcpKeyInput').value = '';
+  document.getElementById('n8nUrlInput').value = '';
   refreshAll();
 }
 
-/* ---- HAMBURGER ---- */
+/* ================================================================
+   HAMBURGER NAV
+   ================================================================ */
 function toggleNav() {
   document.getElementById('mainNav').classList.toggle('open');
 }
@@ -1098,7 +1558,9 @@ function closeNav() {
   document.getElementById('mainNav').classList.remove('open');
 }
 
-/* ---- WIRE UP EVENTS ---- */
+/* ================================================================
+   WIRE UP EVENTS
+   ================================================================ */
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('saveKeysBtn').addEventListener('click', saveKeys);
 document.getElementById('clearKeysBtn').addEventListener('click', clearKeys);
@@ -1117,64 +1579,85 @@ document.querySelectorAll('#mainNav a').forEach(a => a.addEventListener('click',
 document.getElementById('chatSend').addEventListener('click', sendChat);
 document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
-/* Defensive: clear in-memory keys if the tab is hidden/closed. */
 window.addEventListener('beforeunload', () => {
   credentials.claudeKey = '';
   credentials.supabaseKey = '';
-  credentials.mcpKey = '';
+  credentials.n8nUrl = '';
 });
 
-/* ---- SHOW ERROR HELPER ---- */
+/* ================================================================
+   ERROR HELPER
+   ================================================================ */
 function showError(message) {
   console.error('[showError]', message);
   showStatsLocked('Connection failed: ' + message);
   showLeadsLocked('Connection failed: ' + message);
   showEmailsLocked('Connection failed: ' + message);
   showClientsLocked('Connection failed: ' + message);
-  showActivityLocked('Connection failed: ' + message);
+  showTimelineLocked('Connection failed: ' + message);
+  showScanLocked('Connection failed: ' + message);
+  showEnrichmentLocked('Connection failed: ' + message);
+  showPerfLocked('Connection failed: ' + message);
 }
 
-/* ---- TEST AND LOAD ---- */
+/* ================================================================
+   TEST AND LOAD
+   ================================================================ */
 async function testAndLoad() {
   if (!hasSupabase()) {
     refreshAll();
     return;
   }
-  const testUrl = SUPABASE_URL + '/rest/v1/leads?select=id&limit=1';
   try {
-    const res = await fetch(testUrl, {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/leads?select=id&limit=1', {
       headers: {
         'apikey': credentials.supabaseKey,
         'Authorization': 'Bearer ' + credentials.supabaseKey
       }
     });
     if (res.ok) {
-      console.log('Supabase connection OK');
       refreshAll();
     } else {
       const err = await res.text();
-      console.error('Supabase error:', res.status, err);
       showError('HTTP ' + res.status + ' — ' + err.slice(0, 200));
       checkApiStatus();
     }
   } catch (e) {
-    console.error('Fetch error:', e);
     showError('Network error: ' + e.message);
     checkApiStatus();
   }
 }
 
-/* ---- INIT + AUTO REFRESH ---- */
+/* ================================================================
+   AUTO-REFRESH (every 60 seconds)
+   ================================================================ */
+let refreshCountdown = 60;
+
 function refreshAll() {
+  refreshCountdown = 60;
   fetchPipelineStats();
   fetchRecentLeads();
   fetchRecentEmails();
   fetchClients();
-  fetchActivity();
+  fetchTimeline();
+  fetchScanMonitor();
+  fetchEnrichment();
+  fetchClientPerformance();
   checkApiStatus();
 }
 
-/* Detect local file:// usage and show CORS warning. */
+setInterval(() => {
+  refreshCountdown--;
+  if (refreshCountdown <= 0) {
+    refreshAll();
+  }
+  const el = document.getElementById('refreshTimer');
+  if (el) el.textContent = 'Auto-refresh: ' + refreshCountdown + 's';
+}, 1000);
+
+/* ================================================================
+   INIT
+   ================================================================ */
 if (window.location.protocol === 'file:') {
   document.getElementById('localBanner').classList.add('show');
 }
@@ -1185,8 +1668,6 @@ if (!hadSessionKeys) {
   openSettings();
 }
 refreshAll();
-setInterval(refreshAll, 60000);
-setInterval(fetchActivity, 300000);
 </script>
 </body>
 </html>
