@@ -202,11 +202,12 @@ CREATE TABLE IF NOT EXISTS client_icp_profiles (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Stage values: 'Meeting Booked', 'Proposal Sent', 'Negotiating', 'Closed Won', 'Closed Lost'
 CREATE TABLE IF NOT EXISTS deals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id UUID REFERENCES leads(id),
   client_id UUID REFERENCES clients(id),
-  stage TEXT DEFAULT 'meeting_booked',
+  stage TEXT DEFAULT 'Meeting Booked',
   deal_value NUMERIC,
   probability INT,
   close_date DATE,
