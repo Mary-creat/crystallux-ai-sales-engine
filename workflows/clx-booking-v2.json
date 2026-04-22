@@ -181,7 +181,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content: 'You are a sales assistant for the Crystallux AI Sales Engine.\\n\\nAnalyze this reply from a prospect and determine if they are interested in learning more or booking a meeting.\\n\\nProspect: ' + $('Split In Batches').first().json.full_name + '\\nCompany: ' + $('Split In Batches').first().json.company + '\\nTheir reply: ' + ($('Split In Batches').first().json.reply_text || '').replace(/[\\n\\r]/g, ' ').replace(/\"/g, '\\\\\"') + '\\n\\nInterest signals include: yes, interested, sure, sounds good, tell me more, let\\'s talk, book a call, schedule, when are you free, how does this work, what\\'s the cost, can you show me, I\\'d like to learn more, send me details, let\\'s connect.\\n\\nNOT interested signals: no, not interested, remove me, unsubscribe, not now, maybe later, too busy, wrong person, stop emailing, please don\\'t contact me.\\n\\nReturn ONLY raw JSON no explanation no markdown:\\n{\\n  \"interest_detected\": true or false,\\n  \"confidence\": \"High\" or \"Medium\" or \"Low\",\\n  \"signal_type\": \"positive\" or \"negative\" or \"neutral\",\\n  \"recommended_action\": \"book_meeting\" or \"nurture\" or \"remove\"\\n}' }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content: 'You are a sales assistant for the Crystallux Sales Engine.\\n\\nAnalyze this reply from a prospect and determine if they are interested in learning more or booking a meeting.\\n\\nProspect: ' + $('Split In Batches').first().json.full_name + '\\nCompany: ' + $('Split In Batches').first().json.company + '\\nTheir reply: ' + ($('Split In Batches').first().json.reply_text || '').replace(/[\\n\\r]/g, ' ').replace(/\"/g, '\\\\\"') + '\\n\\nInterest signals include: yes, interested, sure, sounds good, tell me more, let\\'s talk, book a call, schedule, when are you free, how does this work, what\\'s the cost, can you show me, I\\'d like to learn more, send me details, let\\'s connect.\\n\\nNOT interested signals: no, not interested, remove me, unsubscribe, not now, maybe later, too busy, wrong person, stop emailing, please don\\'t contact me.\\n\\nReturn ONLY raw JSON no explanation no markdown:\\n{\\n  \"interest_detected\": true or false,\\n  \"confidence\": \"High\" or \"Medium\" or \"Low\",\\n  \"signal_type\": \"positive\" or \"negative\" or \"neutral\",\\n  \"recommended_action\": \"book_meeting\" or \"nurture\" or \"remove\"\\n}' }] }) }}",
         "options": {}
       },
       "id": "clx09-0000-0000-0000-000000000006",
@@ -274,7 +274,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Booking v2 — Build Booking Email\n// Reads lead from Parse Interest Response (still has the full lead + interest\n// fields) and client config from Get Client Config. Uses .first() accessors\n// because the Has Email IF node and Get Client Config HTTP replaced $input.\n\nconst lead = $('Parse Interest Response').first().json;\nconst clientRow = ($('Get Client Config').first() || {}).json || {};\n\nconst clientName = clientRow.client_name || 'our team';\nconst calendlyUrl = clientRow.calendly_link || 'https://calendly.com/placeholder';\nconst notificationEmail = clientRow.notification_email || null;\nconst industry = (lead.industry || 'business').trim();\nconst prettyIndustry = industry.charAt(0).toUpperCase() + industry.slice(1);\n\nconst subject = `Let's find a time — Free ${prettyIndustry} Consultation`;\n\n// CASL (Canada's Anti-Spam Legislation) unsubscribe footer.\nconst caslFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\">' +\n  '<p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;line-height:1.5;\">' +\n  'You are receiving this message because you replied to an earlier outreach ' +\n  'from ' + clientName + '. To unsubscribe, reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>' +\n  'Sent by ' + clientName + ' via Crystallux AI | info@crystallux.org' +\n  '</p>';\n\nconst body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n  '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n  '<p style=\"margin:0 0 16px 0;\">Thank you for your interest in ' + clientName + '. ' +\n  'I would love to find a time that works for you.</p>' +\n  '<p style=\"margin:0 0 16px 0;\">You can grab a slot directly here: ' +\n  '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n  '<p style=\"margin:0 0 16px 0;\">It takes under a minute and you will get an instant confirmation.</p>' +\n  '<p style=\"margin:24px 0 0 0;color:#333333;\">Talk soon,<br><strong>' + clientName + '</strong></p>' +\n  caslFooter +\n  '</div>';\n\nconst now = new Date().toISOString();\n\nconsole.log('BUILD BOOKING:', JSON.stringify({ lead_id: lead.id, client_name: clientName, has_calendly: calendlyUrl !== 'https://calendly.com/placeholder' }));\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    calendly_link: calendlyUrl,\n    client_name: clientName,\n    notification_email: notificationEmail,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now\n  }\n};",
+        "jsCode": "// CLX Booking v2 — Build Booking Email\n// Reads lead from Parse Interest Response (still has the full lead + interest\n// fields) and client config from Get Client Config. Uses .first() accessors\n// because the Has Email IF node and Get Client Config HTTP replaced $input.\n\nconst lead = $('Parse Interest Response').first().json;\nconst clientRow = ($('Get Client Config').first() || {}).json || {};\n\nconst clientName = clientRow.client_name || 'our team';\nconst calendlyUrl = clientRow.calendly_link || 'https://calendly.com/placeholder';\nconst notificationEmail = clientRow.notification_email || null;\nconst industry = (lead.industry || 'business').trim();\nconst prettyIndustry = industry.charAt(0).toUpperCase() + industry.slice(1);\n\nconst subject = `Let's find a time — Free ${prettyIndustry} Consultation`;\n\n// CASL (Canada's Anti-Spam Legislation) unsubscribe footer.\nconst caslFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\">' +\n  '<p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;line-height:1.5;\">' +\n  'You are receiving this message because you replied to an earlier outreach ' +\n  'from ' + clientName + '. To unsubscribe, reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>' +\n  'Sent by ' + clientName + ' via Crystallux | info@crystallux.org' +\n  '</p>';\n\nconst body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n  '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n  '<p style=\"margin:0 0 16px 0;\">Thank you for your interest in ' + clientName + '. ' +\n  'I would love to find a time that works for you.</p>' +\n  '<p style=\"margin:0 0 16px 0;\">You can grab a slot directly here: ' +\n  '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n  '<p style=\"margin:0 0 16px 0;\">It takes under a minute and you will get an instant confirmation.</p>' +\n  '<p style=\"margin:24px 0 0 0;color:#333333;\">Talk soon,<br><strong>' + clientName + '</strong></p>' +\n  caslFooter +\n  '</div>';\n\nconst now = new Date().toISOString();\n\nconsole.log('BUILD BOOKING:', JSON.stringify({ lead_id: lead.id, client_name: clientName, has_calendly: calendlyUrl !== 'https://calendly.com/placeholder' }));\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    calendly_link: calendlyUrl,\n    client_name: clientName,\n    notification_email: notificationEmail,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx09-0000-0000-0000-000000000010",
@@ -288,18 +288,38 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $('Build Booking Email').first().json.email }}",
-        "subject": "={{ $('Build Booking Email').first().json.booking_subject }}",
-        "emailType": "html",
-        "message": "={{ $('Build Booking Email').first().json.booking_body }}",
-        "options": {
-          "appendAttributionToBody": false
-        }
+        "jsCode": "// Build Gmail API raw message — RFC 2822 + base64url\n// Replaces n8n Gmail node to eliminate 'sent with n8n' attribution.\n// TESTING MODE — remove before production\n\nconst data = $('Build Booking Email').first().json;\nconst to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nconst subject = data.booking_subject || '';\nconst htmlBody = data.booking_body || '';\nconst fromName = 'Mary Akintunde (Crystallux)';\nconst fromEmail = 'info@crystallux.org';\n\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\n\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\n\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn { json: { ...data, gmail_raw: raw } };"
+      },
+      "id": "clx09-0000-0000-0000-00000000011a",
+      "name": "Build Booking Gmail Raw",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
       },
       "id": "clx09-0000-0000-0000-000000000011",
       "name": "Send Booking Email",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         2840,
         200
@@ -309,8 +329,7 @@
           "name": "Gmail"
         }
       },
-      "continueOnFail": true,
-      "onError": "continueRegularOutput"
+      "continueOnFail": true
     },
     {
       "parameters": {},
@@ -670,6 +689,17 @@
       ]
     },
     "Build Booking Email": {
+      "main": [
+        [
+          {
+            "node": "Build Booking Gmail Raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Booking Gmail Raw": {
       "main": [
         [
           {

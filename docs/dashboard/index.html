@@ -548,13 +548,13 @@
 
   <!-- SECTION: CHAT -->
   <section class="section">
-    <div class="section-title">Crystallux AI Assistant</div>
+    <div class="section-title">Crystallux Assistant</div>
     <div class="card chat-card">
       <div class="chat-messages" id="chatMessages">
-        <div class="chat-msg assistant"><div class="chat-bubble">Hi — I'm the Crystallux AI assistant. Ask me to scan a city, list leads, check pipeline health, or run any sales engine task.</div></div>
+        <div class="chat-msg assistant"><div class="chat-bubble">Hi — I'm the Crystallux assistant. Ask me to scan a city, list leads, check pipeline health, or run any sales engine task.</div></div>
       </div>
       <div class="chat-input-row">
-        <input id="chatInput" class="chat-input" type="text" placeholder="Ask Crystallux AI…" />
+        <input id="chatInput" class="chat-input" type="text" placeholder="Ask Crystallux…" />
         <button id="chatSend" class="chat-send">Send</button>
       </div>
     </div>
@@ -1320,7 +1320,7 @@ async function runAction(i) {
    SECTION: CLAUDE CHAT
    ================================================================ */
 function buildSystemPrompt() {
-  return "You are the Crystallux AI assistant. " +
+  return "You are the Crystallux assistant. " +
     "You help the owner manage their AI sales platform. " +
     "You have access to live data from the Supabase database. " +
     "When asked about leads, pipeline, or stats, provide helpful analysis and suggestions. " +

@@ -180,7 +180,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lead = $('Split In Batches').item.json;\nconst skip = (reason) => ({ json: { ...lead, skip: true, reason } });\nif (!lead.email || String(lead.email).trim() === '') return skip('no_email');\nif (lead.do_not_contact === true) return skip('do_not_contact');\nif (lead.unsubscribed === true) return skip('unsubscribed');\nif ((Number(lead.total_emails_sent) || 0) >= 5) return skip('cap_reached');\nconst hoursSinceLastEmail = lead.last_email_sent_at ? (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return skip('cooldown_24h');\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #ddd;margin:20px 0\">' +\n  '<p style=\"font-size:11px;color:#888;line-height:1.5\">' +\n  'You received this because your business was found in a public directory. ' +\n  'If you prefer not to hear from us, <a href=\"mailto:unsubscribe@crystallux.org?subject=Unsubscribe%20' + encodeURIComponent(lead.email || '') + '\">click here to unsubscribe</a>.' +\n  '<br>Crystallux | Ontario, Canada</p>';\nconst emailBody = (lead.email_body || '') + unsubFooter;\nreturn { json: { ...lead, skip: false, email_body_with_footer: emailBody } };"
+        "jsCode": "const lead = $input.item.json;\n\n// DEBUG: log what we received\nconsole.log('Safety Check input:', JSON.stringify(lead, null, 2));\n\nconst skip = (reason) => ({ json: { ...lead, skip: true, reason, debug_msg: `Skipping because: ${reason}` } });\n\nif (!lead) return skip('no_lead_data');\nif (!lead.email || String(lead.email).trim() === '') return skip('no_email');\nif (lead.do_not_contact === true) return skip('do_not_contact');\nif (lead.unsubscribed === true) return skip('unsubscribed');\nif ((Number(lead.total_emails_sent) || 0) >= 5) return skip('cap_reached');\n\nconst hoursSinceLastEmail = lead.last_email_sent_at \n  ? (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 \n  : 999;\nif (hoursSinceLastEmail < 24) return skip('cooldown_24h');\n\nif (!lead.email_subject || String(lead.email_subject).trim() === '') return skip('no_subject');\nif (!lead.email_body || String(lead.email_body).trim() === '') return skip('no_body');\n\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #ddd;margin:20px 0\">' +\n  '<p style=\"font-size:11px;color:#888;line-height:1.5\">' +\n  'You received this because your business was found in a public directory. ' +\n  'If you prefer not to hear from us, <a href=\"mailto:unsubscribe@crystallux.org?subject=Unsubscribe%20' + \n  encodeURIComponent(lead.email || '') + '\">click here to unsubscribe</a>.' +\n  '<br>Crystallux | Ontario, Canada</p>';\n\nconst emailBody = String(lead.email_body || '').replace(/\\n/g, '<br>') + unsubFooter;\nreturn { \n  json: { \n    ...lead, \n    skip: false, \n    email_body_with_footer: emailBody,\n    debug_msg: 'Safe to send — all checks passed'\n  } \n};"
       },
       "id": "clx07v2-000b-0000-0000-00000000000b",
       "name": "Safety Check",
@@ -211,27 +211,64 @@
       "position": [2360, 300]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'CLX-Outreach-Sender-v2', node_name: 'safety_check_skip', error_code: 'SKIPPED', error_message: $json.reason || 'unknown', input_data: { lead_id: $json.id, email: $json.email, reason: $json.reason } }) }}",
+        "options": {}
+      },
       "id": "clx07v2-000d-0000-0000-00000000000d",
       "name": "Skip Lead",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [2600, 500]
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2600, 500],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true
     },
     {
       "parameters": {
-        "sendTo": "={{ $json.email }}",
-        "subject": "={{ $json.email_subject }}",
-        "emailType": "html",
-        "message": "={{ $json.email_body_with_footer }}",
-        "options": {
-          "appendAttributionToBody": false
-        }
+        "jsCode": "// Build Gmail API raw message — RFC 2822 + base64url\n// Replaces n8n Gmail node to eliminate unremovable 'sent with n8n' attribution.\n// TESTING MODE — remove before production\n\nconst data = $input.item.json;\nconst to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nconst subject = data.email_subject || '';\nconst htmlBody = data.email_body_with_footer || '';\nconst fromName = 'Mary Akintunde (Crystallux)';\nconst fromEmail = 'info@crystallux.org';\n\n// RFC 2047 encode subject for UTF-8 safety\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\n\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\n\n// base64url (RFC 4648)\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn { json: { ...data, gmail_raw: raw } };"
+      },
+      "id": "clx07v2-000e1-0000-0000-00000000000e1",
+      "name": "Build Gmail Raw Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2480, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
       },
       "id": "clx07v2-000e-0000-0000-00000000000e",
       "name": "Send Email",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2600, 300],
       "credentials": {
         "gmailOAuth2": { "name": "Gmail" }
@@ -240,7 +277,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const incoming = $input.item.json || {};\nconst lead = $('Split In Batches').item.json;\nconst errorObj = incoming.error || $input.item.error;\nconst sendOk = !errorObj && !!(incoming.id || incoming.threadId || incoming.labelIds || incoming.messageId);\nreturn { json: { ...lead, send_ok: sendOk, send_error: errorObj ? (errorObj.message || (typeof errorObj === 'string' ? errorObj : JSON.stringify(errorObj))) : null, gmail_message_id: incoming.id || incoming.messageId || null, gmail_thread_id: incoming.threadId || null } };"
+        "jsCode": "const incoming = $input.item.json || {};\nconst lead = $('Safety Check').item.json || {};\nconst errorObj = incoming.error || $input.item.error;\nconst sendOk = !errorObj && !!(incoming.id || incoming.threadId || incoming.labelIds || incoming.messageId);\nreturn { json: { ...lead, send_ok: sendOk, send_error: errorObj ? (errorObj.message || (typeof errorObj === 'string' ? errorObj : JSON.stringify(errorObj))) : null, gmail_message_id: incoming.id || incoming.messageId || null, gmail_thread_id: incoming.threadId || null } };"
       },
       "id": "clx07v2-000f-0000-0000-00000000000f",
       "name": "Handle Send Result",
@@ -437,8 +474,8 @@
     },
     "Split In Batches": {
       "main": [
-        [{ "node": "Wait 30s", "type": "main", "index": 0 }],
-        [{ "node": "Send Batch Complete", "type": "main", "index": 0 }]
+        [{ "node": "Send Batch Complete", "type": "main", "index": 0 }],
+        [{ "node": "Wait 30s", "type": "main", "index": 0 }]
       ]
     },
     "Send Batch Complete": {
@@ -452,9 +489,12 @@
     },
     "IF Safe To Send": {
       "main": [
-        [{ "node": "Send Email", "type": "main", "index": 0 }],
-        [{ "node": "Skip Lead", "type": "main", "index": 0 }]
+        [{ "node": "Skip Lead", "type": "main", "index": 0 }],
+        [{ "node": "Build Gmail Raw Message", "type": "main", "index": 0 }]
       ]
+    },
+    "Build Gmail Raw Message": {
+      "main": [[{ "node": "Send Email", "type": "main", "index": 0 }]]
     },
     "Skip Lead": {
       "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]

@@ -111,7 +111,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// GUARD 7: 24-hour cooldown + all safety checks\nconst lead = $input.item.json;\n\nif (!lead.email || lead.email.trim() === '') return [];\nif (lead.do_not_contact === true || lead.unsubscribed === true) return [];\nif ((Number(lead.total_emails_sent) || 0) >= 5) return [];\n\nconst hoursSinceLastEmail = lead.last_email_sent_at ?\n  (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return [];\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\n// GUARD 5: Unsubscribe footer\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\"><p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;\">To unsubscribe reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>Sent by Crystallux AI | info@crystallux.org</p>';\n\nconst followupBody = (lead.followup_message || '') + unsubFooter;\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    followup_body_with_footer: followupBody,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};",
+        "jsCode": "// GUARD 7: 24-hour cooldown + all safety checks\nconst lead = $input.item.json;\n\nif (!lead.email || lead.email.trim() === '') return [];\nif (lead.do_not_contact === true || lead.unsubscribed === true) return [];\nif ((Number(lead.total_emails_sent) || 0) >= 5) return [];\n\nconst hoursSinceLastEmail = lead.last_email_sent_at ?\n  (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return [];\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\n// GUARD 5: Unsubscribe footer\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\"><p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;\">To unsubscribe reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>Sent by Crystallux | info@crystallux.org</p>';\n\nconst followupBody = (lead.followup_message || '') + unsubFooter;\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    followup_body_with_footer: followupBody,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx08-0000-0000-0000-000000000006",
@@ -159,18 +159,38 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $('Build Follow Up Email').first().json.email }}",
-        "subject": "={{ $('Build Follow Up Email').first().json.followup_subject }}",
-        "emailType": "html",
-        "message": "={{ $('Build Follow Up Email').first().json.followup_body_with_footer }}",
-        "options": {
-          "appendAttributionToBody": false
-        }
+        "jsCode": "// Build Gmail API raw message — RFC 2822 + base64url\n// Replaces n8n Gmail node to eliminate 'sent with n8n' attribution.\n// TESTING MODE — remove before production\n\nconst data = $('Build Follow Up Email').first().json;\nconst to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nconst subject = data.followup_subject || '';\nconst htmlBody = data.followup_body_with_footer || '';\nconst fromName = 'Mary Akintunde (Crystallux)';\nconst fromEmail = 'info@crystallux.org';\n\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\n\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\n\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn { json: { ...data, gmail_raw: raw } };"
+      },
+      "id": "clx08-0000-0000-0000-00000000007a",
+      "name": "Build Follow Up Gmail Raw",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
       },
       "id": "clx08-0000-0000-0000-000000000007",
       "name": "Send Follow Up Email",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         1880,
         300
@@ -180,8 +200,7 @@
           "name": "Gmail"
         }
       },
-      "continueOnFail": true,
-      "onError": "continueRegularOutput"
+      "continueOnFail": true
     },
     {
       "parameters": {},
@@ -352,7 +371,7 @@
       "main": [
         [
           {
-            "node": "Send Follow Up Email",
+            "node": "Build Follow Up Gmail Raw",
             "type": "main",
             "index": 0
           }
@@ -360,6 +379,17 @@
         [
           {
             "node": "Skip Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Follow Up Gmail Raw": {
+      "main": [
+        [
+          {
+            "node": "Send Follow Up Email",
             "type": "main",
             "index": 0
           }
