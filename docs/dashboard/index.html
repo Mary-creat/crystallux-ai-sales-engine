@@ -408,6 +408,40 @@
     </div>
   </div>
 
+  <!-- CLIENT CONTEXT BANNER (populates when ?client_id=... in URL) -->
+  <section class="section" id="clientContextBanner" style="display:none">
+    <div class="card" style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Client View</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-top:4px" id="clientContextName">—</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-top:2px" id="clientContextMeta">—</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:var(--text-dimmer)">
+        <div id="clientContextMode">Filtering by client_id</div>
+        <div style="margin-top:4px"><a href="?" style="color:var(--primary);text-decoration:none">Clear filter</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN BANNER (populates when ?admin=true in URL) -->
+  <section class="section" id="adminBanner" style="display:none">
+    <div class="card" style="padding:14px 20px;background:linear-gradient(135deg,#1a365d,#2c5282);color:#fff;font-size:13px;font-weight:600;">
+      ADMIN MODE — viewing all clients, no filtering.
+    </div>
+  </section>
+
+  <!-- PUBLIC INTAKE FORM URL (per-client; shown when client_id active) -->
+  <section class="section" id="intakeUrlSection" style="display:none">
+    <div class="card" style="padding:18px 20px">
+      <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:8px">Public Intake Form</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="intakeUrl" type="text" readonly style="flex:1;min-width:260px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-3);color:var(--text);font-family:monospace;font-size:12px" />
+        <button id="copyIntakeUrlBtn" style="padding:10px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">Copy</button>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-dimmer)">Share with client's web team to embed on their site, or link directly.</div>
+    </div>
+  </section>
+
   <!-- SECTION 1: PIPELINE STATS (live from leads table) -->
   <section class="section" id="dashboard">
     <div class="section-title">Pipeline Stats — Live</div>
@@ -574,11 +608,79 @@
 
 const SUPABASE_URL = 'https://zqwatouqmqgkmaslydbr.supabase.co';
 const CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
+const FORM_INTAKE_URL = 'https://automation.crystallux.org/webhook/form-intake';
+const PUBLIC_INTAKE_BASE = 'https://crystallux.org/intake/';
 
 const NO_SUPABASE_MSG = 'No data — check your Supabase key in Settings';
 const FRIENDLY_ERROR  = 'Could not load data — check your API keys in Settings.';
 
 const credentials = { claudeKey:'', supabaseKey:'', n8nUrl:'' };
+
+// ══ Scale Sprint v1 — client context from URL params ══
+// ?client_id=<uuid>&token=<dashboard_token>  → per-client filtered view
+// ?admin=true&token=<MARY_MASTER_TOKEN>      → multi-client aggregate view
+// Token verification is client-side only at this stage; full server-side
+// verification + RLS-gated anon-key auth lands in a follow-up sprint.
+const urlParams = new URLSearchParams(window.location.search);
+const clientContext = {
+  clientId: urlParams.get('client_id') || '',
+  token:    urlParams.get('token') || '',
+  admin:    urlParams.get('admin') === 'true',
+  clientName: '',
+  clientSlug: '',
+  vertical: ''
+};
+
+function isClientScoped()  { return !!clientContext.clientId && !clientContext.admin; }
+function isAdminMode()     { return clientContext.admin; }
+function clientIdFilter()  { return isClientScoped() ? '&client_id=eq.' + encodeURIComponent(clientContext.clientId) : ''; }
+
+async function resolveClientContext() {
+  if (isAdminMode()) {
+    const banner = document.getElementById('adminBanner');
+    if (banner) banner.style.display = 'block';
+    return;
+  }
+  if (!isClientScoped() || !credentials.supabaseKey) return;
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/clients?id=eq.' + encodeURIComponent(clientContext.clientId) + '&select=id,client_name,client_slug,vertical,dashboard_token&limit=1', { headers: supabaseHeaders() });
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    const row = rows[0];
+    // Token check — best-effort, string equality
+    if (clientContext.token && row.dashboard_token && String(row.dashboard_token) !== String(clientContext.token)) {
+      document.getElementById('clientContextName').textContent = 'Invalid token';
+      document.getElementById('clientContextMeta').textContent = 'Check your dashboard link or contact Crystallux.';
+      document.getElementById('clientContextBanner').style.display = 'block';
+      return;
+    }
+    clientContext.clientName = row.client_name || '';
+    clientContext.clientSlug = row.client_slug || '';
+    clientContext.vertical   = row.vertical || '';
+    // Render banner
+    document.getElementById('clientContextName').textContent = 'Welcome, ' + (row.client_name || 'client');
+    document.getElementById('clientContextMeta').textContent = 'Vertical: ' + (row.vertical || '—') + ' · Slug: ' + (row.client_slug || '—');
+    document.getElementById('clientContextBanner').style.display = 'block';
+    // Render intake URL card
+    if (row.client_slug) {
+      const intakeUrl = PUBLIC_INTAKE_BASE + row.client_slug;
+      document.getElementById('intakeUrl').value = intakeUrl;
+      document.getElementById('intakeUrlSection').style.display = 'block';
+      const btn = document.getElementById('copyIntakeUrlBtn');
+      if (btn && !btn._bound) {
+        btn._bound = true;
+        btn.addEventListener('click', () => {
+          const el = document.getElementById('intakeUrl');
+          el.select();
+          try { document.execCommand('copy'); btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1500); } catch(e) {}
+        });
+      }
+    }
+  } catch (e) {
+    console.error('resolveClientContext error:', e);
+  }
+}
 
 const hasSupabase = () => !!credentials.supabaseKey;
 const hasClaude   = () => !!credentials.claudeKey;
@@ -1669,6 +1771,8 @@ if (!hadSessionKeys) {
   openSettings();
 }
 refreshAll();
+// Scale Sprint v1 — resolve client context from URL after keys are ready
+resolveClientContext();
 </script>
 </body>
 </html>
