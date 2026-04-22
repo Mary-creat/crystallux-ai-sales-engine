@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-04-22 — Scale-Sprint v1 Additions
+
+**New surface area:**
+- Schema: `docs/architecture/migrations/2026-04-22-scale-sprint-v1.sql`
+  - `clients` columns: `gmail_credential_name`, `daily_send_cap`, `sender_display_name`, `sender_email`, `email_signature`, `offer_override`, `dashboard_token`, `client_slug`
+  - New tables: `unsubscribes` (per-client), `monitoring_thresholds` (alert config)
+  - New RPCs: `get_daily_send_count_per_client(uuid)`, `is_unsubscribed(uuid, uuid)`
+- New workflows: `CLX - Form Intake v1`, `CLX - Error Monitor v1`, `CLX - Reply Ingestion v1` (all `active: false`)
+- Backup verification script: `scripts/test-restore.sh` (wired to OPERATIONS_HANDBOOK § Backup/Restore)
+- Client onboarding runbook + idempotent SQL template in `docs/mga/`
+
+**Deferred to follow-up sprint (Parts B.5/B.6/B.7):**
+- **n8n version pinning** — `docker-compose.yml` still on `n8nio/n8n:latest`. Marked with a TODO comment on the image line. Pin to a validated minor version after one green stack deploy of the scale-sprint-v1 changes. Rollback path: revert the one-line `image:` edit.
+- **Per-client Gmail credential propagation** — schema column in place; workflow-level credential resolution still uses single `"Gmail"` binding. Full per-client sender rollout arrives with Apollo/multi-channel sprint.
+- **Per-client rate limit enforcement** — RPC in place; Outreach Sender still calls global `get_daily_send_count()`. Swap the call after Wave 1 validates.
+- **Video outreach (Tavus)** — scoped but not scaffolded this sprint.
+
+**Do-Not-Break reminder:** TESTING MODE active across Outreach Sender v2, Follow-up v2, Booking v2 (`to = 'adesholaakintunde+clxtest@gmail.com'`). Must be reverted before real client traffic.
+
+---
+
 ## Executive Summary
 
 **Overall Health Score: 68/100 → 89/100 (after v1.1.1 fixes)**

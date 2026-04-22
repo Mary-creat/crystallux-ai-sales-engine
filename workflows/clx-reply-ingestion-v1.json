@@ -1,0 +1,251 @@
+{
+  "name": "CLX - Reply Ingestion v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 5 }
+          ]
+        }
+      },
+      "id": "clx-ri-v1-0001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is%3Aunread+in%3Ainbox+-category%3Apromotions&maxResults=25",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-ri-v1-0002",
+      "name": "List Unread Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract message ids; emit one item per message (or none if no unread).\nconst data = $input.item.json || {};\nconst messages = Array.isArray(data.messages) ? data.messages : [];\nreturn messages.map(m => ({ json: { id: m.id, threadId: m.threadId } }));"
+      },
+      "id": "clx-ri-v1-0003",
+      "name": "Split Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx-ri-v1-0004",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + $json.id + '?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=In-Reply-To' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-ri-v1-0005",
+      "name": "Get Message Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 300],
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract sender email + subject + snippet from Gmail response.\nconst msg = $input.item.json || {};\nconst headers = (msg.payload && msg.payload.headers) || [];\n\nfunction h(name) {\n  const hit = headers.find(x => x.name && x.name.toLowerCase() === name.toLowerCase());\n  return hit ? hit.value : '';\n}\n\nconst fromRaw = h('From');\nconst match = fromRaw.match(/<([^>]+)>/);\nconst fromEmail = (match ? match[1] : fromRaw).trim().toLowerCase();\n\nreturn { json: { gmail_message_id: msg.id, thread_id: msg.threadId, from_email: fromEmail, subject: h('Subject'), in_reply_to: h('In-Reply-To'), snippet: msg.snippet || '', internal_date: msg.internalDate } };"
+      },
+      "id": "clx-ri-v1-0006",
+      "name": "Extract Sender",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?email=eq.' + encodeURIComponent($json.from_email) + '&select=id,full_name,company,client_id,lead_status,total_emails_sent&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-ri-v1-0007",
+      "name": "Match Lead by Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decide whether we have a matching lead worth processing.\nconst gmail = $('Extract Sender').item.json;\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;\nif (!lead || !lead.id) return { json: { ...gmail, matched: false, skip_reason: 'no_matching_lead' } };\nif (lead.total_emails_sent === 0) return { json: { ...gmail, matched: false, skip_reason: 'unsolicited_inbound' } };\nreturn { json: { ...gmail, matched: true, lead_id: lead.id, client_id: lead.client_id, full_name: lead.full_name, company: lead.company, current_status: lead.lead_status } };"
+      },
+      "id": "clx-ri-v1-0008",
+      "name": "Check Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx-ri-v1-cond-matched",
+              "leftValue": "={{ $json.matched }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-ri-v1-0009",
+      "name": "IF Matched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2120, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.lead_id, p_fields: { reply_detected: true, reply_text: $json.snippet, reply_received_at: new Date().toISOString(), lead_status: 'Replied' } }) }}",
+        "options": {}
+      },
+      "id": "clx-ri-v1-0010",
+      "name": "Mark Lead Replied",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "clx-ri-v1-0011",
+      "name": "Skip Unmatched",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2360, 500]
+    },
+    {
+      "parameters": {},
+      "id": "clx-ri-v1-0012",
+      "name": "Loop Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [920, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "List Unread Messages", "type": "main", "index": 0 }]]
+    },
+    "List Unread Messages": {
+      "main": [[{ "node": "Split Messages", "type": "main", "index": 0 }]]
+    },
+    "Split Messages": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    },
+    "Split In Batches": {
+      "main": [
+        [{ "node": "Loop Done", "type": "main", "index": 0 }],
+        [{ "node": "Get Message Metadata", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Message Metadata": {
+      "main": [[{ "node": "Extract Sender", "type": "main", "index": 0 }]]
+    },
+    "Extract Sender": {
+      "main": [[{ "node": "Match Lead by Email", "type": "main", "index": 0 }]]
+    },
+    "Match Lead by Email": {
+      "main": [[{ "node": "Check Match", "type": "main", "index": 0 }]]
+    },
+    "Check Match": {
+      "main": [[{ "node": "IF Matched", "type": "main", "index": 0 }]]
+    },
+    "IF Matched": {
+      "main": [
+        [{ "node": "Mark Lead Replied", "type": "main", "index": 0 }],
+        [{ "node": "Skip Unmatched", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark Lead Replied": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    },
+    "Skip Unmatched": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-reply-ingestion-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "clx-reply-ingestion-v1",
+  "tags": []
+}

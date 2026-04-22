@@ -1,0 +1,215 @@
+{
+  "name": "CLX - Form Intake v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "form-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "clx-fi-v1-0001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-form-intake-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Form Intake v1 — Validate Payload\n// Expects POST body: { client_slug, full_name, email, company, industry?, city?, message?, source? }\n\nconst body = $input.item.json.body || $input.item.json;\n\nconst errors = [];\nif (!body.client_slug || String(body.client_slug).trim() === '') errors.push('client_slug required');\nif (!body.email || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(body.email)) errors.push('valid email required');\nif (!body.full_name || String(body.full_name).trim() === '') errors.push('full_name required');\n\nif (errors.length > 0) {\n  return { json: { valid: false, errors, received: body } };\n}\n\nreturn { json: { valid: true, client_slug: String(body.client_slug).trim(), full_name: String(body.full_name).trim(), email: String(body.email).trim().toLowerCase(), company: (body.company || '').trim(), industry: (body.industry || '').trim(), city: (body.city || '').trim(), message: (body.message || '').trim(), source: (body.source || 'form_intake').trim() } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-fi-v1-0002",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx-fi-v1-cond-valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-fi-v1-0003",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?client_slug=eq.' + encodeURIComponent($json.client_slug) + '&select=id,client_name,vertical,active&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-fi-v1-0004",
+      "name": "Resolve Client by Slug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve client_id from slug response; attach payload fields.\nconst payload = $('Validate Payload').item.json;\nconst raw = $input.item.json;\n\nlet client = null;\nif (Array.isArray(raw) && raw.length > 0) client = raw[0];\n\nif (!client || !client.id || client.active === false) {\n  return { json: { valid: false, errors: ['Unknown or inactive client_slug: ' + payload.client_slug], received: payload } };\n}\n\nreturn { json: { ...payload, client_id: client.id, client_name: client.client_name, vertical: client.vertical, valid: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-fi-v1-0005",
+      "name": "Attach Client Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx-fi-v1-cond-client",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-fi-v1-0006",
+      "name": "IF Client Resolved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/insert_lead_if_not_exists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_full_name: $json.full_name, p_email: $json.email, p_company: $json.company, p_industry: $json.industry, p_city: $json.city, p_client_id: $json.client_id, p_vertical: $json.vertical, p_source: $json.source, p_lead_status: 'New Lead', p_notes: $json.message }) }}",
+        "options": {}
+      },
+      "id": "clx-fi-v1-0007",
+      "name": "Insert Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'received', message: 'Thanks — we will be in touch shortly.', lead_id: $json.id || null }) }}",
+        "options": {}
+      },
+      "id": "clx-fi-v1-0008",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1880, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ JSON.stringify({ status: 'error', errors: $json.errors || ['Validation failed'] }) }}",
+        "options": {}
+      },
+      "id": "clx-fi-v1-0009",
+      "name": "Respond Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 404,
+        "responseBody": "={{ JSON.stringify({ status: 'error', errors: $json.errors || ['Unknown client'] }) }}",
+        "options": {}
+      },
+      "id": "clx-fi-v1-0010",
+      "name": "Respond Client Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1400, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
+    },
+    "Validate Payload": {
+      "main": [[{ "node": "IF Valid", "type": "main", "index": 0 }]]
+    },
+    "IF Valid": {
+      "main": [
+        [{ "node": "Resolve Client by Slug", "type": "main", "index": 0 }],
+        [{ "node": "Respond Validation Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Resolve Client by Slug": {
+      "main": [[{ "node": "Attach Client Context", "type": "main", "index": 0 }]]
+    },
+    "Attach Client Context": {
+      "main": [[{ "node": "IF Client Resolved", "type": "main", "index": 0 }]]
+    },
+    "IF Client Resolved": {
+      "main": [
+        [{ "node": "Insert Lead", "type": "main", "index": 0 }],
+        [{ "node": "Respond Client Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Insert Lead": {
+      "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-form-intake-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "clx-form-intake-v1",
+  "tags": []
+}

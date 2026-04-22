@@ -669,3 +669,48 @@ The Outreach Sender v2 workflow includes a CASL footer. Do not remove it.
 - **SQL** — Structured Query Language; how you talk to the database. Five commands cover 99% of daily use: SELECT, INSERT, UPDATE, DELETE, ALTER TABLE.
 - **Supabase** — Hosted Postgres with built-in REST API, auth, and RLS. Where all Crystallux lead data lives. Project ID `zqwatouqmqgkmaslydbr`.
 - **VPS (Virtual Private Server)** — Rented cloud server. Crystallux runs n8n on a Hostinger VPS at `187.77.20.222`.
+
+---
+
+## 12. Backup / Restore
+
+Crystallux runs on a single Hostinger VPS. Two databases carry state:
+
+1. **Supabase Postgres** (primary) — all lead data, clients, niche_overlays, scan_errors. Supabase provides daily automated backups with 7-day retention on the free tier. Dashboard → Database → Backups.
+2. **n8n internal Postgres** — workflow definitions, credentials (encrypted), execution history. **This is the at-risk surface.** If the VPS dies, restoring n8n's DB is how you bring everything back without re-importing + re-authorizing.
+
+### 12.1 Verification script
+
+`scripts/test-restore.sh` dumps the live Supabase DB, restores it into a scratch database on the same host, runs sanity checks (leads, clients, niche_overlays counts > 0), and drops the scratch DB.
+
+```bash
+# Dry run (print commands, don't execute)
+./scripts/test-restore.sh --dry-run
+
+# Real run
+./scripts/test-restore.sh
+```
+
+**Expected output on success:**
+```
+[1/5] Dumping ... Dump size: 4823610 bytes
+[2/5] Creating scratch database ...
+[3/5] Restoring dump ...
+[4/5] Running sanity checks ...
+    leads: 62, clients: 1, niche_overlays: 1
+[5/5] Dropping scratch database ...
+✓ PASS: restore verified end-to-end.
+```
+
+### 12.2 When to run
+
+- **Weekly** (Sunday night, low traffic)
+- **Before any schema migration** (including sprint migrations like `2026-04-22-scale-sprint-v1.sql`)
+- **Before onboarding each new-client wave**
+- **After any significant n8n version change**
+
+### 12.3 What it does NOT cover
+
+- n8n internal DB (credentials, executions) — add a second script pointed at the n8n postgres container in a follow-up sprint
+- Off-site backups — if the VPS itself dies, Supabase's own backups cover Crystallux data but n8n workflow state is lost. Git is the safety net for workflow JSON; credentials must be re-entered manually.
+- Restore timing — this script does not measure restore duration under load. Time a full restore once per quarter.

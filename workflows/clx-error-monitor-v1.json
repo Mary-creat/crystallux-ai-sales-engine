@@ -1,0 +1,179 @@
+{
+  "name": "CLX - Error Monitor v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 10 }
+          ]
+        }
+      },
+      "id": "clx-em-v1-0001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/monitoring_thresholds?is_active=eq.true&select=error_code,window_minutes,count_threshold,severity",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-em-v1-0002",
+      "name": "Load Thresholds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors?created_at=gte.' + new Date(Date.now() - 60*60*1000).toISOString() + '&select=workflow_name,node_name,error_code,created_at' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-em-v1-0003",
+      "name": "Load Recent Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Error Monitor — Evaluate Thresholds\n// Inputs: thresholds (from Load Thresholds), errors (from Load Recent Errors)\n\nconst thresholdsRaw = $('Load Thresholds').all();\nconst errorsRaw = $input.item.json;\n\nconst thresholds = (Array.isArray(thresholdsRaw) && thresholdsRaw.length > 0 && Array.isArray(thresholdsRaw[0].json)) ? thresholdsRaw[0].json : (Array.isArray(thresholdsRaw) ? thresholdsRaw.map(r => r.json) : []);\nconst errors = Array.isArray(errorsRaw) ? errorsRaw : [];\n\nconst now = Date.now();\nconst alerts = [];\n\nfor (const t of thresholds) {\n  if (!t.error_code) continue;\n  const windowMs = (t.window_minutes || 10) * 60 * 1000;\n  const cutoff = now - windowMs;\n  const matching = errors.filter(e =>\n    e.error_code === t.error_code &&\n    new Date(e.created_at).getTime() >= cutoff\n  );\n  if (matching.length >= (t.count_threshold || 5)) {\n    alerts.push({\n      error_code: t.error_code,\n      severity: t.severity || 'warning',\n      window_minutes: t.window_minutes || 10,\n      count: matching.length,\n      threshold: t.count_threshold || 5,\n      sample_workflow: matching[0].workflow_name,\n      sample_node: matching[0].node_name\n    });\n  }\n}\n\nreturn { json: { alert_count: alerts.length, alerts, checked_at: new Date().toISOString() } };"
+      },
+      "id": "clx-em-v1-0004",
+      "name": "Evaluate Thresholds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "clx-em-v1-cond-alerts",
+              "leftValue": "={{ $json.alert_count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-em-v1-0005",
+      "name": "IF Alerts Raised",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build alert email via raw MIME (same attribution-free pattern as Outreach Sender)\nconst data = $input.item.json;\nconst alerts = data.alerts || [];\nconst to = 'adesholaakintunde@gmail.com';\nconst fromName = 'Crystallux Monitor';\nconst fromEmail = 'info@crystallux.org';\n\nconst subject = '[CLX Alert] ' + alerts.length + ' threshold(s) exceeded — ' + alerts.map(a => a.error_code).join(', ');\n\nconst rows = alerts.map(a =>\n  '<tr><td style=\"padding:6px;border:1px solid #ddd;\">' + a.error_code + '</td>' +\n  '<td style=\"padding:6px;border:1px solid #ddd;\">' + a.severity + '</td>' +\n  '<td style=\"padding:6px;border:1px solid #ddd;text-align:right;\">' + a.count + ' / ' + a.threshold + '</td>' +\n  '<td style=\"padding:6px;border:1px solid #ddd;\">' + a.window_minutes + ' min</td>' +\n  '<td style=\"padding:6px;border:1px solid #ddd;font-size:11px;color:#666;\">' + (a.sample_workflow || '') + ' / ' + (a.sample_node || '') + '</td></tr>'\n).join('');\n\nconst htmlBody = '<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#333;max-width:700px;\">' +\n  '<p><strong>' + alerts.length + ' monitoring threshold(s) exceeded</strong> at ' + data.checked_at + '.</p>' +\n  '<table style=\"border-collapse:collapse;width:100%;\">' +\n  '<tr style=\"background:#f5f5f5;\">' +\n  '<th style=\"padding:6px;border:1px solid #ddd;text-align:left;\">Error Code</th>' +\n  '<th style=\"padding:6px;border:1px solid #ddd;text-align:left;\">Severity</th>' +\n  '<th style=\"padding:6px;border:1px solid #ddd;text-align:right;\">Count / Threshold</th>' +\n  '<th style=\"padding:6px;border:1px solid #ddd;text-align:left;\">Window</th>' +\n  '<th style=\"padding:6px;border:1px solid #ddd;text-align:left;\">Sample</th>' +\n  '</tr>' +\n  rows +\n  '</table></div>';\n\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\nconst raw = Buffer.from(mime, 'utf8').toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\n\nreturn { json: { ...data, gmail_raw: raw } };"
+      },
+      "id": "clx-em-v1-0006",
+      "name": "Build Alert Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
+      },
+      "id": "clx-em-v1-0007",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300],
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "clx-em-v1-0008",
+      "name": "No Alerts",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1400, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Load Thresholds", "type": "main", "index": 0 }]]
+    },
+    "Load Thresholds": {
+      "main": [[{ "node": "Load Recent Errors", "type": "main", "index": 0 }]]
+    },
+    "Load Recent Errors": {
+      "main": [[{ "node": "Evaluate Thresholds", "type": "main", "index": 0 }]]
+    },
+    "Evaluate Thresholds": {
+      "main": [[{ "node": "IF Alerts Raised", "type": "main", "index": 0 }]]
+    },
+    "IF Alerts Raised": {
+      "main": [
+        [{ "node": "Build Alert Email", "type": "main", "index": 0 }],
+        [{ "node": "No Alerts", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Alert Email": {
+      "main": [[{ "node": "Send Alert Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-error-monitor-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "clx-error-monitor-v1",
+  "tags": []
+}
