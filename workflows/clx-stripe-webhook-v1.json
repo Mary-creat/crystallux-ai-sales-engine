@@ -1,0 +1,383 @@
+{
+  "name": "CLX - Stripe Webhook v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stripe",
+        "options": {
+          "responseData": "={{ JSON.stringify({ received: true }) }}",
+          "rawBody": true
+        }
+      },
+      "id": "clx-sw-0001",
+      "name": "Stripe Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-sw-0001-webhook",
+      "notes": "DEACTIVATED — configure Stripe Dashboard → Developers → Webhooks to POST to this URL. Copy the signing secret into .env as STRIPE_WEBHOOK_SECRET before activation. See OPERATIONS_HANDBOOK §21 for the full activation sequence."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Stripe Webhook v1 — Verify signature (TASK 3)\n// Stripe signs every webhook body with HMAC-SHA256 using the endpoint\n// signing secret. We reproduce that verification here so we don't\n// process forged events. The signature format is:\n//   Stripe-Signature: t=<timestamp>,v1=<sig>,v1=<sig>...\n// Verification: HMAC_SHA256(secret, `${t}.${raw_body}`) == v1\n//\n// On verification failure we log STRIPE_WEBHOOK_UNVERIFIED to\n// scan_errors and short-circuit; no downstream nodes fire.\n\nconst crypto = require('crypto');\n\nconst headers = $input.item.json.headers || {};\nconst rawBody = $input.item.json.body || $input.item.binary && $input.item.binary.body && $input.item.binary.body.data;\n\nconst sigHeader = headers['stripe-signature'] || headers['Stripe-Signature'] || '';\nconst secret = process.env.STRIPE_WEBHOOK_SECRET || 'TODO_STRIPE_WEBHOOK_SECRET';\n\nlet verified = false;\nlet timestamp = null;\nlet v1 = null;\nlet payload = null;\nlet eventId = null;\nlet eventType = null;\n\ntry {\n  const parts = String(sigHeader).split(',').map(function(p) { return p.trim(); });\n  for (const p of parts) {\n    if (p.startsWith('t=')) timestamp = p.slice(2);\n    else if (p.startsWith('v1=')) v1 = p.slice(3);\n  }\n\n  const bodyString = typeof rawBody === 'string' ? rawBody : JSON.stringify($input.item.json.body || {});\n\n  if (timestamp && v1 && secret !== 'TODO_STRIPE_WEBHOOK_SECRET') {\n    const signedPayload = timestamp + '.' + bodyString;\n    const expected = crypto.createHmac('sha256', secret).update(signedPayload).digest('hex');\n    // timing-safe compare\n    if (expected.length === v1.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1))) {\n      verified = true;\n    }\n  }\n\n  payload = typeof rawBody === 'string' ? JSON.parse(rawBody) : ($input.item.json.body || {});\n  eventId = payload.id || null;\n  eventType = payload.type || null;\n} catch (e) {\n  return { json: { _verify_failed: true, verify_error: e.message || 'parse failure' } };\n}\n\nif (!verified) {\n  return { json: { _verify_failed: true, event_id: eventId, event_type: eventType, payload } };\n}\n\nreturn { json: { event_id: eventId, event_type: eventType, payload, verified: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sw-0002",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ],
+      "notes": "TODO: Set STRIPE_WEBHOOK_SECRET in .env and n8n environment. Until then, this node treats every event as unverified and the downstream IF routes to the scan_errors logger."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-sw-cond-verify-failed",
+              "leftValue": "={{ $json._verify_failed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sw-0003",
+      "name": "IF Unverified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'stripe_webhook_unverified', error_code: 'STRIPE_WEBHOOK_UNVERIFIED', error_message: 'Signature verification failed for event ' + ($json.event_id || 'unknown'), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0004",
+      "name": "Log Unverified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        260
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/stripe_events_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ stripe_event_id: $json.event_id, event_type: $json.event_type, payload: $json.payload, processed: false, received_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0005",
+      "name": "Insert Events Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Stripe Webhook v1 — Dispatch event type (TASK 3)\n// Routes each handled event type to the correct downstream branch.\n// Unhandled event types fall through as a no-op (logged to\n// stripe_events_log above and marked processed=true for housekeeping).\n//\n// Handled types:\n//   customer.subscription.created  -> upsert clients row with sub id + status\n//   customer.subscription.updated  -> update status + next_billing_date\n//   customer.subscription.deleted  -> mark canceled\n//   invoice.paid                   -> record last_payment + next_billing\n//   invoice.payment_failed         -> scan_errors STRIPE_PAYMENT_FAILED\n\nconst data = $('Verify Signature').first().json;\nconst payload = data.payload || {};\nconst event_type = data.event_type || '';\nconst obj = (payload.data && payload.data.object) || {};\n\nconst stripe_customer_id = obj.customer || null;\nconst stripe_subscription_id = (event_type.startsWith('customer.subscription.') ? obj.id : obj.subscription) || null;\nconst status = obj.status || null;\nconst current_period_end = obj.current_period_end ? new Date(obj.current_period_end * 1000).toISOString() : null;\nconst next_billing_date = current_period_end ? current_period_end.slice(0, 10) : null;\nconst trial_end = obj.trial_end ? new Date(obj.trial_end * 1000).toISOString() : null;\nconst amount_paid = obj.amount_paid ? Number(obj.amount_paid) / 100 : null;\nconst paid_at = obj.status_transitions && obj.status_transitions.paid_at\n  ? new Date(obj.status_transitions.paid_at * 1000).toISOString()\n  : (event_type === 'invoice.paid' ? new Date().toISOString() : null);\nconst customer_email = (obj.customer_email) || (obj.receipt_email) || null;\n\nreturn {\n  json: {\n    event_id: data.event_id,\n    event_type,\n    stripe_customer_id,\n    stripe_subscription_id,\n    status,\n    next_billing_date,\n    trial_end,\n    amount_paid,\n    paid_at,\n    customer_email,\n    is_subscription_created:  event_type === 'customer.subscription.created',\n    is_subscription_updated:  event_type === 'customer.subscription.updated',\n    is_subscription_deleted:  event_type === 'customer.subscription.deleted',\n    is_invoice_paid:          event_type === 'invoice.paid' || event_type === 'invoice.payment_succeeded',\n    is_payment_failed:        event_type === 'invoice.payment_failed',\n    raw: obj\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sw-0006",
+      "name": "Dispatch Event Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?stripe_customer_id=eq.{{ $json.stripe_customer_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ stripe_subscription_id: $json.stripe_subscription_id || null, subscription_status: $json.status || null, next_billing_date: $json.next_billing_date || null, trial_ends_at: $json.trial_end || null, last_payment_amount: $json.amount_paid || null, last_payment_at: $json.paid_at || null }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0007",
+      "name": "Patch Client Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-sw-cond-pay-fail",
+              "leftValue": "={{ $json.is_payment_failed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sw-0008",
+      "name": "IF Payment Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1640,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'stripe_invoice_payment_failed', error_code: 'STRIPE_PAYMENT_FAILED', error_message: 'Stripe customer ' + ($json.stripe_customer_id || 'unknown') + ' payment failed for subscription ' + ($json.stripe_subscription_id || 'unknown'), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0009",
+      "name": "Log Payment Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        460
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/stripe_events_log?stripe_event_id=eq.{{ $('Verify Signature').first().json.event_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ processed: true, processed_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0010",
+      "name": "Mark Event Processed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        620
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-sw-0011",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2120,
+        540
+      ]
+    }
+  ],
+  "connections": {
+    "Stripe Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          { "node": "Verify Signature", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Verify Signature": {
+      "main": [
+        [
+          { "node": "IF Unverified", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Unverified": {
+      "main": [
+        [
+          { "node": "Log Unverified", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Insert Events Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Events Log": {
+      "main": [
+        [
+          { "node": "Dispatch Event Type", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Dispatch Event Type": {
+      "main": [
+        [
+          { "node": "Patch Client Row", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Patch Client Row": {
+      "main": [
+        [
+          { "node": "IF Payment Failed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Payment Failed": {
+      "main": [
+        [
+          { "node": "Log Payment Failed", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Mark Event Processed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Payment Failed": {
+      "main": [
+        [
+          { "node": "Mark Event Processed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Mark Event Processed": {
+      "main": [
+        [
+          { "node": "Run Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-stripe-webhook-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-stripe-webhook-v1",
+  "tags": []
+}

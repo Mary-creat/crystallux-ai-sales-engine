@@ -1,0 +1,369 @@
+{
+  "name": "CLX - Stripe Provision v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-stripe-provision",
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: true, provisioned: $('Update Client Row').first().json }) }}"
+        }
+      },
+      "id": "clx-sp-0001",
+      "name": "Manual Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-sp-0001-webhook",
+      "notes": "DEACTIVATED. Called from client onboarding to provision a Stripe Customer + Subscription + send welcome email. Body: { client_id (optional), client_email, business_name, selected_plan ('founding_1997'|'salon_997'|...). See OPERATIONS_HANDBOOK §21 for activation."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Stripe Provision v1 — Resolve inputs + plan mapping (TASK 3)\n// Takes a manual-webhook body and normalises it into the shape the\n// downstream Stripe HTTP calls expect. Plan key maps to Stripe Price\n// ID — Mary sets these via .env STRIPE_PRICE_<KEY>. Unknown plan\n// keys short-circuit with _skip=true and log STRIPE_PROVISION_FAILED.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\n\nconst client_id      = body.client_id || null;\nconst client_email   = body.client_email || null;\nconst business_name  = body.business_name || null;\nconst selected_plan  = body.selected_plan || 'founding_1997';\n\nconst PLAN_ENV_MAP = {\n  founding_1997:     'STRIPE_PRICE_FOUNDING_1997',\n  standard_2497:     'STRIPE_PRICE_STANDARD_2497',\n  salon_997:         'STRIPE_PRICE_SALON_997',\n  intelligence_3997: 'STRIPE_PRICE_INTELLIGENCE_3997',\n  construction_1497: 'STRIPE_PRICE_CONSTRUCTION_1497',\n  moving_997:        'STRIPE_PRICE_MOVING_997',\n  cleaning_997:      'STRIPE_PRICE_CLEANING_997'\n};\n\nconst envKey = PLAN_ENV_MAP[selected_plan];\nconst price_id = envKey ? (process.env[envKey] || ('TODO_' + envKey)) : null;\n\nif (!client_email || !price_id) {\n  return { json: { _skip: true, skip_reason: !client_email ? 'missing_client_email' : 'unknown_plan_key', selected_plan, client_email, business_name } };\n}\n\nreturn {\n  json: {\n    client_id,\n    client_email,\n    business_name,\n    selected_plan,\n    price_id,\n    trial_days: 14\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sp-0002",
+      "name": "Resolve Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-sp-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sp-0003",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'stripe_provision_invalid_input', error_code: 'STRIPE_PROVISION_FAILED', error_message: $json.skip_reason || 'unknown', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sp-0004",
+      "name": "Log Invalid Input",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        260
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/customers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=email={{ encodeURIComponent($json.client_email) }}&name={{ encodeURIComponent($json.business_name || '') }}&metadata[crystallux_client_id]={{ $json.client_id || '' }}&metadata[selected_plan]={{ $json.selected_plan }}",
+        "options": {}
+      },
+      "id": "clx-sp-0005",
+      "name": "Create Stripe Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Create n8n HTTP Header Auth credential 'Stripe' (header: Authorization, value: Bearer $STRIPE_SECRET_KEY), then bind to this node. No credentials block attached yet — the workflow fails auth until configured."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Stripe Provision v1 — Parse Customer create response\n\nconst resp = $input.item.json || {};\nconst inputs = $('Resolve Inputs').first().json;\n\nconst ok = !!(resp.id && String(resp.id).startsWith('cus_'));\nconst stripe_customer_id = ok ? resp.id : null;\nconst error_message = ok ? null : (resp.error && resp.error.message) || (resp.message) || JSON.stringify(resp).slice(0, 500);\n\nreturn {\n  json: {\n    ...inputs,\n    stripe_customer_ok: ok,\n    stripe_customer_id,\n    stripe_customer_error: error_message\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sp-0006",
+      "name": "Parse Customer Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/subscriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=customer={{ $json.stripe_customer_id }}&items[0][price]={{ $json.price_id }}&trial_period_days={{ $json.trial_days }}&metadata[crystallux_client_id]={{ $json.client_id || '' }}&metadata[selected_plan]={{ $json.selected_plan }}",
+        "options": {}
+      },
+      "id": "clx-sp-0007",
+      "name": "Create Stripe Subscription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Stripe' credential (same as Create Stripe Customer)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Stripe Provision v1 — Parse Subscription response\n\nconst resp = $input.item.json || {};\nconst prev = $('Parse Customer Response').first().json;\n\nconst ok = !!(resp.id && String(resp.id).startsWith('sub_'));\nconst stripe_subscription_id = ok ? resp.id : null;\nconst subscription_status = resp.status || null;\nconst trial_end = resp.trial_end ? new Date(resp.trial_end * 1000).toISOString() : null;\nconst current_period_end = resp.current_period_end ? new Date(resp.current_period_end * 1000).toISOString() : null;\nconst next_billing_date = current_period_end ? current_period_end.slice(0, 10) : null;\nconst error_message = ok ? null : (resp.error && resp.error.message) || (resp.message) || JSON.stringify(resp).slice(0, 500);\n\nreturn {\n  json: {\n    ...prev,\n    stripe_subscription_ok: ok,\n    stripe_subscription_id,\n    subscription_status,\n    trial_end,\n    next_billing_date,\n    stripe_subscription_error: error_message\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sp-0008",
+      "name": "Parse Subscription Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.{{ $json.client_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ stripe_customer_id: $json.stripe_customer_id || null, stripe_subscription_id: $json.stripe_subscription_id || null, subscription_status: $json.subscription_status || 'trialing', subscription_plan: $json.selected_plan || null, trial_ends_at: $json.trial_end || null, next_billing_date: $json.next_billing_date || null }) }}",
+        "options": {}
+      },
+      "id": "clx-sp-0009",
+      "name": "Update Client Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Stripe Provision v1 — Build welcome email (TESTING MODE)\n// TESTING MODE redirect matches the existing sender-workflow pattern.\n// When Mary flips to production, replace the hardcoded to with\n// data.client_email.\n\nconst data = $input.item.json;\nconst to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nconst subject = 'Welcome to Crystallux — your account is ready';\nconst fromName = 'Mary Akintunde (Crystallux)';\nconst fromEmail = 'info@crystallux.org';\nconst businessName = data.business_name || 'your business';\nconst plan = data.selected_plan || 'founding_1997';\nconst trialEnd = data.trial_end ? new Date(data.trial_end).toLocaleDateString('en-CA') : 'the end of your trial';\nconst portalUrl = 'https://billing.stripe.com/p/login/PLACEHOLDER_PORTAL_URL'; // TODO: replace with real Stripe Customer Portal URL\n\nconst htmlBody = [\n  '<div style=\"font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:620px;margin:0 auto;color:#1a202c;line-height:1.5;\">',\n  '  <p>Welcome to Crystallux, ' + businessName + '.</p>',\n  '  <p>Your account is provisioned and your 14-day trial has started. Your billing plan is <strong>' + plan + '</strong> and your first payment will be on ' + trialEnd + ' unless you cancel before then.</p>',\n  '  <p>Manage your billing, update your card, or cancel any time from the Stripe customer portal:</p>',\n  '  <p style=\"text-align:center;margin:24px 0;\"><a href=\"' + portalUrl + '\" style=\"display:inline-block;background:#2563eb;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;\">Manage Billing</a></p>',\n  '  <p>We\\'ll be in touch within 24 hours to kick off your onboarding call.</p>',\n  '  <p>Talk soon,<br/>Mary</p>',\n  '  <hr style=\"border:none;border-top:1px solid #e2e8f0;margin:24px 0;\" />',\n  '  <p style=\"font-size:12px;color:#718096;\">Mary Akintunde, Crystallux &mdash; <a href=\"https://crystallux.org\" style=\"color:#718096;\">crystallux.org</a></p>',\n  '</div>'\n].join('\\n');\n\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\n\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn { json: { ...data, gmail_raw: raw, to_address: to } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sp-0010",
+      "name": "Build Welcome Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
+      },
+      "id": "clx-sp-0011",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-sp-0012",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2600,
+        540
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          { "node": "Resolve Inputs", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Resolve Inputs": {
+      "main": [
+        [
+          { "node": "IF Skip", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          { "node": "Log Invalid Input", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Create Stripe Customer", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Create Stripe Customer": {
+      "main": [
+        [
+          { "node": "Parse Customer Response", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Customer Response": {
+      "main": [
+        [
+          { "node": "Create Stripe Subscription", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Create Stripe Subscription": {
+      "main": [
+        [
+          { "node": "Parse Subscription Response", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Subscription Response": {
+      "main": [
+        [
+          { "node": "Update Client Row", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Update Client Row": {
+      "main": [
+        [
+          { "node": "Build Welcome Email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Welcome Email": {
+      "main": [
+        [
+          { "node": "Send Welcome Email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          { "node": "Run Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-stripe-provision-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-stripe-provision-v1",
+  "tags": []
+}

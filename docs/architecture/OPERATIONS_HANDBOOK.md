@@ -1282,3 +1282,185 @@ Segment Overlay) are safe no-ops when `lead_segment='unknown'` and the
 overlay has no `lead_segments` branch — reverting the schema does not
 break the workflows.
 
+---
+
+## 21. Stripe Billing Activation
+
+Task 3 ships dormant billing scaffolding: migration
+(`2026-04-23-stripe-billing.sql`), two workflows
+(`clx-stripe-webhook-v1`, `clx-stripe-provision-v1`), and the Stripe
+credential slot. No live Stripe calls happen until the steps below are
+complete. Until activation, client rows carry NULL Stripe fields and
+the dashboard billing panel shows "Not yet provisioned" for every
+client.
+
+### 21.1 Stripe account provisioning
+
+- Sign up at **stripe.com** using `info@crystallux.org`.
+- Complete business verification: Canadian business registration docs,
+  business address, BN/HST number. Stripe typically verifies in 2-5
+  business days.
+- Once verified, switch the Dashboard to **Live mode** (top-right
+  toggle) before copying keys — Test mode keys start with `sk_test_`,
+  Live mode with `sk_live_`.
+
+### 21.2 Create Stripe Products + Prices
+
+In the Stripe Dashboard → Products, create:
+
+| Product | Price (CAD/mo) | Interval | Internal plan key |
+|---|---|---|---|
+| Crystallux Insurance Broker Founding | $1,997 | monthly | `founding_1997` |
+| Crystallux Insurance Broker Standard | $2,497 | monthly | `standard_2497` |
+| Crystallux Construction Founding | $1,497 | monthly | `construction_1497` |
+| Crystallux Moving Founding | $997 | monthly | `moving_997` |
+| Crystallux Cleaning Founding | $997 | monthly | `cleaning_997` |
+| Crystallux Salon Founding | $997 | monthly | `salon_997` |
+| Crystallux Intelligence Upgrade | +$2,000 | monthly | `intelligence_3997` |
+
+Copy each Price ID (starts with `price_...`) into `.env` under the
+variable names expected by `clx-stripe-provision-v1`:
+
+```
+STRIPE_PRICE_FOUNDING_1997=price_...
+STRIPE_PRICE_STANDARD_2497=price_...
+STRIPE_PRICE_CONSTRUCTION_1497=price_...
+STRIPE_PRICE_MOVING_997=price_...
+STRIPE_PRICE_CLEANING_997=price_...
+STRIPE_PRICE_SALON_997=price_...
+STRIPE_PRICE_INTELLIGENCE_3997=price_...
+```
+
+### 21.3 .env keys
+
+```
+STRIPE_SECRET_KEY=sk_live_...                          # Dashboard → Developers → API keys
+STRIPE_WEBHOOK_SECRET=whsec_...                        # Dashboard → Developers → Webhooks → signing secret
+```
+
+### 21.4 Configure the webhook endpoint
+
+- In Stripe Dashboard → Developers → Webhooks → **Add endpoint**.
+- Endpoint URL: `https://automation.crystallux.org/webhook/stripe`
+  (the webhook path defined by `clx-stripe-webhook-v1`; confirm the
+  host in your n8n deployment).
+- Events to listen for (minimum set):
+  - `customer.subscription.created`
+  - `customer.subscription.updated`
+  - `customer.subscription.deleted`
+  - `invoice.paid`
+  - `invoice.payment_succeeded`
+  - `invoice.payment_failed`
+- Copy the **Signing secret** (starts with `whsec_`) into
+  `STRIPE_WEBHOOK_SECRET` in `.env`.
+
+### 21.5 n8n credential
+
+Create **one** HTTP Header Auth credential in n8n named **`Stripe`**:
+
+- Name: `Stripe`
+- Header Name: `Authorization`
+- Header Value: `Bearer $STRIPE_SECRET_KEY`
+
+Bind to the following nodes:
+
+- `clx-stripe-provision-v1` → `Create Stripe Customer`
+- `clx-stripe-provision-v1` → `Create Stripe Subscription`
+
+Both nodes currently ship without a `credentials` block; binding the
+`Stripe` credential to each one after creation is the activation step.
+
+### 21.6 Local test with Stripe CLI
+
+Before flipping the webhook active:
+
+```bash
+stripe listen --forward-to https://automation.crystallux.org/webhook/stripe
+```
+
+Leave this running and trigger a test event:
+
+```bash
+stripe trigger customer.subscription.created
+```
+
+Verify:
+
+- A row appears in `stripe_events_log` with
+  `event_type='customer.subscription.created'` and `processed=true`.
+- No `STRIPE_WEBHOOK_UNVERIFIED` rows in `scan_errors`.
+
+### 21.7 First real subscription (smoke test)
+
+1. In the Stripe Dashboard (Live mode), create a test customer with
+   Mary's personal card.
+2. Attach the customer to the `founding_1997` price with a 14-day
+   trial.
+3. Verify webhooks fired: `stripe_events_log` has 1-2 rows with
+   `processed=true`; the `clients` row (matched by
+   `stripe_customer_id`) has `subscription_status='trialing'`,
+   `subscription_plan='founding_1997'`, `trial_ends_at` populated.
+4. Issue a refund from Stripe Dashboard to clean up.
+
+### 21.8 Provisioning via clx-stripe-provision-v1
+
+Once the Stripe credential is bound and smoke test passes, activate
+`clx-stripe-provision-v1` for onboarding automation. POST to the
+manual webhook:
+
+```bash
+curl -X POST https://automation.crystallux.org/webhook/clx-stripe-provision \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "<uuid-of-existing-client-row>",
+    "client_email": "owner@clientbusiness.com",
+    "business_name": "Client Business Inc.",
+    "selected_plan": "founding_1997"
+  }'
+```
+
+The workflow: creates the Stripe Customer, creates the Subscription
+(14-day trial), updates the `clients` row, and sends a welcome email
+via Gmail (TESTING MODE inbox until Mary removes the redirect).
+
+### 21.9 Activation checklist
+
+- [ ] Stripe account verified and in Live mode
+- [ ] All Products + Prices created; Price IDs in `.env`
+- [ ] `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` in `.env`
+- [ ] Webhook endpoint configured in Stripe Dashboard for the 6 events
+- [ ] n8n credential `Stripe` created (HTTP Header Auth, `Authorization`)
+- [ ] `Stripe` credential bound to the two Create Stripe * nodes in
+      `clx-stripe-provision-v1`
+- [ ] `stripe listen --forward-to ...` smoke test passes
+- [ ] First Stripe Dashboard-triggered test subscription flows cleanly
+      through the webhook and lands on the correct `clients` row
+- [ ] `clx-stripe-webhook-v1` activated (set `active=true`)
+- [ ] `clx-stripe-provision-v1` activated (set `active=true`)
+- [ ] (Optional go-live) TESTING MODE redirect removed from
+      `clx-stripe-provision-v1` Build Welcome Email node
+
+### 21.10 Decommission / rollback
+
+- Quick mute: set both Stripe workflows `active=false`. In-flight
+  events already in `stripe_events_log` will retry via Stripe's
+  automatic retry cadence once reactivated.
+- Disable the webhook endpoint in Stripe Dashboard (Developers →
+  Webhooks → Disable). Stripe will stop delivering; `stripe_events_log`
+  entries frozen at their current `processed` state.
+- Full schema rollback: uncomment the trailing block of
+  `2026-04-23-stripe-billing.sql`. Drops `stripe_events_log`, removes
+  all `clients.stripe_*` / `subscription_*` / `trial_ends_at` columns,
+  removes monitoring thresholds. Test on staging first.
+
+### 21.11 Cost notes
+
+- Stripe: **2.9% + $0.30 per transaction** (Canadian card standard).
+  On a $1,997/mo subscription: ~$58/mo in fees per client, absorbed
+  into pricing.
+- No per-webhook or per-API-call fee — unlimited reads/writes at no
+  cost.
+- Stripe Customer Portal is **free** for every subscription; the URL
+  in the welcome email template is a placeholder until Mary creates
+  the portal config in Stripe Dashboard → Settings → Billing.
+
