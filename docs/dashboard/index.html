@@ -580,6 +580,24 @@
     <div class="api-grid" id="apiGrid"></div>
   </section>
 
+  <!-- SECTION: BILLING & SUBSCRIPTION (token-gated; Task 4) -->
+  <section class="section" id="billingSection" style="display:none">
+    <div class="section-title">Billing &amp; Subscription</div>
+    <div id="billingBanner" style="display:none;padding:12px;margin-bottom:12px;border-radius:6px;font-size:14px;"></div>
+    <div id="billingMRRSummary" style="display:none;margin-bottom:16px;"></div>
+    <div id="billingContent" class="card">
+      <div style="color:#718096;">Loading billing…</div>
+    </div>
+  </section>
+
+  <!-- SECTION: CHANNELS ACTIVE (Task 4) -->
+  <section class="section" id="channelsActiveSection" style="display:none">
+    <div class="section-title">Channels Active</div>
+    <div id="channelsActiveContent" class="card">
+      <div style="color:#718096;">Loading channel status…</div>
+    </div>
+  </section>
+
   <!-- SECTION: CHAT -->
   <section class="section">
     <div class="section-title">Crystallux Assistant</div>
@@ -1736,6 +1754,208 @@ async function testAndLoad() {
    ================================================================ */
 let refreshCountdown = 60;
 
+// ══ Task 4 — Billing & Subscription panel ═════════════════════════
+// Client-scoped mode: shows the single client's subscription_status,
+// plan, next_billing_date, trial_ends_at, last payment, with a status
+// banner (red for past_due, yellow for trialing). Admin mode: shows
+// an MRR summary strip plus a per-client table.
+//
+// Plan prices for the MRR calculation come from PLAN_PRICES_CAD below.
+// Keep this list in sync with the Stripe Products in OPERATIONS_HANDBOOK
+// §21.2.
+
+const PLAN_PRICES_CAD = {
+  founding_1997:     1997,
+  standard_2497:     2497,
+  construction_1497: 1497,
+  moving_997:         997,
+  cleaning_997:       997,
+  salon_997:          997,
+  intelligence_3997: 3997
+};
+
+function billingStatusBanner(row) {
+  const el = document.getElementById('billingBanner');
+  if (!el) return;
+  if (!row || !row.subscription_status) {
+    el.style.display = 'none';
+    return;
+  }
+  if (row.subscription_status === 'past_due') {
+    el.style.cssText = 'display:block;padding:12px;margin-bottom:12px;border-radius:6px;font-size:14px;background:#fed7d7;color:#742a2a;border:1px solid #fc8181;';
+    el.textContent = 'Payment failed — please update billing in the Stripe portal.';
+  } else if (row.subscription_status === 'trialing') {
+    const daysLeft = row.trial_ends_at
+      ? Math.max(0, Math.ceil((new Date(row.trial_ends_at) - new Date()) / (1000 * 60 * 60 * 24)))
+      : null;
+    el.style.cssText = 'display:block;padding:12px;margin-bottom:12px;border-radius:6px;font-size:14px;background:#fefcbf;color:#744210;border:1px solid #f6e05e;';
+    el.textContent = daysLeft !== null ? ('Trial ends in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + '.') : 'Trial active.';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function fmtDate(d) { return d ? new Date(d).toISOString().slice(0,10) : '—'; }
+function fmtAmount(n) { return n != null ? ('$' + Number(n).toFixed(2)) : '—'; }
+
+async function fetchBillingClient() {
+  const section = document.getElementById('billingSection');
+  const content = document.getElementById('billingContent');
+  if (!section || !content) return;
+  if (!clientContext.clientId || !hasSupabase()) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  try {
+    const url = SUPABASE_URL + '/rest/v1/clients?id=eq.' + encodeURIComponent(clientContext.clientId)
+      + '&select=id,client_name,subscription_status,subscription_plan,next_billing_date,last_payment_amount,last_payment_at,trial_ends_at,stripe_customer_id&limit=1';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    const row = Array.isArray(rows) && rows[0];
+    if (!row) {
+      content.innerHTML = '<div style="color:#718096;">No billing record on file.</div>';
+      billingStatusBanner(null);
+      return;
+    }
+    billingStatusBanner(row);
+    const portalUrl = 'https://billing.stripe.com/p/login/PLACEHOLDER_PORTAL_URL'; // TODO Task 3: replace after Stripe portal created
+    const notProvisioned = !row.subscription_status;
+    content.innerHTML = notProvisioned
+      ? '<div style="color:#718096;">Not yet provisioned. Contact Crystallux to activate billing.</div>'
+      : [
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">',
+        '  <div><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Status</div><div style="font-weight:600;font-size:16px;">' + (row.subscription_status || '—') + '</div></div>',
+        '  <div><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Plan</div><div style="font-weight:600;font-size:16px;">' + (row.subscription_plan || '—') + '</div></div>',
+        '  <div><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Next billing</div><div style="font-weight:600;font-size:16px;">' + fmtDate(row.next_billing_date) + '</div></div>',
+        '  <div><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Last payment</div><div style="font-weight:600;font-size:16px;">' + fmtAmount(row.last_payment_amount) + '</div></div>',
+        '  <div><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Last payment date</div><div style="font-weight:600;font-size:16px;">' + fmtDate(row.last_payment_at) + '</div></div>',
+        '  <div><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Trial ends</div><div style="font-weight:600;font-size:16px;">' + fmtDate(row.trial_ends_at) + '</div></div>',
+        '</div>',
+        '<div style="margin-top:16px;"><a href="' + portalUrl + '" target="_blank" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">Manage Billing</a></div>'
+      ].join('\n');
+  } catch (e) {
+    content.innerHTML = '<div style="color:#c53030;">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+async function fetchBillingAdmin() {
+  const section = document.getElementById('billingSection');
+  const content = document.getElementById('billingContent');
+  const mrrEl = document.getElementById('billingMRRSummary');
+  if (!section || !content || !mrrEl) return;
+  if (!isAdminMode() || !hasSupabase()) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  try {
+    const url = SUPABASE_URL + '/rest/v1/clients?select=id,client_name,subscription_status,subscription_plan,next_billing_date,last_payment_amount,trial_ends_at&limit=200';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    const all = Array.isArray(rows) ? rows : [];
+    let mrr = 0;
+    const counts = { active: 0, trialing: 0, past_due: 0, canceled: 0, other: 0 };
+    for (const r of all) {
+      const status = r.subscription_status;
+      if (status === 'active') { mrr += PLAN_PRICES_CAD[r.subscription_plan] || 0; counts.active++; }
+      else if (status === 'trialing') counts.trialing++;
+      else if (status === 'past_due') counts.past_due++;
+      else if (status === 'canceled') counts.canceled++;
+      else if (status) counts.other++;
+    }
+    mrrEl.style.display = 'block';
+    mrrEl.innerHTML = [
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;">',
+      '  <div class="card" style="padding:12px;"><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">MRR (active)</div><div style="font-weight:700;font-size:22px;color:#2563eb;">$' + mrr.toLocaleString() + '</div></div>',
+      '  <div class="card" style="padding:12px;"><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Active</div><div style="font-weight:700;font-size:22px;">' + counts.active + '</div></div>',
+      '  <div class="card" style="padding:12px;"><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Trialing</div><div style="font-weight:700;font-size:22px;color:#d69e2e;">' + counts.trialing + '</div></div>',
+      '  <div class="card" style="padding:12px;"><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Past due</div><div style="font-weight:700;font-size:22px;color:#c53030;">' + counts.past_due + '</div></div>',
+      '  <div class="card" style="padding:12px;"><div style="font-size:11px;text-transform:uppercase;color:#a0aec0;">Canceled</div><div style="font-weight:700;font-size:22px;color:#718096;">' + counts.canceled + '</div></div>',
+      '</div>'
+    ].join('\n');
+    if (all.length === 0) {
+      content.innerHTML = '<div style="color:#718096;">No clients yet.</div>';
+      return;
+    }
+    const rowsHtml = all.map(function(r) {
+      return '<tr>'
+        + '<td>' + (r.client_name || '—') + '</td>'
+        + '<td>' + (r.subscription_status || '—') + '</td>'
+        + '<td>' + (r.subscription_plan || '—') + '</td>'
+        + '<td>' + fmtDate(r.next_billing_date) + '</td>'
+        + '<td>' + fmtAmount(r.last_payment_amount) + '</td>'
+        + '<td>' + fmtDate(r.trial_ends_at) + '</td>'
+        + '</tr>';
+    }).join('\n');
+    content.innerHTML = '<table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;">Client</th><th style="text-align:left;">Status</th><th style="text-align:left;">Plan</th><th style="text-align:left;">Next billing</th><th style="text-align:left;">Last payment</th><th style="text-align:left;">Trial ends</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+  } catch (e) {
+    content.innerHTML = '<div style="color:#c53030;">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+function fetchBilling() {
+  if (isAdminMode()) fetchBillingAdmin();
+  else if (isClientScoped()) fetchBillingClient();
+}
+
+// ══ Task 4 — Channels Active panel ════════════════════════════════
+// Reads clients.channels_enabled (jsonb) for the current client (or
+// all clients in admin mode). Renders a per-channel chip with a
+// status label. The link anchors to the activation runbook in
+// OPERATIONS_HANDBOOK §14/15/21.
+
+const ALL_CHANNELS = ['email','linkedin','whatsapp','voice','video','sms'];
+const CHANNEL_RUNBOOK_ANCHOR = {
+  email:    'docs/architecture/OPERATIONS_HANDBOOK.md',
+  linkedin: 'docs/architecture/OPERATIONS_HANDBOOK.md#141-linkedin-integration',
+  whatsapp: 'docs/architecture/OPERATIONS_HANDBOOK.md#142-whatsapp-integration',
+  voice:    'docs/architecture/OPERATIONS_HANDBOOK.md#143-voice-integration',
+  video:    'docs/architecture/OPERATIONS_HANDBOOK.md#15-video-outreach-activation-tavus',
+  sms:      'docs/architecture/OPERATIONS_HANDBOOK.md#14-multi-channel-activation'
+};
+
+function channelChip(name, status) {
+  const color = status === 'Configured' ? '#2f855a' : (status === 'Pending Setup' ? '#d69e2e' : '#c53030');
+  const bg    = status === 'Configured' ? '#c6f6d5' : (status === 'Pending Setup' ? '#fefcbf' : '#fed7d7');
+  const href  = CHANNEL_RUNBOOK_ANCHOR[name] || CHANNEL_RUNBOOK_ANCHOR.email;
+  return '<a href="' + href + '" target="_blank" style="text-decoration:none;"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:' + bg + ';color:' + color + ';font-size:12px;font-weight:600;margin:4px;border:1px solid ' + color + '33;">' + name + ' · ' + status + '</span></a>';
+}
+
+function channelStatusFromRow(row, channel) {
+  const enabled = Array.isArray(row.channels_enabled) ? row.channels_enabled.includes(channel) : false;
+  return enabled ? 'Configured' : 'Pending Setup';
+}
+
+async function fetchChannelsActive() {
+  const section = document.getElementById('channelsActiveSection');
+  const content = document.getElementById('channelsActiveContent');
+  if (!section || !content) return;
+  if (!hasSupabase()) { section.style.display = 'none'; return; }
+  if (!isClientScoped() && !isAdminMode()) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  try {
+    const clientFilter = isClientScoped() ? '&id=eq.' + encodeURIComponent(clientContext.clientId) : '';
+    const url = SUPABASE_URL + '/rest/v1/clients?select=id,client_name,channels_enabled,video_enabled' + clientFilter + '&limit=200';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    const all = Array.isArray(rows) ? rows : [];
+    if (all.length === 0) {
+      content.innerHTML = '<div style="color:#718096;">No channel records.</div>';
+      return;
+    }
+    const blocks = all.map(function(row) {
+      const chips = ALL_CHANNELS.map(function(ch) {
+        const status = ch === 'video' && row.video_enabled === true
+          ? 'Configured'
+          : channelStatusFromRow(row, ch);
+        return channelChip(ch, status);
+      }).join('');
+      return '<div style="padding:10px 0;border-bottom:1px solid #e2e8f0;"><div style="font-weight:600;margin-bottom:6px;">' + (row.client_name || row.id) + '</div><div>' + chips + '</div></div>';
+    }).join('\n');
+    content.innerHTML = blocks;
+  } catch (e) {
+    content.innerHTML = '<div style="color:#c53030;">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
 function refreshAll() {
   refreshCountdown = 60;
   fetchPipelineStats();
@@ -1746,6 +1966,8 @@ function refreshAll() {
   fetchScanMonitor();
   fetchEnrichment();
   fetchClientPerformance();
+  fetchBilling();
+  fetchChannelsActive();
   checkApiStatus();
 }
 
