@@ -945,3 +945,217 @@ Full schema rollback is at the bottom of
 `2026-04-23-multi-channel.sql`, commented out. Test on a staging schema
 first; the migration drops table data when uncommented.
 
+---
+
+## 15. Video Outreach Activation — Tavus
+
+Part B.7 ships video-outreach scaffolding dormant: migration, two
+workflows (`clx-video-outreach-v1`, `clx-video-ready-v1`), a 48h
+no-booking fallback branch in `clx-booking-v2`, and a score-gated
+routing rule in `clx-campaign-router-v2`. Nothing sends a live Tavus
+request until the steps below are completed, per-client.
+
+The flow end-to-end once activated:
+
+1. Campaign Router (or Booking v2 48h fallback, or a direct webhook POST)
+   sets `preferred_channel='video'` on a lead and triggers
+   `clx-video-outreach-v1`.
+2. That workflow pulls the niche's `video_script_template`, interpolates
+   lead tokens, hands the draft to Claude Haiku for a rewrite, then POSTs
+   the final script to Tavus.
+3. Tavus renders the video asynchronously (~60-120s) and POSTs the result
+   to `clx-video-ready-v1`'s webhook URL.
+4. `clx-video-ready-v1` builds an embedded-thumbnail email with a
+   Calendly CTA and sends it via Gmail (TESTING MODE still points to
+   `adesholaakintunde+clxtest@gmail.com` until Mary removes the override).
+
+### 15.1 Tavus account + replica
+
+- Sign up at **tavus.io** on the starter plan (~$59/mo — includes
+  one personal replica + enough render credits for initial pilots).
+- Record a 2-minute replica training video per Tavus's guidance
+  (well-lit, stable camera, clear diction, neutral background). Upload
+  via the Tavus dashboard.
+- Wait up to 24h for Tavus to finish training. You'll receive an email
+  with the `replica_id` once ready.
+- Capture the API key from Tavus dashboard → Developer → API Keys.
+
+### 15.2 .env keys
+
+```
+TAVUS_API_KEY=sk-tavus-...           # from Tavus dashboard
+TAVUS_REPLICA_ID=r1a2b3c4...         # from the training-ready email
+TAVUS_CALLBACK_URL=https://your-n8n-host/webhook/clx-video-ready-v1
+```
+
+`TAVUS_CALLBACK_URL` is the production webhook URL exposed by the
+`Tavus Callback Webhook (DEACTIVATED)` node in `clx-video-ready-v1` —
+copy it from n8n after the workflow is imported (and before it's
+activated).
+
+If you plan to run multiple replicas (e.g., separate video branding per
+client), you can set per-client overrides in `clients.metadata->>
+tavus_replica_id` and extend `clx-video-outreach-v1` to read it. Not
+required for launch.
+
+### 15.3 n8n credential
+
+Create one HTTP Header Auth credential in n8n named **`Tavus`**:
+
+- Name: `Tavus` (exact string — credential bindings are name-based per
+  the workflow-credential convention)
+- Header Name: `x-api-key`
+- Header Value: `$TAVUS_API_KEY`
+
+### 15.4 Per-node credential binding
+
+In `clx-video-outreach-v1`, bind the `Tavus` credential to:
+
+- `Tavus Generate Video` (HTTP node, URL `https://tavusapi.com/v2/videos`)
+
+Replace the placeholder tokens inside the same node's JSON body:
+
+- `TODO_TAVUS_REPLICA_ID` → your `$TAVUS_REPLICA_ID`
+- `TODO_TAVUS_CALLBACK_URL` → your `$TAVUS_CALLBACK_URL`
+
+The `Compose Video Script (Claude)` node also needs the existing
+`Anthropic API` credential bound — if Mary hasn't set it up yet, create
+an HTTP Header Auth credential named `Anthropic API` with header name
+`x-api-key` and value `$ANTHROPIC_API_KEY`. The script workflow has a
+fallback path (deterministic interpolation) so this is strictly an
+uplift, not a blocker — but attach it before the first dry-run for
+cleaner video scripts.
+
+All Supabase HTTP nodes in both workflows already bind by name to
+`Supabase Crystallux` — no action needed for those.
+
+### 15.5 Tavus → Callback webhook
+
+Configure the Tavus dashboard to POST completion events to
+`$TAVUS_CALLBACK_URL` (which points at `clx-video-ready-v1`). Tavus
+supports this per-video (via the `callback_url` field in the generate
+call) *and* as a global setting in the dashboard. Setting both is
+belt-and-suspenders safe; duplicates are deduped by `video_request_id`
+correlation in the Normalize Payload node.
+
+Sanity-check by POSTing a synthetic payload into the webhook:
+
+```json
+{ "video_id": "test_video_id", "status": "ready",
+  "hosted_url": "https://example.com/test.mp4",
+  "thumbnail_url": "https://example.com/test.jpg",
+  "duration": 60, "total_cost": 1.00 }
+```
+
+Expect: correlation miss logged to `scan_errors` as
+`VIDEO_RESULT_NO_MATCH`. That's the correct response — no lead has
+`video_request_id='test_video_id'`.
+
+### 15.6 Flip a client on
+
+Per client, in Supabase:
+
+```sql
+UPDATE clients
+SET video_enabled    = true,
+    video_monthly_cap = 50     -- adjust per budget
+WHERE id = '<client-uuid>';
+```
+
+Confirm: `Campaign Router v2` will start routing that client's
+high-score Apollo-enriched leads to `preferred_channel='video'`. The
+48h-no-booking fallback in `clx-booking-v2` also activates for that
+client only.
+
+Leave `video_enabled=false` on all other clients until each has been
+individually validated.
+
+### 15.7 Dry-run — single lead end-to-end
+
+1. Pick a test lead whose client has `video_enabled=true`, with a valid
+   `email`, reasonable `full_name` / `company` / `city` / `industry`.
+2. POST to the `Manual Trigger (Webhook)` in `clx-video-outreach-v1`:
+   ```bash
+   curl -X POST https://your-n8n-host/webhook/clx-video-outreach-v1 \
+     -H "Content-Type: application/json" \
+     -d '{"lead_id":"<test-lead-uuid>"}'
+   ```
+3. Verify in Supabase:
+   - `video_generation_log` gained one row, `status='generating'`,
+     `request_id` populated.
+   - `leads.video_request_id`, `video_script`, and `video_status='generating'`
+     are set on the lead.
+4. Wait 60-120s for Tavus to finish rendering.
+5. Verify Tavus posted the ready event to `clx-video-ready-v1`. Check:
+   - `video_generation_log.status='ready'`, `video_url` populated,
+     `cost_usd` set.
+   - `leads.video_url` + `video_status='delivered'`, `lead_status='Video Sent'`.
+   - `outreach_log` has a `channel='video'` row for the lead.
+6. Check the TESTING MODE inbox (`adesholaakintunde+clxtest@gmail.com`)
+   for the video email. Click the thumbnail — should open Tavus's hosted
+   URL in a browser.
+
+### 15.8 Go-live (remove TESTING MODE redirect)
+
+Once Mary is satisfied the embedded email renders correctly on Gmail
+desktop + mobile + Outlook, edit `clx-video-ready-v1` node
+`Build Gmail Raw Message`:
+
+```javascript
+// BEFORE:
+const to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production
+
+// AFTER:
+const to = data.email;
+```
+
+Then re-import the workflow. Same pattern as the other sender workflows
+(`clx-outreach-sender-v2`, `clx-follow-up-v2`, `clx-booking-v2`), which
+Mary may choose to flip at her own cadence.
+
+### 15.9 Activation checklist
+
+- [ ] Tavus account provisioned; replica trained (≤24h wait)
+- [ ] `TAVUS_API_KEY` and `TAVUS_REPLICA_ID` in `.env`
+- [ ] n8n credential `Tavus` created (HTTP Header Auth, `x-api-key`)
+- [ ] `Anthropic API` credential bound to Compose Video Script node
+      (uplift; deterministic fallback exists)
+- [ ] `Tavus` credential bound to `Tavus Generate Video` node
+- [ ] `TODO_TAVUS_REPLICA_ID` + `TODO_TAVUS_CALLBACK_URL` tokens replaced
+- [ ] `clx-video-ready-v1` webhook URL configured in Tavus dashboard
+- [ ] Synthetic webhook test logs `VIDEO_RESULT_NO_MATCH` to scan_errors
+- [ ] `clients.video_enabled=true` flipped for the target client
+- [ ] Dry-run succeeds end-to-end for one test lead
+- [ ] `leads.video_status='delivered'` observed on the test lead
+- [ ] Video email received and renders correctly in TESTING MODE inbox
+- [ ] (Optional go-live) TESTING MODE redirect removed from
+      `clx-video-ready-v1` Build Gmail Raw Message node
+
+### 15.10 Decommission / rollback
+
+- Quick mute (per client): `UPDATE clients SET video_enabled=false WHERE id=...`.
+  Campaign Router stops routing that client's leads to video; the
+  48h-no-booking Execute Workflow node in booking-v2 short-circuits at
+  the Filter Eligible step.
+- Full schema rollback: uncomment the trailing block of
+  `2026-04-23-video-schema.sql`. This drops `video_generation_log`,
+  removes the `leads.video_*` columns, and removes the monitoring
+  thresholds. Test on staging first.
+- No Schedule Trigger to deactivate — `clx-video-outreach-v1` runs only
+  on Manual Webhook or Execute Workflow from `clx-booking-v2`. Disabling
+  the workflow entirely (`active=false`, already the default) is
+  sufficient.
+
+### 15.11 Cost guardrails
+
+- Tavus charges per render (~$1/video on the starter plan).
+- `video_monthly_cap` (default 50) is the per-client ceiling. The
+  preflight check (`Monthly Cap Gate` in `clx-video-outreach-v1`) uses
+  `get_monthly_video_count` RPC and leaves a 2-render buffer below the
+  cap to absorb in-flight callbacks.
+- High-score gate (`lead_score >= 90` in Campaign Router) keeps video
+  reserved for Apollo-enriched leads where the unit economics justify it.
+- A failed Tavus call is captured in `scan_errors` as
+  `VIDEO_GENERATION_FAILED`; 5 within 10 minutes triggers a warning via
+  `clx-error-monitor-v1` per the threshold seeded in the migration.
+

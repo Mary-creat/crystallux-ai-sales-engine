@@ -518,6 +518,108 @@
         1160,
         500
       ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Booking%20Sent&meeting_scheduled=eq.false&do_not_contact=eq.false&booking_email_sent_at=lt.{{ encodeURIComponent(new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) }}&select=id,client_id,full_name,email,company,industry,product_type,channels_attempted,video_status,booking_email_sent_at,clients(video_enabled)&limit=10",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-bk-v2-vfb-001",
+      "name": "Get 48h-No-Booking Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        700
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "notes": "Part B.7 — 48h Video Fallback. Queries leads that received a Calendly link >48h ago with no booking. Execute Workflow node below hands them off to clx-video-outreach-v1 (which is active:false; this branch is dormant until video is activated)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Booking v2 — 48h Video Fallback preflight\n// Narrows the 48h-no-booking batch to leads whose client has\n// video_enabled=true AND whose channels_attempted does not already\n// include 'video'. Skips silently (no scan_errors) — this branch is\n// best-effort; the next 30-min tick will retry naturally.\n\nconst rows = $input.item.json;\nconst list = Array.isArray(rows) ? rows : (rows && rows.id ? [rows] : []);\n\nconst out = [];\nfor (const lead of list) {\n  if (!lead || !lead.id) continue;\n  const client = lead.clients || {};\n  if (client.video_enabled !== true) continue;\n  const attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\n  if (attempted.includes('video')) continue;\n  const vs = String(lead.video_status || '').toLowerCase();\n  if (vs === 'generating' || vs === 'ready' || vs === 'delivered') continue;\n  out.push({ lead_id: lead.id });\n}\n\nif (out.length === 0) return [{ json: { _skip: true, reason: 'no_eligible_stale_leads' } }];\nreturn out.map(x => ({ json: x }));"
+      },
+      "id": "clx-bk-v2-vfb-002",
+      "name": "Filter Eligible For Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-bk-v2-vfb-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-bk-v2-vfb-003",
+      "name": "IF Any Eligible",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "clx-video-outreach-v1",
+        "mode": "each",
+        "options": {}
+      },
+      "id": "clx-bk-v2-vfb-004",
+      "name": "Execute Video Outreach",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        700
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "Invokes clx-video-outreach-v1 per eligible lead. That workflow is active:false until Tavus is configured — calls will no-op cleanly until activation."
+    },
+    {
+      "parameters": {},
+      "id": "clx-bk-v2-vfb-005",
+      "name": "No Eligible 48h Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        860
+      ]
     }
   ],
   "connections": {
@@ -526,6 +628,51 @@
         [
           {
             "node": "Get Replied Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 48h-No-Booking Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 48h-No-Booking Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter Eligible For Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Eligible For Video": {
+      "main": [
+        [
+          {
+            "node": "IF Any Eligible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Any Eligible": {
+      "main": [
+        [
+          {
+            "node": "Execute Video Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Eligible 48h Leads",
             "type": "main",
             "index": 0
           }

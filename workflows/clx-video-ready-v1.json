@@ -1,0 +1,696 @@
+{
+  "name": "CLX - Video Ready v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-video-ready-v1",
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: true }) }}"
+        }
+      },
+      "id": "clx-vr2-0001",
+      "name": "Tavus Callback Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-vr2-0001-webhook",
+      "notes": "DEACTIVATED — activate only after Tavus is configured AND the Tavus callback_url in clx-video-outreach-v1 is pointed at this workflow's production webhook URL. Payload shape expected: { video_id | data.video_id, status, hosted_url | download_url, thumbnail_url, duration | duration_seconds, total_cost, ... }. See OPERATIONS_HANDBOOK §15.5."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Video Ready v1 — Normalize Tavus callback payload\n// Tavus sends different body shapes across endpoints; handle the\n// common fields with best-effort extraction. Non-terminal statuses\n// ('queued','generating') are ignored.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst data = body.data || body;\n\nconst status = String(data.status || body.status || 'unknown').toLowerCase();\nif (status !== 'ready' && status !== 'completed' && status !== 'failed' && status !== 'error') {\n  return { json: { _skip: true, skip_reason: 'non_terminal_status', status } };\n}\n\nconst video_id = data.video_id || data.id || body.video_id || body.id || null;\nconst video_url = data.hosted_url || data.download_url || data.video_url || null;\nconst thumbnail_url = data.thumbnail_url || data.thumbnail || null;\nconst duration = Number(data.duration || data.duration_seconds || body.duration || 0) || null;\nconst cost = Number(data.total_cost || data.cost || 0) || null;\n\nif (!video_id) {\n  return { json: { _skip: true, skip_reason: 'missing_video_id' } };\n}\n\nconst terminal_failed = (status === 'failed' || status === 'error');\n\nreturn {\n  json: {\n    video_id,\n    video_url,\n    thumbnail_url,\n    duration_sec: duration,\n    cost_usd: cost,\n    terminal_failed,\n    status\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr2-0002",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-vr2-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vr2-0003",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx-vr2-0004",
+      "name": "Ignore Non-Terminal",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        920,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?video_request_id=eq.{{ $json.video_id }}&select=id,client_id,full_name,email,company,city,industry,job_title,video_request_id,campaign_value_proposition,campaign_call_to_action,clients(calendly_link,notification_email,company_name)&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-vr2-0005",
+      "name": "Fetch Lead By Request ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Video Ready v1 — Correlate + merge\n// Joins the normalized callback payload to the lead row it originated\n// from. A missing match logs VIDEO_RESULT_NO_MATCH and short-circuits.\n// On terminal_failed we still produce an update body so the lead\n// reflects the failure; downstream IF branch logs VIDEO_DELIVERY_FAILED.\n\nconst norm = $('Normalize Payload').first().json;\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found_for_video_id', video_id: norm.video_id } };\n}\n\nreturn {\n  json: {\n    ...lead,\n    video_url: norm.video_url,\n    thumbnail_url: norm.thumbnail_url,\n    duration_sec: norm.duration_sec,\n    cost_usd: norm.cost_usd,\n    terminal_failed: norm.terminal_failed === true,\n    callback_status: norm.status\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr2-0006",
+      "name": "Correlate Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-vr2-cond-no-match",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vr2-0007",
+      "name": "IF Correlation Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'video_ready_correlation_failed', error_code: 'VIDEO_RESULT_NO_MATCH', error_message: 'video_id ' + ($json.video_id || 'unknown') + ' not found in leads.video_request_id', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0008",
+      "name": "Log Correlation Miss",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        360
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_generation_log?request_id=eq.{{ $json.video_request_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ video_url: $json.video_url || null, thumbnail_url: $json.thumbnail_url || null, duration_sec: $json.duration_sec || null, cost_usd: $json.cost_usd || null, status: $json.terminal_failed ? 'failed' : 'ready', completed_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0009",
+      "name": "Update Video Gen Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        600
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-vr2-cond-term-fail",
+              "leftValue": "={{ $json.terminal_failed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vr2-0010",
+      "name": "IF Tavus Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1880,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.id, node_name: 'tavus_ready_terminal_failure', error_code: 'VIDEO_GENERATION_FAILED', error_message: 'Tavus callback status=' + ($json.callback_status || 'unknown'), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0011",
+      "name": "Log Tavus Terminal Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        480
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Video Ready v1 — Build video-embedded email HTML\n// Inline clickable thumbnail (play overlay) linking to the hosted Tavus\n// URL. Peer-advisor copy leaning on the video as the hook. Calendly CTA\n// pulled from client.calendly_link (fallback to a safe generic link).\n\nconst lead = $input.item.json;\nconst client = lead.clients || {};\n\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst company = lead.company || 'your team';\nconst videoUrl = lead.video_url || '#';\nconst thumbUrl = lead.thumbnail_url || 'https://via.placeholder.com/600x340.png?text=Watch+60+seconds';\nconst calendly = client.calendly_link || 'https://calendly.com/crystallux/intro';\n\nconst subject = 'Quick 60-second video for ' + company;\n\nconst htmlBody = [\n  '<div style=\"font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:620px;margin:0 auto;color:#1a202c;line-height:1.5;\">',\n  '  <p>Hi ' + firstName + ',</p>',\n  '  <p>I recorded a quick 60-second video for you and the team at ' + company + ' — easier to explain this way than in a wall of text:</p>',\n  '  <p style=\"text-align:center;margin:24px 0;\">',\n  '    <a href=\"' + videoUrl + '\" target=\"_blank\" style=\"display:inline-block;position:relative;\">',\n  '      <img src=\"' + thumbUrl + '\" alt=\"Watch video\" width=\"600\" style=\"display:block;border-radius:8px;border:1px solid #e2e8f0;max-width:100%;height:auto;\" />',\n  '      <span style=\"position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.65);color:#fff;padding:14px 22px;border-radius:50px;font-size:16px;font-weight:600;\">\\u25B6&nbsp; Play video (60s)</span>',\n  '    </a>',\n  '  </p>',\n  '  <p>If any of this resonates, I\\'d love 20 minutes to walk through how it would work specifically at ' + company + '. Here\\'s my calendar:</p>',\n  '  <p style=\"text-align:center;margin:20px 0;\">',\n  '    <a href=\"' + calendly + '\" target=\"_blank\" style=\"display:inline-block;background:#2563eb;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;\">Book 20 minutes</a>',\n  '  </p>',\n  '  <p>Talk soon,<br/>Mary</p>',\n  '  <hr style=\"border:none;border-top:1px solid #e2e8f0;margin:24px 0;\" />',\n  '  <p style=\"font-size:12px;color:#718096;\">Mary Akintunde, Crystallux \\u2014 <a href=\"https://crystallux.org\" style=\"color:#718096;\">crystallux.org</a></p>',\n  '</div>'\n].join('\\n');\n\nreturn {\n  json: {\n    ...lead,\n    video_email_subject: subject,\n    video_email_body: htmlBody\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr2-0012",
+      "name": "Build Video Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Gmail API raw message — RFC 2822 + base64url\n// Mirrors clx-outreach-sender-v2 'Build Gmail Raw Message' exactly.\n// TESTING MODE — remove before production\n\nconst data = $input.item.json;\nconst to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nconst subject = data.video_email_subject || '';\nconst htmlBody = data.video_email_body || '';\nconst fromName = 'Mary Akintunde (Crystallux)';\nconst fromEmail = 'info@crystallux.org';\n\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\n\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\n\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn { json: { ...data, gmail_raw: raw, to_address: to } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr2-0013",
+      "name": "Build Gmail Raw Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0014",
+      "name": "Send Video Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        700
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Video Ready v1 — Handle Gmail send result\n// Captures Gmail API id/threadId on success; extracts error message on\n// failure for the downstream scan_errors log.\n\nconst incoming = $input.item.json || {};\nconst lead = $('Build Gmail Raw Message').first().json;\nconst errorObj = incoming.error || $input.item.error;\nconst sendOk = !errorObj && !!(incoming.id || incoming.threadId || incoming.messageId);\n\nreturn {\n  json: {\n    ...lead,\n    gmail_ok: sendOk,\n    gmail_message_id: incoming.id || incoming.messageId || null,\n    gmail_thread_id: incoming.threadId || null,\n    gmail_error: errorObj ? (errorObj.message || (typeof errorObj === 'string' ? errorObj : JSON.stringify(errorObj))) : null\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr2-0015",
+      "name": "Handle Gmail Send Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.id, client_id: $json.client_id || null, channel: 'video', channel_status: $json.gmail_ok ? 'sent' : 'failed', subject: $json.video_email_subject || null, message_excerpt: 'Video: ' + ($json.video_url || '').slice(0, 200), provider_ref: $json.video_request_id || null, sent_at: new Date().toISOString(), metadata: { thumbnail_url: $json.thumbnail_url || null, duration_sec: $json.duration_sec || null, cost_usd: $json.cost_usd || null, gmail_message_id: $json.gmail_message_id || null, error: $json.gmail_error || null } }) }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0016",
+      "name": "Log Central Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        700
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Video Ready v1 — Prep lead update\n// On successful send: video_status='delivered', video_delivered_at=now,\n// lead_status='Video Sent'. On failure: video_status='ready' (video did\n// render, just couldn't be emailed) so a retry flow can pick it up.\n\nconst item = $input.item.json;\n\nconst fields = {\n  video_url: item.video_url || null,\n  video_status: item.gmail_ok ? 'delivered' : 'ready'\n};\nif (item.gmail_ok) {\n  fields.video_delivered_at = new Date().toISOString();\n  fields.lead_status = 'Video Sent';\n  fields.last_channel_attempted = 'video';\n  fields.last_channel_attempted_at = new Date().toISOString();\n}\n\nconst body = { p_lead_id: item.id, p_fields: fields };\n\nreturn { json: { ...item, rpc_body: JSON.stringify(body) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr2-0017",
+      "name": "Prep Update Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0018",
+      "name": "RPC Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3560,
+        700
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-vr2-cond-send-failed",
+              "leftValue": "={{ String($('Handle Gmail Send Result').first().json.gmail_ok) }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vr2-0019",
+      "name": "IF Send Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3800,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $('Handle Gmail Send Result').first().json.id, node_name: 'video_email_send_failed', error_code: 'VIDEO_DELIVERY_FAILED', error_message: ($('Handle Gmail Send Result').first().json.gmail_error || 'unknown').toString().slice(0, 500), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-vr2-0020",
+      "name": "Log Send Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4040,
+        620
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-vr2-0021",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4040,
+        800
+      ]
+    }
+  ],
+  "connections": {
+    "Tavus Callback Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          { "node": "Normalize Payload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          { "node": "IF Skip", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          { "node": "Ignore Non-Terminal", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Fetch Lead By Request ID", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Lead By Request ID": {
+      "main": [
+        [
+          { "node": "Correlate Lead", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Correlate Lead": {
+      "main": [
+        [
+          { "node": "IF Correlation Failed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Correlation Failed": {
+      "main": [
+        [
+          { "node": "Log Correlation Miss", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Update Video Gen Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Update Video Gen Log": {
+      "main": [
+        [
+          { "node": "IF Tavus Failed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Tavus Failed": {
+      "main": [
+        [
+          { "node": "Log Tavus Terminal Failure", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Build Video Email HTML", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Video Email HTML": {
+      "main": [
+        [
+          { "node": "Build Gmail Raw Message", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Gmail Raw Message": {
+      "main": [
+        [
+          { "node": "Send Video Email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Video Email": {
+      "main": [
+        [
+          { "node": "Handle Gmail Send Result", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Handle Gmail Send Result": {
+      "main": [
+        [
+          { "node": "Log Central Outreach", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Central Outreach": {
+      "main": [
+        [
+          { "node": "Prep Update Lead", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prep Update Lead": {
+      "main": [
+        [
+          { "node": "RPC Update Lead", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RPC Update Lead": {
+      "main": [
+        [
+          { "node": "IF Send Failed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Send Failed": {
+      "main": [
+        [
+          { "node": "Log Send Failure", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Run Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-video-ready-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-video-ready-v1",
+  "tags": []
+}
