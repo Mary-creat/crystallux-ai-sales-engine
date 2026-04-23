@@ -136,7 +136,21 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Campaign Router v2 — Prep Update Campaign\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    campaign_name: item.campaign_name,\n    campaign_type: item.campaign_type,\n    campaign_value_proposition: item.campaign_value_proposition,\n    campaign_pain_point: item.campaign_pain_point,\n    campaign_call_to_action: item.campaign_call_to_action,\n    campaign_tone: item.campaign_tone,\n    lead_status: 'Campaign Assigned'\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status, campaign: item.campaign_name }));\n\nreturn { json: { ...item, rpc_body: JSON.stringify(body) } };",
+        "jsCode": "// CLX Campaign Router v2 — Decide Channel (Part B.6)\n// Picks the preferred outreach channel for this lead from (in order):\n//   1. Lead-level override                      lead.preferred_channel (if set by an upstream signal)\n//   2. Niche overlay preferred_channels array   niche_overlays.preferred_channels\n//   3. Global fallback                          'email'\n// The chosen channel must also be in the client's channels_enabled\n// allowlist; otherwise we fall back to email (which every client has).\n//\n// When channels_enabled / overlay are not yet fetched (no client_id,\n// legacy data, etc), default to 'email' — this preserves the exact\n// pre-B.6 behavior for all existing flows.\n\nconst lead = $input.item.json;\n\nconst VALID = ['email','linkedin','whatsapp','voice','video'];\n\nfunction normalise(ch) {\n  const x = String(ch || '').toLowerCase().trim();\n  return VALID.includes(x) ? x : null;\n}\n\nconst leadLevel = normalise(lead.preferred_channel);\n\n// Canadian leads with a valid mobile number default to whatsapp when the\n// niche overlay / client allow it. Insurance_broker in Canada = core case.\nconst isCanadian = String(lead.country || '').toUpperCase() === 'CA';\nconst hasMobile  = !!(lead.mobile_phone || lead.direct_phone);\n\nlet chosen = leadLevel || 'email';\n\n// Niche overlay hint — lead.niche_preferred_channels is an optional\n// array joined in upstream if the enrichment workflow supplied it.\n// When absent, skip this step.\nif (!leadLevel && Array.isArray(lead.niche_preferred_channels) && lead.niche_preferred_channels.length) {\n  const first = normalise(lead.niche_preferred_channels[0]);\n  if (first) chosen = first;\n}\n\n// WhatsApp Canadian routing rule — if the lead is Canadian with a mobile\n// and WhatsApp is in the niche's preferred channels, pick it.\nif (!leadLevel && isCanadian && hasMobile\n    && Array.isArray(lead.niche_preferred_channels)\n    && lead.niche_preferred_channels.includes('whatsapp')) {\n  chosen = 'whatsapp';\n}\n\n// Client allowlist guard — if client_channels_enabled is present and does\n// NOT contain the chosen channel, fall back to email.\nif (Array.isArray(lead.client_channels_enabled) && lead.client_channels_enabled.length\n    && !lead.client_channels_enabled.includes(chosen)) {\n  chosen = 'email';\n}\n\nreturn {\n  json: {\n    ...lead,\n    preferred_channel: chosen\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cr-v2-chan-001",
+      "name": "Decide Channel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Campaign Router v2 — Prep Update Campaign\n// Writes campaign metadata + preferred_channel (Part B.6) back to the\n// lead. Per-channel sender workflows poll on\n//   lead_status='Campaign Assigned' AND preferred_channel='<channel>'\n// so setting both fields in one RPC call atomically routes the lead.\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    campaign_name: item.campaign_name,\n    campaign_type: item.campaign_type,\n    campaign_value_proposition: item.campaign_value_proposition,\n    campaign_pain_point: item.campaign_pain_point,\n    campaign_call_to_action: item.campaign_call_to_action,\n    campaign_tone: item.campaign_tone,\n    preferred_channel: item.preferred_channel || 'email',\n    lead_status: 'Campaign Assigned'\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status, channel: body.p_fields.preferred_channel, campaign: item.campaign_name }));\n\nreturn { json: { ...item, rpc_body: JSON.stringify(body) } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-cr-v2-prep-001",
@@ -144,7 +158,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1640,
+        1880,
         300
       ]
     },
@@ -173,7 +187,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1880,
+        2120,
         300
       ],
       "continueOnFail": true,
@@ -267,6 +281,17 @@
       ]
     },
     "Route Campaign": {
+      "main": [
+        [
+          {
+            "node": "Decide Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Channel": {
       "main": [
         [
           {

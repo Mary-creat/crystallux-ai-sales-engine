@@ -1,0 +1,700 @@
+{
+  "name": "CLX - LinkedIn Outreach v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "clx-li-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "notes": "DEACTIVATED — do not turn on until UNIPILE_API_KEY is in .env, the Unipile n8n credential is created, and Mary has at least one Unipile LinkedIn account connected. See docs/architecture/OPERATIONS_HANDBOOK.md §14.1 LinkedIn Integration."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-linkedin-outreach-v1",
+        "options": {}
+      },
+      "id": "clx-li-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        500
+      ],
+      "webhookId": "clx-li-0002-webhook",
+      "notes": "Test entrypoint. POST { \"lead_id\": \"...\" } to enrich one lead on demand."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX LinkedIn Outreach v1 — Resolve input\n// Accepts either the Schedule Trigger (batch mode) or the Manual Webhook\n// ({ body: { lead_id } }). When a lead_id is provided, single-lead mode.\n// Otherwise batch mode pulls Campaign Assigned + preferred_channel=linkedin.\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-li-0003",
+      "name": "Resolve Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,full_name,company,industry,job_title,city,linkedin_url,apollo_person_id,preferred_channel,lead_status,campaign_name,campaign_value_proposition,campaign_call_to_action,channels_attempted&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-li-0004",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX LinkedIn Outreach v1 — Normalize + preflight gates\n// Gates (short-circuit via _skip):\n//   1. lead row missing\n//   2. preferred_channel is not 'linkedin'\n//   3. no linkedin_url on the lead\n//   4. already attempted LinkedIn (channels_attempted includes 'linkedin')\n\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nif (String(lead.preferred_channel || '').toLowerCase() !== 'linkedin') {\n  return { json: { _skip: true, skip_reason: 'preferred_channel_mismatch', lead_id: lead.id } };\n}\nif (!lead.linkedin_url) {\n  return { json: { _skip: true, skip_reason: 'no_linkedin_url', lead_id: lead.id, client_id: lead.client_id || null } };\n}\nconst attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\nif (attempted.includes('linkedin')) {\n  return { json: { _skip: true, skip_reason: 'already_attempted_linkedin', lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: lead };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-li-0005",
+      "name": "Normalize Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_daily_linkedin_count",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id || null }) }}",
+        "options": {}
+      },
+      "id": "clx-li-0006",
+      "name": "Check Daily LinkedIn Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX LinkedIn Outreach v1 — Daily-cap gate\n// Unipile / LinkedIn platform tolerates ~20 new connections / messages\n// per account per day. We cap at 18 per client to keep a buffer for\n// retries and in-flight calls.\n\nconst lead = $('Normalize Lead').first().json;\nif (lead._skip) return { json: lead };\n\nconst used = Number($input.item.json) || 0;\nconst CAP = 18;\n\nif (used >= CAP) {\n  return { json: { _skip: true, skip_reason: 'linkedin_daily_cap_exceeded', sends_today: used, cap: CAP, lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, sends_today: used, cap: CAP } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-li-0007",
+      "name": "Daily Cap Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-li-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-li-0008",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.lead_id || null, node_name: 'linkedin_preflight_skip', error_code: 'LINKEDIN_PREFLIGHT_SKIP', error_message: $json.skip_reason || 'unknown', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-li-0009",
+      "name": "Log Preflight Skip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        240
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX LinkedIn Outreach v1 — Compose LinkedIn connection + first-message\n// We send a personalised connection request + opening message using the\n// campaign copy the Campaign Router already assigned. Kept short because\n// LinkedIn platform enforces a 300-char invite-note limit.\n\nconst lead = $input.item.json;\n\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst vp = lead.campaign_value_proposition || 'help companies automate sales outreach';\n\nconst invite_note = `Hi ${firstName} — I work with ${lead.industry || 'businesses'} in ${lead.city || 'your area'} and thought we might connect. We ${vp}. Open to a 15-min chat?`.slice(0, 290);\n\nconst first_message = `Hi ${firstName}, thanks for connecting! Quick question — ${lead.campaign_pain_point || 'most ' + (lead.industry || 'teams') + ' we talk to are stretched thin on manual follow-up'}. ${lead.campaign_call_to_action || 'Worth a quick chat?'}`;\n\nreturn {\n  json: {\n    ...lead,\n    invite_note,\n    first_message\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-li-0010",
+      "name": "Compose Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api6.unipile.com:13619/api/v1/users/invite",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ provider_id: $json.linkedin_url, message: $json.invite_note, account_id: 'TODO_UNIPILE_ACCOUNT_ID' }) }}",
+        "options": {}
+      },
+      "id": "clx-li-0011",
+      "name": "Unipile Send Invite",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Replace host with your Unipile tenant host, configure UNIPILE_API_KEY in .env, create Unipile HTTP Header Auth credential in n8n (header: X-API-KEY), replace TODO_UNIPILE_ACCOUNT_ID with the connected LinkedIn account ID from the Unipile dashboard, then re-bind this node to the credential. No credentials block is attached yet — the workflow fails auth until configured."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX LinkedIn Outreach v1 — Parse Unipile response\n// Extracts chat_id / error to log downstream. Unipile invite endpoint\n// returns { provider_id, object: 'Invitation', status } on success, or\n// { error, message } on failure. continueOnFail upstream means a raw\n// error body may land here — treat anything without a status/object\n// field as a failure and capture the body verbatim for scan_errors.\n\nconst resp = $input.item.json || {};\nconst lead = $('Compose Message').first().json;\n\nconst ok = !!(resp.object === 'Invitation' || resp.status === 'sent' || resp.chat_id);\nconst chat_id = resp.chat_id || resp.provider_id || null;\nconst error_message = ok ? null : (resp.message || resp.error || JSON.stringify(resp).slice(0, 500));\n\nreturn {\n  json: {\n    ...lead,\n    unipile_ok: ok,\n    unipile_chat_id: chat_id,\n    unipile_error: error_message\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-li-0012",
+      "name": "Parse Unipile Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/linkedin_outreach_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.id, client_id: $json.client_id || null, unipile_chat_id: $json.unipile_chat_id || null, message_text: $json.invite_note, sent_at: new Date().toISOString(), status: $json.unipile_ok ? 'sent' : 'failed', response_received: false, metadata: { first_message_queued: $json.first_message, error: $json.unipile_error || null } }) }}",
+        "options": {}
+      },
+      "id": "clx-li-0013",
+      "name": "Log LinkedIn Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.id, client_id: $json.client_id || null, channel: 'linkedin', channel_status: $json.unipile_ok ? 'sent' : 'failed', subject: 'LinkedIn invite', message_excerpt: ($json.invite_note || '').slice(0, 200), provider_ref: $json.unipile_chat_id || null, sent_at: new Date().toISOString(), metadata: { error: $json.unipile_error || null } }) }}",
+        "options": {}
+      },
+      "id": "clx-li-0014",
+      "name": "Log Central Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2840,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX LinkedIn Outreach v1 — Prep lead update\n// Marks the lead as attempted via LinkedIn (append to channels_attempted)\n// and bumps lead_status if the send succeeded. On failure we leave the\n// status as Campaign Assigned so the router can re-route the lead via\n// email/whatsapp/voice on the next tick.\n\nconst parsed = $('Parse Unipile Response').first().json;\nconst lead = $('Compose Message').first().json;\n\nconst attempted = Array.isArray(lead.channels_attempted) ? [...lead.channels_attempted] : [];\nif (!attempted.includes('linkedin')) attempted.push('linkedin');\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    channels_attempted: attempted,\n    last_channel_attempted: 'linkedin',\n    last_channel_attempted_at: new Date().toISOString(),\n    lead_status: parsed.unipile_ok ? 'Outreach Sent' : 'Campaign Assigned'\n  }\n};\n\nreturn { json: { ...parsed, rpc_body: JSON.stringify(body) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-li-0015",
+      "name": "Prep Update Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-li-0016",
+      "name": "RPC Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3320,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-li-cond-failed",
+              "leftValue": "={{ String($('Parse Unipile Response').first().json.unipile_ok) }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-li-0017",
+      "name": "IF Send Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $('Parse Unipile Response').first().json.id, node_name: 'unipile_send_failed', error_code: 'LINKEDIN_SEND_FAILED', error_message: ($('Parse Unipile Response').first().json.unipile_error || 'unknown').toString().slice(0, 500), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-li-0018",
+      "name": "Log Send Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3800,
+        420
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-li-0019",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3800,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Lead": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead": {
+      "main": [
+        [
+          {
+            "node": "Check Daily LinkedIn Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Daily LinkedIn Count": {
+      "main": [
+        [
+          {
+            "node": "Daily Cap Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Cap Gate": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "Log Preflight Skip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Message": {
+      "main": [
+        [
+          {
+            "node": "Unipile Send Invite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unipile Send Invite": {
+      "main": [
+        [
+          {
+            "node": "Parse Unipile Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Unipile Response": {
+      "main": [
+        [
+          {
+            "node": "Log LinkedIn Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log LinkedIn Outreach": {
+      "main": [
+        [
+          {
+            "node": "Log Central Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Central Outreach": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Lead": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Lead": {
+      "main": [
+        [
+          {
+            "node": "IF Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Send Failed": {
+      "main": [
+        [
+          {
+            "node": "Log Send Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-linkedin-outreach-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-linkedin-outreach-v1",
+  "tags": []
+}

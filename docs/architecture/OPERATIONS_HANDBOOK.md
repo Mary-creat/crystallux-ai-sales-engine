@@ -787,3 +787,161 @@ Workflow step *before* the Claude Research Lead node. The step has
 
 Final score is clamped to 100. The bonus is appended to `scoring_reason` as
 `[Apollo bonus +N]` so the audit trail is obvious in the dashboard.
+
+---
+
+## 14. Multi-Channel Activation — LinkedIn, WhatsApp, Voice
+
+Multi-channel outreach scaffolding (Part B.6) ships dormant. The schema
+migration (`docs/architecture/migrations/2026-04-23-multi-channel.sql`) is
+safe to run immediately — it adds channel routing columns to `leads`, a
+central `outreach_log`, three per-channel provider tables, the daily-count
+RPCs, and a **placeholder `check_dncl_status(phone)` that always returns
+true**. The four new workflows (`clx-linkedin-outreach-v1`,
+`clx-whatsapp-outreach-v1`, `clx-voice-outreach-v1`,
+`clx-voice-result-webhook-v1`) ship with their triggers deactivated and
+their provider HTTP nodes bound to no credential. Activation is per-channel
+and deliberate; do not enable all three at once.
+
+The Campaign Router (v2) already sets `leads.preferred_channel` on every
+lead it assigns. Default is `'email'`, so the router is safe to leave
+active even before any channel workflow is enabled — nothing will route
+out-of-band until you set `clients.channels_enabled` to include the new
+channel AND activate the corresponding sender workflow.
+
+### 14.1 LinkedIn (Unipile)
+
+1. **Sign up for Unipile** at https://unipile.com — Basic plan is ~€79/mo
+   and includes the LinkedIn connector. Connect at least one LinkedIn
+   account through the Unipile dashboard; note the `account_id` and the
+   per-tenant API host (looks like `apiNN.unipile.com:PORT`).
+2. **Add to `.env`**: `UNIPILE_API_KEY=...`.
+3. **Create n8n credential**. In n8n: Credentials → New → **HTTP Header
+   Auth**. Name it exactly `Unipile`. Header name `X-API-KEY`, header value
+   the key from step 2.
+4. **Bind + configure the workflow**. Open `clx-linkedin-outreach-v1` →
+   **Unipile Send Invite** node. In the URL, replace the
+   `api6.unipile.com:13619` host with the host Unipile issued for your
+   tenant. In the JSON body, replace `TODO_UNIPILE_ACCOUNT_ID` with the
+   real `account_id`. Open the Credentials dropdown and pick `Unipile`.
+5. **Enable the channel for one client.** In Supabase:
+   `UPDATE clients SET channels_enabled = channels_enabled || '["linkedin"]'::jsonb WHERE id = '...';`
+6. **Dry-run via the Manual Webhook.** POST `{ "lead_id": "..." }` to the
+   workflow's webhook URL with a test lead whose `preferred_channel` is
+   `linkedin` and whose `linkedin_url` is populated. Confirm one row lands
+   in `linkedin_outreach_log` and `outreach_log`.
+7. **Activate the Schedule Trigger** only after the dry-run succeeds.
+8. **Platform/compliance notes.** LinkedIn tolerates ~20 connection
+   invites/day/account; the workflow caps at **18** per client to keep a
+   retry buffer. `LINKEDIN_SEND_FAILED` in `monitoring_thresholds` fires a
+   `warning` after 5 failures in 10 minutes.
+
+### 14.2 WhatsApp (Twilio)
+
+1. **Provision Twilio WhatsApp Business API.** Buy a WhatsApp sender
+   number in the Twilio Console. Register at least one outreach **message
+   template** — opening messages on WhatsApp must use an approved template
+   until a 24-hour session window has been opened by the recipient's reply.
+2. **Add to `.env`**: `TWILIO_ACCOUNT_SID=...`, `TWILIO_AUTH_TOKEN=...`,
+   `TWILIO_WA_NUMBER=...` (E.164, e.g. `15551234567`).
+3. **Create n8n credential**. Credentials → New → **Basic Auth**. Name it
+   exactly `Twilio WhatsApp`. Username = Account SID, Password = Auth
+   Token.
+4. **Bind + configure the workflow.** Open `clx-whatsapp-outreach-v1` →
+   **Twilio Send** node. Replace `TWILIO_ACCOUNT_SID_PLACEHOLDER` in the
+   URL. Replace `TWILIO_WA_NUMBER_PLACEHOLDER` in the `From` body
+   parameter. Open the Credentials dropdown and pick `Twilio WhatsApp`.
+5. **Enable the channel for one client.** In Supabase:
+   `UPDATE clients SET channels_enabled = channels_enabled || '["whatsapp"]'::jsonb WHERE id = '...';`
+6. **Dry-run via the Manual Webhook** against Mary's personal WhatsApp
+   number — post a single lead with `preferred_channel='whatsapp'` and a
+   mobile phone populated. Confirm one row lands in `whatsapp_outreach_log`
+   and `outreach_log`.
+7. **Activate the Schedule Trigger** only after the dry-run.
+8. **Locale/compliance notes.** For non-Canadian leads, keep
+   `preferred_channel != whatsapp` unless your template is approved in the
+   target locale. Workflow caps at **90/day/client** (buffer under Twilio's
+   default 100 template-pacing cap). `WHATSAPP_SEND_FAILED` fires a
+   `warning` after 5 failures in 10 minutes.
+
+### 14.3 Voice (Vapi + DNCL)
+
+Voice has one extra gate beyond LinkedIn/WhatsApp — the **DNCL
+compliance check** for Canadian leads. It is mandatory and blocking.
+
+1. **Sign up for Vapi** at https://vapi.ai. Connect a Twilio phone number
+   via the Twilio → Vapi SIP trunk bridge. Note the `phoneNumberId` Vapi
+   issues (UUID-shaped).
+2. **Create a Vapi Assistant.** In the Vapi dashboard, build an assistant
+   using the seeded `voice_script_template` from `niche_overlays` as the
+   opening line. Pick a voice provider (11labs `rachel` is a reasonable
+   default and is what the workflow requests).
+3. **Add to `.env`**: `VAPI_API_KEY=...`.
+4. **Create n8n credential**. Credentials → New → **HTTP Header Auth**.
+   Name it exactly `Vapi`. Header name `Authorization`, header value
+   `Bearer {your key}`.
+5. **Bind + configure the workflow.** Open `clx-voice-outreach-v1` →
+   **Vapi Dial** node. Replace `VAPI_PHONE_NUMBER_ID_PLACEHOLDER` with the
+   `phoneNumberId` from step 1. Open Credentials and pick `Vapi`.
+6. **Wire the result webhook.** Open `clx-voice-result-webhook-v1` —
+   activate the workflow and copy its production webhook URL. In the Vapi
+   dashboard, set the assistant's **end-of-call webhook URL** to this
+   address so Vapi posts call outcomes back (transcript, duration, cost,
+   recording).
+7. **DNCL compliance — MANDATORY before the first live Canadian call.**
+   The `check_dncl_status(phone)` function shipped in the migration is a
+   PLACEHOLDER that always returns `true`. Before activating the Schedule
+   Trigger, replace its body with one of:
+   - (a) A nightly sync of the CRTC National DNCL into a local
+     `dncl_registry` table, plus a real `SELECT NOT EXISTS(...)` lookup
+     from `check_dncl_status`. Requires a paid CRTC subscription.
+   - (b) A live API-based check against a compliant DNCL lookup provider
+     (e.g. DNCScrub, Gryphon). Reconfigure the function to call an edge
+     function or Supabase HTTP extension that hits the provider.
+   Until (a) or (b) is in place, do NOT enable the voice Schedule Trigger
+   for Canadian leads. The workflow logs `VOICE_DNCL_BLOCKED` to
+   `scan_errors` when the function returns `false`; the monitoring
+   threshold for that code is `critical` at 1 event per 60 minutes.
+8. **Enable the channel for one client.** In Supabase:
+   `UPDATE clients SET channels_enabled = channels_enabled || '["voice"]'::jsonb WHERE id = '...';`
+9. **Dry-run via the Manual Webhook** against Mary's personal phone — post
+   a single lead with `preferred_channel='voice'` and a callable number.
+   Confirm one row in `voice_call_log` and `outreach_log`, and confirm the
+   result webhook is updating the `voice_call_log` row end-to-end with
+   transcript/duration/cost after the call ends.
+10. **Activate the Schedule Trigger** only after DNCL is real, the dry-run
+    succeeds, and the end-of-call webhook has been verified against at
+    least one full call. Workflow caps at **45 calls/day/client** (buffer
+    under the 50/day design limit). `VOICE_CALL_FAILED` fires a `critical`
+    alert after 3 failures in 10 minutes.
+
+### 14.4 Activation checklist (per-channel, before going live)
+
+- [ ] Provider account provisioned and credentials in `.env`
+- [ ] n8n credential created with the exact name listed above
+- [ ] Placeholder tokens inside the workflow JSON replaced (account IDs,
+      phone IDs, tenant hosts)
+- [ ] Credentials dropdown in the provider HTTP node bound
+- [ ] `clients.channels_enabled` updated to include the channel
+- [ ] For **voice only**: `check_dncl_status` replaced with a real lookup
+- [ ] Manual webhook dry-run succeeds for one test lead
+- [ ] Provider log table and `outreach_log` both show the dry-run entry
+- [ ] Schedule Trigger activated
+- [ ] One real outbound observed in production against a non-Mitch
+      Insurance lead (Mitch remains `do_not_contact=true` at all times)
+
+### 14.5 Decommission / rollback
+
+To silence any one channel without editing workflow JSON:
+
+- Set `clients.channels_enabled` to exclude the channel: the Campaign
+  Router falls back to `email` for any lead in that client. Leads already
+  in `preferred_channel=<channel>` remain in that state until a future
+  router pass rewrites them.
+- Or, deactivate the Schedule Trigger in the channel workflow directly —
+  in-flight batches finish; no new batches start.
+
+Full schema rollback is at the bottom of
+`2026-04-23-multi-channel.sql`, commented out. Test on a staging schema
+first; the migration drops table data when uncommented.
+

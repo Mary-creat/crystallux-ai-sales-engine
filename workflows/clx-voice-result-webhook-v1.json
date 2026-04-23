@@ -1,0 +1,396 @@
+{
+  "name": "CLX - Voice Result Webhook v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-voice-result-v1",
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: true }) }}"
+        }
+      },
+      "id": "clx-vr-0001",
+      "name": "Vapi End-of-Call Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-vr-0001-webhook",
+      "notes": "DEACTIVATED — activate only after Vapi is configured AND the Vapi assistant's end-of-call webhook URL is set to point at this workflow's production webhook path. Payload shape expected: { message: { type: 'end-of-call-report', call: { id, endedReason, duration, cost, recordingUrl, transcript, ... }, ... } }."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Voice Result Webhook v1 — Normalize Vapi payload\n// Extracts the fields we care about from Vapi's end-of-call-report.\n// Silently ignores other message types (e.g., 'status-update') so that\n// in-flight events don't pollute voice_call_log.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst msg = body.message || body;\n\nconst type = msg.type || body.type || null;\nif (type && type !== 'end-of-call-report') {\n  return { json: { _skip: true, skip_reason: 'non_terminal_message_type', type } };\n}\n\nconst call = msg.call || body.call || {};\nconst endedReason = msg.endedReason || call.endedReason || null;\nconst duration = msg.durationSeconds || msg.duration || call.duration || null;\nconst cost = msg.cost || call.cost || null;\nconst recording = msg.recordingUrl || call.recordingUrl || null;\nconst transcript = msg.transcript || call.transcript || null;\nconst vapi_call_id = msg.callId || call.id || body.callId || null;\n\nif (!vapi_call_id) {\n  return { json: { _skip: true, skip_reason: 'missing_vapi_call_id' } };\n}\n\n// Crude outcome classification. Real taxonomy: connected, no-answer,\n// voicemail, hangup-short, blocked. Vapi's endedReason is the best\n// proxy; anything with meaningful duration + transcript is 'connected'.\nlet outcome = 'unknown';\nif (endedReason === 'customer-did-not-answer' || endedReason === 'assistant-did-not-answer') outcome = 'no_answer';\nelse if (endedReason === 'voicemail') outcome = 'voicemail';\nelse if ((duration || 0) < 10) outcome = 'hangup_short';\nelse if (transcript && transcript.length > 0) outcome = 'connected';\nelse outcome = 'disconnected';\n\nreturn {\n  json: {\n    vapi_call_id,\n    outcome,\n    duration_sec: duration ? Math.round(Number(duration)) : null,\n    cost_usd: cost ? Number(cost) : null,\n    recording_url: recording,\n    transcript,\n    ended_reason: endedReason\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr-0002",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-vr-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vr-0003",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx-vr-0004",
+      "name": "Ignore Non-Terminal",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        920,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/voice_call_log?vapi_call_id=eq.{{ $json.vapi_call_id }}&select=id,lead_id,client_id&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-vr-0005",
+      "name": "Find Voice Call Log Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Voice Result Webhook v1 — Correlate + merge\n// Vapi sends result long after the outbound call row was inserted by\n// clx-voice-outreach-v1. We look up the voice_call_log row by\n// vapi_call_id to recover lead_id / client_id, then produce both:\n//   (a) an UPDATE body for voice_call_log\n//   (b) a lead-update body for rpc/update_lead (bump status if connected)\n// If no row is found, log a correlation failure and skip downstream.\n\nconst norm = $('Normalize Payload').first().json;\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\n\nif (!row || !row.id) {\n  return { json: { _skip: true, skip_reason: 'voice_call_log_row_not_found', vapi_call_id: norm.vapi_call_id } };\n}\n\n// Only flip lead_status to Replied on a real connected conversation —\n// voicemails and hangups do not imply consent.\nconst connected = norm.outcome === 'connected';\n\nconst voice_update_body = {\n  call_outcome: norm.outcome,\n  duration_sec: norm.duration_sec,\n  transcript: norm.transcript,\n  recording_url: norm.recording_url,\n  cost_usd: norm.cost_usd,\n  metadata: { ended_reason: norm.ended_reason, updated_at: new Date().toISOString() }\n};\n\nconst lead_update_body = {\n  p_lead_id: row.lead_id,\n  p_fields: Object.assign(\n    {\n      last_channel_attempted: 'voice',\n      last_channel_attempted_at: new Date().toISOString()\n    },\n    connected ? { lead_status: 'Replied' } : {}\n  )\n};\n\nreturn {\n  json: {\n    voice_call_log_id: row.id,\n    lead_id: row.lead_id,\n    client_id: row.client_id,\n    vapi_call_id: norm.vapi_call_id,\n    voice_update_body: JSON.stringify(voice_update_body),\n    lead_update_body: JSON.stringify(lead_update_body),\n    connected,\n    outcome: norm.outcome\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vr-0006",
+      "name": "Correlate + Prep Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-vr-cond-no-row",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vr-0007",
+      "name": "IF Correlation Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'voice_result_correlation_failed', error_code: 'VOICE_RESULT_NO_MATCH', error_message: 'vapi_call_id ' + ($json.vapi_call_id || 'unknown') + ' not found in voice_call_log', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-vr-0008",
+      "name": "Log Correlation Miss",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        360
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/voice_call_log?vapi_call_id=eq.{{ $json.vapi_call_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.voice_update_body }}",
+        "options": {}
+      },
+      "id": "clx-vr-0009",
+      "name": "Update Voice Call Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        640
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.lead_update_body }}",
+        "options": {}
+      },
+      "id": "clx-vr-0010",
+      "name": "RPC Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        640
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-vr-0011",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2120,
+        640
+      ]
+    }
+  ],
+  "connections": {
+    "Vapi End-of-Call Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "Ignore Non-Terminal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Voice Call Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Voice Call Log Row": {
+      "main": [
+        [
+          {
+            "node": "Correlate + Prep Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Correlate + Prep Updates": {
+      "main": [
+        [
+          {
+            "node": "IF Correlation Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Correlation Failed": {
+      "main": [
+        [
+          {
+            "node": "Log Correlation Miss",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Voice Call Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Voice Call Log": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-voice-result-webhook-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-voice-result-webhook-v1",
+  "tags": []
+}

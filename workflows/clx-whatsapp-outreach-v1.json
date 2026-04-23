@@ -1,0 +1,711 @@
+{
+  "name": "CLX - WhatsApp Outreach v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "clx-wa-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "notes": "DEACTIVATED — do not turn on until Twilio WhatsApp Business API is provisioned, at least one approved template is live, TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_WA_NUMBER are in .env, and the Twilio WhatsApp n8n credential is created. See docs/architecture/OPERATIONS_HANDBOOK.md §14.2."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-whatsapp-outreach-v1",
+        "options": {}
+      },
+      "id": "clx-wa-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        500
+      ],
+      "webhookId": "clx-wa-0002-webhook",
+      "notes": "Test entrypoint. POST { \"lead_id\": \"...\" } to send one test WhatsApp on demand."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX WhatsApp Outreach v1 — Resolve input\n// Schedule Trigger = batch mode (downstream pulls Campaign Assigned +\n// preferred_channel=whatsapp). Manual Webhook = single-lead mode.\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-wa-0003",
+      "name": "Resolve Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,full_name,company,industry,job_title,city,country,direct_phone,mobile_phone,preferred_channel,lead_status,campaign_name,campaign_value_proposition,campaign_call_to_action,channels_attempted&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-wa-0004",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX WhatsApp Outreach v1 — Normalize + preflight gates\n// Skip gates:\n//   1. lead row missing\n//   2. preferred_channel is not 'whatsapp'\n//   3. no mobile / direct phone\n//   4. already attempted WhatsApp\n\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nif (String(lead.preferred_channel || '').toLowerCase() !== 'whatsapp') {\n  return { json: { _skip: true, skip_reason: 'preferred_channel_mismatch', lead_id: lead.id } };\n}\nconst phone = lead.mobile_phone || lead.direct_phone || null;\nif (!phone) {\n  return { json: { _skip: true, skip_reason: 'no_phone_number', lead_id: lead.id, client_id: lead.client_id || null } };\n}\nconst attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\nif (attempted.includes('whatsapp')) {\n  return { json: { _skip: true, skip_reason: 'already_attempted_whatsapp', lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, send_to_phone: phone } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-wa-0005",
+      "name": "Normalize Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_daily_whatsapp_count",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id || null }) }}",
+        "options": {}
+      },
+      "id": "clx-wa-0006",
+      "name": "Check Daily WhatsApp Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX WhatsApp Outreach v1 — Daily-cap gate\n// Default Twilio template-message pacing caps the shared pool at 100/day.\n// We cap at 90 to keep buffer for retries and follow-ups in the same day.\n\nconst lead = $('Normalize Lead').first().json;\nif (lead._skip) return { json: lead };\n\nconst used = Number($input.item.json) || 0;\nconst CAP = 90;\n\nif (used >= CAP) {\n  return { json: { _skip: true, skip_reason: 'whatsapp_daily_cap_exceeded', sends_today: used, cap: CAP, lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, sends_today: used, cap: CAP } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-wa-0007",
+      "name": "Daily Cap Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-wa-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-wa-0008",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.lead_id || null, node_name: 'whatsapp_preflight_skip', error_code: 'WHATSAPP_PREFLIGHT_SKIP', error_message: $json.skip_reason || 'unknown', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-wa-0009",
+      "name": "Log Preflight Skip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        240
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX WhatsApp Outreach v1 — Compose message\n// Twilio WhatsApp opening messages must use an approved template. We\n// build a short opener string that the Twilio send-step will pass as the\n// template's Body parameter. Keep it compact; WhatsApp truncates long\n// opening messages and the template limit is ~1024 chars.\n\nconst lead = $input.item.json;\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst vp = lead.campaign_value_proposition || 'help companies automate their sales process';\nconst cta = lead.campaign_call_to_action || 'Can I send you a quick 2-min video?';\n\nconst message_text = `Hi ${firstName}, this is Mary from Crystallux. We ${vp}. ${cta}`.slice(0, 900);\n\nreturn {\n  json: {\n    ...lead,\n    message_text\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-wa-0010",
+      "name": "Compose Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/TWILIO_ACCOUNT_SID_PLACEHOLDER/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "=whatsapp:+TWILIO_WA_NUMBER_PLACEHOLDER"
+            },
+            {
+              "name": "To",
+              "value": "=whatsapp:+{{ String($json.send_to_phone).replace(/[^0-9]/g, '') }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.message_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-wa-0011",
+      "name": "Twilio Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: (1) Configure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WA_NUMBER in .env. (2) Create n8n credential named exactly `Twilio WhatsApp` (Basic Auth: username=Account SID, password=Auth Token). (3) Replace `TWILIO_ACCOUNT_SID_PLACEHOLDER` in the URL and `TWILIO_WA_NUMBER_PLACEHOLDER` in the From body param with real values. (4) Bind this node to the Twilio WhatsApp credential. Until configured, this node fails auth — workflow catches the error downstream and logs WHATSAPP_SEND_FAILED."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX WhatsApp Outreach v1 — Parse Twilio response\n// Twilio returns JSON with { sid, status, error_code, error_message } on\n// the Messages.json endpoint. A successful send has status='queued' or\n// 'sent' and no error_code. Anything else is treated as a send failure.\n\nconst resp = $input.item.json || {};\nconst lead = $('Compose Message').first().json;\n\nconst status = resp.status || null;\nconst ok = !!(resp.sid && !resp.error_code && ['queued', 'sent', 'delivered', 'accepted'].includes(String(status).toLowerCase()));\nconst error_message = ok ? null : (resp.error_message || resp.message || JSON.stringify(resp).slice(0, 500));\n\nreturn {\n  json: {\n    ...lead,\n    twilio_ok: ok,\n    twilio_sid: resp.sid || null,\n    twilio_status: status,\n    twilio_error: error_message\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-wa-0012",
+      "name": "Parse Twilio Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/whatsapp_outreach_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.id, client_id: $json.client_id || null, twilio_message_sid: $json.twilio_sid || null, message_text: $json.message_text, sent_at: new Date().toISOString(), status: $json.twilio_ok ? ($json.twilio_status || 'sent') : 'failed', response_received: false, metadata: { error: $json.twilio_error || null, phone: $json.send_to_phone } }) }}",
+        "options": {}
+      },
+      "id": "clx-wa-0013",
+      "name": "Log WhatsApp Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.id, client_id: $json.client_id || null, channel: 'whatsapp', channel_status: $json.twilio_ok ? 'sent' : 'failed', subject: 'WhatsApp opener', message_excerpt: ($json.message_text || '').slice(0, 200), provider_ref: $json.twilio_sid || null, sent_at: new Date().toISOString(), metadata: { error: $json.twilio_error || null, phone: $json.send_to_phone } }) }}",
+        "options": {}
+      },
+      "id": "clx-wa-0014",
+      "name": "Log Central Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2840,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX WhatsApp Outreach v1 — Prep lead update\n// Appends whatsapp to channels_attempted and bumps lead_status on send\n// success. On failure, lead_status stays Campaign Assigned so the router\n// can re-route on the next tick (e.g., fall back to email).\n\nconst parsed = $('Parse Twilio Response').first().json;\nconst lead = $('Compose Message').first().json;\n\nconst attempted = Array.isArray(lead.channels_attempted) ? [...lead.channels_attempted] : [];\nif (!attempted.includes('whatsapp')) attempted.push('whatsapp');\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    channels_attempted: attempted,\n    last_channel_attempted: 'whatsapp',\n    last_channel_attempted_at: new Date().toISOString(),\n    lead_status: parsed.twilio_ok ? 'Outreach Sent' : 'Campaign Assigned'\n  }\n};\n\nreturn { json: { ...parsed, rpc_body: JSON.stringify(body) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-wa-0015",
+      "name": "Prep Update Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-wa-0016",
+      "name": "RPC Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3320,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-wa-cond-failed",
+              "leftValue": "={{ String($('Parse Twilio Response').first().json.twilio_ok) }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-wa-0017",
+      "name": "IF Send Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $('Parse Twilio Response').first().json.id, node_name: 'twilio_send_failed', error_code: 'WHATSAPP_SEND_FAILED', error_message: ($('Parse Twilio Response').first().json.twilio_error || 'unknown').toString().slice(0, 500), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-wa-0018",
+      "name": "Log Send Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3800,
+        420
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-wa-0019",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3800,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Lead": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead": {
+      "main": [
+        [
+          {
+            "node": "Check Daily WhatsApp Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Daily WhatsApp Count": {
+      "main": [
+        [
+          {
+            "node": "Daily Cap Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Cap Gate": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "Log Preflight Skip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Message": {
+      "main": [
+        [
+          {
+            "node": "Twilio Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio Send": {
+      "main": [
+        [
+          {
+            "node": "Parse Twilio Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Twilio Response": {
+      "main": [
+        [
+          {
+            "node": "Log WhatsApp Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log WhatsApp Outreach": {
+      "main": [
+        [
+          {
+            "node": "Log Central Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Central Outreach": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Lead": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Lead": {
+      "main": [
+        [
+          {
+            "node": "IF Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Send Failed": {
+      "main": [
+        [
+          {
+            "node": "Log Send Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-whatsapp-outreach-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-whatsapp-outreach-v1",
+  "tags": []
+}
