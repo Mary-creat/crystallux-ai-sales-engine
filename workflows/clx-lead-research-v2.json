@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&select=id,full_name,company,industry,job_title,city,product_type&limit=25",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&select=id,full_name,email,company,industry,job_title,city,product_type,niche,linkedin_url,apollo_org_id,company_size&limit=25",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": false,
@@ -173,6 +173,53 @@
         300
       ],
       "webhookId": "clx-lr-v2-wait-001-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Lead Research v2 — Skip-Apollo gate (Task 2)\n// If the lead's email is on a personal domain (gmail/yahoo/etc.)\n// AND there's no linkedin_url / apollo_org_id / company_size signal,\n// this is most likely a residential B2C lead and Apollo would burn a\n// credit for zero enrichment value. Skip-Apollo flag short-circuits\n// the Execute Workflow call.\n//\n// Router's Decide Segment will later reclassify and persist\n// lead_segment, but that happens downstream. This gate is purely a\n// cost-saving guard for B2C leads that arrive through B2C discovery\n// sources (google_maps, facebook_local).\n\nconst lead = $input.item.json;\nconst PERSONAL_DOMAINS = /@(gmail|yahoo|hotmail|outlook|icloud|live|aol|proton|protonmail|me)\\./i;\n\nconst hasBusinessSignals = !!(lead.linkedin_url || lead.apollo_org_id || Number(lead.company_size) > 1);\nconst personalEmail = lead.email && PERSONAL_DOMAINS.test(String(lead.email));\n\nconst skipApollo = personalEmail && !hasBusinessSignals;\n\nreturn { json: { ...lead, _skip_apollo: skipApollo } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-lr-v2-seg-gate-001",
+      "name": "Decide Apollo Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-lr-v2-cond-skip-apollo",
+              "leftValue": "={{ $json._skip_apollo }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-lr-v2-if-apollo-001",
+      "name": "IF Skip Apollo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1160,
+        140
+      ]
     },
     {
       "parameters": {
@@ -336,6 +383,35 @@
     },
     "Wait 3s": {
       "main": [
+        [
+          {
+            "node": "Decide Apollo Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Apollo Gate": {
+      "main": [
+        [
+          {
+            "node": "IF Skip Apollo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip Apollo": {
+      "main": [
+        [
+          {
+            "node": "Claude Research Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Apollo Enrichment (fallback on fail)",

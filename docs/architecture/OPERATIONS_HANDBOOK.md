@@ -1159,3 +1159,126 @@ Mary may choose to flip at her own cadence.
   `VIDEO_GENERATION_FAILED`; 5 within 10 minutes triggers a warning via
   `clx-error-monitor-v1` per the threshold seeded in the migration.
 
+---
+
+## 20. B2B / B2C Segmentation
+
+Scaffolded in Task 2 of the final scale-sprint pass. Adds a segment
+classification step to Campaign Router v2 and a cost-saving Apollo
+skip gate to Lead Research v2. Segment-aware outreach copy is wired
+into Outreach Generation v2. All dormant until the migration runs and
+a real client's `focus_segments` is set; default behavior is
+indistinguishable from pre-segmentation for any lead that classifies
+as `unknown`.
+
+### 20.1 Classification heuristics
+
+`clx-campaign-router-v2` node **Decide Segment** classifies each lead
+(first match wins) into `residential` / `commercial` / `unknown`:
+
+1. **`company_size > 1`** → `commercial`
+2. **`linkedin_url` AND `apollo_org_id` both set** → `commercial`
+3. **Personal email domain** (gmail, yahoo, hotmail, outlook, icloud,
+   live, aol, proton, me) → `residential`
+4. Fallback → `unknown`
+
+The classification is written to `leads.lead_segment` via the existing
+`rpc/update_lead` call — no separate write.
+
+### 20.2 Client focus_segments filter
+
+`clients.focus_segments` is a jsonb array. Default
+`["residential","commercial"]` accepts all leads. A client who wants
+commercial-only sets `["commercial"]`; the router then marks any
+residential-classified lead as `lead_status='Out of Focus'` and skips
+the campaign assignment. Unknown-segment leads pass through — they get
+normal campaign routing regardless of the client's focus preferences.
+
+```sql
+-- Example: insurance broker client, commercial-only
+UPDATE clients SET focus_segments = '["commercial"]'::jsonb
+WHERE id = '<client-uuid>';
+```
+
+### 20.3 Apollo skip gate (Lead Research v2)
+
+`clx-lead-research-v2` now has a **Decide Apollo Gate** code node
+before the Apollo Enrichment sub-workflow call. The gate sets
+`_skip_apollo=true` when:
+
+- The lead's email is on a personal domain, **AND**
+- No business signals are present (no `linkedin_url`, no
+  `apollo_org_id`, `company_size <= 1`).
+
+When true, the workflow routes directly to Claude Research, saving an
+Apollo credit on a lead that would return empty firmographics anyway.
+When false (B2B indicators present or business email), Apollo runs as
+before.
+
+### 20.4 Segment-aware outreach prompt (Outreach Generation v2)
+
+`clx-outreach-generation-v2` has a new **Merge Segment Overlay** code
+node between Fetch Niche Overlay and Build Outreach Prompt. When the
+niche's `offer_mapping.lead_segments[<segment>]` branch exists, the
+merge node:
+
+- Appends the segment's `pain_angles` to the overlay's `pain_signals`.
+- Appends a SEGMENT CONTEXT stanza to the overlay's
+  `claude_system_prompt` with a tone preamble: "business formal,
+  consultative, peer-advisor" for commercial vs "friendly, local,
+  neighborly" for residential.
+
+Build Outreach Prompt then reads the enriched overlay as normal, so no
+other changes are needed downstream.
+
+### 20.5 Channel preference per segment
+
+Decide Channel in Campaign Router reads
+`overlay.offer_mapping.lead_segments[<segment>].channels` when
+`preferred_channel` isn't already set by an upstream signal. For
+insurance_broker the residential branch is `["sms","email","voice"]`
+and the commercial branch is `["email","linkedin","voice"]`. The
+client's `channels_enabled` allowlist still applies — if the first
+segment channel isn't in the allowlist, the router falls back to the
+existing channel-selection flow.
+
+### 20.6 Onboarding checklist addition
+
+When onboarding a new client, ask:
+
+> "Do you want residential leads only, commercial leads only, or
+> both?"
+
+Record the answer and set:
+
+```sql
+UPDATE clients
+SET focus_segments = '[<selected segments>]'::jsonb
+WHERE id = '<client-uuid>';
+```
+
+Explain to the client that the platform will now only route leads
+matching their segment focus — residential-only clients never see
+commercial leads and vice versa.
+
+### 20.7 Decommission / rollback
+
+Remove segmentation entirely:
+
+```sql
+-- Revert any segment classifications
+UPDATE leads SET lead_segment = 'unknown';
+
+-- Reset every client's focus to the default
+UPDATE clients SET focus_segments = '["residential","commercial"]'::jsonb;
+
+-- Full schema rollback (uncomments at the bottom of
+-- 2026-04-23-b2b-b2c-segmentation.sql) drops the new columns and
+-- check constraints. Test on staging first.
+```
+
+All three workflow hooks (Decide Segment, Decide Apollo Gate, Merge
+Segment Overlay) are safe no-ops when `lead_segment='unknown'` and the
+overlay has no `lead_segments` branch — reverting the schema does not
+break the workflows.
+
