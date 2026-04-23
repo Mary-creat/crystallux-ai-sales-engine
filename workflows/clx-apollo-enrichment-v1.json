@@ -1,0 +1,771 @@
+{
+  "name": "CLX - Apollo Enrichment v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "clx-ap-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "notes": "DEACTIVATED — do not turn on until APOLLO_API_KEY is in .env and the Apollo n8n credential is created. See docs/architecture/OPERATIONS_HANDBOOK.md § Apollo Integration."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-apollo-enrichment-v1",
+        "options": {}
+      },
+      "id": "clx-ap-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        500
+      ],
+      "webhookId": "clx-ap-0002-webhook",
+      "notes": "Test entrypoint. POST { \"lead_id\": \"...\" } to the webhook URL to enrich one lead on demand."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Apollo Enrichment v1 — Resolve lead_id\n// Accepts input from either the Schedule Trigger (batch mode — pulled\n// from Supabase below) or the Manual Webhook ({ body: { lead_id } }).\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ap-0003",
+      "name": "Resolve Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,full_name,company,industry,job_title,city,email,website,apollo_person_id,apollo_enriched_at&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-ap-0004",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Apollo Enrichment v1 — Normalize Fetch result (array -> object)\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nreturn { json: lead };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ap-0005",
+      "name": "Normalize Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_monthly_apollo_credits_used",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id || null }) }}",
+        "options": {}
+      },
+      "id": "clx-ap-0006",
+      "name": "Check Monthly Credits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Apollo Enrichment v1 — Quota gate\n// RPC returns an integer. Basic plan cap ~1,200/month; we guard at\n// 1,150 to keep a buffer for in-flight retries.\n\nconst lead = $('Normalize Lead').first().json;\nconst used = Number($input.item.json) || 0;\nconst CAP = 1150;\n\nif (used > CAP) {\n  return {\n    json: {\n      _skip: true,\n      skip_reason: 'apollo_quota_exceeded',\n      credits_used: used,\n      cap: CAP,\n      lead_id: lead.id,\n      client_id: lead.client_id || null\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...lead,\n    credits_used: used,\n    cap: CAP\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ap-0007",
+      "name": "Quota Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-ap-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-ap-0008",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.lead_id || null, node_name: 'apollo_quota_exceeded', error_code: 'APOLLO_QUOTA_EXCEEDED', error_message: 'monthly credits used=' + ($json.credits_used || 0) + ' cap=' + ($json.cap || 1150), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-ap-0009",
+      "name": "Log Quota Skip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        240
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/mixed_people/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ q_organization_name: $json.company, person_locations: [$json.city], page: 1, per_page: 10 }) }}",
+        "options": {}
+      },
+      "id": "clx-ap-0010",
+      "name": "Apollo People Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Configure APOLLO_API_KEY in .env and create Apollo HTTP Header Auth credential in n8n (header: X-Api-Key) before activating. No credentials block is attached yet — the workflow will fail auth until the credential is added and this node is re-bound to it."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/niche_overlays?niche_name=eq.insurance_broker&select=apollo_title_keywords&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-ap-0011",
+      "name": "Fetch Title Keywords",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Apollo Enrichment v1 — Pick primary contact\n// Chooses the first person whose title matches any of the niche's\n// decision-maker keywords. Falls back to the first person if no\n// match (so the workflow still enriches something useful).\n\nconst searchResp = $('Apollo People Search').first().json;\nconst overlayRows = $input.item.json;\nconst overlay = Array.isArray(overlayRows) ? overlayRows[0] : overlayRows;\n\nconst keywords = (overlay && overlay.apollo_title_keywords) || [];\nconst kwLower = keywords.map(k => String(k).toLowerCase());\n\nconst people = (searchResp && searchResp.people) || [];\n\nlet pick = null;\nfor (const p of people) {\n  const title = String(p.title || '').toLowerCase();\n  if (kwLower.some(k => title.includes(k))) {\n    pick = p;\n    break;\n  }\n}\nif (!pick && people.length > 0) pick = people[0];\n\nif (!pick) {\n  return { json: { _skip: true, skip_reason: 'no_apollo_people_returned' } };\n}\n\nreturn {\n  json: {\n    apollo_person_id: pick.id || null,\n    apollo_org_id: (pick.organization && pick.organization.id) || null,\n    full_name_verified: pick.name || null,\n    job_title_verified: pick.title || null,\n    linkedin_url: pick.linkedin_url || null\n  }\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ap-0012",
+      "name": "Pick Primary Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apollo.io/v1/people/match",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.apollo_person_id, reveal_personal_emails: true, reveal_phone_number: true }) }}",
+        "options": {}
+      },
+      "id": "clx-ap-0013",
+      "name": "Apollo Contact Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Configure APOLLO_API_KEY in .env and create Apollo HTTP Header Auth credential in n8n before activating. This endpoint reveals email + phone — each call is 1 credit."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apollo.io/v1/organizations/enrich",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $('Pick Primary Contact').first().json.apollo_org_id }) }}",
+        "options": {}
+      },
+      "id": "clx-ap-0014",
+      "name": "Apollo Organization Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2840,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Configure APOLLO_API_KEY in .env and create Apollo HTTP Header Auth credential in n8n before activating. Returns employee count, revenue band, tech stack."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Apollo Enrichment v1 — Prep Update Lead\n// Merges People + Contact + Org enrichment into the leads table.\n// email_source flips to 'apollo_verified' when Apollo returns an email,\n// so downstream scoring and sender selection can grade source quality.\n\nconst lead = $('Normalize Lead').first().json;\nconst pick = $('Pick Primary Contact').first().json;\nconst contact = $('Apollo Contact Enrichment').first().json || {};\nconst org = $('Apollo Organization Enrichment').first().json || {};\n\nconst person = contact.person || contact || {};\nconst organization = (org && org.organization) || {};\n\nconst verifiedEmail = person.email || person.personal_emails?.[0] || null;\nconst directPhone  = person.phone_numbers?.find(p => p.type === 'work_direct')?.sanitized_number\n                  || person.phone_numbers?.[0]?.sanitized_number\n                  || null;\nconst mobilePhone  = person.phone_numbers?.find(p => p.type === 'mobile')?.sanitized_number || null;\n\nconst now = new Date().toISOString();\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    apollo_person_id:    pick.apollo_person_id || person.id || null,\n    apollo_org_id:       pick.apollo_org_id || organization.id || null,\n    verified_email:      verifiedEmail,\n    full_name_verified:  pick.full_name_verified || person.name || null,\n    job_title_verified:  pick.job_title_verified || person.title || null,\n    linkedin_url:        pick.linkedin_url || person.linkedin_url || null,\n    direct_phone:        directPhone,\n    mobile_phone:        mobilePhone,\n    company_size:        organization.estimated_num_employees || null,\n    company_revenue:     organization.annual_revenue_printed || organization.annual_revenue || null,\n    tech_stack:          organization.technology_names || organization.current_technologies || [],\n    industry_verified:   organization.industry || null,\n    location_verified:   [organization.city, organization.state, organization.country].filter(Boolean).join(', ') || null,\n    apollo_enriched_at:  now,\n    email_source:        verifiedEmail ? 'apollo_verified' : (lead.email ? 'scraped' : null)\n  }\n};\n\nreturn { json: { ...lead, rpc_body: JSON.stringify(body) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ap-0015",
+      "name": "Prep Update Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rpc_body }}",
+        "options": {}
+      },
+      "id": "clx-ap-0016",
+      "name": "RPC Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3320,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/apollo_credits_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $('Normalize Lead').first().json.id, client_id: $('Normalize Lead').first().json.client_id || null, api_endpoint: 'people.search+people.match+organizations.enrich', credits_used: 3, cost_usd: 0.06, called_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-ap-0017",
+      "name": "Log Credits Used",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3560,
+        500
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Apollo Enrichment v1 — Check RPC result and log errors to scan_errors\n\nconst response = $('RPC Update Lead').first().json;\nconst lead = $('Normalize Lead').first().json;\n\nconst responseStr = JSON.stringify(response);\nconst isError = !!(response && (response.error || response.message || (response.code && response.code !== '200')));\n\nif (isError) {\n  return {\n    json: {\n      rpc_error: true,\n      error_body: JSON.stringify({\n        lead_id: lead.id,\n        node_name: 'apollo_enrichment_write_failed',\n        error_code: 'APOLLO_ENRICHMENT_FAILED',\n        error_message: responseStr.substring(0, 500),\n        created_at: new Date().toISOString()\n      })\n    }\n  };\n}\n\nreturn { json: { rpc_error: false, lead_id: lead.id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ap-0018",
+      "name": "Check RPC Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3800,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "clx-ap-cond-rpc-failed",
+              "leftValue": "={{ $json.rpc_error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-ap-0019",
+      "name": "IF RPC Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4040,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.error_body }}",
+        "options": {}
+      },
+      "id": "clx-ap-0020",
+      "name": "Log Scan Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4280,
+        420
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "clx-ap-0021",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4280,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Lead": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead": {
+      "main": [
+        [
+          {
+            "node": "Check Monthly Credits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Monthly Credits": {
+      "main": [
+        [
+          {
+            "node": "Quota Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quota Gate": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "Log Quota Skip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apollo People Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo People Search": {
+      "main": [
+        [
+          {
+            "node": "Fetch Title Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Title Keywords": {
+      "main": [
+        [
+          {
+            "node": "Pick Primary Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Primary Contact": {
+      "main": [
+        [
+          {
+            "node": "Apollo Contact Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Contact Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Apollo Organization Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Organization Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Prep Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Update Lead": {
+      "main": [
+        [
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Log Credits Used",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Credits Used": {
+      "main": [
+        [
+          {
+            "node": "Check RPC Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check RPC Result": {
+      "main": [
+        [
+          {
+            "node": "IF RPC Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF RPC Failed": {
+      "main": [
+        [
+          {
+            "node": "Log Scan Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clx-apollo-enrichment-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
+  "id": "clx-apollo-enrichment-v1",
+  "tags": []
+}

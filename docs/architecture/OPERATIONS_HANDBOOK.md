@@ -714,3 +714,76 @@ Crystallux runs on a single Hostinger VPS. Two databases carry state:
 - n8n internal DB (credentials, executions) — add a second script pointed at the n8n postgres container in a follow-up sprint
 - Off-site backups — if the VPS itself dies, Supabase's own backups cover Crystallux data but n8n workflow state is lost. Git is the safety net for workflow JSON; credentials must be re-entered manually.
 - Restore timing — this script does not measure restore duration under load. Time a full restore once per quarter.
+
+
+## 13. Apollo Integration — Activation Steps
+
+Apollo enrichment scaffolding (Part B.5) ships dormant. The schema migration
+`docs/architecture/migrations/2026-04-23-apollo-schema.sql` is idempotent and
+safe to apply ahead of time; the workflow `clx-apollo-enrichment-v1.json`
+imports with its Schedule Trigger turned off and no live API calls until you
+complete these six steps:
+
+1. **Sign up for Apollo** at https://apollo.io — pick the Basic plan (~$49/mo,
+   ~1,200 credits/month). Email-and-phone reveal is the minimum tier the
+   enrichment flow needs.
+2. **Add the key to `.env`** on the n8n host: set `APOLLO_API_KEY=<your key>`.
+   The placeholder is already scaffolded under the "Apollo Enrichment
+   (Part B.5)" block in `.env.example` (line 89).
+3. **Create the n8n credential** — n8n UI → **Credentials → New → HTTP Header
+   Auth**. Name it exactly `Apollo`. Header name `X-Api-Key`, header value
+   `{{ $env.APOLLO_API_KEY }}` (preferred) or the literal key. Save.
+4. **Bind the credential** to the three Apollo HTTP nodes in
+   `clx-apollo-enrichment-v1`: **Apollo People Search**,
+   **Apollo Contact Enrichment**, **Apollo Organization Enrichment**. Open
+   each node → Credentials dropdown → pick `Apollo`. The nodes ship with no
+   credentials block attached so this step is unmissable.
+5. **Test with a single lead** via the manual webhook (no need to activate
+   the scheduler yet):
+   ```bash
+   curl -X POST https://<your-n8n-host>/webhook/clx-apollo-enrichment-v1 \
+        -H "Content-Type: application/json" \
+        -d '{"lead_id":"<some-lead-uuid>"}'
+   ```
+   Verify: the `leads` row has non-null `apollo_enriched_at`, and a row
+   appears in `apollo_credits_log` for that lead.
+6. **Activate the Schedule Trigger** once the single-lead test passes. The
+   trigger is set to 30-minute intervals by default; dial it down if you're
+   approaching the 1,150/month guard threshold.
+
+### Quota guard and error handling
+
+- Before each Apollo call, the workflow hits
+  `get_monthly_apollo_credits_used()` and skips with `apollo_quota_exceeded`
+  → `scan_errors` when usage > 1,150. The buffer below Apollo's 1,200 Basic
+  cap leaves room for in-flight retries.
+- RPC write failures are caught and logged to `scan_errors` with
+  `error_code = 'APOLLO_ENRICHMENT_FAILED'`. `clx-error-monitor-v1` already
+  has a matching threshold row (5 failures in 10min → warning), seeded in the
+  prior migration.
+
+### Lead-Research v2 integration
+
+`clx-lead-research-v2` now calls `clx-apollo-enrichment-v1` as an Execute
+Workflow step *before* the Claude Research Lead node. The step has
+`continueOnFail: true`, so:
+
+- **Before** you configure the Apollo credential, the sub-workflow fails auth
+  on its Apollo HTTP nodes and execution falls through to Claude — the
+  research flow continues uninterrupted.
+- **After** activation, Apollo enriches the lead first, Claude reasons over
+  both scraped and Apollo-verified data, and the downstream scoring flow
+  picks up the Apollo bonus automatically.
+
+### Lead-Scoring v2 Apollo bonus
+
+`clx-lead-scoring-v2`'s Parse Scoring Response node layers on top of Claude's
+0–100 score:
+
+- `+10` if `apollo_enriched_at IS NOT NULL` (any Apollo data at all)
+- `+15` if `job_title_verified` matches any of the insurance_broker
+  decision-maker keywords (`Broker of Record`, `Principal`, `Owner`,
+  `Managing Partner`, `President`, `Founder`)
+
+Final score is clamped to 100. The bonus is appended to `scoring_reason` as
+`[Apollo bonus +N]` so the audit trail is obvious in the dashboard.

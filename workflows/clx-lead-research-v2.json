@@ -176,6 +176,23 @@
     },
     {
       "parameters": {
+        "workflowId": "clx-apollo-enrichment-v1",
+        "options": {}
+      },
+      "id": "clx-lr-v2-apollo-001",
+      "name": "Apollo Enrichment (fallback on fail)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        140
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "Apollo enrichment: activates when APOLLO_API_KEY is configured in n8n credentials. Until then, the sub-workflow's Apollo HTTP nodes fail auth; continueOnFail + continueRegularOutput routes execution straight to the Claude Research Lead step as a fallback."
+    },
+    {
+      "parameters": {
         "jsCode": "// CLX Lead Research v2 — Prep Update Lead\n// Builds the RPC body from $input.item.json (the Parse output for this lead).\n\nconst item = $input.item.json;\n\nconst body = {\n  p_lead_id: item.id,\n  p_fields: {\n    research_summary: item.research_summary,\n    likely_business_need: item.likely_business_need,\n    research_angle: item.research_angle,\n    lead_status: 'Researched',\n    researched_at: item.researched_at\n  }\n};\n\nconsole.log('PREP UPDATE:', JSON.stringify({ lead_id: item.id, status: body.p_fields.lead_status }));\n\nreturn { json: { ...item, rpc_body: JSON.stringify(body) } };",
         "mode": "runOnceForEachItem"
       },
@@ -318,6 +335,17 @@
       ]
     },
     "Wait 3s": {
+      "main": [
+        [
+          {
+            "node": "Apollo Enrichment (fallback on fail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Enrichment (fallback on fail)": {
       "main": [
         [
           {
