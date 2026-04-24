@@ -684,3 +684,119 @@ Over 2-3 weeks of elapsed time, Mary's actual hours:
 
 Total Mary hours for Phases 10 + 11: **29-42 hours over 2-3 weeks**,
 plus sustained 30 min/day Phase 11 cadence.
+
+---
+
+## Phase 13 — Dashboard Multi-Role Activation
+
+Reference: `OPERATIONS_HANDBOOK §26`, `docs/dashboard/AUDIT.md`,
+`docs/dashboard/CLIENT_ISOLATION_TEST.md`.
+
+### 13a — Apply migrations
+
+- [ ] Apply `docs/architecture/migrations/2026-04-24-dashboard-rls-hardening.sql`
+- [ ] Apply `docs/architecture/migrations/2026-04-24-client-onboarding-status.sql`
+- [ ] Run verification queries at the bottom of each migration; confirm
+      results match expected
+
+### 13b — Run isolation test protocol
+
+- [ ] Create two test clients (A, B) with 3+ leads each
+- [ ] Execute all 7 tests in `CLIENT_ISOLATION_TEST.md`
+- [ ] Record pass/fail in execution log
+- [ ] Remediate any failures before onboarding the first real client
+
+### 13c — (Optional) activate server-side verification
+
+- [ ] Import `workflows/clx-verify-dashboard-access-v1.json`
+- [ ] Bind `Supabase Crystallux` credential on the two HTTP nodes
+- [ ] Set `MARY_MASTER_TOKEN` in n8n environment (same value as your
+      current admin URL token)
+- [ ] Activate the workflow
+- [ ] Update the dashboard front-end (future work) to POST to
+      `/webhook/verify-access` before rendering role-gated content
+
+### 13d — Deploy updated dashboard
+
+- [ ] Publish `docs/dashboard/index.html` (now 2.6K+ lines with role
+      shell, 19 scaffold panels, Copilot FAB) to crystallux.org/dashboard
+- [ ] Publish `docs/dashboard/status.html` to crystallux.org/dashboard/status.html
+- [ ] Smoke test: admin URL + client URL + guest URL + status.html
+
+### Phase 13 exit criteria
+
+- [ ] Admin URL shows admin sidebar, 11 admin panels + legacy + Copilot FAB
+- [ ] Client URL shows client sidebar, 8 client panels, no Copilot
+- [ ] Ops URL shows 4 ops panels (dormant content)
+- [ ] Guest URL shows access-denied landing
+- [ ] Test 2 of `CLIENT_ISOLATION_TEST.md` (URL swap attack) passes
+
+---
+
+## Phase 14 — Admin Copilot Activation
+
+Reference: `OPERATIONS_HANDBOOK §22`, migration
+`2026-04-24-admin-copilot.sql`, 4 workflow files
+`workflows/clx-copilot-*.json`.
+
+### 14a — Schema
+
+- [ ] Apply `docs/architecture/migrations/2026-04-24-admin-copilot.sql`
+- [ ] Verify `admin_action_log` table exists
+- [ ] Verify `admin_execute_select` + `mark_error_resolved` RPCs callable
+- [ ] Run smoke test: `SELECT admin_execute_select('SELECT 1 AS ok');`
+
+### 14b — API credentials
+
+- [ ] Confirm `ANTHROPIC_API_KEY` in `.env`
+- [ ] Sign up OpenAI API for Whisper (free tier: pay-per-use at
+      ~$0.006/minute)
+- [ ] Add `OPENAI_API_KEY` to `.env`
+- [ ] Create n8n credential **Anthropic API** (HTTP Header Auth,
+      `x-api-key` = `$ANTHROPIC_API_KEY`)
+- [ ] Create n8n credential **OpenAI** (HTTP Header Auth,
+      `Authorization` = `Bearer $OPENAI_API_KEY`)
+
+### 14c — Import + bind workflows
+
+- [ ] Import `clx-copilot-query-v1.json`
+- [ ] Import `clx-copilot-troubleshoot-v1.json`
+- [ ] Import `clx-copilot-platform-v1.json`
+- [ ] Import `clx-copilot-whisper-v1.json`
+- [ ] Bind **Anthropic API** credential on Claude HTTP nodes in the
+      first three workflows
+- [ ] Bind **OpenAI** credential on Whisper HTTP node in the fourth
+- [ ] Set `MARY_MASTER_TOKEN` in n8n environment so token validation
+      passes
+
+### 14d — Test each capability
+
+- [ ] Activate all 4 Copilot workflows
+- [ ] Open admin dashboard with `?token=<MARY_MASTER_TOKEN>`
+- [ ] Click ✦ FAB (bottom-right); panel opens
+- [ ] Test DB query: "how many leads in the last 7 days" → SQL
+      generated + rows returned + logged to admin_action_log
+- [ ] Test troubleshoot: insert a test row into `scan_errors`, then
+      describe it via Copilot → diagnosis returned
+- [ ] Test platform Q&A: "what verticals are active" → answer
+      references `VERTICAL_EXPANSION_RANKING.md`
+- [ ] Test voice: click microphone, say a 10-second question,
+      transcription populates input
+
+### 14e — Monthly cost monitoring
+
+- [ ] Verify Anthropic API usage dashboard (~$20-50/month expected)
+- [ ] Verify OpenAI API usage dashboard (Whisper-only, $1-10/month)
+- [ ] Set Anthropic billing alert at $100/month
+- [ ] Set OpenAI billing alert at $30/month
+
+### Phase 14 exit criteria
+
+- [ ] ✦ FAB visible in admin dashboard only
+- [ ] Ctrl+K opens Copilot panel
+- [ ] All 3 Copilot modes (query/troubleshoot/platform) return
+      valid responses
+- [ ] Voice transcription working end-to-end
+- [ ] `admin_action_log` populated with entries from test session
+- [ ] No copilot UI visible in client or ops URLs (confirmed via
+      browser DevTools)

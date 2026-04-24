@@ -1,0 +1,101 @@
+{
+  "name": "CLX - Copilot Whisper Transcribe v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "copilot/transcribe",
+        "options": {
+          "rawBody": true,
+          "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, text: $('Build Response').first().json.text, error: $('Build Response').first().json.error || null }) }}"
+        }
+      },
+      "id": "clx-cw-0001",
+      "name": "Copilot Whisper Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-cw-0001-webhook",
+      "notes": "DEACTIVATED. Multipart body: audio file + token field. Supported formats: mp3, wav, m4a, webm. Max 25MB per OpenAI Whisper API limit."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Whisper Transcribe v1 — Validate + size check\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst binaryData = $input.item.binary || {};\n\nconst token = body.token || null;\nconst masterToken = process.env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\n\n// Locate the audio file in the multipart payload\nconst audioKey = Object.keys(binaryData)[0] || null;\nconst audio = audioKey ? binaryData[audioKey] : null;\nif (!audio) {\n  return { json: { _empty: true, error: 'audio file required' } };\n}\n\n// Validate format + size\nconst mime = (audio.mimeType || '').toLowerCase();\nconst allowedMime = ['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/mp4','audio/m4a','audio/webm','audio/ogg'];\nif (allowedMime.indexOf(mime) === -1 && !/^audio\\//.test(mime)) {\n  return { json: { _empty: true, error: 'unsupported audio format: ' + mime } };\n}\n\nconst sizeBytes = audio.fileSize || (audio.data ? Math.ceil(audio.data.length * 3 / 4) : 0);\nif (sizeBytes > 25 * 1024 * 1024) {\n  return { json: { _empty: true, error: 'audio exceeds 25MB Whisper limit' } };\n}\n\nreturn { json: { _authorized: true, audioKey, mime, sizeBytes } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cw-0002",
+      "name": "Validate + Size Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-cw-cond-auth", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-cw-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "file", "parameterType": "formBinaryData", "inputDataFieldName": "={{ $json.audioKey }}" },
+            { "name": "model", "value": "whisper-1" },
+            { "name": "response_format", "value": "json" },
+            { "name": "language", "value": "en" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-cw-0004",
+      "name": "OpenAI Whisper Transcribe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Create n8n credential 'OpenAI' (HTTP Header Auth, header name: Authorization, value: Bearer $OPENAI_API_KEY). Bind to this node. No credentials block yet — workflow fails auth until configured."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Whisper Transcribe v1 — Build response\nconst resp = $input.item.json || {};\nconst text = resp.text || null;\nif (!text) {\n  return { json: { ok: false, text: null, error: resp.error || resp.message || 'Whisper returned no text' } };\n}\nreturn { json: { ok: true, text, error: null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cw-0005",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 400]
+    }
+  ],
+  "connections": {
+    "Copilot Whisper Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Size Check", "type": "main", "index": 0 } ]] },
+    "Validate + Size Check":  { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":          { "main": [[], [ { "node": "OpenAI Whisper Transcribe", "type": "main", "index": 0 } ]] },
+    "OpenAI Whisper Transcribe": { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-copilot-whisper-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-copilot-whisper-v1",
+  "tags": []
+}

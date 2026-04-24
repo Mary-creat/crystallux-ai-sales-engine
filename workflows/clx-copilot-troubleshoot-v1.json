@@ -1,0 +1,174 @@
+{
+  "name": "CLX - Copilot Troubleshoot v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "copilot/troubleshoot",
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, diagnosis: $('Build Response').first().json.diagnosis, error: $('Build Response').first().json.error || null }) }}"
+        }
+      },
+      "id": "clx-ct-0001",
+      "name": "Copilot Troubleshoot Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-ct-0001-webhook",
+      "notes": "DEACTIVATED. Body: { token, error_id (optional), description (optional) }. Exactly one of error_id or description required."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Troubleshoot v1 — Validate + route\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst error_id = body.error_id || null;\nconst description = body.description || null;\n\nconst masterToken = process.env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!error_id && !description) {\n  return { json: { _empty: true, error: 'error_id or description required' } };\n}\n\nreturn { json: { token, error_id, description, _authorized: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ct-0002",
+      "name": "Validate + Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-ct-cond-auth", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-ct-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors?select=*&order=created_at.desc&limit=20{{ $json.error_id ? '&id=eq.' + $json.error_id : '' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-ct-0004",
+      "name": "Fetch Context Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Troubleshoot v1 — Build prompt with context\nconst rows = $input.item.json || [];\nconst input = $('Validate + Route').first().json;\n\nconst errors = Array.isArray(rows) ? rows : [];\nconst summary = errors.slice(0, 10).map(e => ({\n  id: e.id,\n  error_code: e.error_code,\n  error_message: (e.error_message || '').slice(0, 300),\n  node_name: e.node_name,\n  created_at: e.created_at,\n  resolved: e.resolved === true\n}));\n\nconst userContent = input.error_id\n  ? 'Focus error_id: ' + input.error_id + '.\\n\\nRecent scan_errors:\\n' + JSON.stringify(summary, null, 2)\n  : 'Operator description: ' + input.description + '\\n\\nRecent scan_errors for context:\\n' + JSON.stringify(summary, null, 2);\n\nreturn { json: { userContent, errors: summary, error_id: input.error_id || null, description: input.description || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ct-0005",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: 'You are Crystallux Troubleshoot Copilot. Diagnose the error(s) the operator is investigating and propose a safe, specific fix. Rules: (a) only propose SQL UPDATEs that touch scan_errors (resolved flag via mark_error_resolved RPC) or non-destructive noop actions; (b) never propose INSERT/DELETE/DROP/ALTER; (c) if the root cause is outside the database (credential issue, workflow bug, third-party outage), say so explicitly and suggest the operator route. Return ONLY a JSON object: {\"root_cause\": string, \"affected_records\": number, \"severity\": \"low\" | \"medium\" | \"high\" | \"critical\", \"suggested_fix\": string (human-readable), \"sql_to_execute_if_any\": string | null, \"dashboard_link\": string | null}. No prose outside JSON.', messages: [{ role: 'user', content: $json.userContent }] }) }}",
+        "options": {}
+      },
+      "id": "clx-ct-0006",
+      "name": "Claude Diagnose",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Troubleshoot v1 — Parse + safety check suggested SQL\nconst resp = $input.item.json || {};\nconst ctx = $('Build Claude Prompt').first().json;\n\nlet diagnosis = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  diagnosis = JSON.parse(text.trim());\n} catch (e) {\n  return { json: { ok: false, error: 'Claude response was not valid JSON', raw: (resp.content && resp.content[0] && resp.content[0].text) || null } };\n}\n\n// Safety check: if sql_to_execute_if_any is present, verify it only\n// calls mark_error_resolved RPC or is a no-op.\nconst sql = (diagnosis.sql_to_execute_if_any || '').trim();\nif (sql && sql.length > 0) {\n  const lower = sql.toLowerCase();\n  const allowedPattern = /^(select\\s+mark_error_resolved|select\\s+\\*\\s+from\\s+mark_error_resolved|select\\s+1\\s)/i;\n  if (!allowedPattern.test(sql)) {\n    // Strip unsafe SQL from the response; pass diagnosis through but\n    // force the UI to not offer an auto-execute button.\n    diagnosis.sql_to_execute_if_any = null;\n    diagnosis.suggested_fix = (diagnosis.suggested_fix || '') + '\\n\\n(Auto-execute disabled: suggested SQL did not match safe-action allowlist.)';\n  }\n}\n\nreturn { json: { ok: true, diagnosis, context_errors: ctx.errors || [] } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ct-0007",
+      "name": "Parse + Safety",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Troubleshoot v1 — Final response shape\nconst data = $input.item.json;\nreturn { json: { ok: data.ok === true, diagnosis: data.diagnosis || null, error: data.ok ? null : (data.error || 'unknown'), context_errors: data.context_errors || [] } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ct-0008",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'mary', action_type: 'troubleshoot_initiated', input_text: ($('Validate + Route').first().json.description || 'error_id:' + ($('Validate + Route').first().json.error_id || 'unknown')), panel_context: 'alerts', generated_content: $json.diagnosis || null, result_summary: $json.ok ? 'diagnosed' : 'failed', success: $json.ok === true, error_message: $json.error || null, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-ct-0009",
+      "name": "Log to admin_action_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2120, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    }
+  ],
+  "connections": {
+    "Copilot Troubleshoot Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Route", "type": "main", "index": 0 } ]] },
+    "Validate + Route":   { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":      { "main": [[], [ { "node": "Fetch Context Errors", "type": "main", "index": 0 } ]] },
+    "Fetch Context Errors":{ "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":{ "main": [[ { "node": "Claude Diagnose", "type": "main", "index": 0 } ]] },
+    "Claude Diagnose":    { "main": [[ { "node": "Parse + Safety", "type": "main", "index": 0 } ]] },
+    "Parse + Safety":     { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
+    "Build Response":     { "main": [[ { "node": "Log to admin_action_log", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-copilot-troubleshoot-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-copilot-troubleshoot-v1",
+  "tags": []
+}

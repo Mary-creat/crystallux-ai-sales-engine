@@ -101,6 +101,69 @@
   .clx-access-denied h2{font-size:22px;margin-bottom:12px}
   .clx-access-denied p{color:var(--text-dim);font-size:14px;margin-bottom:18px}
   .clx-access-denied a{color:var(--primary);font-weight:600}
+
+  /* ══ Phase 8 — Admin Copilot (FAB + slide-out panel) ══ */
+  .clx-copilot-fab{
+    position:fixed;bottom:24px;right:24px;z-index:120;
+    width:56px;height:56px;border-radius:50%;cursor:pointer;
+    background:linear-gradient(135deg,#7F77DD,#8b5cf6);
+    border:none;color:#fff;font-size:22px;
+    box-shadow:0 6px 20px rgba(127,119,221,0.45);
+    display:none;align-items:center;justify-content:center;
+    transition:transform .15s ease;
+  }
+  .clx-copilot-fab:hover{transform:scale(1.06)}
+  .clx-copilot-fab.show{display:flex}
+
+  .clx-copilot-panel{
+    position:fixed;top:0;right:0;height:100vh;width:420px;max-width:100vw;z-index:130;
+    background:var(--bg-3);border-left:1px solid var(--border);
+    box-shadow:-8px 0 30px rgba(0,0,0,0.4);
+    transform:translateX(100%);transition:transform .25s ease;
+    display:flex;flex-direction:column;
+  }
+  .clx-copilot-panel.open{transform:translateX(0)}
+  .clx-copilot-header{
+    padding:16px 20px;border-bottom:1px solid var(--border);display:flex;
+    justify-content:space-between;align-items:center;
+  }
+  .clx-copilot-title{font-weight:700;font-size:15px}
+  .clx-copilot-close{background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer}
+  .clx-copilot-close:hover{color:var(--text)}
+  .clx-copilot-body{
+    flex:1;overflow-y:auto;padding:16px 20px;font-size:13px;line-height:1.5;
+  }
+  .clx-copilot-msg{margin-bottom:14px;padding:10px 14px;border-radius:10px}
+  .clx-copilot-msg.user{background:rgba(127,119,221,0.12);border:1px solid rgba(127,119,221,0.25)}
+  .clx-copilot-msg.assistant{background:var(--bg-2);border:1px solid var(--border)}
+  .clx-copilot-msg .role{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dimmer);font-weight:700;margin-bottom:4px}
+  .clx-copilot-msg pre{background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;overflow-x:auto;font-size:11px;margin-top:6px}
+  .clx-copilot-action{
+    display:inline-block;margin-top:8px;padding:6px 12px;background:var(--primary);color:#fff;
+    border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;
+  }
+  .clx-copilot-action:hover{background:#6f66d4}
+  .clx-copilot-input-row{
+    padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;
+  }
+  .clx-copilot-input{
+    flex:1;padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);
+    border-radius:7px;color:var(--text);font-family:inherit;font-size:13px;
+  }
+  .clx-copilot-input:focus{outline:none;border-color:var(--primary)}
+  .clx-copilot-voice,.clx-copilot-send{
+    background:var(--bg-2);border:1px solid var(--border);color:var(--text);
+    border-radius:7px;padding:9px 12px;cursor:pointer;font-size:13px;
+  }
+  .clx-copilot-voice:hover,.clx-copilot-send:hover{background:var(--bg)}
+  .clx-copilot-voice.recording{background:var(--red);border-color:var(--red);color:#fff}
+  .clx-copilot-mode{padding:8px 20px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-dim);background:var(--bg-2)}
+  .clx-copilot-mode select{background:var(--bg-3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;margin-left:6px}
+
+  @media (max-width: 640px) {
+    .clx-copilot-panel{width:100vw}
+    .clx-copilot-fab{bottom:16px;right:16px}
+  }
   section[id]{scroll-margin-top:80px}
   a{color:inherit;text-decoration:none}
   code{font-family:'SF Mono',Consolas,monospace;background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:4px;color:#fcd34d}
@@ -490,6 +553,35 @@
     <a class="clx-nav-item" href="#ops-alerts"       data-panel="ops-alerts"><span class="clx-nav-icon">△</span>Alerts</a>
   </div>
 </nav>
+
+<!-- ══ Phase 8 — Admin Copilot FAB + slide-out panel (admin-only) ══ -->
+<button class="clx-copilot-fab" id="clxCopilotFab" aria-label="Open Copilot" title="Open Copilot (Ctrl+K)" onclick="clxCopilot.toggle()">✦</button>
+<aside class="clx-copilot-panel" id="clxCopilotPanel" aria-label="Admin Copilot">
+  <div class="clx-copilot-header">
+    <div class="clx-copilot-title">✦ Crystallux Copilot</div>
+    <button class="clx-copilot-close" onclick="clxCopilot.toggle()" aria-label="Close">×</button>
+  </div>
+  <div class="clx-copilot-mode">
+    Mode:
+    <select id="clxCopilotMode">
+      <option value="auto">Auto-detect</option>
+      <option value="query">Database query</option>
+      <option value="troubleshoot">Troubleshoot error</option>
+      <option value="platform">Platform Q&amp;A</option>
+    </select>
+  </div>
+  <div class="clx-copilot-body" id="clxCopilotBody">
+    <div class="clx-copilot-msg assistant">
+      <div class="role">Copilot</div>
+      <div>Hi Mary. Ask me a database question, describe an error, or ask about Crystallux platform capabilities. Press <code>Ctrl+K</code> from anywhere on the dashboard to open me. Voice input supported — click the microphone icon.</div>
+    </div>
+  </div>
+  <div class="clx-copilot-input-row">
+    <button class="clx-copilot-voice" id="clxCopilotVoice" title="Record voice (max 60s)" onclick="clxCopilot.toggleVoice()">🎤</button>
+    <input class="clx-copilot-input" id="clxCopilotInput" type="text" placeholder="Ask anything… (Ctrl+K)" onkeydown="if (event.key==='Enter') clxCopilot.send()" />
+    <button class="clx-copilot-send" onclick="clxCopilot.send()">Send</button>
+  </div>
+</aside>
 
 <!-- Guest / access-denied landing (only shown for role=guest) -->
 <div class="clx-access-denied" id="clxAccessDenied">
@@ -1253,6 +1345,203 @@ function clxToggleSidebar() {
   const sb = document.getElementById('clxSidebar');
   if (sb) sb.classList.toggle('open');
 }
+
+// ══ Phase 8 — Admin Copilot (FAB + panel + webhook dispatch) ══
+// Admin-only. Persists across panel navigation. History in
+// sessionStorage (clears on browser close). Voice via
+// MediaRecorder API → clx-copilot-whisper-v1 → transcription
+// auto-populates the input.
+const clxCopilot = {
+  history: [],
+  recorder: null,
+  recordingChunks: [],
+
+  init() {
+    if (window.CLX_ROLE !== 'admin') return;  // hidden for client + ops + guest
+    const fab = document.getElementById('clxCopilotFab');
+    if (fab) fab.classList.add('show');
+
+    // Restore history
+    try {
+      const h = sessionStorage.getItem('copilotHistory');
+      if (h) {
+        this.history = JSON.parse(h);
+        this.renderHistory();
+      }
+    } catch (e) {}
+
+    // Ctrl+K / Cmd+K hotkey
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        this.toggle(true);
+      }
+    });
+  },
+
+  toggle(forceOpen) {
+    const panel = document.getElementById('clxCopilotPanel');
+    if (!panel) return;
+    if (forceOpen === true) panel.classList.add('open');
+    else panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+      setTimeout(() => {
+        const input = document.getElementById('clxCopilotInput');
+        if (input) input.focus();
+      }, 100);
+    }
+  },
+
+  renderHistory() {
+    const body = document.getElementById('clxCopilotBody');
+    if (!body) return;
+    body.innerHTML = this.history.map(m => {
+      const role = m.role === 'user' ? 'You' : 'Copilot';
+      const cls = m.role === 'user' ? 'user' : 'assistant';
+      let content = escapeHtml(m.text || '');
+      if (m.sql) content += '<pre>' + escapeHtml(m.sql) + '</pre>';
+      if (m.rows && Array.isArray(m.rows) && m.rows.length) {
+        content += '<pre>' + escapeHtml(JSON.stringify(m.rows.slice(0, 10), null, 2)) + '</pre>';
+      }
+      if (m.action) content += '<button class="clx-copilot-action" onclick="clxCopilot.executeAction(' + m.action.id + ')">' + escapeHtml(m.action.label) + '</button>';
+      return '<div class="clx-copilot-msg ' + cls + '"><div class="role">' + role + '</div>' + content + '</div>';
+    }).join('');
+    body.scrollTop = body.scrollHeight;
+  },
+
+  persist() {
+    try { sessionStorage.setItem('copilotHistory', JSON.stringify(this.history)); } catch (e) {}
+  },
+
+  async send() {
+    const input = document.getElementById('clxCopilotInput');
+    const mode  = document.getElementById('clxCopilotMode').value || 'auto';
+    const question = (input.value || '').trim();
+    if (!question) return;
+    input.value = '';
+    this.history.push({ role: 'user', text: question });
+    this.renderHistory();
+    this.persist();
+
+    // Detect mode if auto
+    let effectiveMode = mode;
+    if (mode === 'auto') {
+      const q = question.toLowerCase();
+      if (/(how many|count|show me|list|top \d+|sum|average)/.test(q)) effectiveMode = 'query';
+      else if (/(error|broke|failing|fix|troubleshoot)/.test(q)) effectiveMode = 'troubleshoot';
+      else effectiveMode = 'platform';
+    }
+
+    this.history.push({ role: 'assistant', text: 'Thinking (mode: ' + effectiveMode + ')…' });
+    this.renderHistory();
+
+    const endpoint = {
+      query: '/webhook/copilot/query',
+      troubleshoot: '/webhook/copilot/troubleshoot',
+      platform: '/webhook/copilot/platform'
+    }[effectiveMode];
+
+    const payload = effectiveMode === 'troubleshoot'
+      ? { token: window.CLX_TOKEN, description: question }
+      : { token: window.CLX_TOKEN, question, panel_context: (window.location.hash || '').slice(1) || 'overview' };
+
+    const n8nBase = getN8nUrl();
+    try {
+      const res = await fetch(n8nBase + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: 'invalid response' }));
+
+      // Replace the "Thinking…" placeholder with the real response
+      this.history.pop();
+      if (effectiveMode === 'query') {
+        this.history.push({
+          role: 'assistant',
+          text: data.explanation || data.answer || 'No result.',
+          sql: data.sql || null,
+          rows: data.rows || []
+        });
+      } else if (effectiveMode === 'troubleshoot') {
+        const d = data.diagnosis || {};
+        this.history.push({
+          role: 'assistant',
+          text: (d.root_cause ? ('Root cause: ' + d.root_cause + '\n\n') : '') +
+                (d.suggested_fix || data.answer || 'No diagnosis returned.'),
+          sql: d.sql_to_execute_if_any || null
+        });
+      } else {
+        this.history.push({ role: 'assistant', text: data.answer || JSON.stringify(data) });
+      }
+      this.renderHistory();
+      this.persist();
+    } catch (e) {
+      this.history.pop();
+      this.history.push({ role: 'assistant', text: 'Copilot error: ' + (e.message || String(e)) + '. Check that the 4 copilot workflows are active in n8n and the Anthropic credential is bound.' });
+      this.renderHistory();
+      this.persist();
+    }
+  },
+
+  async toggleVoice() {
+    const btn = document.getElementById('clxCopilotVoice');
+    if (!btn) return;
+    if (this.recorder && this.recorder.state === 'recording') {
+      this.recorder.stop();
+      btn.classList.remove('recording');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.recorder = new MediaRecorder(stream);
+      this.recordingChunks = [];
+      this.recorder.ondataavailable = (e) => this.recordingChunks.push(e.data);
+      this.recorder.onstop = async () => {
+        const blob = new Blob(this.recordingChunks, { type: this.recorder.mimeType || 'audio/webm' });
+        stream.getTracks().forEach(t => t.stop());
+        await this.transcribeAndFill(blob);
+      };
+      this.recorder.start();
+      btn.classList.add('recording');
+      // Auto-stop after 60 seconds
+      setTimeout(() => {
+        if (this.recorder && this.recorder.state === 'recording') {
+          this.recorder.stop();
+          btn.classList.remove('recording');
+        }
+      }, 60000);
+    } catch (e) {
+      alert('Microphone access denied or unavailable: ' + e.message);
+    }
+  },
+
+  async transcribeAndFill(blob) {
+    const form = new FormData();
+    form.append('audio', blob, 'recording.webm');
+    form.append('token', window.CLX_TOKEN || '');
+
+    const n8nBase = getN8nUrl();
+    try {
+      const res = await fetch(n8nBase + '/webhook/copilot/transcribe', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({ ok: false, error: 'invalid response' }));
+      if (data.ok && data.text) {
+        const input = document.getElementById('clxCopilotInput');
+        if (input) { input.value = data.text; input.focus(); }
+      } else {
+        alert('Transcription failed: ' + (data.error || 'unknown error'));
+      }
+    } catch (e) {
+      alert('Transcription error: ' + (e.message || String(e)));
+    }
+  },
+
+  executeAction(actionId) {
+    // Placeholder — action-execute framework will route to
+    // mark_error_resolved RPC or similar safe actions.
+    alert('Execute action ' + actionId + ' — wiring pending.');
+  }
+};
 
 async function resolveClientContext() {
   if (isAdminMode()) {
@@ -2598,6 +2887,8 @@ refreshAll();
 resolveClientContext();
 // Phase 3 — activate role-based navigation shell
 clxInitNavigation();
+// Phase 8 — Admin Copilot (FAB + panel visible in admin mode only)
+clxCopilot.init();
 </script>
 </body>
 </html>

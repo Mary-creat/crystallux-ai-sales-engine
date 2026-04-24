@@ -1464,3 +1464,186 @@ via Gmail (TESTING MODE inbox until Mary removes the redirect).
   in the welcome email template is a placeholder until Mary creates
   the portal config in Stripe Dashboard → Settings → Billing.
 
+---
+
+## 22. Admin Copilot
+
+Persistent conversational AI layer embedded in the admin dashboard.
+Opens via the ✦ FAB (bottom-right) or `Ctrl+K` / `Cmd+K` from any
+panel. Available **only** to role=admin — hidden for client and ops
+sessions.
+
+### Capabilities
+
+1. **Database query.** Type/speak a question → Claude generates a
+   safe PostgreSQL SELECT → server executes via
+   `admin_execute_select` RPC → table/scalar/chart result renders in
+   the panel.
+2. **Troubleshoot error.** Supply an `error_id` or free-text
+   description → Claude diagnoses root cause from recent
+   `scan_errors` → proposes severity, fix summary, and (optionally)
+   a safe SQL action. Only `mark_error_resolved` RPC calls are
+   auto-executable; anything else is suggest-only.
+3. **Platform Q&A.** Ask what a feature does, which tables hold what
+   data, what's on the roadmap → Claude answers grounded in
+   OPERATIONS_HANDBOOK, ROADMAP_*.md, and workflow source. Never
+   invents capabilities — references existing roadmaps before
+   proposing new ideas.
+4. **Voice input.** Click the microphone icon → MediaRecorder captures
+   audio (max 60 seconds) → uploads to Whisper workflow →
+   transcription auto-populates the input box for review.
+
+### Activation
+
+1. Apply migration `2026-04-24-admin-copilot.sql`. Creates
+   `admin_action_log`, adds resolved-tracking columns to
+   `scan_errors`, creates `admin_execute_select` + `mark_error_resolved`
+   RPCs.
+2. Sign up OpenAI API for Whisper → add `OPENAI_API_KEY` to `.env`.
+3. Confirm `ANTHROPIC_API_KEY` in `.env`.
+4. Create n8n credentials:
+   - **Anthropic API** — HTTP Header Auth, `x-api-key` = `$ANTHROPIC_API_KEY`
+   - **OpenAI** — HTTP Header Auth, `Authorization` = `Bearer $OPENAI_API_KEY`
+5. Import the 4 Copilot workflows:
+   - `clx-copilot-query-v1.json`
+   - `clx-copilot-troubleshoot-v1.json`
+   - `clx-copilot-platform-v1.json`
+   - `clx-copilot-whisper-v1.json`
+6. Bind credentials to the Claude/OpenAI HTTP nodes in each workflow.
+7. Activate all 4 workflows (`active=true`).
+8. Open the admin dashboard with `?token=<MARY_MASTER_TOKEN>`. The ✦
+   FAB appears bottom-right. Press `Ctrl+K` to open.
+
+### Cost
+
+- Claude Sonnet per query: **~$0.003-$0.015** depending on output
+  length
+- Whisper per minute of audio: **~$0.006 USD**
+- Typical month at normal use (30-60 queries/day): **$20-$50**
+
+### Safety
+
+- **Admin token required** on every webhook call. Token validated
+  against `MARY_MASTER_TOKEN` env var before Claude is invoked.
+- **SELECT-only** enforced at two layers: workflow validates with a
+  regex blacklist + LIMIT requirement; `admin_execute_select` RPC
+  re-validates before executing (defence in depth).
+- **Rate limit**: in-flight cap of 100 queries/day expected
+  (Anthropic soft limit). Adjust per cost observed.
+- **All actions logged** to `admin_action_log` with admin_user,
+  action_type, input, generated content, result summary,
+  success/error, timestamp.
+- **No secrets leaked** in responses — system prompts instruct
+  Claude to never return credential values or raw API keys.
+- **Client isolation preserved** — Copilot is admin-only; client
+  dashboards have no copilot UI injection.
+
+### Decommission
+
+- Deactivate the 4 workflows (`active=false`). Copilot FAB remains
+  in admin UI but every call returns a network error.
+- Roll back the migration via trailing rollback block in
+  `2026-04-24-admin-copilot.sql`.
+- Remove `OPENAI_API_KEY` from `.env` (Whisper no-ops).
+
+### Future work (scaffolded, not yet built)
+
+- Streaming responses via Server-Sent Events for incremental render
+- "Execute fix" button on troubleshoot results that calls
+  mark_error_resolved via a dedicated workflow
+- Query result → chart rendering (Chart.js) for `result_type='chart'`
+- Context awareness: automatic inclusion of the current panel's
+  data in the Claude prompt (e.g., viewing #alerts → queries get
+  current unresolved error count as context)
+
+---
+
+## 26. Dashboard Role Model
+
+The dashboard shell at `docs/dashboard/index.html` supports four
+roles with distinct access levels:
+
+### Roles
+
+- **admin** — Mary, full platform visibility. Authenticated via
+  `?token=<MARY_MASTER_TOKEN>`. Sees all 11 admin panels plus
+  Copilot FAB plus legacy panels.
+- **client** — end customers. Authenticated via
+  `?client_id=<UUID>&token=<DASHBOARD_TOKEN>`. Sees 8 client panels,
+  data scoped to their own client_id via `clxScopeUrl` wrapper + RLS.
+  No Copilot. No admin panels. No other clients' data.
+- **ops** — future VA / support staff. Authenticated via
+  `?token=<OPS_TOKEN_OR_MASTER>&ops=1`. Sees 4 ops panels (dormant
+  until activated). Read-only access to clients panel. No billing
+  admin surface. No Copilot.
+- **guest** — no credentials. Shown access-denied landing with
+  prompt to use proper URL format.
+
+### URL patterns
+
+```
+Admin:   https://crystallux.org/dashboard?token=<MASTER>
+         https://crystallux.org/dashboard?token=<MASTER>#clients
+Client:  https://crystallux.org/dashboard?client_id=<UUID>&token=<DT>
+         https://crystallux.org/dashboard?client_id=<UUID>&token=<DT>#my-leads
+Ops:     https://crystallux.org/dashboard?token=<OPS>&ops=1
+Status:  https://crystallux.org/dashboard/status.html (public, no auth)
+```
+
+### Role detection
+
+Happens client-side in the IIFE added during Phase 1. Populates
+`window.CLX_ROLE`, `window.CLX_CLIENT_ID`, `window.CLX_TOKEN`.
+Precedence: `ops=1&token` → ops · `token` alone → admin · `token +
+client_id` → client · else → guest.
+
+### Server-side verification (dormant)
+
+`clx-verify-dashboard-access-v1` workflow provides authoritative
+role resolution with rate limiting (60 req/min per IP) and audit
+logging. Activated when the dashboard calls it before rendering —
+pending front-end wiring.
+
+### Client isolation
+
+Every new data query from Phase 3 onward uses `clxFetch(url)` or
+`clxScopeUrl(url)` which forcibly append `&client_id=eq.<CLX_CLIENT_ID>`
+when role=client. Legacy pre-Phase-2 queries rely on Supabase RLS
+only; the hardening migration (`2026-04-24-dashboard-rls-hardening.sql`)
+enforces `service_role`-only direct-table access and revokes anon
+SELECT/INSERT/UPDATE/DELETE from client-scoped tables.
+
+### Mobile responsiveness
+
+- Sidebar collapses below 820px, replaced by a hamburger toggle
+- Panel scaffolds pad down to 18px at small screens
+- Copilot panel becomes full-width on small screens
+- Breadcrumb adapts padding to accommodate hamburger position
+
+### Panel catalogue
+
+- **Admin (11):** Overview, Clients, Leads, Campaigns, Outreach,
+  Replies & Bookings, Vertical Overlays, Credentials, Billing,
+  Alerts/Errors, Settings (+ Onboarding, System Health, Legacy)
+- **Client (8):** Dashboard, My Leads, Campaigns, Replies,
+  Bookings, Reports, Billing, Settings (+ Onboarding)
+- **Ops (4):** Support Queue, Onboarding Tasks, Clients
+  (read-only), Alerts (all dormant)
+- **Legacy:** 16 pre-existing sections preserved as a single
+  "Legacy Panels" route — every pre-Phase-3 query and panel
+  continues to function identically
+
+Each new panel is a scaffold with placeholder cards until data
+wiring ships in a future pass.
+
+### Audit + decommission
+
+- All access attempts through `clx-verify-dashboard-access-v1` log
+  to `admin_action_log`.
+- All Copilot actions log to `admin_action_log`.
+- To decommission the multi-role layer: revert to the pre-Phase-3
+  state by removing the CSS `.clx-shell`, `.clx-sidebar`,
+  `.clx-panel` rules and the IIFE role-detection block; the
+  original 16 sections render as before. Client-side rollback
+  only; RLS migration stays for security regardless.
+

@@ -1,0 +1,141 @@
+{
+  "name": "CLX - Copilot Platform Q&A v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "copilot/platform",
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, answer: $('Build Response').first().json.answer, sources: $('Build Response').first().json.sources, error: $('Build Response').first().json.error || null }) }}"
+        }
+      },
+      "id": "clx-cp-0001",
+      "name": "Copilot Platform Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-cp-0001-webhook",
+      "notes": "DEACTIVATED. Body: { token, question, intent (optional: current_features|database_content|roadmap|improvement_ideas|workflow_status) }."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Platform Q&A v1 — Validate + intent detection\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst question = body.question || '';\nlet intent = body.intent || null;\n\nconst masterToken = process.env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!question) {\n  return { json: { _empty: true, error: 'question required' } };\n}\n\n// Light-weight intent detection if not provided\nif (!intent) {\n  const q = question.toLowerCase();\n  if (q.match(/how many|count of|total|sum|average|list/)) intent = 'database_content';\n  else if (q.match(/roadmap|planned|future|when will|upcoming/)) intent = 'roadmap';\n  else if (q.match(/feature|capability|what can|what does/)) intent = 'current_features';\n  else if (q.match(/workflow|n8n|active|status of/)) intent = 'workflow_status';\n  else if (q.match(/improve|idea|suggest|should we|could we/)) intent = 'improvement_ideas';\n  else intent = 'current_features';\n}\n\nreturn { json: { token, question, intent, _authorized: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cp-0002",
+      "name": "Validate + Detect Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-cp-cond-auth", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-cp-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Platform Q&A v1 — Gather context\n// Context varies by intent:\n//   current_features -> reads OPERATIONS_HANDBOOK.md (conceptual)\n//   database_content -> reads information_schema (deferred to\n//     admin_execute_select on a follow-up call)\n//   roadmap          -> reads ROADMAP_*.md (list references)\n//   workflow_status  -> reads workflow JSON files (list references)\n//\n// In this scaffold, we pass the intent to Claude and reference the\n// source files by path; Claude is responsible for saying \"check\n// docs/architecture/OPERATIONS_HANDBOOK.md section X\" rather than\n// inventing content. A future enhancement will actually fetch the\n// file contents and pass as context.\n\nconst input = $input.item.json;\n\nconst sourceHints = {\n  current_features: [\n    'docs/architecture/OPERATIONS_HANDBOOK.md — primary source for features',\n    'docs/verticals/*/README.md — per-vertical capability catalog',\n    'docs/commercial/LANDING_PAGE_COPY.md — customer-facing feature summary'\n  ],\n  database_content: [\n    'docs/architecture/migrations/2026-04-*.sql — schema definitions',\n    'docs/dashboard/AUDIT.md — current query patterns',\n    'For specific counts or rows, use the DB Query copilot instead'\n  ],\n  roadmap: [\n    'docs/architecture/ROADMAP_B9_MARKET_INTELLIGENCE.md',\n    'docs/architecture/FUTURE_BEAUTY_MARKETPLACE_ROADMAP.md',\n    'docs/architecture/QUEUED_VERTICAL_SEEDING_B2B.md',\n    'docs/architecture/VERTICAL_EXPANSION_RANKING.md'\n  ],\n  workflow_status: [\n    'workflows/*.json — 26+ n8n workflows',\n    'Only clx-lead-import is active=true at current state',\n    'All others are scaffolded active=false with activation steps in OPERATIONS_HANDBOOK'\n  ],\n  improvement_ideas: [\n    'Reference existing roadmaps before proposing new; many ideas are already captured',\n    'See VERTICAL_EXPANSION_RANKING.md for vertical strategy',\n    'See ROADMAP_B9_MARKET_INTELLIGENCE.md for market-intel tier'\n  ]\n};\n\nconst hints = sourceHints[input.intent] || sourceHints.current_features;\n\nreturn { json: {\n  question: input.question,\n  intent: input.intent,\n  hints: hints,\n  systemContext: 'You are Crystallux Platform Q&A Copilot. Ground your answers in the files listed in the source_hints below. When you do not know, say so. Reference existing roadmaps before proposing new ideas. Mary has already shipped a lot — check what exists before suggesting net-new work.'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cp-0004",
+      "name": "Gather Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1200, system: $json.systemContext + '\\n\\nIntent: ' + $json.intent + '\\nSource hints:\\n' + ($json.hints || []).map(function(h) { return '- ' + h; }).join('\\n') + '\\n\\nReturn ONLY a JSON object: {\"answer\": string (operator-friendly prose, can include markdown), \"sources\": string[] (file paths or section references used)}. No prose outside JSON.', messages: [{ role: 'user', content: $json.question }] }) }}",
+        "options": {}
+      },
+      "id": "clx-cp-0005",
+      "name": "Claude Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot Platform Q&A v1 — Parse Claude + build response\nconst resp = $input.item.json || {};\nconst input = $('Validate + Detect Intent').first().json;\n\nlet payload = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  payload = JSON.parse(text.trim());\n} catch (e) {\n  return { json: { ok: false, error: 'Claude response was not valid JSON', raw: (resp.content && resp.content[0] && resp.content[0].text) || null } };\n}\n\nreturn { json: {\n  ok: true,\n  answer: payload.answer || '',\n  sources: Array.isArray(payload.sources) ? payload.sources : [],\n  intent: input.intent,\n  question: input.question\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cp-0006",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'mary', action_type: 'feature_question', input_text: $json.question, panel_context: $json.intent || null, generated_content: { answer: ($json.answer || '').slice(0, 2000), sources: $json.sources || [] }, result_summary: ($json.answer || '').slice(0, 300), success: $json.ok === true, error_message: $json.error || null, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-cp-0007",
+      "name": "Log to admin_action_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    }
+  ],
+  "connections": {
+    "Copilot Platform Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Detect Intent", "type": "main", "index": 0 } ]] },
+    "Validate + Detect Intent": { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":            { "main": [[], [ { "node": "Gather Context", "type": "main", "index": 0 } ]] },
+    "Gather Context":           { "main": [[ { "node": "Claude Answer", "type": "main", "index": 0 } ]] },
+    "Claude Answer":            { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
+    "Build Response":           { "main": [[ { "node": "Log to admin_action_log", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-copilot-platform-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-copilot-platform-v1",
+  "tags": []
+}

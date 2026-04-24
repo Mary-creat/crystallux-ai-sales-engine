@@ -1,0 +1,170 @@
+{
+  "name": "CLX - Copilot DB Query v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "copilot/query",
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, sql: $('Build Response').first().json.sql, rows: $('Build Response').first().json.rows, explanation: $('Build Response').first().json.explanation, error: $('Build Response').first().json.error || null }) }}"
+        }
+      },
+      "id": "clx-cq-0001",
+      "name": "Copilot Query Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-cq-0001-webhook",
+      "notes": "DEACTIVATED. Body: { token, question, panel_context (optional) }. Admin token validated against MARY_MASTER_TOKEN before Claude is called."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot DB Query v1 — Validate admin token + parse\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst question = body.question || '';\nconst panel_context = body.panel_context || 'unknown';\n\nconst masterToken = process.env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!question || String(question).trim().length === 0) {\n  return { json: { _empty: true, error: 'question required' } };\n}\n\nreturn { json: { token, question, panel_context, _authorized: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cq-0002",
+      "name": "Validate + Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-cq-cond-auth", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-cq-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1024, system: 'You are Crystallux DB Query Copilot. Generate ONE PostgreSQL SELECT statement that answers the user\\'s question. Rules: (a) SELECT or WITH only — no INSERT/UPDATE/DELETE/DROP/ALTER; (b) always add LIMIT <= 1000; (c) only use tables from the whitelist: clients, leads, outreach_log, appointment_log, campaigns, scan_errors, admin_action_log, apollo_credits_log, stripe_events_log, niche_overlays, client_onboarding_status; (d) return ONLY a valid JSON object with exactly these keys: {\"sql_query\": string, \"explanation\": string, \"result_type\": \"table\" | \"chart\" | \"scalar\" | \"narrative\", \"chart_hint\": \"line\" | \"bar\" | \"pie\" | null, \"safety_assessment\": \"safe\" | \"unsafe\"}. No prose outside the JSON.', messages: [{ role: 'user', content: 'Panel context: ' + ($json.panel_context || 'overview') + '\\n\\nQuestion: ' + $json.question }] }) }}",
+        "options": {}
+      },
+      "id": "clx-cq-0004",
+      "name": "Claude Generate SQL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential (HTTP Header Auth, header name: x-api-key, value: $ANTHROPIC_API_KEY). No credentials block yet."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot DB Query v1 — Parse Claude + safety validate SQL\nconst resp = $input.item.json || {};\nconst parsed = $('Validate + Parse').first().json;\n\nlet payload = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  payload = JSON.parse(text.trim());\n} catch (e) {\n  return { json: { _error: true, error: 'Claude response was not valid JSON', raw: (resp.content && resp.content[0] && resp.content[0].text) || null } };\n}\n\nconst sql = (payload.sql_query || '').trim();\nconst upper = sql.toUpperCase();\n\n// Safety checks (in-workflow defence; the RPC also enforces)\nif (!upper.startsWith('SELECT') && !upper.startsWith('WITH')) {\n  return { json: { _error: true, error: 'Generated SQL is not a SELECT/WITH' } };\n}\nif (/(\\s|;|^)(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE)(\\s|;|$)/i.test(sql)) {\n  return { json: { _error: true, error: 'Generated SQL contains forbidden keyword' } };\n}\nif (!/LIMIT\\s+\\d+/i.test(sql)) {\n  return { json: { _error: true, error: 'Generated SQL missing LIMIT clause' } };\n}\n\nreturn { json: {\n  sql_query: sql,\n  explanation: payload.explanation || '',\n  result_type: payload.result_type || 'table',\n  chart_hint: payload.chart_hint || null,\n  panel_context: parsed.panel_context\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cq-0005",
+      "name": "Parse + Validate SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/admin_execute_select",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_query: $json.sql_query }) }}",
+        "options": {}
+      },
+      "id": "clx-cq-0006",
+      "name": "Execute Safe SELECT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Copilot DB Query v1 — Build final response + log\nconst rpcResp = $input.item.json;\nconst parsed = $('Parse + Validate SQL').first().json;\nconst input = $('Validate + Parse').first().json;\n\nlet rows = [];\nlet ok = true;\nlet error = null;\n\nif (Array.isArray(rpcResp)) rows = rpcResp;\nelse if (rpcResp && typeof rpcResp === 'object' && rpcResp.message) { ok = false; error = rpcResp.message; }\nelse if (rpcResp === null) rows = [];\nelse rows = rpcResp;\n\nreturn { json: {\n  ok,\n  sql: parsed.sql_query,\n  rows,\n  explanation: parsed.explanation,\n  result_type: parsed.result_type,\n  chart_hint: parsed.chart_hint,\n  error,\n  panel_context: parsed.panel_context,\n  question: input.question\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cq-0007",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'mary', action_type: 'db_query', input_text: $json.question, panel_context: $json.panel_context || null, generated_content: { sql: $json.sql, explanation: $json.explanation, result_type: $json.result_type }, result_summary: $json.ok ? ('rows=' + (Array.isArray($json.rows) ? $json.rows.length : 0)) : ('error: ' + ($json.error || 'unknown')), success: $json.ok === true, error_message: $json.error || null, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-cq-0008",
+      "name": "Log to admin_action_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    }
+  ],
+  "connections": {
+    "Copilot Query Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Parse", "type": "main", "index": 0 } ]] },
+    "Validate + Parse":   { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":      { "main": [[], [ { "node": "Claude Generate SQL", "type": "main", "index": 0 } ]] },
+    "Claude Generate SQL":{ "main": [[ { "node": "Parse + Validate SQL", "type": "main", "index": 0 } ]] },
+    "Parse + Validate SQL":{ "main": [[ { "node": "Execute Safe SELECT", "type": "main", "index": 0 } ]] },
+    "Execute Safe SELECT":{ "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
+    "Build Response":     { "main": [[ { "node": "Log to admin_action_log", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-copilot-query-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-copilot-query-v1",
+  "tags": []
+}
