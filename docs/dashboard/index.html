@@ -653,6 +653,51 @@ function isClientScoped()  { return !!clientContext.clientId && !clientContext.a
 function isAdminMode()     { return clientContext.admin; }
 function clientIdFilter()  { return isClientScoped() ? '&client_id=eq.' + encodeURIComponent(clientContext.clientId) : ''; }
 
+// ══ Phase 1 — Multi-role architecture: centralised role detection ══
+// Three recognised roles with precedence rules:
+//   admin  : master token only, no client_id (full platform visibility)
+//   client : dashboard_token + client_id (scoped to their own data)
+//   ops    : master/ops token + ?ops=1 query flag (future, dormant)
+//   guest  : missing or invalid credentials (access-denied pathway)
+// Server-side verification happens via clx-verify-dashboard-access-v1
+// webhook (dormant until activated). Until then, role detection is
+// client-side heuristic — RLS is the authoritative defence.
+(function() {
+  const params = urlParams;  // reuse existing URLSearchParams
+  const hasToken  = !!params.get('token');
+  const hasClient = !!params.get('client_id');
+  const hasOps    = params.get('ops') === '1';
+  const legacyAdminFlag = params.get('admin') === 'true';
+
+  let role = 'guest';
+  if (hasOps && hasToken) {
+    role = 'ops';
+  } else if (hasToken && !hasClient && legacyAdminFlag) {
+    // Legacy convention: ?admin=true&token=...
+    role = 'admin';
+  } else if (hasToken && !hasClient) {
+    // New convention: token alone (no client_id) implies admin
+    role = 'admin';
+  } else if (hasToken && hasClient) {
+    role = 'client';
+  }
+
+  window.CLX_ROLE       = role;
+  window.CLX_CLIENT_ID  = clientContext.clientId || null;
+  window.CLX_TOKEN      = clientContext.token    || null;
+
+  // Back-compat: admin flag derivable from role, keep existing UI wiring working
+  if (role === 'admin') clientContext.admin = true;
+
+  // Log once to console for operational debugging
+  try {
+    console.log('[CLX] role detected:', role, '· client_id:', window.CLX_CLIENT_ID ? window.CLX_CLIENT_ID.slice(0,8) + '…' : null);
+  } catch (e) {}
+})();
+
+function isOpsMode()     { return window.CLX_ROLE === 'ops'; }
+function isGuestMode()   { return window.CLX_ROLE === 'guest'; }
+
 async function resolveClientContext() {
   if (isAdminMode()) {
     const banner = document.getElementById('adminBanner');
