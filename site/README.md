@@ -77,23 +77,40 @@ Domain target: `crystallux.org` → serve `site/*` at root
 Dashboard subpath: `crystallux.org/dashboard/*` → serve `dashboard/*`
 Public status: `crystallux.org/dashboard/status.html` (already referenced in every footer)
 
-## Placeholder content Mary must customise
+## Email aliases to create before launch
 
-- **Calendly URL** in `book.html` and throughout: currently `https://calendly.com/crystallux/discovery`. Replace with the real Calendly event slug once created.
-- **Testimonials beyond Filip 9.5/10** on `index.html` and `industries/insurance-brokers.html`. Add named client quotes as they sign written consent.
-- **Legal review** on `terms.html` + `privacy.html`. Both carry a yellow banner flagging the template status. Budget $1,000–2,500 for a Canadian small-business lawyer bundle review.
-- **Physical address** on `contact.html` and footer: currently "Toronto, Ontario, Canada" (no street). Add street address when incorporated and public-listing is safe.
-- **Phone number** on `contact.html`: not included. Add if you want a phone-reachable number.
-- **Favicon / logo artwork**: a `C` wordmark is rendered in CSS. Optional: add `favicon.ico` + `og-image.jpg` (1200×630) to `assets/` and reference in each page's `<head>`.
-- **Google Analytics / Plausible**: not included. Add tracking tag to `site.js` or directly to each page's `<head>` when you pick an analytics provider.
+All four addresses can forward to the same inbox:
+
+- `hello@crystallux.org` (general inquiries, website footer, contact page)
+- `support@crystallux.org` (existing client support)
+- `security@crystallux.org` (responsible disclosure per `/.well-known/security.txt`)
+- `careers@crystallux.org` (careers inquiries from About page)
+
+## Placeholder assets to replace before production launch
+
+- **Calendly URL.** `book.html` and several CTAs point to `https://calendly.com/crystallux/discovery`. Swap for the real event slug.
+- **Legal review.** `terms.html` and `privacy.html` carry yellow template banners. Review with an Ontario-licensed lawyer. Budget $1,000 to $2,500 for a bundle.
+- **Testimonials.** Only the anonymised 9.5-out-of-10 insurance broker quote is live. Add named client quotes with written consent.
+- **favicon.ico + apple-touch-icon.png.** Generate via favicon.io and place in `site/assets/`.
+- **og-image.png (1200x630).** Branded social card referenced from every page's `<head>`. Currently points to `assets/og-image.png`.
+- **logo.svg.** Hero wordmark for the header. Inline CSS mark is the current fallback.
+- **founder-mary.jpg (800x800).** Professional headshot, referenced from `about.html` if Mary decides to add a photo block.
+- **Analytics.** Plausible or Google Analytics snippet not yet added. Add to `site.js` or individual page heads once a provider is chosen.
+
+## SEO + security files (managed per deploy)
+
+- `site/sitemap.xml` — 16 URLs, update `<lastmod>` on meaningful page edits.
+- `site/robots.txt` — allows all crawlers except `/dashboard/`.
+- `site/.well-known/security.txt` — responsible disclosure contact; update `Expires:` before 2027-04-25.
+- `site/_headers` — Cloudflare Pages security headers + CSP + cache directives.
 
 ## What's intentionally not built (scope discipline)
 
-- No case study detail pages yet — wait until first 2–3 paying clients give written consent
-- No blog — premature for pre-revenue stage
-- No career page — hiring plan is in `docs/operations/HIRING_PLAN.md`; publish a careers page when you start recruiting
-- No pricing calculator — the three tiers on `pricing.html` cover 95% of self-serve questions
-- No live chat widget — Mary handles enquiries via `info@crystallux.org` for now
+- No case study detail pages yet. Wait until the first 2 or 3 paying clients give written consent.
+- No blog. Premature for pre-revenue stage.
+- No career page. Hiring plan is in `docs/operations/HIRING_PLAN.md`. Publish a careers page when recruiting begins.
+- No pricing calculator. The three tiers on `pricing.html` cover 95 percent of self-serve questions.
+- No live chat widget. We handle inquiries via `hello@crystallux.org` for now.
 
 ## How it ties to existing work
 

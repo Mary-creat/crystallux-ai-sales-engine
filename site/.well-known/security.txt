@@ -1,0 +1,28 @@
+Contact: mailto:security@crystallux.org
+Expires: 2027-04-25T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://crystallux.org/.well-known/security.txt
+Policy: https://crystallux.org/privacy.html
+
+# Responsible Disclosure
+# Crystallux welcomes good-faith security research.
+# Please email security@crystallux.org with:
+#   - Description of the issue
+#   - Steps to reproduce
+#   - Your contact information
+#
+# We respond within 2 business days and aim to remediate
+# critical issues within 7 days. We do not offer paid bounties
+# at this stage but publicly credit researchers with permission.
+#
+# Out of scope:
+#   - Social engineering
+#   - Physical attacks
+#   - DDoS attacks against production infrastructure
+#
+# In scope:
+#   - Authentication and authorization bypass
+#   - Cross-site scripting (XSS), CSRF
+#   - SQL injection
+#   - Data exposure
+#   - Privacy breaches affecting client or lead data
