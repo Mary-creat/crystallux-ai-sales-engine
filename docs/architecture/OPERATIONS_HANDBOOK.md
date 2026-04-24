@@ -1560,7 +1560,7 @@ sessions.
 
 ## 26. Dashboard Role Model
 
-The dashboard shell at `docs/dashboard/index.html` supports four
+The dashboard shell at `dashboard/index.html` supports four
 roles with distinct access levels:
 
 ### Roles

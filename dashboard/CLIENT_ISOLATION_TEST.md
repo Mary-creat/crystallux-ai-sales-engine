@@ -2,7 +2,7 @@
 
 **Purpose:** verify that a client-role dashboard user (URL with `client_id` + `dashboard_token`) sees only their own data and cannot view other clients' rows, even under adversarial URL manipulation.
 
-**Runs:** after applying `2026-04-24-dashboard-rls-hardening.sql` and deploying the updated `docs/dashboard/index.html` with Phase 2 `clxScopeUrl()` wrapper.
+**Runs:** after applying `2026-04-24-dashboard-rls-hardening.sql` and deploying the updated `dashboard/index.html` with Phase 2 `clxScopeUrl()` wrapper.
 
 **Executor:** Mary, manually, before inviting the first client to access their dashboard URL.
 

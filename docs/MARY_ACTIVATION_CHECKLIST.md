@@ -689,8 +689,8 @@ plus sustained 30 min/day Phase 11 cadence.
 
 ## Phase 13 — Dashboard Multi-Role Activation
 
-Reference: `OPERATIONS_HANDBOOK §26`, `docs/dashboard/AUDIT.md`,
-`docs/dashboard/CLIENT_ISOLATION_TEST.md`.
+Reference: `OPERATIONS_HANDBOOK §26`, `dashboard/AUDIT.md`,
+`dashboard/CLIENT_ISOLATION_TEST.md`.
 
 ### 13a — Apply migrations
 
@@ -718,9 +718,9 @@ Reference: `OPERATIONS_HANDBOOK §26`, `docs/dashboard/AUDIT.md`,
 
 ### 13d — Deploy updated dashboard
 
-- [ ] Publish `docs/dashboard/index.html` (now 2.6K+ lines with role
+- [ ] Publish `dashboard/index.html` (now 2.6K+ lines with role
       shell, 19 scaffold panels, Copilot FAB) to crystallux.org/dashboard
-- [ ] Publish `docs/dashboard/status.html` to crystallux.org/dashboard/status.html
+- [ ] Publish `dashboard/status.html` to crystallux.org/dashboard/status.html
 - [ ] Smoke test: admin URL + client URL + guest URL + status.html
 
 ### Phase 13 exit criteria

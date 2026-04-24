@@ -204,7 +204,7 @@ STRIPE_PRICE_INTELLIGENCE_3997=price_...
    // AFTER (use actual URL from Stripe Dashboard → Customer Portal)
    const portalUrl = 'https://billing.stripe.com/p/login/YOUR_ACTUAL_PORTAL_SESSION_URL';
    ```
-4. Same placeholder exists in `docs/dashboard/index.html` — search for `PLACEHOLDER_PORTAL_URL` and replace.
+4. Same placeholder exists in `dashboard/index.html` — search for `PLACEHOLDER_PORTAL_URL` and replace.
 
 ---
 

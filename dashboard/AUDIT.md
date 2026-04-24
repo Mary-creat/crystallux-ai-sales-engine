@@ -1,8 +1,8 @@
-# Dashboard Audit — State of docs/dashboard/index.html
+# Dashboard Audit — State of dashboard/index.html
 
 **Scope:** complete snapshot of the existing dashboard (2,000 lines) before Phase 3+ role-based extensions.
 **Performed:** Phase 1 of multi-role architecture spec.
-**File:** `docs/dashboard/index.html`
+**File:** `dashboard/index.html`
 
 ---
 
@@ -160,7 +160,7 @@ If Phase 3 navigation ships before Phase 2 client isolation, a client viewing th
 
 ## 9. Files that exist and are directly relevant
 
-- `docs/dashboard/index.html` — the shell
+- `dashboard/index.html` — the shell
 - `docs/architecture/migrations/2026-04-23-stripe-billing.sql` — billing schema
 - `docs/architecture/migrations/2026-04-23-b2b-b2c-segmentation.sql` — focus_segments column
 - `docs/architecture/migrations/2026-04-23-multi-channel.sql` — channels_enabled column
@@ -170,5 +170,5 @@ If Phase 3 navigation ships before Phase 2 client isolation, a client viewing th
 ## 10. Files this audit recommends creating in Phase 2+
 
 - `docs/architecture/migrations/2026-04-24-dashboard-rls-hardening.sql` (Phase 2)
-- `docs/dashboard/CLIENT_ISOLATION_TEST.md` (Phase 2)
+- `dashboard/CLIENT_ISOLATION_TEST.md` (Phase 2)
 - `workflows/clx-verify-dashboard-access-v1.json` (Phase 1 scaffolding, dormant)

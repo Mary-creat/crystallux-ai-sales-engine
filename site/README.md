@@ -1,11 +1,11 @@
-# docs/site/ — Public Crystallux SaaS website
+# site/ — Public Crystallux SaaS website
 
-Static, no-build, plain HTML + CSS + vanilla JS. Separate from `docs/dashboard/`. Deploy the whole `docs/site/` tree to crystallux.org; the dashboard stays at `crystallux.org/dashboard/`.
+Static, no-build, plain HTML + CSS + vanilla JS. Separate from `dashboard/`. Deploy the whole `site/` tree to crystallux.org; the dashboard stays at `crystallux.org/dashboard/` (served from the sibling `dashboard/` directory).
 
 ## Structure
 
 ```
-docs/site/
+site/
 ├── index.html                         Home
 ├── features.html                      Features
 ├── how-it-works.html                  How it works
@@ -34,46 +34,47 @@ Any of the following from the repo root:
 
 ```bash
 # Python 3 (simplest)
-python -m http.server 8080 --directory docs/site
+python -m http.server 8080 --directory site
 
 # then open: http://localhost:8080/
 ```
 
 ```bash
 # Node (if you have it)
-npx -y serve docs/site -p 8080
+npx -y serve site -p 8080
 ```
 
 ```bash
 # PHP (if installed)
-php -S localhost:8080 -t docs/site
+php -S localhost:8080 -t site
 ```
 
 Confirm:
 - Home loads at `http://localhost:8080/`
 - Industries pages load at `http://localhost:8080/industries/insurance-brokers.html` etc.
-- Footer links to `/dashboard/status.html` (will 404 locally unless you're serving the whole `docs/` directory — that's fine, it's absolute-path for production)
+- Footer links to `/dashboard/status.html` (will 404 locally unless you serve the repo root — that's fine, the link is an absolute path for production where `site/` and `dashboard/` are both deployed under the same domain)
 
-To preview the dashboard alongside, serve the whole `docs/` directory:
+To preview the dashboard alongside, serve the repo root:
 
 ```bash
-python -m http.server 8080 --directory docs
+python -m http.server 8080
 # Public site:  http://localhost:8080/site/
 # Dashboard:    http://localhost:8080/dashboard/
 # Status page:  http://localhost:8080/dashboard/status.html
 ```
 
-## Production deployment
+## Production deployment (Cloudflare Pages recommended)
 
-The site is fully static; any host that serves HTML works. Recommended:
+See top-level `DEPLOY.md` for step-by-step Cloudflare Pages setup that deploys `site/` at root and `dashboard/` at `/dashboard/*` from a single repo.
 
-- **Cloudflare Pages** (free, global CDN, build command: none, output dir: `docs/site`)
-- **Netlify** (free, output dir: `docs/site`)
-- **Vercel** (output dir: `docs/site`)
-- **GitHub Pages** (map `docs/site` to `/` via Actions)
+Alternative hosts:
 
-Domain target: `crystallux.org` → serve `docs/site/*`
-Dashboard subpath: `crystallux.org/dashboard/*` → serve `docs/dashboard/*`
+- **Netlify** (free, build output dir: `site`)
+- **Vercel** (output dir: `site`)
+- **GitHub Pages** (Actions workflow mapping `site` to `/`)
+
+Domain target: `crystallux.org` → serve `site/*` at root
+Dashboard subpath: `crystallux.org/dashboard/*` → serve `dashboard/*`
 Public status: `crystallux.org/dashboard/status.html` (already referenced in every footer)
 
 ## Placeholder content Mary must customise
@@ -103,5 +104,5 @@ Public status: `crystallux.org/dashboard/status.html` (already referenced in eve
   - `docs/verticals/{vertical}/README.md` → `industries/{vertical}.html`
   - `docs/operations/TERMS_OF_SERVICE.md` → `terms.html`
   - `docs/operations/PRIVACY_POLICY.md` → `privacy.html`
-- **Dashboard** is completely separate and untouched. Public site links to `/dashboard/status.html` (the one public dashboard page) and `/dashboard` as the "Sign in" destination.
+- **Dashboard** is completely separate in `../dashboard/` and untouched. Public site links to `/dashboard/status.html` (the one public dashboard page) and `/dashboard` as the "Sign in" destination.
 - **Vertical positioning**: insurance brokers is the most mature showcase vertical; the other 4 active verticals (consulting, real estate, construction, dental) each get their own page. Moving, cleaning, and legal are on a waiting-list pattern per the expansion ranking.
