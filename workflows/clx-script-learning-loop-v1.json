@@ -1,0 +1,144 @@
+{
+  "name": "CLX - Script Learning Loop v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "hours", "hoursInterval": 24, "triggerAtHour": 2 } ] }
+      },
+      "id": "clx-sll-v1-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Runs daily at 02:00. Refreshes conversion_rate on closing_scripts / objection_handlers using the last 90 days of script_suggestion_log outcomes (minimum 3 suggestions per script)."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "script/learning/run",
+        "options": { "responseData": "={{ JSON.stringify({ ok: true, updated: $('Refresh Rates').first().json || 0 }) }}" }
+      },
+      "id": "clx-sll-v1-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560],
+      "webhookId": "clx-sll-v1-0002-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/refresh_script_conversion_rates",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_period_days: 90 }) }}",
+        "options": {}
+      },
+      "id": "clx-sll-v1-0003",
+      "name": "Refresh Rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/script_suggestion_log?select=script_id,script_type,agent_action&suggested_at=gte.{{ encodeURIComponent(new Date(Date.now()-90*86400000).toISOString()) }}&limit=5000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-sll-v1-0004",
+      "name": "Fetch Recent Suggestions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pattern analysis: flag scripts with high rejection rate (>=60%).\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byScript = {};\nrows.forEach(function(r) {\n  if (!r.script_id || !r.agent_action) return;\n  if (!byScript[r.script_id]) byScript[r.script_id] = { total: 0, rejected: 0, ignored: 0, type: r.script_type };\n  byScript[r.script_id].total += 1;\n  if (r.agent_action === 'rejected') byScript[r.script_id].rejected += 1;\n  if (r.agent_action === 'ignored')  byScript[r.script_id].ignored  += 1;\n});\nconst problems = Object.keys(byScript).map(function(id) {\n  const s = byScript[id];\n  const rate = s.total > 0 ? ((s.rejected + s.ignored) / s.total) : 0;\n  return { script_id: id, script_type: s.type, total: s.total, reject_or_ignore_rate: Math.round(rate * 100) };\n}).filter(function(p) { return p.total >= 5 && p.reject_or_ignore_rate >= 60; });\nreturn { json: { problems, problem_count: problems.length } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sll-v1-0005",
+      "name": "Detect Problem Scripts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-sll-if-problems", "leftValue": "={{ $json.problem_count }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sll-v1-0006",
+      "name": "IF Any Problems",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1160, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ node_name: 'script_learning_loop', error_code: 'SCRIPT_LEARNING_FAILED', error_message: 'Problem scripts (>=60% rejected/ignored over 90d with >=5 shown): ' + JSON.stringify($json.problems).slice(0, 500), severity: 'warning', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sll-v1-0007",
+      "name": "Log Problem Scripts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Refresh Rates", "type": "main", "index": 0 } ]] },
+    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Refresh Rates", "type": "main", "index": 0 } ]] },
+    "Refresh Rates":                  { "main": [[ { "node": "Fetch Recent Suggestions", "type": "main", "index": 0 } ]] },
+    "Fetch Recent Suggestions":       { "main": [[ { "node": "Detect Problem Scripts", "type": "main", "index": 0 } ]] },
+    "Detect Problem Scripts":         { "main": [[ { "node": "IF Any Problems", "type": "main", "index": 0 } ]] },
+    "IF Any Problems":                { "main": [[ { "node": "Log Problem Scripts", "type": "main", "index": 0 } ], []] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-script-learning-loop-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-script-learning-loop-v1",
+  "tags": []
+}

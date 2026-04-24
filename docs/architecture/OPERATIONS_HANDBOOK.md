@@ -2413,3 +2413,93 @@ All three dormant (`active: false`):
 - Per agent: flip `call_recording_consent = false`.
 - Full: deactivate all 3 workflows; keep the data (audit trail)
   unless the customer explicitly requests deletion.
+
+
+## 34. Real-Time Closing Script Pop-Ups (Phase B.12c-2)
+
+Floating script card that surfaces during a live call when the
+classifier raises a trigger state, plus a nightly learning loop that
+feeds acceptance outcomes back onto `closing_scripts.conversion_rate`
+and `objection_handlers.conversion_rate`.
+
+### 34.1 Schema
+
+Migration: `docs/architecture/migrations/2026-04-25-realtime-script-suggestions.sql`
+
+- `script_suggestion_log` — every suggestion shown + the agent's
+  feedback (`accepted` / `rejected` / `modified` / `ignored` /
+  `no_response`), with `time_to_response_ms` measured from
+  `suggested_at`. Partial index on `agent_action IS NULL` keeps the
+  unfeed-backed queue cheap.
+- `clients` — `realtime_script_suggestions_enabled` +
+  `_enabled_at`.
+- 5 SECURITY DEFINER RPCs: `match_script_to_state` (vertical-scoped
+  ranked fetch from closing_scripts / objection_handlers /
+  discovery_frameworks), `log_suggestion_shown` (logs + increments
+  `call_event_log.script_suggestions_shown`), `log_suggestion_feedback`
+  (records action + derives response_ms; increments
+  `script_suggestions_accepted`), `refresh_script_conversion_rates`
+  (learning loop — recomputes conversion_rate over 90d for scripts
+  with >=3 responses), `enable_realtime_script_suggestions`.
+- 3 `monitoring_thresholds` seeds: SCRIPT_SUGGEST_FAILED,
+  SCRIPT_MATCH_NO_RESULT, SCRIPT_LEARNING_FAILED.
+
+### 34.2 Workflows
+
+- **`clx-realtime-script-suggester-v1`** — `/webhook/script/suggest`.
+  Resolves chunk → client + lead → vertical, short-circuits if
+  `realtime_script_suggestions_enabled=false`, calls
+  `match_script_to_state` RPC, logs the top suggestion via
+  `log_suggestion_shown` (remaining suggestions are shown in the
+  dashboard carousel only if the agent hits "Different one"),
+  returns ranked array to the caller.
+- **`clx-script-learning-loop-v1`** — 02:00 Schedule + manual
+  webhook. Calls `refresh_script_conversion_rates(90)` then detects
+  problem scripts (>=5 shown and >=60% rejected/ignored) and logs
+  them as a `SCRIPT_LEARNING_FAILED` info row for review.
+
+Both dormant.
+
+### 34.3 Dashboard UX
+
+- `#scriptSuggestionCard` — floating bottom-right card, non-intrusive
+  (fixed position, max 50vh height, z-index 9999). Driven by a poll
+  of `script_suggestion_log` inserts matched on the live-call panel's
+  active `call_id`. Replace with Supabase Realtime at activation for
+  sub-second UX.
+- Actions: Use this / Different one / Dismiss. Shortcuts: Ctrl+U /
+  Ctrl+N / Ctrl+D (bound via `document.addEventListener` on init).
+- `#suggestionFeedSection` — post-call timeline of every suggestion
+  shown during a call with action + response time.
+
+### 34.4 Activation
+
+1. Apply `2026-04-25-realtime-script-suggestions.sql`.
+2. Per client: `SELECT enable_realtime_script_suggestions('<uuid>');`
+   (no price arg — bundled into Listening Intelligence tier).
+3. Re-import both workflows. Keep `active: false`.
+4. Activate the suggester on a webhook basis first (the classifier
+   already calls it, no Schedule Trigger needed).
+5. Activate the learning loop's 02:00 Schedule once there are enough
+   suggestion rows for the conversion_rate updates to be meaningful
+   (rule of thumb: at least 50 responded suggestions across the
+   library).
+
+### 34.5 Manager coaching view
+
+- `#suggestionFeedSection` is the core coaching surface. Look for:
+  - Long `time_to_response_ms` → agent is hesitating; library may
+    need more context in the script body.
+  - High ignored rate on otherwise-good scripts → library size too
+    large; trim.
+  - Clustered rejected actions by the same agent → coaching
+    opportunity, not a library problem.
+
+### 34.6 Decommission
+
+- Per client: `UPDATE clients SET realtime_script_suggestions_enabled
+  = false`. Suggester returns immediately with `_skip=true` next
+  call; card never appears.
+- Library rollback: suggestions still logged historically; the
+  learning loop can be deactivated independently to freeze
+  conversion_rate updates.

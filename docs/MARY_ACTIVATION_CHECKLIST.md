@@ -764,6 +764,48 @@ live, Supabase Realtime configured.
 - [ ] Invoice: +$2,500/mo on top of Tier B.
 - [ ] Reference: OPERATIONS_HANDBOOK §33.
 
+### Phase 16.4 — Real-Time Script Suggestions (B.12c-2)
+
+Prerequisite: Phase 16.3 (Listening Intelligence) active for the
+client.
+
+- [ ] Apply migration `2026-04-25-realtime-script-suggestions.sql`.
+- [ ] Verify: `script_suggestion_log` table; `clients` has 2 new
+      realtime-suggestion columns; 5 RPCs present.
+- [ ] Flip per client:
+      `SELECT enable_realtime_script_suggestions('<uuid>');`
+- [ ] Re-import workflows `clx-realtime-script-suggester-v1.json`
+      and `clx-script-learning-loop-v1.json`. Keep `active: false`.
+- [ ] Smoke test: POST `/webhook/script/suggest` with a real
+      `chunk_id` from an active call; confirm a
+      `script_suggestion_log` row lands + at least one suggestion
+      is returned.
+- [ ] Dashboard check: floating suggestion card appears during
+      live-call panel poll; Ctrl+U / Ctrl+N / Ctrl+D work;
+      post-call suggestion feed lists every action.
+- [ ] Wait for ≥50 responded suggestions across the library before
+      activating the learning loop's 02:00 Schedule.
+- [ ] Go-live: activate the suggester (webhook only — no schedule)
+      and, once meaningful suggestion volume exists, the learning
+      loop.
+- [ ] Reference: OPERATIONS_HANDBOOK §34.
+
+### Phase 16 — Sales Intelligence Suite rollup
+
+When a client buys the full stack (Tiers A + B + C), run through
+all four sub-phases in order:
+
+- [ ] Phase 10d-closing, Phase 10d-calendar, Phase 10d-plan,
+      Phase 10d-geo — the B.12a + b-1 dormant scaffolding.
+- [ ] Phase 16.2 — Productivity Tier (+$1,000/mo).
+- [ ] Phase 16.3 — Listening Intelligence (+$2,500/mo, prerequisite
+      for 16.4).
+- [ ] Phase 16.4 — Real-Time Script Suggestions (bundled into
+      Listening Intelligence price; no additional invoice line).
+
+Total lift for a full-suite client: Tier A base + $1,000 Tier B +
+$2,500 Tier C = +$3,500/mo on top of the standard plan.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":

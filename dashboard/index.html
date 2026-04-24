@@ -831,6 +831,22 @@
     </div>
   </section>
 
+  <!-- B.12c-2 — Floating real-time script suggestion card -->
+  <div id="scriptSuggestionCard" style="position:fixed;bottom:20px;right:20px;width:320px;max-height:50vh;overflow-y:auto;background:#fff;border:1px solid #cbd5e0;border-left:4px solid #3182ce;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);padding:12px;font-size:13px;z-index:9999;display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong id="ssTitle" style="color:#2d3748">Script suggestion</strong>
+      <button onclick="dismissScriptSuggestion()" style="background:none;border:none;color:#a0aec0;font-size:18px;cursor:pointer;padding:0 4px">&times;</button>
+    </div>
+    <div id="ssMeta" style="font-size:11px;color:#718096;margin-bottom:6px"></div>
+    <pre id="ssBody" style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#2d3748;margin:0 0 10px 0;max-height:180px;overflow-y:auto"></pre>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button onclick="respondSuggestion('accepted')" title="Ctrl+U" style="padding:5px 10px;background:#2f855a;color:#fff;border:none;border-radius:3px;font-size:11px;cursor:pointer">Use this</button>
+      <button onclick="nextSuggestion()" title="Ctrl+N" style="padding:5px 10px;background:#4a5568;color:#fff;border:none;border-radius:3px;font-size:11px;cursor:pointer">Different one</button>
+      <button onclick="respondSuggestion('rejected')" title="Ctrl+D" style="padding:5px 10px;background:#fff;border:1px solid #cbd5e0;color:#4a5568;font-size:11px;border-radius:3px;cursor:pointer">Dismiss</button>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:#a0aec0">Shortcuts: Ctrl+U use · Ctrl+N next · Ctrl+D dismiss</div>
+  </div>
+
   <!-- SECTION: LIVE CALL (B.12c-1 — admin + client, visible when call_id is set) -->
   <section class="section" id="liveCallSection" style="display:none">
     <div class="section-title">Live Call <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — needs Vapi stream + client tier enabled</span></div>
@@ -844,6 +860,18 @@
       <div id="lcIntentStrip" style="padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:11px;color:#4a5568;display:flex;gap:4px;flex-wrap:wrap"></div>
       <div id="lcTopicCloud" style="padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:12px;color:#4a5568;display:flex;gap:6px;flex-wrap:wrap;min-height:28px"></div>
       <div id="lcTranscript" style="padding:12px;max-height:380px;overflow-y:auto;font-size:13px;font-family:ui-monospace,Menlo,monospace"></div>
+    </div>
+  </section>
+
+  <!-- SECTION: SUGGESTION FEED (B.12c-2 — admin + client) -->
+  <section class="section" id="suggestionFeedSection" style="display:none">
+    <div class="section-title">Script Suggestions (this call)</div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="sfCallId" type="text" placeholder="call_id" style="flex:1;min-width:240px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="sfLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load feed</button>
+      </div>
+      <div id="sfList" style="padding:12px;min-height:100px;font-size:12px"></div>
     </div>
   </section>
 
@@ -4002,6 +4030,7 @@ async function loadLiveCall(startPoll) {
     renderSentimentBar(rows);
     renderIntentStrip(rows);
     renderTopicCloud(rows);
+    pollLatestSuggestion(call_id);
     if (startPoll) {
       if (__lcInterval) clearInterval(__lcInterval);
       __lcInterval = setInterval(function() { loadLiveCall(false); }, 2000);
@@ -4121,6 +4150,146 @@ function renderPcList(label, items) {
     + '</ul></div>';
 }
 
+// ══ B.12c-2 — Floating real-time script suggestion card ═══════════
+// When the classifier triggers the suggester for an active call, the
+// suggester returns ranked scripts. For now, the card is driven by a
+// poll-based mechanism: loadLiveCall() also fetches the most recent
+// unresponded script_suggestion_log row for this call and shows it.
+// At activation, swap to a Supabase Realtime channel subscription on
+// the `script_suggestion_log` inserts for zero-poll UX.
+var __ssQueue = [];
+var __ssCurrent = null;
+
+function initScriptSuggestionCard() {
+  document.addEventListener('keydown', function(e) {
+    if (!__ssCurrent) return;
+    if (!(e.ctrlKey || e.metaKey)) return;
+    var k = e.key.toLowerCase();
+    if (k === 'u')      { e.preventDefault(); respondSuggestion('accepted'); }
+    else if (k === 'n') { e.preventDefault(); nextSuggestion(); }
+    else if (k === 'd') { e.preventDefault(); respondSuggestion('rejected'); }
+  });
+}
+
+function showScriptSuggestion(sug) {
+  __ssCurrent = sug;
+  var card = document.getElementById('scriptSuggestionCard');
+  if (!card) return;
+  document.getElementById('ssTitle').textContent = sug.script_type
+    ? (sug.script_type[0].toUpperCase() + sug.script_type.slice(1) + ' — ' + (sug.script_title || 'Suggestion'))
+    : 'Script suggestion';
+  document.getElementById('ssMeta').textContent = 'Trigger: ' + (sug.trigger_state || '—')
+    + (sug.conversion_rate != null ? (' · conv ' + sug.conversion_rate + '%') : '');
+  document.getElementById('ssBody').textContent = sug.script_body || '(no body)';
+  card.style.display = '';
+}
+
+function dismissScriptSuggestion() {
+  respondSuggestion('rejected');
+}
+
+function nextSuggestion() {
+  if (__ssCurrent) respondSuggestion('ignored');
+  if (__ssQueue.length > 0) {
+    var next = __ssQueue.shift();
+    showScriptSuggestion(next);
+  } else {
+    hideSuggestionCard();
+  }
+}
+
+function hideSuggestionCard() {
+  var card = document.getElementById('scriptSuggestionCard');
+  if (card) card.style.display = 'none';
+  __ssCurrent = null;
+}
+
+async function respondSuggestion(action) {
+  if (!__ssCurrent || !hasSupabase()) { hideSuggestionCard(); return; }
+  var sug = __ssCurrent;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/rpc/log_suggestion_feedback', {
+      method: 'POST',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ p_suggestion_id: sug.suggestion_id, p_action: action, p_notes: null })
+    });
+  } catch (e) { /* silent */ }
+  hideSuggestionCard();
+  if (__ssQueue.length > 0 && action === 'ignored') showScriptSuggestion(__ssQueue.shift());
+}
+
+async function pollLatestSuggestion(call_id) {
+  if (!hasSupabase() || !call_id) return;
+  try {
+    var url = SUPABASE_URL + '/rest/v1/script_suggestion_log'
+      + '?call_id=eq.' + encodeURIComponent(call_id)
+      + '&agent_action=is.null'
+      + '&select=id,script_id,script_type,script_content_shown,trigger_state'
+      + '&order=suggested_at.desc&limit=1';
+    var res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) return;
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    var row = rows[0];
+    if (__ssCurrent && __ssCurrent.suggestion_id === row.id) return;
+    showScriptSuggestion({
+      suggestion_id: row.id,
+      script_type: row.script_type,
+      script_title: '',
+      script_body: row.script_content_shown,
+      trigger_state: row.trigger_state,
+      conversion_rate: null
+    });
+  } catch (e) { /* silent */ }
+}
+
+function initSuggestionFeed() {
+  var section = document.getElementById('suggestionFeedSection');
+  if (!section) return;
+  if (window.CLX_ROLE !== 'admin' && window.CLX_ROLE !== 'client') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  var btn = document.getElementById('sfLoadBtn');
+  if (btn) btn.addEventListener('click', loadSuggestionFeed);
+}
+
+async function loadSuggestionFeed() {
+  var listEl = document.getElementById('sfList');
+  if (!listEl || !hasSupabase()) return;
+  var call_id = (document.getElementById('sfCallId') || {}).value || '';
+  if (!call_id) { listEl.innerHTML = '<div style="color:#718096">Enter a call_id.</div>'; return; }
+  listEl.innerHTML = '<div style="color:#718096">Loading…</div>';
+  try {
+    var url = SUPABASE_URL + '/rest/v1/script_suggestion_log'
+      + '?call_id=eq.' + encodeURIComponent(call_id)
+      + '&select=id,suggested_at,trigger_state,script_type,script_content_shown,agent_action,time_to_response_ms'
+      + '&order=suggested_at.asc&limit=100';
+    var res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) { listEl.innerHTML = '<div style="color:#c53030">Could not load.</div>'; return; }
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      listEl.innerHTML = '<div style="color:#718096">No suggestions fired for this call.</div>';
+      return;
+    }
+    listEl.innerHTML = rows.map(function(r) {
+      var when = r.suggested_at ? new Date(r.suggested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+      var actionColor = r.agent_action === 'accepted' ? '#2f855a'
+        : (r.agent_action === 'rejected' ? '#c53030'
+        : (r.agent_action === 'modified' ? '#d69e2e' : '#a0aec0'));
+      return '<div style="padding:8px 0;border-top:1px solid #edf2f7">'
+        + '<div style="display:flex;gap:10px;align-items:center">'
+        + '<span style="font-family:ui-monospace;font-size:11px;color:#718096;min-width:80px">' + when + '</span>'
+        + '<span style="padding:2px 6px;background:#edf2f7;color:#2d3748;font-size:10px;border-radius:3px">' + escapeHtml(r.trigger_state || '?') + '</span>'
+        + '<span style="padding:2px 6px;background:#edf2f7;color:#4a5568;font-size:10px;border-radius:3px">' + escapeHtml(r.script_type || '?') + '</span>'
+        + '<span style="color:' + actionColor + ';font-size:11px;font-weight:600;margin-left:auto">' + escapeHtml(r.agent_action || 'no response') + (r.time_to_response_ms != null ? (' · ' + r.time_to_response_ms + 'ms') : '') + '</span>'
+        + '</div>'
+        + '<div style="margin-top:4px;color:#4a5568;font-size:12px">' + escapeHtml((r.script_content_shown || '').slice(0, 200)) + (r.script_content_shown && r.script_content_shown.length > 200 ? '…' : '') + '</div>'
+        + '</div>';
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = '<div style="color:#c53030">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
 async function fetchAgentScriptPerformance() {
   var bar = document.getElementById('ciUsageBar');
   var stats = document.getElementById('ciUsageStats');
@@ -4162,6 +4331,8 @@ function refreshAll() {
   initMyProductivity();
   initLiveCall();
   initPostCallReview();
+  initScriptSuggestionCard();
+  initSuggestionFeed();
   checkApiStatus();
 }
 
