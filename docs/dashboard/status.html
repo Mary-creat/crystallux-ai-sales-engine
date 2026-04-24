@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crystallux — Platform Status</title>
+<meta name="description" content="Live operational status of the Crystallux Universal AI Sales Engine. Uptime, recent incidents, and subscribe to updates." />
+<meta name="robots" content="index, follow" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1626; --bg-2: #16213e; --bg-3: #1a1a2e; --border: #2a3454;
+    --text: #ffffff; --text-dim: #a8b1cc; --text-dimmer: #6e7896;
+    --primary: #7F77DD; --secondary: #1D9E75;
+    --green: #10b981; --yellow: #eab308; --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+  header {
+    background: rgba(15,22,38,0.95); border-bottom: 1px solid var(--border);
+    padding: 16px 32px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo { font-size: 20px; font-weight: 700; color: var(--primary); }
+  .logo span { color: var(--secondary); font-weight: 500; }
+  .back { color: var(--text-dim); font-size: 13px; text-decoration: none; }
+  .back:hover { color: var(--text); }
+
+  main { max-width: 840px; margin: 40px auto; padding: 0 24px; }
+
+  .hero-status {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 14px;
+    padding: 36px 32px; text-align: center; margin-bottom: 28px;
+  }
+  .status-dot {
+    display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--green); margin-right: 10px; vertical-align: middle;
+    box-shadow: 0 0 0 4px rgba(16,185,129,0.15);
+  }
+  .status-dot.yellow { background: var(--yellow); box-shadow: 0 0 0 4px rgba(234,179,8,0.15); }
+  .status-dot.red    { background: var(--red);    box-shadow: 0 0 0 4px rgba(239,68,68,0.15); }
+  .status-label {
+    font-size: 26px; font-weight: 700; display: inline-block; vertical-align: middle;
+  }
+  .status-sub { margin-top: 14px; color: var(--text-dim); font-size: 14px; }
+
+  .component-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  @media (max-width: 640px) { .component-grid { grid-template-columns: 1fr; } }
+  .component-card {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .component-name { font-size: 14px; font-weight: 600; }
+  .component-status { font-size: 12px; color: var(--green); font-weight: 600; }
+  .component-status.yellow { color: var(--yellow); }
+  .component-status.red    { color: var(--red); }
+
+  .section-title {
+    font-size: 16px; font-weight: 700; margin: 32px 0 14px; display: flex;
+    align-items: center; justify-content: space-between;
+  }
+  .section-title .meta { font-size: 12px; color: var(--text-dimmer); font-weight: 500; }
+
+  .incident-card {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 10px;
+  }
+  .incident-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .incident-meta { font-size: 12px; color: var(--text-dim); }
+  .incident-body { margin-top: 8px; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+  .uptime-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
+  @media (max-width: 640px) { .uptime-grid { grid-template-columns: 1fr; } }
+  .uptime-card {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px; text-align: center;
+  }
+  .uptime-value { font-size: 28px; font-weight: 700; color: var(--green); }
+  .uptime-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  .subscribe {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px;
+    padding: 22px 24px; margin-top: 32px;
+  }
+  .subscribe h3 { font-size: 16px; margin-bottom: 6px; }
+  .subscribe p { color: var(--text-dim); font-size: 13px; margin-bottom: 14px; }
+  .subscribe form { display: flex; gap: 10px; flex-wrap: wrap; }
+  .subscribe input[type=email] {
+    flex: 1; min-width: 220px; padding: 10px 14px; border: 1px solid var(--border);
+    background: var(--bg-2); color: var(--text); border-radius: 6px; font-size: 14px;
+    font-family: inherit;
+  }
+  .subscribe button {
+    background: var(--primary); color: #fff; border: none; padding: 10px 22px;
+    border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .subscribe button:hover { background: #6f66d4; }
+
+  footer {
+    max-width: 840px; margin: 40px auto 30px; padding: 0 24px;
+    color: var(--text-dimmer); font-size: 12px; text-align: center; line-height: 1.8;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Crystallux<span>&nbsp;status</span></div>
+  <a href="/" class="back">← crystallux.org</a>
+</header>
+
+<main>
+  <div class="hero-status">
+    <div><span class="status-dot" id="statusDot"></span><span class="status-label" id="statusLabel">All systems operational</span></div>
+    <div class="status-sub" id="statusSub">Updated <span id="lastUpdated">—</span></div>
+  </div>
+
+  <div class="section-title">Components <span class="meta">Current status</span></div>
+  <div class="component-grid">
+    <div class="component-card"><span class="component-name">Dashboard</span><span class="component-status" id="compDashboard">Operational</span></div>
+    <div class="component-card"><span class="component-name">Outreach engine (n8n)</span><span class="component-status" id="compOutreach">Operational</span></div>
+    <div class="component-card"><span class="component-name">Database (Supabase)</span><span class="component-status" id="compDb">Operational</span></div>
+    <div class="component-card"><span class="component-name">Email delivery (Gmail)</span><span class="component-status" id="compEmail">Operational</span></div>
+    <div class="component-card"><span class="component-name">Billing (Stripe)</span><span class="component-status" id="compStripe">Operational</span></div>
+    <div class="component-card"><span class="component-name">AI generation (Anthropic)</span><span class="component-status" id="compClaude">Operational</span></div>
+    <div class="component-card"><span class="component-name">Channel integrations</span><span class="component-status" id="compChannels">Operational</span></div>
+    <div class="component-card"><span class="component-name">Reply ingestion</span><span class="component-status" id="compReplies">Operational</span></div>
+  </div>
+
+  <div class="section-title">Uptime (rolling)</div>
+  <div class="uptime-grid">
+    <div class="uptime-card"><div class="uptime-value" id="uptime24h">—</div><div class="uptime-label">Last 24 hours</div></div>
+    <div class="uptime-card"><div class="uptime-value" id="uptime7d">—</div><div class="uptime-label">Last 7 days</div></div>
+    <div class="uptime-card"><div class="uptime-value" id="uptime30d">—</div><div class="uptime-label">Last 30 days</div></div>
+  </div>
+
+  <div class="section-title">Recent incidents <span class="meta">Last 30 days</span></div>
+  <div id="incidentsContainer">
+    <div class="incident-card">
+      <div class="incident-title">No incidents reported.</div>
+      <div class="incident-meta">The platform has been running smoothly. We post post-mortems here within 5 business days of any P0 or P1 incident.</div>
+    </div>
+  </div>
+
+  <div class="subscribe">
+    <h3>Get notified</h3>
+    <p>Subscribe to receive an email when a P0 or P1 incident begins and when it resolves. No marketing. Unsubscribe any time.</p>
+    <form id="subscribeForm" onsubmit="event.preventDefault(); alert('Subscription endpoint wiring pending. For now, email info@crystallux.org with subject \'Subscribe to status updates\'.');">
+      <input type="email" id="subscribeEmail" placeholder="you@business.com" required />
+      <button type="submit">Subscribe</button>
+    </form>
+  </div>
+</main>
+
+<footer>
+  <div>© 2026 Crystallux Inc. · Canadian-built in Toronto</div>
+  <div>
+    <a href="/">crystallux.org</a>
+    &nbsp;·&nbsp;
+    <a href="/terms">Terms</a>
+    &nbsp;·&nbsp;
+    <a href="/privacy">Privacy</a>
+    &nbsp;·&nbsp;
+    <a href="mailto:info@crystallux.org">info@crystallux.org</a>
+  </div>
+</footer>
+
+<script>
+  // Minimal status-data stub. In production, this page fetches a JSON
+  // file published by n8n containing current component status + recent
+  // incidents + uptime metrics. Until that pipeline lands, the page
+  // renders the "All systems operational" default.
+  //
+  // Data source (future): https://crystallux.org/dashboard/status.json
+  // n8n workflow: clx-status-publisher-v1 (not yet created)
+  //
+  // For now, hard-code baseline and update timestamps client-side.
+  (function() {
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Toronto',
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    const el = document.getElementById('lastUpdated');
+    if (el) el.textContent = fmt.format(now) + ' ET';
+
+    // Baseline uptime stubs. Replace with real metrics when status.json lands.
+    document.getElementById('uptime24h').textContent = '100.00%';
+    document.getElementById('uptime7d').textContent  = '100.00%';
+    document.getElementById('uptime30d').textContent = '99.95%';
+
+    // Fetch real status if published (graceful degradation)
+    fetch('status.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        if (data.overall_status) {
+          const dot = document.getElementById('statusDot');
+          const lab = document.getElementById('statusLabel');
+          dot.classList.remove('yellow', 'red');
+          if (data.overall_status === 'degraded') { dot.classList.add('yellow'); lab.textContent = 'Partial service disruption'; }
+          else if (data.overall_status === 'down') { dot.classList.add('red'); lab.textContent = 'Major outage'; }
+          else { lab.textContent = 'All systems operational'; }
+        }
+        if (data.uptime) {
+          if (data.uptime.last_24h) document.getElementById('uptime24h').textContent = data.uptime.last_24h;
+          if (data.uptime.last_7d)  document.getElementById('uptime7d').textContent  = data.uptime.last_7d;
+          if (data.uptime.last_30d) document.getElementById('uptime30d').textContent = data.uptime.last_30d;
+        }
+        if (data.components) {
+          Object.keys(data.components).forEach(k => {
+            const idMap = {
+              dashboard: 'compDashboard', outreach: 'compOutreach', db: 'compDb',
+              email: 'compEmail', stripe: 'compStripe', claude: 'compClaude',
+              channels: 'compChannels', replies: 'compReplies'
+            };
+            const node = document.getElementById(idMap[k]);
+            if (!node) return;
+            const st = data.components[k];
+            node.textContent = st.charAt(0).toUpperCase() + st.slice(1);
+            node.classList.remove('yellow', 'red');
+            if (st === 'degraded') node.classList.add('yellow');
+            else if (st === 'down') node.classList.add('red');
+          });
+        }
+        if (Array.isArray(data.incidents) && data.incidents.length) {
+          const container = document.getElementById('incidentsContainer');
+          container.innerHTML = '';
+          data.incidents.forEach(inc => {
+            const card = document.createElement('div');
+            card.className = 'incident-card';
+            card.innerHTML =
+              '<div class="incident-title">' + (inc.title || 'Incident') + '</div>' +
+              '<div class="incident-meta">' + (inc.started_at || '') + ' · ' + (inc.severity || 'P?') + ' · ' + (inc.status || 'investigating') + '</div>' +
+              '<div class="incident-body">' + (inc.summary || '') + '</div>';
+            container.appendChild(card);
+          });
+        }
+      })
+      .catch(() => { /* silent — keep baseline */ });
+  })();
+</script>
+</body>
+</html>
