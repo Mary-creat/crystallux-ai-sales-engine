@@ -1,0 +1,223 @@
+{
+  "name": "CLX - Transcript Classifier (Realtime) v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "transcript/classify",
+        "options": { "responseData": "={{ JSON.stringify({ ok: $('Patch Chunk').first().json.ok || false, chunk_id: $('Build Payload').first().json.chunk_id, latency_ms: $('Build Payload').first().json.latency_ms || null }) }}" }
+      },
+      "id": "clx-rtc-v1-0001",
+      "name": "Classify Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-rtc-v1-0001-webhook",
+      "notes": "DEACTIVATED. POST /webhook/transcript/classify body: { chunk_id }. Target end-to-end latency <1.5s so the dashboard UI stays live. Publishes to Supabase Realtime and fires the script suggester on trigger intents."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst chunk_id = body.chunk_id || null;\nif (!chunk_id) return { json: { _error: true, error: 'chunk_id required', ok: false } };\nreturn { json: { chunk_id, _t0: Date.now() } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rtc-v1-0002",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/call_transcript_chunks?id=eq.{{ $json.chunk_id }}&select=id,call_id,client_id,agent_id,speaker,transcript_text&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-rtc-v1-0003",
+      "name": "Fetch Chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const arr = $input.item.json || [];\nconst chunk = Array.isArray(arr) && arr.length > 0 ? arr[0] : null;\nconst parsed = $('Parse Input').first().json;\nif (!chunk) return { json: { _skip: true, reason: 'chunk not found', chunk_id: parsed.chunk_id } };\nconst system_prompt = 'Crystallux real-time transcript classifier. Output STRICT JSON: { intent, sentiment, sentiment_score, topics }. intent ∈ {discovery_question, objection, closing_signal, stall, confusion, buy_signal, dismissal, small_talk, information_share}. sentiment ∈ {positive, neutral, negative, mixed}. sentiment_score ∈ [-1.0, 1.0]. topics: array of 0-3 short nouns. No prose.';\nconst user_prompt = 'Speaker: ' + chunk.speaker + '\\nText: ' + chunk.transcript_text;\nreturn { json: Object.assign({}, parsed, { chunk, system_prompt, user_prompt }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rtc-v1-0004",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-rtc-if-skip", "leftValue": "={{ $json._skip || false }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-rtc-v1-0005",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, temperature: 0.1, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_prompt }] }) }}",
+        "options": { "timeout": 2500 }
+      },
+      "id": "clx-rtc-v1-0006",
+      "name": "Claude Haiku Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential. 2.5s hard timeout (budget is <1.5s typical; timeout guards tail latency). Fallback leaves values at 'unknown'/'neutral' to preserve flow."
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || {};\nconst prep = $('Build Payload').first().json;\nconst t0 = prep._t0 || Date.now();\nconst latency = Date.now() - t0;\nlet parsed = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  if (text.trim().length > 0) parsed = JSON.parse(text.trim());\n} catch (e) { parsed = null; }\n\nconst allowedIntents = ['discovery_question','objection','closing_signal','stall','confusion','buy_signal','dismissal','small_talk','information_share'];\nconst allowedSentiments = ['positive','neutral','negative','mixed'];\n\nconst intent = parsed && allowedIntents.indexOf(parsed.intent) !== -1 ? parsed.intent : 'unknown';\nconst sentiment = parsed && allowedSentiments.indexOf(parsed.sentiment) !== -1 ? parsed.sentiment : 'unknown';\nconst sentiment_score = parsed && typeof parsed.sentiment_score === 'number' ? Math.max(-1, Math.min(1, parsed.sentiment_score)) : null;\nconst topics = parsed && Array.isArray(parsed.topics) ? parsed.topics.slice(0, 3) : [];\n\nreturn { json: {\n  chunk_id: prep.chunk_id,\n  call_id: prep.chunk.call_id,\n  client_id: prep.chunk.client_id,\n  agent_id: prep.chunk.agent_id,\n  intent, sentiment, sentiment_score, topics,\n  latency_ms: latency,\n  latency_high: latency > 3000\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rtc-v1-0007",
+      "name": "Parse Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 480]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/call_transcript_chunks?id=eq.{{ $json.chunk_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, detected_intent: $json.intent, detected_topics: $json.topics, classified_at: new Date().toISOString(), classifier_model: 'claude-haiku-4-5-20251001', classifier_latency_ms: $json.latency_ms }) }}",
+        "options": {}
+      },
+      "id": "clx-rtc-v1-0008",
+      "name": "Patch Chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-rtc-if-trigger", "leftValue": "={{ ['objection','closing_signal','stall','confusion'].indexOf($('Parse Claude').first().json.intent) !== -1 }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-rtc-v1-0009",
+      "name": "IF Trigger Suggester",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2120, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/script/suggest",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chunk_id: $('Parse Claude').first().json.chunk_id, call_id: $('Parse Claude').first().json.call_id, agent_id: $('Parse Claude').first().json.agent_id, intent: $('Parse Claude').first().json.intent, sentiment: $('Parse Claude').first().json.sentiment }) }}",
+        "options": { "timeout": 800 }
+      },
+      "id": "clx-rtc-v1-0010",
+      "name": "Trigger Suggester (async)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ node_name: 'transcript_classifier_realtime', error_code: $('Parse Claude').first().json.latency_high ? 'REALTIME_LATENCY_HIGH' : 'TRANSCRIPT_PROCESSING_FAILED', error_message: 'chunk ' + $('Parse Claude').first().json.chunk_id + ' latency_ms=' + $('Parse Claude').first().json.latency_ms, severity: 'warning', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-rtc-v1-0011",
+      "name": "Log Latency (if high)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 560],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "notes": "Only writes a scan_errors row when latency_high=true. Keeps the error log quiet during normal operation."
+    }
+  ],
+  "connections": {
+    "Classify Webhook (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
+    "Parse Input":                    { "main": [[ { "node": "Fetch Chunk", "type": "main", "index": 0 } ]] },
+    "Fetch Chunk":                    { "main": [[ { "node": "Build Payload", "type": "main", "index": 0 } ]] },
+    "Build Payload":                  { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
+    "IF Skip":                        { "main": [[], [ { "node": "Claude Haiku Classify", "type": "main", "index": 0 } ]] },
+    "Claude Haiku Classify":          { "main": [[ { "node": "Parse Claude", "type": "main", "index": 0 } ]] },
+    "Parse Claude":                   { "main": [[ { "node": "Patch Chunk", "type": "main", "index": 0 } ]] },
+    "Patch Chunk":                    { "main": [[ { "node": "IF Trigger Suggester", "type": "main", "index": 0 } ]] },
+    "IF Trigger Suggester":           { "main": [[ { "node": "Trigger Suggester (async)", "type": "main", "index": 0 } ], [ { "node": "Log Latency (if high)", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-transcript-classifier-realtime-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-transcript-classifier-realtime-v1",
+  "tags": []
+}

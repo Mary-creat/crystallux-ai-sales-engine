@@ -831,6 +831,35 @@
     </div>
   </section>
 
+  <!-- SECTION: LIVE CALL (B.12c-1 — admin + client, visible when call_id is set) -->
+  <section class="section" id="liveCallSection" style="display:none">
+    <div class="section-title">Live Call <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — needs Vapi stream + client tier enabled</span></div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="lcCallId" type="text" placeholder="Active call_id" style="flex:1;min-width:240px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="lcLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load call</button>
+        <button id="lcRefreshBtn" style="padding:6px 14px;background:#4a5568;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Refresh</button>
+        <span id="lcSentimentBar" style="flex:1;min-width:200px;height:10px;border-radius:4px;background:#edf2f7"></span>
+      </div>
+      <div id="lcIntentStrip" style="padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:11px;color:#4a5568;display:flex;gap:4px;flex-wrap:wrap"></div>
+      <div id="lcTopicCloud" style="padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:12px;color:#4a5568;display:flex;gap:6px;flex-wrap:wrap;min-height:28px"></div>
+      <div id="lcTranscript" style="padding:12px;max-height:380px;overflow-y:auto;font-size:13px;font-family:ui-monospace,Menlo,monospace"></div>
+    </div>
+  </section>
+
+  <!-- SECTION: POST-CALL REVIEW (B.12c-1 — admin + client) -->
+  <section class="section" id="postCallSection" style="display:none">
+    <div class="section-title">Post-Call Review</div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="pcCallId" type="text" placeholder="call_id to review" style="flex:1;min-width:240px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="pcLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load review</button>
+      </div>
+      <div id="pcHeader" style="padding:10px 12px;border-bottom:1px solid #edf2f7;font-size:13px;color:#4a5568"></div>
+      <div id="pcAnalysis" style="padding:12px;font-size:13px;color:#2d3748;min-height:100px"></div>
+    </div>
+  </section>
+
   <!-- SECTION: TEAM PRODUCTIVITY (B.12b-2 — admin only) -->
   <section class="section" id="teamProductivitySection" style="display:none">
     <div class="section-title">Team Productivity <span class="clx-scaffold-badge planned" style="font-size:11px">Productivity tier — needs agent consent</span></div>
@@ -3934,6 +3963,164 @@ async function toggleShareWithManager() {
   } catch (e) { /* silent */ }
 }
 
+// ══ B.12c-1 — Live Call panel + Post-Call Review ═══════════════════
+// Live: polls call_transcript_chunks every 2s for the active call_id,
+// renders the last 40 chunks with speaker tags + sentiment indicator
+// + intent strip + topic cloud. Replace poll with Supabase Realtime
+// channel subscription at activation for true real-time UX.
+// Post-call: fetches call_event_log + renders Claude's structured
+// analysis (key objections, coaching recs, outcome prediction).
+var __lcInterval = null;
+
+function initLiveCall() {
+  var section = document.getElementById('liveCallSection');
+  if (!section) return;
+  if (window.CLX_ROLE !== 'admin' && window.CLX_ROLE !== 'client') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  var loadBtn = document.getElementById('lcLoadBtn');
+  if (loadBtn) loadBtn.addEventListener('click', function() { loadLiveCall(true); });
+  var refreshBtn = document.getElementById('lcRefreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', function() { loadLiveCall(false); });
+}
+
+async function loadLiveCall(startPoll) {
+  var tx = document.getElementById('lcTranscript');
+  if (!tx || !hasSupabase()) return;
+  var call_id = (document.getElementById('lcCallId') || {}).value || '';
+  if (!call_id) { tx.innerHTML = '<div style="color:#718096">Enter an active call_id.</div>'; return; }
+  tx.innerHTML = '<div style="color:#718096">Loading…</div>';
+  try {
+    var url = SUPABASE_URL + '/rest/v1/call_transcript_chunks'
+      + '?call_id=eq.' + encodeURIComponent(call_id)
+      + '&select=chunk_sequence,speaker,transcript_text,sentiment,sentiment_score,detected_intent,detected_topics,detected_at'
+      + '&order=chunk_sequence.desc&limit=40';
+    var res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) { tx.innerHTML = '<div style="color:#c53030">Could not load (' + res.status + ').</div>'; return; }
+    var rows = await res.json();
+    rows = (rows || []).reverse();
+    renderLiveTranscript(rows);
+    renderSentimentBar(rows);
+    renderIntentStrip(rows);
+    renderTopicCloud(rows);
+    if (startPoll) {
+      if (__lcInterval) clearInterval(__lcInterval);
+      __lcInterval = setInterval(function() { loadLiveCall(false); }, 2000);
+    }
+  } catch (e) {
+    tx.innerHTML = '<div style="color:#c53030">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+function renderLiveTranscript(rows) {
+  var tx = document.getElementById('lcTranscript');
+  if (!tx) return;
+  if (!Array.isArray(rows) || rows.length === 0) { tx.innerHTML = '<div style="color:#718096">No chunks yet for this call.</div>'; return; }
+  tx.innerHTML = rows.map(function(c) {
+    var color = c.speaker === 'customer' ? '#3182ce' : (c.speaker === 'agent' ? '#2f855a' : '#718096');
+    var intent = c.detected_intent && c.detected_intent !== 'unknown'
+      ? '<span style="margin-left:8px;padding:1px 5px;border-radius:3px;background:#edf2f7;font-size:10px;color:#4a5568">' + escapeHtml(c.detected_intent) + '</span>'
+      : '';
+    return '<div style="padding:4px 0;border-bottom:1px dotted #edf2f7">'
+      + '<span style="color:' + color + ';font-weight:600">[' + escapeHtml(c.speaker || '?') + ']</span> '
+      + escapeHtml(c.transcript_text || '')
+      + intent
+      + '</div>';
+  }).join('');
+  tx.scrollTop = tx.scrollHeight;
+}
+
+function renderSentimentBar(rows) {
+  var bar = document.getElementById('lcSentimentBar');
+  if (!bar) return;
+  var scored = (rows || []).filter(function(c) { return c.sentiment_score != null; });
+  if (scored.length === 0) { bar.style.background = '#edf2f7'; return; }
+  var avg = scored.reduce(function(a, c) { return a + Number(c.sentiment_score); }, 0) / scored.length;
+  var color = avg > 0.2 ? '#2f855a' : (avg < -0.2 ? '#c53030' : '#d69e2e');
+  bar.style.background = 'linear-gradient(90deg, ' + color + ' ' + Math.round(((avg + 1) / 2) * 100) + '%, #edf2f7 0)';
+}
+
+function renderIntentStrip(rows) {
+  var el = document.getElementById('lcIntentStrip');
+  if (!el) return;
+  var counts = {};
+  (rows || []).forEach(function(c) {
+    var i = c.detected_intent || 'unknown';
+    if (i === 'unknown') return;
+    counts[i] = (counts[i] || 0) + 1;
+  });
+  var entries = Object.keys(counts).map(function(k) { return { intent: k, n: counts[k] }; }).sort(function(a, b) { return b.n - a.n; });
+  el.innerHTML = entries.map(function(e) { return '<span style="padding:2px 6px;background:#edf2f7;border-radius:3px">' + escapeHtml(e.intent) + ' · ' + e.n + '</span>'; }).join('');
+}
+
+function renderTopicCloud(rows) {
+  var el = document.getElementById('lcTopicCloud');
+  if (!el) return;
+  var counts = {};
+  (rows || []).forEach(function(c) {
+    (c.detected_topics || []).forEach(function(t) { counts[t] = (counts[t] || 0) + 1; });
+  });
+  var entries = Object.keys(counts).map(function(k) { return { topic: k, n: counts[k] }; }).sort(function(a, b) { return b.n - a.n; }).slice(0, 12);
+  if (entries.length === 0) { el.innerHTML = '<span style="color:#a0aec0">(no topics yet)</span>'; return; }
+  var max = entries[0].n;
+  el.innerHTML = entries.map(function(e) {
+    var size = 10 + Math.round((e.n / max) * 8);
+    return '<span style="font-size:' + size + 'px;color:#2d3748">' + escapeHtml(e.topic) + '</span>';
+  }).join(' · ');
+}
+
+function initPostCallReview() {
+  var section = document.getElementById('postCallSection');
+  if (!section) return;
+  if (window.CLX_ROLE !== 'admin' && window.CLX_ROLE !== 'client') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  var btn = document.getElementById('pcLoadBtn');
+  if (btn) btn.addEventListener('click', loadPostCall);
+}
+
+async function loadPostCall() {
+  var hdr = document.getElementById('pcHeader');
+  var an = document.getElementById('pcAnalysis');
+  if (!an || !hasSupabase()) return;
+  var call_id = (document.getElementById('pcCallId') || {}).value || '';
+  if (!call_id) { if (hdr) hdr.innerHTML = 'Enter a call_id.'; return; }
+  if (hdr) hdr.innerHTML = 'Loading…';
+  an.innerHTML = '';
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/get_call_insights', {
+      method: 'POST',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ p_call_id: call_id })
+    });
+    if (!res.ok) { if (hdr) hdr.innerHTML = '<span style="color:#c53030">RPC failed (' + res.status + '). Apply migration 2026-04-25-listening-intelligence.sql first.</span>'; return; }
+    var payload = await res.json();
+    var ev = (payload && payload.event) || null;
+    if (!ev) {
+      if (hdr) hdr.innerHTML = 'No call_event_log row for this id yet. Run clx-post-call-analyzer-v1 first.';
+      an.innerHTML = '';
+      return;
+    }
+    if (hdr) hdr.innerHTML = '<strong>call ' + escapeHtml(call_id) + '</strong> · outcome: ' + escapeHtml(ev.call_outcome || '?')
+      + ' · sentiment: ' + escapeHtml(ev.overall_sentiment || '?')
+      + ' · quality: ' + escapeHtml(ev.transcript_quality || '?')
+      + ' · duration ' + (ev.duration_seconds != null ? ev.duration_seconds + 's' : '—');
+    var analysis = ev.claude_analysis || {};
+    an.innerHTML =
+      renderPcList('Key objections', analysis.key_objections || ev.key_objections)
+      + renderPcList('Opportunities missed', analysis.opportunities_missed)
+      + renderPcList('Coaching recommendations', analysis.coaching_recommendations)
+      + '<div style="margin-top:10px;font-size:12px;color:#718096">Signals — closing: ' + (ev.closing_signals_detected || 0) + ' · buy: ' + (ev.buy_signals_detected || 0) + ' · suggestions shown: ' + (ev.script_suggestions_shown || 0) + ' / accepted: ' + (ev.script_suggestions_accepted || 0) + '</div>';
+  } catch (e) {
+    if (hdr) hdr.innerHTML = '<span style="color:#c53030">' + FRIENDLY_ERROR + '</span>';
+  }
+}
+
+function renderPcList(label, items) {
+  if (!Array.isArray(items) || items.length === 0) return '<div style="margin-top:10px"><strong>' + label + ':</strong> <span style="color:#a0aec0">none</span></div>';
+  return '<div style="margin-top:10px"><strong>' + label + ':</strong><ul style="margin:4px 0 0 18px">'
+    + items.map(function(i) { return '<li>' + escapeHtml(String(i)) + '</li>'; }).join('')
+    + '</ul></div>';
+}
+
 async function fetchAgentScriptPerformance() {
   var bar = document.getElementById('ciUsageBar');
   var stats = document.getElementById('ciUsageStats');
@@ -3973,6 +4160,8 @@ function refreshAll() {
   initRouteMap();
   initTeamProductivity();
   initMyProductivity();
+  initLiveCall();
+  initPostCallReview();
   checkApiStatus();
 }
 

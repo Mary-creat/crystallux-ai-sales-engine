@@ -1,0 +1,169 @@
+{
+  "name": "CLX - Post-Call Analyzer v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call/finalized",
+        "options": { "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, call_id: $('Build Response').first().json.call_id, event_id: $('Build Response').first().json.event_id || null, error: $('Build Response').first().json.error || null }) }}" }
+      },
+      "id": "clx-pca-v1-0001",
+      "name": "Finalize Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-pca-v1-0001-webhook",
+      "notes": "DEACTIVATED. POST /webhook/call/finalized body: { call_id, agent_id, lead_id, duration_seconds }. Fired by Vapi (or operator) when a call ends. Runs Claude Sonnet full analysis + writes call_event_log + optional manager coaching email."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst call_id = body.call_id || null;\nif (!call_id) return { json: { _error: true, error: 'call_id required', ok: false } };\nreturn { json: { call_id, agent_id: body.agent_id || null, lead_id: body.lead_id || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-pca-v1-0002",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/call_transcript_chunks?call_id=eq.{{ $json.call_id }}&order=chunk_sequence.asc&select=chunk_sequence,speaker,transcript_text,sentiment,sentiment_score,detected_intent,detected_topics&limit=2000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-pca-v1-0003",
+      "name": "Fetch All Chunks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunks = Array.isArray($input.item.json) ? $input.item.json : [];\nconst parsed = $('Parse Input').first().json;\nif (chunks.length === 0) return { json: { _skip: true, reason: 'no chunks', call_id: parsed.call_id } };\n\nconst transcript = chunks.map(function(c) { return '[' + (c.speaker || '?') + '] ' + (c.transcript_text || ''); }).join('\\n');\nconst intents = chunks.map(function(c) { return c.detected_intent || 'unknown'; });\nconst closing_count = intents.filter(function(i) { return i === 'closing_signal'; }).length;\nconst buy_count     = intents.filter(function(i) { return i === 'buy_signal'; }).length;\n\nconst system_prompt = [\n  'You are a senior sales-call analyst for Crystallux.',\n  'Review the call transcript + chunk-level intents and produce structured coaching notes.',\n  'Output STRICT JSON only with these keys:',\n  '{',\n  '  \"overall_sentiment\": \"positive|neutral|negative|mixed\",',\n  '  \"sentiment_trajectory\": [{\"chunk_range\": \"1-10\", \"sentiment\": \"neutral\"}, ...],',\n  '  \"key_objections\": [\"...\"],',\n  '  \"closing_signals_detected\": number,',\n  '  \"buy_signals_detected\": number,',\n  '  \"opportunities_missed\": [\"short factual note...\"],',\n  '  \"coaching_recommendations\": [\"practice ...\"],',\n  '  \"call_outcome_prediction\": \"likely_closed|warm|cold|follow_up_needed\",',\n  '  \"transcript_quality\": \"excellent|good|fair|poor|failed\"',\n  '}'\n].join('\\n');\n\nconst user_prompt = 'CHUNK INTENTS: ' + intents.join(',') + '\\n\\nTRANSCRIPT:\\n' + transcript.slice(0, 12000);\n\nreturn { json: Object.assign({}, parsed, { system_prompt, user_prompt, _closing_count: closing_count, _buy_count: buy_count }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-pca-v1-0004",
+      "name": "Prep Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-pca-if-skip", "leftValue": "={{ $json._skip || false }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-pca-v1-0005",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 2000, temperature: 0.3, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_prompt }] }) }}",
+        "options": {}
+      },
+      "id": "clx-pca-v1-0006",
+      "name": "Claude Sonnet Analyze",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential. Falls back to heuristic-only analysis if Claude unbound."
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || {};\nconst prep = $('Prep Prompt').first().json;\nlet parsed = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  if (text.trim().length > 0) parsed = JSON.parse(text.trim());\n} catch (e) { parsed = null; }\n\nif (!parsed) {\n  parsed = {\n    overall_sentiment: 'unknown',\n    sentiment_trajectory: [],\n    key_objections: [],\n    closing_signals_detected: prep._closing_count || 0,\n    buy_signals_detected: prep._buy_count || 0,\n    opportunities_missed: ['Claude unavailable — heuristic fallback only'],\n    coaching_recommendations: [],\n    call_outcome_prediction: 'follow_up_needed',\n    transcript_quality: 'fair'\n  };\n}\n\nreturn { json: Object.assign({}, prep, { analysis: parsed }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-pca-v1-0007",
+      "name": "Parse Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/finalize_call_analysis",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_call_id: $json.call_id, p_overall_sentiment: $json.analysis.overall_sentiment, p_trajectory: $json.analysis.sentiment_trajectory, p_key_objections: $json.analysis.key_objections, p_closing_signals: $json.analysis.closing_signals_detected, p_buy_signals: $json.analysis.buy_signals_detected, p_outcome: $json.analysis.call_outcome_prediction, p_quality: $json.analysis.transcript_quality, p_analysis: $json.analysis }) }}",
+        "options": {}
+      },
+      "id": "clx-pca-v1-0008",
+      "name": "Finalize Call (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const upsert = $input.item.json;\nconst prep = $('Parse Analysis').first().json;\nlet event_id = null;\nif (typeof upsert === 'string') event_id = upsert;\nelse if (upsert && upsert.id) event_id = upsert.id;\nelse if (Array.isArray(upsert) && upsert.length > 0 && upsert[0].finalize_call_analysis) event_id = upsert[0].finalize_call_analysis;\nreturn { json: { ok: event_id != null, call_id: prep.call_id, event_id, analysis: prep.analysis } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-pca-v1-0009",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 480]
+    }
+  ],
+  "connections": {
+    "Finalize Webhook (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
+    "Parse Input":                    { "main": [[ { "node": "Fetch All Chunks", "type": "main", "index": 0 } ]] },
+    "Fetch All Chunks":               { "main": [[ { "node": "Prep Prompt", "type": "main", "index": 0 } ]] },
+    "Prep Prompt":                    { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
+    "IF Skip":                        { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ], [ { "node": "Claude Sonnet Analyze", "type": "main", "index": 0 } ]] },
+    "Claude Sonnet Analyze":          { "main": [[ { "node": "Parse Analysis", "type": "main", "index": 0 } ]] },
+    "Parse Analysis":                 { "main": [[ { "node": "Finalize Call (RPC)", "type": "main", "index": 0 } ]] },
+    "Finalize Call (RPC)":            { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-post-call-analyzer-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-post-call-analyzer-v1",
+  "tags": []
+}

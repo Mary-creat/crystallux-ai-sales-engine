@@ -2300,3 +2300,116 @@ Three dormant (`active: false`):
   Dashboard panels keep rendering historical data; no new events
   write once you also set every agent's consent to false.
 - Fully: deactivate the 3 workflows; data stays in place for audit.
+
+
+## 33. Listening Intelligence Activation (Phase B.12c-1)
+
+Real-time call transcription + AI classification + post-call coaching
+analysis. Canadian two-party consent model. Pricing: $2,500/mo per
+client on top of Tier B.
+
+### 33.1 Schema
+
+Migration: `docs/architecture/migrations/2026-04-25-listening-intelligence.sql`
+
+- `call_transcript_chunks` — one row per Vapi-emitted chunk. Indexed
+  for real-time reads by `call_id`, by agent+date, by intent,
+  sentiment, and with a partial index on `classified_at IS NULL` so
+  the classifier queue query stays cheap.
+- `call_event_log` — rolled-up per-call record, UNIQUE on `call_id`,
+  UPSERT via `finalize_call_analysis`.
+- `clients` — adds 4 listening columns
+  (`listening_intelligence_enabled`, `_price`, `_enabled_at`,
+  `customer_consent_disclosure_script` with a CASL-compatible
+  default).
+- `team_members` — adds `call_recording_consent` + `_at` + `_version`.
+- 5 SECURITY DEFINER RPCs, service_role-only EXECUTE:
+  `process_transcript_chunk` (consent-gated on both client +
+  agent; returns NULL without writing if either check fails),
+  `get_call_insights` (JSONB aggregate for a single call),
+  `get_agent_call_patterns` (30-day roll-up),
+  `enable_listening_intelligence`,
+  `finalize_call_analysis` (UPSERT call_event_log, derives
+  start/end/duration from chunks).
+- 5 `monitoring_thresholds` seeds including `CONSENT_VIOLATION_DETECTED`
+  at critical severity + 1440-min window for audit trail.
+
+### 33.2 Workflows
+
+All three dormant (`active: false`):
+
+- **`clx-vapi-transcript-streamer-v1`** — `/webhook/vapi/transcript-stream`.
+  HMAC verification against `VAPI_WEBHOOK_SECRET` (placeholder mode
+  accepts while secret is unset — do NOT activate without the real
+  secret). Extracts chunk fields from Vapi's payload shape, calls
+  `process_transcript_chunk` (which silently drops when consent
+  gates fail), fires the classifier async, and responds 200 fast.
+  Uses `respondToWebhook` node so the response doesn't wait on the
+  classifier's 500ms timeout.
+- **`clx-transcript-classifier-realtime-v1`** —
+  `/webhook/transcript/classify`. Claude Haiku 4.5 at
+  temp 0.1, max 300 tokens, 2.5s hard timeout. Normalises + clamps
+  output to the allowed enums, PATCHes the chunk with
+  `classified_at` + `classifier_latency_ms`, and triggers the script
+  suggester async when intent ∈ {objection, closing_signal, stall,
+  confusion}. Logs `REALTIME_LATENCY_HIGH` only when latency > 3s.
+- **`clx-post-call-analyzer-v1`** — `/webhook/call/finalized`.
+  Fetches all chunks for the call, builds a Claude Sonnet 4.5 prompt
+  with chunk-level intents + truncated transcript, expects STRICT
+  JSON, falls back to heuristic-only analysis if Claude is unbound,
+  then calls `finalize_call_analysis` RPC.
+
+### 33.3 Dashboard panels
+
+- `#liveCallSection` (admin + client). Call-id input + 2-second
+  polling refresh (replace with Supabase Realtime channel at
+  activation). Renders: transcript (last 40 chunks, speaker
+  colouring), sentiment bar (avg of scored chunks, red/yellow/green
+  gradient), intent count strip, and topic cloud (top-12, size
+  proportional to count).
+- `#postCallSection` (admin + client). Calls `get_call_insights`
+  RPC; shows header strip with outcome/sentiment/quality/duration
+  and lists key objections, opportunities missed, coaching
+  recommendations from `call_event_log.claude_analysis`.
+
+### 33.4 Activation
+
+1. Apply `2026-04-25-listening-intelligence.sql`.
+2. Set `VAPI_WEBHOOK_SECRET` in n8n env. Configure Vapi's webhook
+   URL + shared secret in the Vapi dashboard.
+3. Per client: `SELECT enable_listening_intelligence('<client>', 2500);`
+4. Per agent with explicit consent: `UPDATE team_members SET
+   call_recording_consent = true, call_recording_consent_at = now(),
+   call_recording_consent_version = '1.0' WHERE id = ...`
+5. Re-import all 3 workflows. Bind "Anthropic API" credential on the
+   Claude nodes.
+6. Smoke test: POST a synthetic chunk to `/webhook/transcript/classify`
+   with a seeded chunk_id; confirm Supabase row gets `classified_at`
+   stamped and latency < 2.5s.
+7. End-to-end: POST `/webhook/call/finalized` with a call_id that
+   has chunks; confirm `call_event_log` row lands + `claude_analysis`
+   is populated.
+8. Go-live: activate all 3 workflows.
+
+### 33.5 Privacy + compliance
+
+- Two-party consent model enforced in the RPC layer, not just the
+  application layer — a dashboard bug can't bypass it.
+- The Vapi streamer's `Respond 200` path runs regardless of consent
+  state, so Vapi never sees a 4xx and won't back off, but nothing
+  is persisted when either consent gate fails.
+- `CONSENT_VIOLATION_DETECTED` fires if a chunk arrives claiming to
+  belong to a client/agent whose consent flag is false — should
+  never happen under the RPC design, but the monitor catches schema
+  drift.
+- Transcript retention: 30 days then anonymised. Implement the
+  scheduled cleanup as a follow-up before go-live (the migration
+  creates the structure, not the cron job).
+- Full consent doc: `docs/operations/CALL_RECORDING_CONSENT.md`.
+
+### 33.6 Decommission
+
+- Per client: `UPDATE clients SET listening_intelligence_enabled = false`.
+- Per agent: flip `call_recording_consent = false`.
+- Full: deactivate all 3 workflows; keep the data (audit trail)
+  unless the customer explicitly requests deletion.

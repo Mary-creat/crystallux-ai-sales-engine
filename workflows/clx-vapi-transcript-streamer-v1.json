@@ -1,0 +1,146 @@
+{
+  "name": "CLX - Vapi Transcript Streamer v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi/transcript-stream",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "clx-vts-v1-0001",
+      "name": "Vapi Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-vts-v1-0001-webhook",
+      "notes": "DEACTIVATED. POST /webhook/vapi/transcript-stream. Vapi emits one event per transcript chunk (~1s cadence). We validate HMAC, run consent gates, queue async classification, and return 200 fast (<200ms target) so Vapi doesn't back off."
+    },
+    {
+      "parameters": {
+        "jsCode": "// HMAC signature verification against VAPI_WEBHOOK_SECRET.\n// Vapi sends the raw payload + header X-Vapi-Signature with hex HMAC-SHA256.\n// Kept lenient in dev: if the env is the TODO placeholder we skip verification.\nconst crypto = require('crypto');\nconst headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || $input.item.json || {};\nconst sig = headers['x-vapi-signature'] || headers['X-Vapi-Signature'] || '';\nconst secret = process.env.VAPI_WEBHOOK_SECRET || 'TODO_SET_VAPI_WEBHOOK_SECRET';\n\nlet ok = false;\nif (secret === 'TODO_SET_VAPI_WEBHOOK_SECRET') {\n  // Placeholder mode — accept so activation can smoke-test without secret wiring.\n  ok = true;\n} else if (sig) {\n  const expected = crypto.createHmac('sha256', secret)\n    .update(typeof body === 'string' ? body : JSON.stringify(body))\n    .digest('hex');\n  try {\n    ok = crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(String(sig), 'hex'));\n  } catch (e) { ok = false; }\n}\n\nif (!ok) return { json: { _error: true, error: 'invalid signature' } };\nreturn { json: Object.assign({}, body, { _verified: true }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vts-v1-0002",
+      "name": "Verify HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400],
+      "notes": "TODO: set VAPI_WEBHOOK_SECRET in n8n env. Until set, node runs in placeholder mode and accepts all requests — do NOT activate this workflow without the secret."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the chunk fields from Vapi's payload shape.\n// Expected keys: call.id, transcript.text, transcript.role,\n// transcript.confidence, transcript.timestamp, metadata.client_id,\n// metadata.agent_id, metadata.lead_id, metadata.chunk_sequence.\nconst src = $input.item.json || {};\nconst call = src.call || {};\nconst t = src.transcript || {};\nconst meta = src.metadata || {};\nconst speaker = (t.role === 'user' || t.role === 'customer') ? 'customer' : (t.role === 'assistant' || t.role === 'agent') ? 'agent' : 'unknown';\nreturn { json: {\n  call_id: call.id || src.call_id || null,\n  client_id: meta.client_id || null,\n  agent_id: meta.agent_id || null,\n  lead_id: meta.lead_id || null,\n  chunk_sequence: Number(meta.chunk_sequence || 0),\n  speaker,\n  transcript_text: t.text || '',\n  transcript_confidence: t.confidence != null ? Number(t.confidence) : null,\n  detected_at: t.timestamp || new Date().toISOString()\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vts-v1-0003",
+      "name": "Extract Chunk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/process_transcript_chunk",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chunk_data: $json }) }}",
+        "options": {}
+      },
+      "id": "clx-vts-v1-0004",
+      "name": "Process Chunk (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "notes": "RPC short-circuits to NULL if the client lacks listening_intelligence_enabled OR the agent lacks call_recording_consent. Either way this node returns 200 — the transcript is simply discarded."
+    },
+    {
+      "parameters": {
+        "jsCode": "const rpcResp = $input.item.json;\nlet chunk_id = null;\nif (typeof rpcResp === 'string') chunk_id = rpcResp;\nelse if (rpcResp && rpcResp.id) chunk_id = rpcResp.id;\nelse if (Array.isArray(rpcResp) && rpcResp.length > 0 && rpcResp[0].process_transcript_chunk) chunk_id = rpcResp[0].process_transcript_chunk;\nreturn { json: { chunk_id, accepted: chunk_id != null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-vts-v1-0005",
+      "name": "Parse RPC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-vts-if-accepted", "leftValue": "={{ $json.accepted === true }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-vts-v1-0006",
+      "name": "IF Accepted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5678/webhook/transcript/classify",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chunk_id: $json.chunk_id }) }}",
+        "options": { "timeout": 500 }
+      },
+      "id": "clx-vts-v1-0007",
+      "name": "Trigger Classifier (async)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 320],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "Fire-and-forget call to the real-time classifier. 500ms timeout keeps the Vapi round-trip under the <200ms budget goal even when the classifier is slow or down. Swap the URL to the n8n production origin at activation."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, accepted: $('Parse RPC').first().json.accepted, chunk_id: $('Parse RPC').first().json.chunk_id || null }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "clx-vts-v1-0008",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1880, 400]
+    }
+  ],
+  "connections": {
+    "Vapi Webhook (DEACTIVATED)": { "main": [[ { "node": "Verify HMAC", "type": "main", "index": 0 } ]] },
+    "Verify HMAC":                { "main": [[ { "node": "Extract Chunk", "type": "main", "index": 0 } ]] },
+    "Extract Chunk":              { "main": [[ { "node": "Process Chunk (RPC)", "type": "main", "index": 0 } ]] },
+    "Process Chunk (RPC)":        { "main": [[ { "node": "Parse RPC", "type": "main", "index": 0 } ]] },
+    "Parse RPC":                  { "main": [[ { "node": "IF Accepted", "type": "main", "index": 0 } ]] },
+    "IF Accepted":                { "main": [[ { "node": "Trigger Classifier (async)", "type": "main", "index": 0 } ], [ { "node": "Respond 200", "type": "main", "index": 0 } ]] },
+    "Trigger Classifier (async)": { "main": [[ { "node": "Respond 200", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-vapi-transcript-streamer-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-vapi-transcript-streamer-v1",
+  "tags": []
+}

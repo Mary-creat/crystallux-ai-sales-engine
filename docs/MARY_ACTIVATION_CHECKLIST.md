@@ -719,6 +719,51 @@ Prerequisite: Tier A (B.12a) active for the client.
 - [ ] Invoice: +$1,000/mo on top of Tier A.
 - [ ] Reference: OPERATIONS_HANDBOOK §32.
 
+### Phase 16.3 — Listening Intelligence Activation (B.12c-1)
+
+Prerequisite: Tier B (productivity tier) active for the client, Vapi
+live, Supabase Realtime configured.
+
+- [ ] Apply migration `2026-04-25-listening-intelligence.sql`.
+- [ ] Verify: `call_transcript_chunks`, `call_event_log` tables
+      created; `clients` has 4 listening columns; `team_members`
+      has 3 recording-consent columns; 5 RPCs present.
+- [ ] Set `VAPI_WEBHOOK_SECRET` in n8n env (generate with
+      `openssl rand -hex 32`). Configure Vapi webhook URL +
+      signing secret in the Vapi dashboard.
+- [ ] Flip per client:
+      `SELECT enable_listening_intelligence('<uuid>', 2500);`
+- [ ] Collect agent consent via
+      `docs/operations/CALL_RECORDING_CONSENT.md` (signed PDF
+      or DocuSign). Store in `docs/private/client-consent/`.
+- [ ] Per agent:
+      `UPDATE team_members SET call_recording_consent = true,
+      call_recording_consent_at = now(),
+      call_recording_consent_version = '1.0' WHERE id = ...`
+- [ ] Re-import all 3 workflows:
+      `clx-vapi-transcript-streamer-v1.json`,
+      `clx-transcript-classifier-realtime-v1.json`,
+      `clx-post-call-analyzer-v1.json`. Keep `active: false`.
+- [ ] Bind "Anthropic API" credential on Claude nodes in classifier
+      + analyzer workflows.
+- [ ] Smoke test: POST `/webhook/transcript/classify` with a seeded
+      chunk_id; confirm `classified_at` + `classifier_latency_ms`
+      get populated and latency is <2.5s.
+- [ ] End-to-end test: simulate Vapi post to
+      `/webhook/vapi/transcript-stream`, then POST
+      `/webhook/call/finalized` with the call_id; confirm
+      `call_event_log.claude_analysis` is populated.
+- [ ] Dashboard check: Live Call panel renders transcript + sentiment
+      bar + intent strip + topic cloud; Post-Call Review shows
+      Claude analysis.
+- [ ] Legal review: customer disclosure script + retention policy
+      reviewed by Canadian counsel before any live customer call.
+- [ ] Add the 30-day transcript anonymisation cron (not in this
+      migration) before go-live.
+- [ ] Go-live: activate all 3 workflows.
+- [ ] Invoice: +$2,500/mo on top of Tier B.
+- [ ] Reference: OPERATIONS_HANDBOOK §33.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":
