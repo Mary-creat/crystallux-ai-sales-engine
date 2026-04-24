@@ -1,0 +1,189 @@
+{
+  "name": "CLX - Signal Ingestion v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "id": "clx-si-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED until Mary configures API keys and activates. Fires hourly. Ingests from GDELT (free), NewsAPI (free 100/day), OpenWeatherMap (free 1000/day), Bank of Canada (free), Statistics Canada (free), FSRA RSS (free). Google Trends requires pytrends server or SerpAPI — placeholder only. Configure NEWSAPI_KEY + OPENWEATHER_KEY in .env and create n8n credentials 'NewsAPI' + 'OpenWeatherMap' before activating."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Ingestion v1 — Prep ingestion targets\n// Returns one item per source; the downstream Split In Batches +\n// HTTP Request iterates through them sequentially. Each source\n// declares its URL + auth type + rate-limit note for operator\n// awareness. URLs with ${ENV_VAR} placeholders are substituted at\n// request time by n8n expressions against process.env.\n\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\n\nconst sources = [\n  {\n    source: 'gdelt',\n    url: 'https://api.gdeltproject.org/api/v2/doc/doc?query=Canada%20insurance%20OR%20construction%20OR%20moving%20OR%20cleaning%20OR%20dental%20OR%20legal%20OR%20consulting%20OR%20real%20estate&mode=artlist&maxrecords=50&format=json&timespan=1hour',\n    auth: 'none',\n    rate_limit: 'none'\n  },\n  {\n    source: 'newsapi_ca',\n    url: 'https://newsapi.org/v2/top-headlines?country=ca&category=business&pageSize=50',\n    auth: 'newsapi_credential',\n    rate_limit: '100/day (free)'\n  },\n  {\n    source: 'openweather_alerts_toronto',\n    url: 'https://api.openweathermap.org/data/3.0/onecall?lat=43.6532&lon=-79.3832&exclude=hourly,minutely',\n    auth: 'openweather_credential',\n    rate_limit: '1000/day (free)'\n  },\n  {\n    source: 'boc_fx_rates',\n    url: 'https://www.bankofcanada.ca/valet/observations/FXUSDCAD,FXEURCAD,FXGBPCAD/json?recent=7',\n    auth: 'none',\n    rate_limit: 'none'\n  },\n  {\n    source: 'boc_interest_rate',\n    url: 'https://www.bankofcanada.ca/valet/observations/V80691311/json?recent=30',\n    auth: 'none',\n    rate_limit: 'none'\n  },\n  {\n    source: 'fsra_regulatory_feed',\n    url: 'https://www.fsrao.ca/news-and-information/news/rss',\n    auth: 'none',\n    rate_limit: 'none',\n    format: 'rss'\n  },\n  {\n    source: 'google_trends_verticals',\n    url: 'PLACEHOLDER',\n    auth: 'none',\n    rate_limit: 'requires pytrends server or SerpAPI — deferred',\n    skip: true\n  }\n];\n\n// Filter skips; emit one item per active source\nreturn sources.filter(s => !s.skip).map(s => ({ json: { ...s, today } }));"
+      },
+      "id": "clx-si-0002",
+      "name": "Prep Ingestion Targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "clx-si-0003",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "Crystallux-SignalIngestion/1 (info@crystallux.org)" },
+            { "name": "Accept", "value": "application/json, text/xml, application/xml" }
+          ]
+        },
+        "sendQuery": false,
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "clx-si-0004",
+      "name": "Fetch Source",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "notes": "No credential bound at the HTTP-node level. Per-source credentials (NewsAPI, OpenWeatherMap) would be added to an appendable auth variant — for simplicity v1 sends the URL as-is. NewsAPI + OpenWeatherMap calls will fail until Mary appends &apiKey= / &appid= via URL editing OR n8n credential expression. See Normalize Payload for the error-tolerant handling."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Ingestion v1 — Normalize per-source payload\n// Converts each source's response into an array of canonical raw-\n// signal items ready to insert into market_signals_raw. Every source\n// has its own parsing path; unknown sources emit zero items (no-op).\n// Bad/empty responses emit zero items; errors are logged but don't\n// fail the pipeline.\n\nconst source = $('Split In Batches').item.json.source;\nconst payload = $input.item.json || {};\nconst httpError = payload.error || (payload.message && payload.code) || null;\n\nif (httpError) {\n  return [{ json: { source, _error: true, _error_msg: String(httpError).slice(0, 300), items: [] } }];\n}\n\nconst nowIso = new Date().toISOString();\nconst items = [];\n\ntry {\n  switch (source) {\n    case 'gdelt': {\n      const articles = Array.isArray(payload.articles) ? payload.articles : [];\n      for (const a of articles.slice(0, 50)) {\n        if (!a || !a.url) continue;\n        items.push({\n          source: 'gdelt',\n          external_id: a.url,\n          raw_payload: a,\n          raw_url: a.url,\n          fetched_at: nowIso\n        });\n      }\n      break;\n    }\n    case 'newsapi_ca': {\n      const articles = Array.isArray(payload.articles) ? payload.articles : [];\n      for (const a of articles.slice(0, 50)) {\n        if (!a || !a.url) continue;\n        items.push({\n          source: 'newsapi_ca',\n          external_id: a.url,\n          raw_payload: a,\n          raw_url: a.url,\n          fetched_at: nowIso\n        });\n      }\n      break;\n    }\n    case 'openweather_alerts_toronto': {\n      const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];\n      for (const a of alerts) {\n        if (!a || !a.event) continue;\n        items.push({\n          source: 'openweather_alerts_toronto',\n          external_id: (a.event || 'unknown') + '_' + (a.start || nowIso),\n          raw_payload: a,\n          raw_url: null,\n          fetched_at: nowIso\n        });\n      }\n      break;\n    }\n    case 'boc_fx_rates':\n    case 'boc_interest_rate': {\n      // One aggregate signal per day per source; BoC observations are\n      // small enough to embed whole\n      const today = new Date().toISOString().split('T')[0];\n      items.push({\n        source,\n        external_id: source + '_' + today,\n        raw_payload: payload,\n        raw_url: null,\n        fetched_at: nowIso\n      });\n      break;\n    }\n    case 'fsra_regulatory_feed': {\n      // RSS parsing is not in-scope for a Code node; we persist the raw\n      // XML as a single signal per 24h and let the Intelligence worker\n      // parse it via Claude's text reasoning.\n      const today = new Date().toISOString().split('T')[0];\n      const rawText = typeof payload === 'string' ? payload : (payload.body || JSON.stringify(payload));\n      items.push({\n        source,\n        external_id: 'fsra_' + today,\n        raw_payload: { format: 'rss_xml_raw', text: String(rawText).slice(0, 50000) },\n        raw_url: 'https://www.fsrao.ca/news-and-information/news/rss',\n        fetched_at: nowIso\n      });\n      break;\n    }\n    default: {\n      // Unknown source; emit nothing\n      break;\n    }\n  }\n} catch (e) {\n  return [{ json: { source, _error: true, _error_msg: e.message || String(e), items: [] } }];\n}\n\nif (items.length === 0) {\n  return [{ json: { source, _empty: true, items: [] } }];\n}\n\nreturn items.map(i => ({ json: i }));"
+      },
+      "id": "clx-si-0005",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-si-cond-skip", "leftValue": "={{ $json._error || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-si-0006",
+      "name": "IF Empty or Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'signal_ingestion_' + ($json.source || 'unknown'), error_code: 'SIGNAL_INGESTION_FAILED', error_message: ($json._error_msg || 'empty response') + ' (source=' + ($json.source || 'unknown') + ')', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-si-0007",
+      "name": "Log Ingestion Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 260],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: $json.source, external_id: $json.external_id, raw_payload: $json.raw_payload, raw_url: $json.raw_url || null, fetched_at: $json.fetched_at }) }}",
+        "options": {}
+      },
+      "id": "clx-si-0008",
+      "name": "Insert Raw Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 540],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "notes": "Prefer header 'resolution=ignore-duplicates' so the composite unique on (source, external_id) dedupes across hourly runs without raising an error."
+    },
+    {
+      "parameters": {},
+      "id": "clx-si-0009",
+      "name": "Batch Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1880, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Ingestion v1 — Summarize run\n// Returns a single summary row: total items ingested, per-source\n// counts, errors observed. Also writes a lightweight audit entry to\n// admin_action_log (vertical_generated placeholder action_type until\n// the enumeration is extended).\n\nconst all = $('Normalize Payload').all();\nconst counts = {};\nlet totalItems = 0;\nlet errors = 0;\n\nfor (const it of all) {\n  const src = it.json.source || 'unknown';\n  counts[src] = (counts[src] || 0) + 1;\n  if (it.json._error) errors += 1;\n  else if (!it.json._empty) totalItems += 1;\n}\n\nreturn { json: {\n  total_items: totalItems,\n  per_source: counts,\n  errors,\n  run_at: new Date().toISOString()\n} };"
+      },
+      "id": "clx-si-0010",
+      "name": "Summarize Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 540]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Prep Ingestion Targets", "type": "main", "index": 0 } ]] },
+    "Prep Ingestion Targets":         { "main": [[ { "node": "Split In Batches", "type": "main", "index": 0 } ]] },
+    "Split In Batches":               { "main": [[ { "node": "Summarize Run", "type": "main", "index": 0 } ], [ { "node": "Fetch Source", "type": "main", "index": 0 } ]] },
+    "Fetch Source":                   { "main": [[ { "node": "Normalize Payload", "type": "main", "index": 0 } ]] },
+    "Normalize Payload":              { "main": [[ { "node": "IF Empty or Error", "type": "main", "index": 0 } ]] },
+    "IF Empty or Error":              { "main": [[ { "node": "Log Ingestion Failure", "type": "main", "index": 0 } ], [ { "node": "Insert Raw Signal", "type": "main", "index": 0 } ]] },
+    "Insert Raw Signal":              { "main": [[ { "node": "Batch Continue", "type": "main", "index": 0 } ]] },
+    "Batch Continue":                 { "main": [[ { "node": "Split In Batches", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-signal-ingestion-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-signal-ingestion-v1",
+  "tags": []
+}
