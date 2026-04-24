@@ -584,6 +584,39 @@ a client once they start booking discovery calls.
       vertical and not others'.
 - [ ] Reference: OPERATIONS_HANDBOOK §28.
 
+### Phase 10d-calendar — Calendar Restructuring + No-Show Recovery (B.12a-2)
+
+Enable the no-show detector + SMS recovery + reshuffle suggester once
+Twilio SMS is live and each client's Calendly link is on file.
+
+- [ ] Apply migration `2026-04-24-calendar-restructuring.sql` in
+      Supabase SQL editor.
+- [ ] Verify: `appointment_log` baseline + no-show columns exist;
+      `calendar_reshuffle_log`, `agent_calendar_prefs` created; 4
+      RPCs present (`mark_appointment_no_show`,
+      `get_daily_appointments`, `get_reshuffle_candidates`,
+      `record_reshuffle`).
+- [ ] Provision Twilio SMS-enabled number (distinct from WhatsApp).
+- [ ] Create n8n credential named exactly `Twilio SMS` (Basic Auth:
+      username = Account SID, password = Auth Token).
+- [ ] Re-import `workflows/clx-no-show-detector-v1.json`,
+      `workflows/clx-no-show-sms-recovery-v1.json`,
+      `workflows/clx-reshuffle-suggester-v1.json` (all stay
+      `active: false` for now).
+- [ ] Bind Twilio node in `clx-no-show-sms-recovery-v1` to
+      `Twilio SMS` credential; replace placeholders in URL + From.
+- [ ] Populate `clients.calendly_link` for every client who wants
+      SMS rebooking. Blank link → SMS is skipped (no error).
+- [ ] Dry-run: remove `TESTING_PHONE` override only when Mary has
+      routed the test call through her own phone and confirmed
+      deliverability.
+- [ ] Per-client go-live: `UPDATE agent_calendar_prefs SET
+      no_show_sms_enabled=true WHERE client_id=...`; activate
+      `clx-no-show-detector-v1` on a 30-minute Schedule Trigger.
+- [ ] Dashboard check: `Your Day` panel renders today's appointments
+      for the client; no-show + completed groups split correctly.
+- [ ] Reference: OPERATIONS_HANDBOOK §29.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":

@@ -828,6 +828,23 @@
     </div>
   </section>
 
+  <!-- SECTION: YOUR DAY (B.12a-2 — admin + client roles) -->
+  <section class="section" id="yourDaySection" style="display:none">
+    <div class="section-title">Your Day <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — activate per client</span></div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="ydDate" type="date" style="padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <input id="ydClientId" type="text" placeholder="Client id (admin only)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="ydLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load day</button>
+      </div>
+      <div id="ydSummary" style="padding:10px 12px;border-bottom:1px solid #edf2f7;font-size:13px;color:#4a5568"></div>
+      <div id="ydTimeline" style="padding:12px;min-height:180px"></div>
+      <div id="ydNoShowActions" style="padding:10px 12px;border-top:1px solid #edf2f7;font-size:12px;color:#718096;display:none">
+        <strong>No-shows detected:</strong> <span id="ydNoShowCount">0</span>. Recovery SMS fires automatically from clx-no-show-sms-recovery-v1 once Twilio SMS credential is configured.
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION: CLOSING INTELLIGENCE (B.12a-1 — admin + client roles) -->
   <section class="section" id="closingIntelligenceSection" style="display:none">
     <div class="section-title">Closing Intelligence <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — activate per client</span></div>
@@ -3267,6 +3284,106 @@ function renderClosingIntelligenceRows(rows, tab, fromRpc) {
   }).join('');
 }
 
+// ══ B.12a-2 — Your Day panel (admin + client) ══════════════════════
+// Renders the day's appointments for a client, grouped by completed /
+// upcoming / no-show. Uses get_daily_appointments RPC. Read-only;
+// outcome mutations happen server-side via clx-no-show-detector-v1
+// and manual PATCH from ops. Admin supplies client_id; client role
+// uses their own clientContext.clientId.
+function initYourDay() {
+  var section = document.getElementById('yourDaySection');
+  if (!section) return;
+  var role = window.CLX_ROLE;
+  if (role !== 'admin' && role !== 'client') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  var dateEl = document.getElementById('ydDate');
+  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+  var idEl = document.getElementById('ydClientId');
+  if (idEl) {
+    if (role === 'client' && clientContext && clientContext.clientId) {
+      idEl.value = clientContext.clientId;
+      idEl.readOnly = true;
+    }
+  }
+  var btn = document.getElementById('ydLoadBtn');
+  if (btn) btn.addEventListener('click', loadYourDay);
+}
+
+async function loadYourDay() {
+  var summary = document.getElementById('ydSummary');
+  var timeline = document.getElementById('ydTimeline');
+  var actions = document.getElementById('ydNoShowActions');
+  if (!timeline || !hasSupabase()) {
+    if (timeline) timeline.innerHTML = '<div style="color:#c53030;font-size:13px">Paste Supabase anon key in Settings to load.</div>';
+    return;
+  }
+  var client_id = (document.getElementById('ydClientId') || {}).value || '';
+  var date = (document.getElementById('ydDate') || {}).value || new Date().toISOString().slice(0, 10);
+  if (!client_id) {
+    timeline.innerHTML = '<div style="color:#718096;font-size:13px">Enter a client id to load.</div>';
+    return;
+  }
+  timeline.innerHTML = '<div style="color:#718096;font-size:13px">Loading…</div>';
+  if (summary) summary.innerHTML = '';
+  if (actions) actions.style.display = 'none';
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/get_daily_appointments', {
+      method: 'POST',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ p_client_id: client_id, p_date: date })
+    });
+    if (!res.ok) {
+      timeline.innerHTML = '<div style="color:#c53030;font-size:13px">Could not load (status ' + res.status + '). Apply migration 2026-04-24-calendar-restructuring.sql first.</div>';
+      return;
+    }
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      timeline.innerHTML = '<div style="color:#718096;font-size:13px">No appointments scheduled for ' + escapeHtml(date) + '.</div>';
+      return;
+    }
+    var completed = rows.filter(function(r) { return r.outcome === 'completed'; });
+    var noShows = rows.filter(function(r) { return r.outcome === 'no_show' || r.no_show_flag === true; });
+    var cancelled = rows.filter(function(r) { return r.outcome === 'cancelled'; });
+    var upcoming = rows.filter(function(r) { return !r.outcome && !r.no_show_flag; });
+    if (summary) {
+      summary.innerHTML = '<strong>' + rows.length + ' total</strong> · '
+        + completed.length + ' completed · '
+        + upcoming.length + ' upcoming · '
+        + noShows.length + ' no-show · '
+        + cancelled.length + ' cancelled';
+    }
+    if (actions && noShows.length > 0) {
+      actions.style.display = '';
+      document.getElementById('ydNoShowCount').textContent = noShows.length;
+    }
+    timeline.innerHTML = rows.map(function(r) { return renderYourDayRow(r); }).join('');
+  } catch (e) {
+    timeline.innerHTML = '<div style="color:#c53030;font-size:13px">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+function renderYourDayRow(r) {
+  var start = r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  var end = r.scheduled_end ? new Date(r.scheduled_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  var color = '#4a5568';
+  var label = 'Upcoming';
+  if (r.outcome === 'completed') { color = '#2f855a'; label = 'Completed'; }
+  else if (r.outcome === 'no_show' || r.no_show_flag === true) { color = '#c53030'; label = 'No-show'; }
+  else if (r.outcome === 'cancelled') { color = '#718096'; label = 'Cancelled'; }
+  else if (r.outcome === 'rebooked') { color = '#3182ce'; label = 'Rebooked'; }
+  var name = (r.lead_name || '').trim() || '(unknown lead)';
+  var company = r.lead_company || '';
+  var statusChip = '<span style="padding:2px 8px;border-radius:10px;background:' + color + ';color:#fff;font-size:11px;margin-left:8px">' + label + '</span>';
+  return '<div style="padding:10px 0;border-top:1px solid #edf2f7;display:flex;gap:12px;align-items:flex-start">'
+    + '<div style="min-width:110px;font-weight:600;color:#2d3748;font-size:13px">' + start + ' — ' + end + '</div>'
+    + '<div style="flex:1">'
+    + '<div style="font-size:14px;color:#2d3748">' + escapeHtml(name) + (company ? ' · ' + escapeHtml(company) : '') + statusChip + '</div>'
+    + '<div style="font-size:11px;color:#718096;margin-top:2px">' + escapeHtml(r.appointment_type || 'meeting') + (r.lead_score ? (' · score ' + r.lead_score) : '') + (r.lead_status ? (' · ' + escapeHtml(r.lead_status)) : '') + '</div>'
+    + '</div>'
+    + (r.meeting_url ? ('<a href="' + escapeHtml(r.meeting_url) + '" target="_blank" rel="noopener" style="font-size:12px;color:#3182ce;text-decoration:none">Join &rarr;</a>') : '')
+    + '</div>';
+}
+
 async function fetchAgentScriptPerformance() {
   var bar = document.getElementById('ciUsageBar');
   var stats = document.getElementById('ciUsageStats');
@@ -3301,6 +3418,7 @@ function refreshAll() {
   fetchMarketIntelligenceAdmin();
   fetchMarketIntelligenceClient();
   initClosingIntelligence();
+  initYourDay();
   checkApiStatus();
 }
 

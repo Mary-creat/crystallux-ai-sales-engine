@@ -1,0 +1,159 @@
+{
+  "name": "CLX - No-Show Detector v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 30 } ] }
+      },
+      "id": "clx-nsd-v1-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. When activated, runs every 30 minutes. Scans appointment_log for appointments whose scheduled_end passed >= 15 minutes ago with outcome IS NULL, marks them no-show, and fires clx-no-show-sms-recovery-v1 per row."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-no-show-detector",
+        "options": { "responseData": "={{ JSON.stringify({ ok: true, scanned: $('Mark No-Shows').all().length }) }}" }
+      },
+      "id": "clx-nsd-v1-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560],
+      "webhookId": "clx-nsd-v1-0002-webhook",
+      "notes": "Manual invocation for testing. No body required; scans the full no-show window."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute the scan window. We look for appointments whose scheduled_end\n// fell at least 15 minutes ago with outcome IS NULL. Bucket by client.\nconst now = new Date();\nconst endBefore = new Date(now.getTime() - 15 * 60 * 1000).toISOString();\nconst startAfter = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();\nreturn { json: { end_before: endBefore, start_after: startAfter } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-nsd-v1-0003",
+      "name": "Compute Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/appointment_log?outcome=is.null&scheduled_end=lt.{{ encodeURIComponent($json.end_before) }}&scheduled_start=gt.{{ encodeURIComponent($json.start_after) }}&select=id,client_id,lead_id,scheduled_start,scheduled_end,appointment_type,meeting_url&limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-nsd-v1-0004",
+      "name": "Fetch Pending Appointments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split rows into individual items so downstream nodes run per appointment.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function(r) { return { json: r }; });",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-nsd-v1-0005",
+      "name": "Split Per Appointment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/mark_appointment_no_show",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_appointment_id: $json.id }) }}",
+        "options": {}
+      },
+      "id": "clx-nsd-v1-0006",
+      "name": "Mark No-Shows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $('Split Per Appointment').item.json.lead_id, node_name: 'no_show_detected', error_code: 'NO_SHOW_DETECTED', error_message: 'Appointment ' + $('Split Per Appointment').item.json.id + ' marked no-show', severity: 'info', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-nsd-v1-0007",
+      "name": "Log NO_SHOW_DETECTED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "workflowId": { "__rl": true, "value": "clx-no-show-sms-recovery-v1", "mode": "id" },
+        "mode": "each",
+        "options": {}
+      },
+      "id": "clx-nsd-v1-0008",
+      "name": "Execute SMS Recovery",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1640, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "Fires clx-no-show-sms-recovery-v1 for each no-show. Target workflow is itself dormant; binding is safe while both are active=false."
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Compute Window", "type": "main", "index": 0 } ]] },
+    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Compute Window", "type": "main", "index": 0 } ]] },
+    "Compute Window":                 { "main": [[ { "node": "Fetch Pending Appointments", "type": "main", "index": 0 } ]] },
+    "Fetch Pending Appointments":     { "main": [[ { "node": "Split Per Appointment", "type": "main", "index": 0 } ]] },
+    "Split Per Appointment":          { "main": [[ { "node": "Mark No-Shows", "type": "main", "index": 0 } ]] },
+    "Mark No-Shows":                  { "main": [[ { "node": "Log NO_SHOW_DETECTED", "type": "main", "index": 0 } ]] },
+    "Log NO_SHOW_DETECTED":           { "main": [[ { "node": "Execute SMS Recovery", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-no-show-detector-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-no-show-detector-v1",
+  "tags": []
+}

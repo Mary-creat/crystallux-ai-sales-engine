@@ -1900,3 +1900,93 @@ to client role and requires service_role to read.
 (schema does not currently include `archived`; add the column if Mary
 decommissions a vertical). Workflow stays dormant by default; no Schedule
 Trigger to deactivate.
+
+
+## 29. Calendar Restructuring + No-Show Recovery (Phase B.12a-2)
+
+Structured no-show detection, SMS recovery, and reshuffle suggestions
+when a slot vacates. Built dormant; activate once Twilio SMS is live
+and each client's Calendly link is populated on the `clients` row.
+
+### 29.1 Schema
+
+Migration: `docs/architecture/migrations/2026-04-24-calendar-restructuring.sql`
+
+- Creates `appointment_log` with `IF NOT EXISTS` (safe — preserves the
+  manually-created production table). Adds no-show / reshuffle /
+  recovery columns via idempotent `ADD COLUMN IF NOT EXISTS`.
+- New `calendar_reshuffle_log` table tracks every vacated slot + its
+  suggested-vs-selected lead.
+- New `agent_calendar_prefs` table holds per-agent timezone + working
+  hours + SMS template overrides (reserved; Component 3 extends it).
+- RPCs (SECURITY DEFINER, service_role only):
+  `mark_appointment_no_show(appointment_id)`,
+  `get_daily_appointments(client_id, date)`,
+  `get_reshuffle_candidates(client_id, slot_start, slot_end, limit)`,
+  `record_reshuffle(client_id, vacated_id, reason, slot_start, slot_end, suggested, source)`.
+
+### 29.2 Workflows
+
+Three dormant workflows (`active: false`):
+
+- **`clx-no-show-detector-v1`** — every 30 min scans
+  `appointment_log` for `scheduled_end < now - 15min` with
+  `outcome IS NULL`. Marks `no_show_flag=true`, logs
+  `NO_SHOW_DETECTED`, then fires the SMS recovery sub-workflow.
+- **`clx-no-show-sms-recovery-v1`** — webhook-triggered. Preflight
+  checks lead.phone + client.calendly_link; composes a short
+  first-name rebook SMS via Twilio SMS credential (`Twilio SMS`,
+  Basic Auth). TESTING MODE hardcodes a test phone until Mary
+  deletes the override.
+- **`clx-reshuffle-suggester-v1`** — webhook-triggered. Runs
+  `get_reshuffle_candidates` RPC, records the suggestion set via
+  `record_reshuffle`, returns JSON to the caller (dashboard or
+  booking workflow).
+
+### 29.3 Dashboard panel
+
+Section `#yourDaySection` in `dashboard/index.html` (admin + client
+roles). Date picker + client id input (client role is auto-filled +
+readonly). Calls `get_daily_appointments` RPC. Renders grouped summary
+strip + per-appointment timeline with status chips (completed / no-show
+/ cancelled / rebooked / upcoming). Join-meeting link shown when
+`meeting_url` is populated.
+
+### 29.4 Activation steps
+
+1. Apply `2026-04-24-calendar-restructuring.sql` in Supabase SQL editor
+   (after prior migrations per Phase 1 order).
+2. Verify via the queries at the bottom of the migration (column
+   presence, empty reshuffle log, 4 RPCs present).
+3. Provision Twilio SMS (standard SMS-enabled number; distinct from
+   the WhatsApp Business number).
+4. Create n8n credential named exactly `Twilio SMS` (Basic Auth:
+   username = Account SID, password = Auth Token).
+5. Re-import all 3 calendar workflows. Bind the Twilio node in
+   `clx-no-show-sms-recovery-v1` to the `Twilio SMS` credential.
+6. Replace `TWILIO_ACCOUNT_SID_PLACEHOLDER` in the URL + the `From`
+   number placeholder with real values (or expression-inject from
+   env).
+7. Pre-production testing: keep the `TESTING_PHONE` override in
+   `Compose SMS` node. Fire a manual run with a seeded appointment;
+   confirm SMS lands on the test phone.
+8. Go-live per client: remove the `TESTING_PHONE` override line, set
+   `agent_calendar_prefs.no_show_sms_enabled=true` for that client,
+   activate `clx-no-show-detector-v1` on a Schedule Trigger.
+
+### 29.5 Decommission
+
+`UPDATE agent_calendar_prefs SET no_show_sms_enabled=false WHERE
+client_id=...;` Detector continues to mark no-shows; recovery SMS
+simply won't fire. Alternatively, deactivate
+`clx-no-show-detector-v1` to stop detection too.
+
+### 29.6 Privacy + compliance
+
+- SMS recovery message includes "Reply STOP to opt out." (CASL).
+- `lead.phone` is only read when `do_not_contact=false` (DNCL
+  alignment per §14.4).
+- `calendar_reshuffle_log.suggested_lead_ids` stores lead ids only;
+  no PII beyond what already exists in `leads`.
+- RLS service_role-only on all three new tables keeps client-role
+  anon-key queries from reading them.
