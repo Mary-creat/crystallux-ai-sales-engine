@@ -1805,3 +1805,98 @@ SELECT disable_intelligence_tier('client-uuid');
 - Client isolation preserved: a signal that affects one client's
   vertical does not leak to other clients' data. RLS unchanged.
 
+
+
+## 28. Closing Intelligence Activation (Phase B.12a-1)
+
+Client-facing closing scripts dashboard + Claude-ranked script matching per
+lead. Built dormant; activate per-client as they start booking calls.
+
+### 28.1 What is Closing Intelligence?
+
+A vertical-specific library of sales scripts (discovery frameworks, objection
+handlers, closing scripts, follow-up sequences, competitor comparisons) that
+Mary and her clients use when running calls. The library ships seeded for
+7 verticals (construction, moving_services, cleaning_services, real_estate,
+dental, legal, consulting), with usage tracking on every render so the top
+performers surface over time. Admin role sees the full library; client role
+is confined to their own vertical by RLS + niche filter.
+
+### 28.2 Schema
+
+Migration: `docs/architecture/migrations/2026-04-24-closing-intelligence-client-facing.sql`
+
+Additive columns:
+- `closing_scripts.times_used / conversion_rate / last_used_at`
+- `objection_handlers.times_used / conversion_rate`
+- `discovery_frameworks.times_used`
+
+New table: `script_usage_log` (agent_id, lead_id, script_id, script_type,
+context, outcome, logged_at). RLS on; service_role policy only.
+
+RPCs (SECURITY DEFINER, search_path = public):
+- `record_script_usage(p_agent_id, p_lead_id, p_script_id, p_script_type, p_context, p_outcome)`
+  — called by dashboard when an agent picks a script.
+- `get_scripts_for_lead(p_lead_id, p_stage)` — returns ranked candidate
+  scripts across all categories for a given lead, joining on niche_name.
+- `get_agent_script_performance(p_agent_id, p_period_days)` — per-agent
+  30-day stats (uses_count, conversion_rate) grouped by script_category.
+
+### 28.3 Workflow
+
+`workflows/clx-script-matcher-v1.json` (dormant).
+- POST `/webhook/clx-script-matcher` body:
+  `{ lead_id, stage_hint (optional), situation_hint (optional), token, client_id (optional) }`
+- Pipeline: validate → fetch lead+client → call `get_scripts_for_lead`
+  RPC → pass candidates to Claude Sonnet 4.5 for ranking → fallback to RPC
+  order if Claude is unbound. Top 3 per category returned.
+- All Supabase nodes already bind "Supabase Crystallux" credential by name.
+- Anthropic node has a TODO on credential binding — ship unbound; the
+  fallback branch keeps the workflow functional.
+
+### 28.4 Dashboard panel
+
+Section `#closingIntelligenceSection` in `dashboard/index.html` is visible
+only for admin and client roles. Five tabs (Discovery / Objections / Closing
+/ Follow-up / Competitor). Niche + lead_id inputs; load button calls the
+RPC or the table directly. Per-agent 30-day performance strip appears when
+`window.CLX_AGENT_ID` is set (reserved for per-agent auth post-Phase 10).
+
+### 28.5 Activation steps
+
+1. Apply `2026-04-24-closing-intelligence-client-facing.sql` in Supabase SQL
+   editor (after prior migrations in the order documented in Phase 1).
+2. Run verification query (at bottom of the migration file) to confirm seed
+   counts: 7 discovery frameworks, 28 objection handlers, 14 closing scripts,
+   7 follow-up sequences.
+3. Re-import `clx-script-matcher-v1.json` into n8n. Leave `active: false`.
+4. Optionally bind Anthropic API credential on the "Claude Rank Scripts"
+   node (HTTP Header Auth, header `x-api-key` = `Bearer $ANTHROPIC_API_KEY`).
+   Until bound, the workflow still returns ranked scripts via RPC fallback.
+5. Deploy dashboard. Admin URL loads the full library; client URLs filter
+   by `vertical` via RLS.
+6. Per-client enablement: no flag required — the panel auto-renders for
+   admin + client roles. To hide it for a specific client, add a feature
+   flag on the `clients` row in a future migration.
+
+### 28.6 Expansion
+
+- Add more scripts by inserting into `closing_scripts`, `objection_handlers`,
+  etc. — the dashboard will pick them up on next load.
+- To extend to a new vertical: seed all 5 category tables with
+  `niche_name = '<new-vertical>'`. Minimum viable seed: 1 discovery
+  framework, 4 objection handlers (price/timing/trust/competitor),
+  2 closing scripts, 1 follow-up sequence.
+
+### 28.7 Privacy
+
+`script_usage_log` stores agent + lead linkage only. No PII on lead beyond
+`lead_id` FK. RLS + service_role-only policy means the log is invisible
+to client role and requires service_role to read.
+
+### 28.8 Decommission
+
+`UPDATE closing_scripts SET archived=true WHERE niche_name='<vertical>';`
+(schema does not currently include `archived`; add the column if Mary
+decommissions a vertical). Workflow stays dormant by default; no Schedule
+Trigger to deactivate.

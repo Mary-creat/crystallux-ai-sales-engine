@@ -562,6 +562,28 @@ Before first client onboarding:
 - [ ] VA role posted (OnlineJobs.ph, Upwork, or LinkedIn) if already
       at 3+ clients
 
+### Phase 10d-closing — Closing Intelligence dashboard (B.12a-1)
+
+Enable the in-dashboard script library + Claude-ranked script matcher for
+a client once they start booking discovery calls.
+
+- [ ] Apply migration `2026-04-24-closing-intelligence-client-facing.sql`
+      in Supabase SQL editor.
+- [ ] Verify seed counts via the verification queries at the bottom of
+      the migration file (expect 7 + 28 + 14 + 7).
+- [ ] Re-import `workflows/clx-script-matcher-v1.json` into n8n. Leave
+      `active: false`.
+- [ ] (Optional) Bind "Anthropic API" credential on the
+      "Claude Rank Scripts" node (HTTP Header Auth, header `x-api-key`
+      with value `Bearer $ANTHROPIC_API_KEY`). Without it the workflow
+      still returns ranked scripts via the RPC-order fallback.
+- [ ] Confirm dashboard panel `#closingIntelligenceSection` renders for
+      admin and client roles. Ops + guest roles remain hidden.
+- [ ] For each paying client: niche is pre-filled from
+      `clients.vertical`; confirm they see scripts scoped to their
+      vertical and not others'.
+- [ ] Reference: OPERATIONS_HANDBOOK §28.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":

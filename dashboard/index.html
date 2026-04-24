@@ -828,6 +828,31 @@
     </div>
   </section>
 
+  <!-- SECTION: CLOSING INTELLIGENCE (B.12a-1 — admin + client roles) -->
+  <section class="section" id="closingIntelligenceSection" style="display:none">
+    <div class="section-title">Closing Intelligence <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — activate per client</span></div>
+    <div class="card" style="padding:0">
+      <div style="display:flex;gap:6px;padding:10px;border-bottom:1px solid #edf2f7;overflow-x:auto">
+        <button class="ci-tab" data-ci-tab="discovery" style="padding:6px 12px;border:1px solid #cbd5e0;background:#4a5568;color:#fff;border-radius:4px;font-size:13px;cursor:pointer">Discovery</button>
+        <button class="ci-tab" data-ci-tab="objections" style="padding:6px 12px;border:1px solid #cbd5e0;background:#fff;color:#2d3748;border-radius:4px;font-size:13px;cursor:pointer">Objections</button>
+        <button class="ci-tab" data-ci-tab="closing" style="padding:6px 12px;border:1px solid #cbd5e0;background:#fff;color:#2d3748;border-radius:4px;font-size:13px;cursor:pointer">Closing</button>
+        <button class="ci-tab" data-ci-tab="followup" style="padding:6px 12px;border:1px solid #cbd5e0;background:#fff;color:#2d3748;border-radius:4px;font-size:13px;cursor:pointer">Follow-up</button>
+        <button class="ci-tab" data-ci-tab="competitor" style="padding:6px 12px;border:1px solid #cbd5e0;background:#fff;color:#2d3748;border-radius:4px;font-size:13px;cursor:pointer">Competitor</button>
+      </div>
+      <div style="padding:12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="ciNicheFilter" type="text" placeholder="Niche (e.g., insurance_broker)" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <input id="ciLeadIdFilter" type="text" placeholder="Lead id (optional)" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="ciLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load scripts</button>
+      </div>
+      <div id="ciContent" style="padding:12px;min-height:180px">
+        <div style="color:#718096;font-size:13px">Pick a tab, enter a niche (or lead id), then click Load scripts. Scripts are filtered by vertical. Admin sees the full library; client role sees only scripts applicable to their vertical.</div>
+      </div>
+      <div id="ciUsageBar" style="padding:10px 12px;border-top:1px solid #edf2f7;font-size:12px;color:#4a5568;display:none">
+        <strong>Your 30-day performance:</strong> <span id="ciUsageStats">loading…</span>
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION: CHAT -->
   <section class="section">
     <div class="section-title">Crystallux Assistant</div>
@@ -3095,6 +3120,172 @@ async function fetchMarketIntelligenceClient() {
   } catch (e) { /* graceful */ }
 }
 
+// ══ B.12a-1 — Closing Intelligence panel (admin + client) ══════════
+// Dormant panel: tabs for discovery / objections / closing / followup
+// / competitor. Reads from closing_scripts, objection_handlers,
+// discovery_frameworks, follow_up_sequences, competitor_comparisons.
+// Fires get_scripts_for_lead RPC when a lead_id is supplied, else
+// falls back to niche_name filter. Admin: unrestricted library.
+// Client: RLS + niche filter confines to their vertical.
+// Agent-scoped usage stats fetched via get_agent_script_performance
+// when window.CLX_AGENT_ID is set (reserved for Phase 10 agent auth).
+var __ciTab = 'discovery';
+var __ciTableMap = {
+  discovery: { table: 'discovery_frameworks', select: 'id,name,vertical,niche_name,question_sequence,best_asked_at_stage,conversion_lift', orderCol: 'conversion_lift.desc.nullslast' },
+  objections: { table: 'objection_handlers', select: 'id,objection_category,objection_text,response_script,vertical,niche_name,use_case,conversion_rate', orderCol: 'conversion_rate.desc.nullslast' },
+  closing:    { table: 'closing_scripts', select: 'id,close_type,trigger_condition,script_text,vertical,niche_name,close_rate,conversion_rate', orderCol: 'conversion_rate.desc.nullslast' },
+  followup:   { table: 'follow_up_sequences', select: 'id,sequence_name,vertical,niche_name,step_count,trigger_event,conversion_rate', orderCol: 'conversion_rate.desc.nullslast' },
+  competitor: { table: 'competitor_comparisons', select: 'id,competitor_name,vertical,niche_name,our_advantage,talking_points,win_rate', orderCol: 'win_rate.desc.nullslast' }
+};
+
+function initClosingIntelligence() {
+  var section = document.getElementById('closingIntelligenceSection');
+  if (!section) return;
+  var role = window.CLX_ROLE;
+  if (role === 'admin' || role === 'client') {
+    section.style.display = '';
+  } else {
+    section.style.display = 'none';
+    return;
+  }
+  // Tab handlers
+  var tabs = document.querySelectorAll('.ci-tab');
+  tabs.forEach(function(t) {
+    t.addEventListener('click', function() {
+      __ciTab = t.getAttribute('data-ci-tab') || 'discovery';
+      tabs.forEach(function(x) {
+        x.style.background = '#fff';
+        x.style.color = '#2d3748';
+      });
+      t.style.background = '#4a5568';
+      t.style.color = '#fff';
+      document.getElementById('ciContent').innerHTML = '<div style="color:#718096;font-size:13px">Tab switched — click Load scripts to refresh.</div>';
+    });
+  });
+  // Load button
+  var btn = document.getElementById('ciLoadBtn');
+  if (btn) btn.addEventListener('click', loadClosingIntelligenceScripts);
+  // Pre-fill niche for client role
+  if (role === 'client' && window.CLX_CLIENT_CONTEXT && window.CLX_CLIENT_CONTEXT.vertical) {
+    var input = document.getElementById('ciNicheFilter');
+    if (input) input.value = window.CLX_CLIENT_CONTEXT.vertical;
+  }
+  // Agent performance strip (reserved — requires agent auth)
+  if (window.CLX_AGENT_ID) fetchAgentScriptPerformance();
+}
+
+async function loadClosingIntelligenceScripts() {
+  var contentEl = document.getElementById('ciContent');
+  if (!contentEl || !hasSupabase()) {
+    if (contentEl) contentEl.innerHTML = '<div style="color:#c53030;font-size:13px">Paste Supabase anon key in Settings to load scripts.</div>';
+    return;
+  }
+  var niche = (document.getElementById('ciNicheFilter') || {}).value || '';
+  var leadId = (document.getElementById('ciLeadIdFilter') || {}).value || '';
+  var spec = __ciTableMap[__ciTab];
+  if (!spec) return;
+  contentEl.innerHTML = '<div style="color:#718096;font-size:13px">Loading…</div>';
+
+  // If lead_id supplied and tab is one of the ranked categories, prefer the RPC
+  if (leadId && (__ciTab === 'discovery' || __ciTab === 'closing' || __ciTab === 'objections')) {
+    try {
+      var rpcUrl = SUPABASE_URL + '/rest/v1/rpc/get_scripts_for_lead';
+      var rpcRes = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ p_lead_id: leadId, p_stage: null })
+      });
+      if (rpcRes.ok) {
+        var rpcRows = await rpcRes.json();
+        var filtered = (Array.isArray(rpcRows) ? rpcRows : []).filter(function(r) {
+          return r.script_category === __ciTab || (r.script_category === 'objection' && __ciTab === 'objections');
+        });
+        if (filtered.length > 0) {
+          contentEl.innerHTML = renderClosingIntelligenceRows(filtered, __ciTab, true);
+          return;
+        }
+      }
+    } catch (e) { /* fall through to niche query */ }
+  }
+
+  // Baseline niche-filtered query
+  try {
+    var url = SUPABASE_URL + '/rest/v1/' + spec.table + '?select=' + encodeURIComponent(spec.select);
+    if (niche) {
+      url += '&or=(niche_name.eq.' + encodeURIComponent(niche) + ',vertical.eq.' + encodeURIComponent(niche) + ')';
+    }
+    url += '&order=' + encodeURIComponent(spec.orderCol) + '&limit=25';
+    var res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) {
+      contentEl.innerHTML = '<div style="color:#c53030;font-size:13px">Could not load scripts (status ' + res.status + '). Check that the migration has been applied.</div>';
+      return;
+    }
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      contentEl.innerHTML = '<div style="color:#718096;font-size:13px">No scripts yet for that niche. Run the 2026-04-24-closing-intelligence-client-facing.sql migration, then seed additional rows as verticals expand.</div>';
+      return;
+    }
+    contentEl.innerHTML = renderClosingIntelligenceRows(rows, __ciTab, false);
+  } catch (e) {
+    contentEl.innerHTML = '<div style="color:#c53030;font-size:13px">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+function renderClosingIntelligenceRows(rows, tab, fromRpc) {
+  return rows.map(function(r) {
+    var title, body, meta;
+    if (fromRpc) {
+      title = r.script_title || r.script_category;
+      body = r.script_body || '';
+      meta = 'Category: ' + r.script_category + (r.confidence ? ' · Confidence: ' + r.confidence : '');
+    } else if (tab === 'discovery') {
+      title = r.name || 'Discovery framework';
+      body = Array.isArray(r.question_sequence) ? r.question_sequence.map(function(q, i) { return (i+1) + '. ' + q; }).join('\n') : '';
+      meta = (r.niche_name || r.vertical || '—') + ' · stage: ' + (r.best_asked_at_stage || '—') + ' · lift: ' + (r.conversion_lift || '—');
+    } else if (tab === 'objections') {
+      title = (r.objection_category || 'Objection') + ' — ' + (r.objection_text || '');
+      body = r.response_script || '';
+      meta = (r.niche_name || r.vertical || '—') + ' · use: ' + (r.use_case || '—') + ' · conv: ' + (r.conversion_rate || '—');
+    } else if (tab === 'closing') {
+      title = (r.close_type || 'Close') + ' — ' + (r.trigger_condition || '');
+      body = r.script_text || '';
+      meta = (r.niche_name || r.vertical || '—') + ' · close_rate: ' + (r.close_rate || '—') + ' · conv: ' + (r.conversion_rate || '—');
+    } else if (tab === 'followup') {
+      title = r.sequence_name || 'Follow-up sequence';
+      body = 'Trigger: ' + (r.trigger_event || '—') + ' · Steps: ' + (r.step_count || '—');
+      meta = (r.niche_name || r.vertical || '—') + ' · conv: ' + (r.conversion_rate || '—');
+    } else if (tab === 'competitor') {
+      title = r.competitor_name || 'Competitor';
+      body = 'Our advantage: ' + (r.our_advantage || '—') + '\n\nTalking points: ' + (Array.isArray(r.talking_points) ? r.talking_points.join(' · ') : (r.talking_points || ''));
+      meta = (r.niche_name || r.vertical || '—') + ' · win_rate: ' + (r.win_rate || '—');
+    }
+    return '<div style="padding:10px 0;border-top:1px solid #edf2f7">'
+      + '<div style="font-weight:600;color:#2d3748;font-size:14px;margin-bottom:4px">' + escapeHtml(title || '') + '</div>'
+      + '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#4a5568;margin:0 0 6px 0">' + escapeHtml(body || '') + '</pre>'
+      + '<div style="font-size:11px;color:#718096">' + escapeHtml(meta || '') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function fetchAgentScriptPerformance() {
+  var bar = document.getElementById('ciUsageBar');
+  var stats = document.getElementById('ciUsageStats');
+  if (!bar || !stats || !hasSupabase() || !window.CLX_AGENT_ID) return;
+  try {
+    var url = SUPABASE_URL + '/rest/v1/rpc/get_agent_script_performance';
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ p_agent_id: window.CLX_AGENT_ID, p_period_days: 30 })
+    });
+    if (!res.ok) return;
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    bar.style.display = '';
+    stats.textContent = rows.map(function(r) { return (r.script_category || 'n/a') + ': ' + (r.uses_count || 0) + ' uses / ' + Math.round((r.conversion_rate || 0) * 100) + '%'; }).join(' · ');
+  } catch (e) { /* graceful */ }
+}
+
 function refreshAll() {
   refreshCountdown = 60;
   fetchPipelineStats();
@@ -3109,6 +3300,7 @@ function refreshAll() {
   fetchChannelsActive();
   fetchMarketIntelligenceAdmin();
   fetchMarketIntelligenceClient();
+  initClosingIntelligence();
   checkApiStatus();
 }
 
