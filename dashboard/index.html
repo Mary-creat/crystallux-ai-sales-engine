@@ -828,6 +828,21 @@
     </div>
   </section>
 
+  <!-- SECTION: TODAY'S PLAN (B.12a-3 — admin + client roles) -->
+  <section class="section" id="todaysPlanSection" style="display:none">
+    <div class="section-title">Today's Plan <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — activate per client</span></div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="tpClientId" type="text" placeholder="Client id" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <input id="tpAgentId" type="text" placeholder="Agent id (optional)" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="tpLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load plan</button>
+        <button id="tpRegenBtn" style="padding:6px 14px;background:#4a5568;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Regenerate</button>
+      </div>
+      <div id="tpSummary" style="padding:10px 12px;border-bottom:1px solid #edf2f7;font-size:13px;color:#2d3748;font-weight:600"></div>
+      <div id="tpTaskList" style="padding:12px;min-height:180px"></div>
+    </div>
+  </section>
+
   <!-- SECTION: YOUR DAY (B.12a-2 — admin + client roles) -->
   <section class="section" id="yourDaySection" style="display:none">
     <div class="section-title">Your Day <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — activate per client</span></div>
@@ -3384,6 +3399,140 @@ function renderYourDayRow(r) {
     + '</div>';
 }
 
+// ══ B.12a-3 — Today's Plan panel (admin + client) ══════════════════
+// Reads daily_task_plan for today. Regenerate button POSTs to
+// clx-daily-plan-generator-v1 to recompute + re-rank via Claude.
+// Mark-done writes to task_completion_log via record_task_completion.
+function initTodaysPlan() {
+  var section = document.getElementById('todaysPlanSection');
+  if (!section) return;
+  var role = window.CLX_ROLE;
+  if (role !== 'admin' && role !== 'client') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  if (role === 'client' && clientContext && clientContext.clientId) {
+    var idEl = document.getElementById('tpClientId');
+    if (idEl) { idEl.value = clientContext.clientId; idEl.readOnly = true; }
+  }
+  var loadBtn = document.getElementById('tpLoadBtn');
+  if (loadBtn) loadBtn.addEventListener('click', loadTodaysPlan);
+  var regenBtn = document.getElementById('tpRegenBtn');
+  if (regenBtn) regenBtn.addEventListener('click', regenerateTodaysPlan);
+}
+
+async function loadTodaysPlan() {
+  var summary = document.getElementById('tpSummary');
+  var listEl = document.getElementById('tpTaskList');
+  if (!listEl || !hasSupabase()) {
+    if (listEl) listEl.innerHTML = '<div style="color:#c53030;font-size:13px">Paste Supabase anon key in Settings.</div>';
+    return;
+  }
+  var client_id = (document.getElementById('tpClientId') || {}).value || '';
+  var agent_id = (document.getElementById('tpAgentId') || {}).value || '';
+  if (!client_id) { listEl.innerHTML = '<div style="color:#718096;font-size:13px">Enter a client id.</div>'; return; }
+  listEl.innerHTML = '<div style="color:#718096;font-size:13px">Loading…</div>';
+  if (summary) summary.innerHTML = '';
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    var url = SUPABASE_URL + '/rest/v1/daily_task_plan'
+      + '?client_id=eq.' + encodeURIComponent(client_id)
+      + '&plan_date=eq.' + encodeURIComponent(today)
+      + (agent_id ? ('&agent_id=eq.' + encodeURIComponent(agent_id)) : '&agent_id=is.null')
+      + '&select=id,generator_source,task_count,tasks,summary_line,generated_at&order=generated_at.desc&limit=1';
+    var res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) {
+      listEl.innerHTML = '<div style="color:#c53030;font-size:13px">Could not load (status ' + res.status + '). Apply migration 2026-04-24-morning-priority-ordering.sql first.</div>';
+      return;
+    }
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      listEl.innerHTML = '<div style="color:#718096;font-size:13px">No plan for today. Click <strong>Regenerate</strong> to build one.</div>';
+      return;
+    }
+    renderTodaysPlanRows(rows[0]);
+  } catch (e) {
+    listEl.innerHTML = '<div style="color:#c53030;font-size:13px">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+function renderTodaysPlanRows(plan) {
+  var summary = document.getElementById('tpSummary');
+  var listEl = document.getElementById('tpTaskList');
+  if (summary) {
+    summary.innerHTML = escapeHtml(plan.summary_line || (plan.task_count + ' tasks'))
+      + '<span style="font-weight:400;color:#718096;font-size:12px;margin-left:8px">source: ' + escapeHtml(plan.generator_source || '—') + ' · generated ' + (plan.generated_at ? new Date(plan.generated_at).toLocaleTimeString() : '—') + '</span>';
+  }
+  var tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
+  if (tasks.length === 0) {
+    listEl.innerHTML = '<div style="color:#718096;font-size:13px">Plan exists but has no tasks. Everything looks handled.</div>';
+    return;
+  }
+  listEl.innerHTML = tasks.map(function(t) { return renderPlanTaskRow(t, plan.id); }).join('');
+}
+
+function renderPlanTaskRow(t, plan_id) {
+  var catColors = { reply: '#c53030', hot_lead: '#d69e2e', no_show_rebook: '#3182ce', upcoming_call: '#2f855a', follow_up: '#718096', skip: '#a0aec0' };
+  var color = catColors[t.category] || '#4a5568';
+  var due = t.due_by ? new Date(t.due_by).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  var slaBadge = t.sla_breached ? '<span style="margin-left:8px;padding:2px 6px;background:#fed7d7;color:#c53030;font-size:10px;border-radius:3px;font-weight:700">SLA</span>' : '';
+  return '<div style="padding:10px 0;border-top:1px solid #edf2f7;display:flex;gap:10px;align-items:flex-start">'
+    + '<div style="min-width:32px;font-weight:700;color:' + color + ';font-size:15px">#' + (t.rank || '?') + '</div>'
+    + '<div style="flex:1">'
+    + '<div style="font-size:13px;color:#2d3748">'
+    + '<span style="padding:2px 6px;background:' + color + ';color:#fff;font-size:10px;border-radius:3px;margin-right:6px;text-transform:uppercase">' + escapeHtml(t.category || '') + '</span>'
+    + escapeHtml(t.label || '')
+    + slaBadge
+    + '</div>'
+    + '<div style="font-size:11px;color:#718096;margin-top:2px">due ' + due + ' · ' + escapeHtml(t.reason || '') + '</div>'
+    + '</div>'
+    + '<button onclick="markTaskDone(\'' + escapeHtml(plan_id) + '\',' + (t.rank || 0) + ',\'' + escapeHtml(t.category || '') + '\',\'' + escapeHtml(t.lead_id || '') + '\',\'' + escapeHtml(t.appointment_id || '') + '\')" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e0;color:#4a5568;font-size:11px;border-radius:3px;cursor:pointer">Done</button>'
+    + '</div>';
+}
+
+async function markTaskDone(plan_id, rank, category, lead_id, appointment_id) {
+  if (!hasSupabase()) return;
+  try {
+    var agent_id = (document.getElementById('tpAgentId') || {}).value || null;
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/record_task_completion', {
+      method: 'POST',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        p_plan_id: plan_id,
+        p_agent_id: agent_id,
+        p_task_rank: Number(rank) || null,
+        p_task_category: category || null,
+        p_lead_id: lead_id || null,
+        p_appointment_id: appointment_id || null,
+        p_outcome: 'done',
+        p_notes: null
+      })
+    });
+    if (res.ok) loadTodaysPlan();
+  } catch (e) { /* silent */ }
+}
+
+async function regenerateTodaysPlan() {
+  var listEl = document.getElementById('tpTaskList');
+  var client_id = (document.getElementById('tpClientId') || {}).value || '';
+  var agent_id = (document.getElementById('tpAgentId') || {}).value || '';
+  if (!client_id) return;
+  if (listEl) listEl.innerHTML = '<div style="color:#718096;font-size:13px">Regenerating via clx-daily-plan-generator-v1 webhook — this requires the workflow to be active + reachable. If the dashboard is static (Cloudflare Pages), the webhook call goes straight to n8n and only succeeds once the workflow is activated.</div>';
+  try {
+    var webhookUrl = (window.CLX_N8N_BASE || '') + '/webhook/clx-daily-plan';
+    var res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: client_id, agent_id: agent_id || null })
+    });
+    if (!res.ok) {
+      if (listEl) listEl.innerHTML = '<div style="color:#c53030;font-size:13px">Regenerate call failed (status ' + res.status + '). Activate clx-daily-plan-generator-v1 in n8n and set window.CLX_N8N_BASE to the n8n origin.</div>';
+      return;
+    }
+    loadTodaysPlan();
+  } catch (e) {
+    if (listEl) listEl.innerHTML = '<div style="color:#c53030;font-size:13px">Regenerate failed: ' + escapeHtml(String(e.message || e)) + '</div>';
+  }
+}
+
 async function fetchAgentScriptPerformance() {
   var bar = document.getElementById('ciUsageBar');
   var stats = document.getElementById('ciUsageStats');
@@ -3419,6 +3568,7 @@ function refreshAll() {
   fetchMarketIntelligenceClient();
   initClosingIntelligence();
   initYourDay();
+  initTodaysPlan();
   checkApiStatus();
 }
 

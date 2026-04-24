@@ -1,0 +1,123 @@
+{
+  "name": "CLX - Task Classifier v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-task-classifier",
+        "options": { "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, lead_id: $('Build Response').first().json.lead_id, category: $('Build Response').first().json.category, score: $('Build Response').first().json.score, reason: $('Build Response').first().json.reason }) }}" }
+      },
+      "id": "clx-tc-v1-0001",
+      "name": "Classifier Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-tc-v1-0001-webhook",
+      "notes": "DEACTIVATED. Body: { lead_id }. Calls Claude Haiku to classify a single lead into one of: reply | hot_lead | no_show_rebook | upcoming_call | follow_up | skip. Used for ad-hoc re-classification when a lead's state changes mid-day; the morning generator already classifies in bulk via compute_daily_tasks."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst lead_id = body.lead_id || null;\nif (!lead_id) return { json: { _error: true, error: 'lead_id required', ok: false } };\nreturn { json: { lead_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-tc-v1-0002",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,first_name,last_name,company,lead_score,lead_status,reply_received,reply_handled,last_reply_at,outreach_sent_at,do_not_contact&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-tc-v1-0003",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const arr = $input.item.json || [];\nconst row = Array.isArray(arr) && arr.length > 0 ? arr[0] : null;\nif (!row) return { json: { _skip: true, reason: 'lead not found', ok: false } };\nif (row.do_not_contact) return { json: { _skip: true, reason: 'do_not_contact', ok: false, lead_id: row.id, category: 'skip', score: 0 } };\n\n// Build prompt\nconst system_prompt = 'You are Crystallux Task Classifier. Classify this lead into exactly one category: reply | hot_lead | no_show_rebook | upcoming_call | follow_up | skip. Output STRICT JSON: { category: string, score: number (0-100), reason: string (<100 chars) }.';\nconst user_prompt = 'Lead:\\n' + JSON.stringify(row, null, 2);\nreturn { json: { lead_id: row.id, lead: row, system_prompt, user_prompt } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-tc-v1-0004",
+      "name": "Prep Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, temperature: 0.0, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_prompt }] }) }}",
+        "options": {}
+      },
+      "id": "clx-tc-v1-0005",
+      "name": "Claude Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential. Fallback provides a deterministic category if Claude is unbound."
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || {};\nconst prep = $('Prep Prompt').first().json;\nconst lead = prep.lead || {};\n\nlet parsed = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  if (text.trim().length > 0) parsed = JSON.parse(text.trim());\n} catch (e) { parsed = null; }\n\nif (!parsed || !parsed.category) {\n  // Deterministic fallback\n  let category = 'follow_up';\n  let score = 30;\n  let reason = 'Claude unavailable; fallback heuristic';\n  if (lead.reply_received && !lead.reply_handled) { category = 'reply'; score = 100; reason = 'unreplied inbound'; }\n  else if ((lead.lead_score || 0) >= 80) { category = 'hot_lead'; score = 85; reason = 'score >= 80'; }\n  parsed = { category, score, reason };\n}\n\nreturn { json: { ok: true, lead_id: prep.lead_id, category: parsed.category, score: parsed.score, reason: parsed.reason } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-tc-v1-0006",
+      "name": "Parse + Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.item;",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-tc-v1-0007",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 400]
+    }
+  ],
+  "connections": {
+    "Classifier Webhook (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
+    "Parse Input":                      { "main": [[ { "node": "Fetch Lead", "type": "main", "index": 0 } ]] },
+    "Fetch Lead":                       { "main": [[ { "node": "Prep Prompt", "type": "main", "index": 0 } ]] },
+    "Prep Prompt":                      { "main": [[ { "node": "Claude Classify", "type": "main", "index": 0 } ]] },
+    "Claude Classify":                  { "main": [[ { "node": "Parse + Fallback", "type": "main", "index": 0 } ]] },
+    "Parse + Fallback":                 { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-task-classifier-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-task-classifier-v1",
+  "tags": []
+}

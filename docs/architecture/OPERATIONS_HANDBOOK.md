@@ -1990,3 +1990,86 @@ simply won't fire. Alternatively, deactivate
   no PII beyond what already exists in `leads`.
 - RLS service_role-only on all three new tables keeps client-role
   anon-key queries from reading them.
+
+
+## 30. Morning Priority Task Ordering (Phase B.12a-3)
+
+Every agent opens the dashboard and gets an ordered task list: replies
+first, then hot leads, then no-show rebooks, upcoming calls, stale
+follow-ups. The ordering is heuristic-first (`compute_daily_tasks`
+RPC) with optional Claude re-rank on top.
+
+### 30.1 Schema
+
+Migration: `docs/architecture/migrations/2026-04-24-morning-priority-ordering.sql`
+
+- Extends `agent_calendar_prefs` (originally created in the calendar
+  migration) with 9 task-ordering fields including
+  `morning_focus_block`, `daily_task_cap`, `reply_sla_hours`,
+  `hot_lead_threshold`, `custom_order` jsonb, and
+  `notification_email`.
+- New `daily_task_plan` table — one row per agent per client per day,
+  unique constraint on `(agent_id, client_id, plan_date)`. Stores
+  the ranked `tasks` jsonb array + a one-sentence `summary_line`.
+- New `task_completion_log` — append-only log of agent check-offs.
+- RPCs: `compute_daily_tasks(client_id, limit)`,
+  `upsert_daily_plan(...)`, `record_task_completion(...)`. All
+  SECURITY DEFINER, service_role-only EXECUTE.
+
+### 30.2 Workflows
+
+- **`clx-daily-plan-generator-v1`** — Schedule Trigger at 07:00 (once
+  activated) fans out across `clients.active=true`, calls
+  `compute_daily_tasks`, prompts Claude Haiku to re-rank with a
+  `summary_line`, upserts `daily_task_plan`. Manual webhook path lets
+  the dashboard regenerate on demand.
+- **`clx-task-classifier-v1`** — ad-hoc webhook to re-classify a single
+  lead into one of six categories when something changes mid-day. The
+  morning generator does bulk classification via the RPC; this exists
+  for surgical updates only.
+
+Both are dormant. Claude nodes have TODO bind the "Anthropic API"
+credential; fallback branches return deterministic output if the
+Claude call errors or is unbound.
+
+### 30.3 Dashboard panel
+
+Section `#todaysPlanSection`. Admin + client roles. Shows:
+`summary_line` in the header, then a ranked task list. Each task
+renders the category chip, due-by time, SLA badge when breached, and
+a "Done" button that writes to `task_completion_log`. "Regenerate"
+button POSTs to the generator webhook; requires
+`window.CLX_N8N_BASE` to point at the n8n origin.
+
+### 30.4 Activation
+
+1. Apply `2026-04-24-morning-priority-ordering.sql`.
+2. Re-import `clx-daily-plan-generator-v1.json` and
+   `clx-task-classifier-v1.json`.
+3. Walk every agent through `docs/operations/AGENT_PREFERENCE_ONBOARDING.md`
+   (5-question Q&A, ~5 min each). Insert their row in
+   `agent_calendar_prefs`; hand over the generated `agent_id`.
+4. Set `window.CLX_N8N_BASE` in the dashboard (one-line injection in
+   the Cloudflare Pages HTML or a browser env shim).
+5. (Optional) Activate `clx-daily-plan-generator-v1`'s Schedule Trigger
+   at 07:00 local. Leave it off during testing; the webhook path still
+   works for manual regenerate.
+6. Dashboard check: panel renders today's plan; "Done" button ticks
+   items off without errors.
+
+### 30.5 Decommission
+
+- Deactivate the Schedule Trigger on
+  `clx-daily-plan-generator-v1` if Mary wants the generator fully off.
+- The dashboard panel keeps reading whatever rows exist in
+  `daily_task_plan` — to blank it per client, UPDATE tasks='[]'.
+
+### 30.6 Privacy + performance
+
+- `agent_calendar_prefs` is service_role-only RLS; `notification_email`
+  and `agent_email` never leave the backend.
+- Plan generation is O(clients · leads) per run; the RPC is indexed
+  on `leads.client_id`. At 10 clients × 500 active leads the RPC
+  returns in <200 ms per client on the Supabase free tier.
+- Claude Haiku costs ~$0.002 per plan (1 client). At 10 clients × 250
+  working days = ~$5/yr on the Haiku re-rank.

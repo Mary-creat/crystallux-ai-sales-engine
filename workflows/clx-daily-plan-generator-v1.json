@@ -1,0 +1,216 @@
+{
+  "name": "CLX - Daily Plan Generator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "hours", "hoursInterval": 24, "triggerAtHour": 7 } ] }
+      },
+      "id": "clx-dpg-v1-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. When activated: fires daily at 07:00 local and generates one daily_task_plan row per active client. Mary receives a summary via email once that path is wired (Phase 11)."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-daily-plan",
+        "options": { "responseData": "={{ JSON.stringify({ ok: true, plan_id: $('Build Response').first().json.plan_id, task_count: $('Build Response').first().json.task_count, summary: $('Build Response').first().json.summary }) }}" }
+      },
+      "id": "clx-dpg-v1-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560],
+      "webhookId": "clx-dpg-v1-0002-webhook",
+      "notes": "Body: { client_id (required), agent_id (optional, defaults to NULL — client-wide plan), plan_date (optional ISO date, defaults today) }. Used by the dashboard's 'Today's Plan' panel to refresh on demand."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse input whether from Schedule or Webhook.\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst client_id = body.client_id || null;\nconst agent_id = body.agent_id || null;\nconst plan_date = body.plan_date || new Date().toISOString().slice(0, 10);\n\n// When fired from the schedule, we have no client_id — caller must iterate.\n// For now the schedule path returns an empty array and the webhook path\n// returns a single item.\nif (!client_id) {\n  return { json: { _multi: true, plan_date } };\n}\nreturn { json: { client_id, agent_id, plan_date, _multi: false } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dpg-v1-0003",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-dpg-if-multi", "leftValue": "={{ $json._multi }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-dpg-v1-0004",
+      "name": "IF Multi (Schedule)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?active=eq.true&select=id,client_name&limit=200",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-dpg-v1-0005",
+      "name": "Fetch Active Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fan out into per-client items.\nconst arr = Array.isArray($input.item.json) ? $input.item.json : [];\nconst plan_date = $('Parse Input').first().json.plan_date;\nreturn arr.map(function(c) { return { json: { client_id: c.id, agent_id: null, plan_date } }; });",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dpg-v1-0006",
+      "name": "Fan Out Clients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/compute_daily_tasks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id, p_limit: 25 }) }}",
+        "options": {}
+      },
+      "id": "clx-dpg-v1-0007",
+      "name": "Compute Tasks (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bundle base tasks + build Claude prompt.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst parsed = $('Parse Input').first().json;\n// If Fan Out ran, parsed won't match this item — use the item itself.\nconst ctx = $input.all().length === 1 && !parsed._multi ? parsed : { client_id: rows[0] ? rows[0]._client_id : null, plan_date: parsed.plan_date };\n\nconst system_prompt = [\n  'You are Crystallux Morning Priority Copilot.',\n  'Re-rank the supplied task list so the agent starts with the single highest-leverage item.',\n  'Rules:',\n  ' - Output STRICT JSON only.',\n  ' - Preserve every task id; do NOT add or remove tasks.',\n  ' - Output shape: { \"tasks\": [...], \"summary_line\": \"<one-sentence morning briefing, <140 chars>\" }',\n  ' - Each task keeps its fields + adds a numeric \"rank\" (1-based) + a <120 char \"reason\" explaining why it is at that rank.',\n  ' - Prefer: SLA-breached replies first, then hot leads (>=80), then no-show rebooks, then upcoming calls (sorted by time), then stale follow-ups.',\n  ' - If a tie, prefer leads with higher lead_score.',\n  ' - Never claim urgency that is not supported by the task fields.'\n].join('\\n');\n\nconst user_prompt = [\n  'CLIENT ID: ' + ctx.client_id,\n  'PLAN DATE: ' + ctx.plan_date,\n  '',\n  'BASE TASKS (already ranked heuristically):',\n  JSON.stringify(rows, null, 2),\n  '',\n  'Return the JSON now.'\n].join('\\n');\n\nreturn { json: {\n  client_id: rows[0] ? rows[0]._client_id || parsed.client_id : parsed.client_id,\n  agent_id: parsed.agent_id || null,\n  plan_date: parsed.plan_date,\n  base_tasks: rows,\n  system_prompt,\n  user_prompt\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dpg-v1-0008",
+      "name": "Prep Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 2500, temperature: 0.1, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_prompt }] }) }}",
+        "options": {}
+      },
+      "id": "clx-dpg-v1-0009",
+      "name": "Claude Rerank",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential. No block yet — workflow falls back to base rank via Parse + Fallback."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude; fall back to base-rank if Claude fails.\nconst resp = $input.item.json || {};\nconst prep = $('Prep Claude Prompt').first().json;\n\nlet parsed = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  if (text.trim().length > 0) parsed = JSON.parse(text.trim());\n} catch (e) { parsed = null; }\n\nif (!parsed || !Array.isArray(parsed.tasks)) {\n  const base = prep.base_tasks || [];\n  const fallback_tasks = base.map(function(t, i) { return Object.assign({}, t, { rank: i + 1, reason: t.reason || 'heuristic rank' }); });\n  const sla = fallback_tasks.filter(function(t) { return t.sla_breached; }).length;\n  return { json: Object.assign({}, prep, { tasks: fallback_tasks, summary_line: fallback_tasks.length + ' tasks · ' + sla + ' SLA-breached · heuristic order (Claude unavailable)', generator_source: 'rpc' }) };\n}\n\nreturn { json: Object.assign({}, prep, { tasks: parsed.tasks, summary_line: parsed.summary_line || ((parsed.tasks || []).length + ' tasks'), generator_source: 'claude' }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dpg-v1-0010",
+      "name": "Parse + Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/upsert_daily_plan",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_agent_id: $json.agent_id, p_client_id: $json.client_id, p_plan_date: $json.plan_date, p_tasks: $json.tasks, p_summary_line: $json.summary_line, p_generator_source: $json.generator_source }) }}",
+        "options": {}
+      },
+      "id": "clx-dpg-v1-0011",
+      "name": "Upsert Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build response\nconst upsertResp = $input.item.json;\nconst prep = $('Parse + Fallback').first().json;\nlet plan_id = null;\nif (typeof upsertResp === 'string') plan_id = upsertResp;\nelse if (upsertResp && upsertResp.id) plan_id = upsertResp.id;\nelse if (Array.isArray(upsertResp) && upsertResp.length > 0 && upsertResp[0].upsert_daily_plan) plan_id = upsertResp[0].upsert_daily_plan;\nreturn { json: { ok: true, plan_id, task_count: (prep.tasks || []).length, summary: prep.summary_line || '' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dpg-v1-0012",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 480]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
+    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
+    "Parse Input":                    { "main": [[ { "node": "IF Multi (Schedule)", "type": "main", "index": 0 } ]] },
+    "IF Multi (Schedule)":            { "main": [[ { "node": "Fetch Active Clients", "type": "main", "index": 0 } ], [ { "node": "Compute Tasks (RPC)", "type": "main", "index": 0 } ]] },
+    "Fetch Active Clients":           { "main": [[ { "node": "Fan Out Clients", "type": "main", "index": 0 } ]] },
+    "Fan Out Clients":                { "main": [[ { "node": "Compute Tasks (RPC)", "type": "main", "index": 0 } ]] },
+    "Compute Tasks (RPC)":            { "main": [[ { "node": "Prep Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Prep Claude Prompt":             { "main": [[ { "node": "Claude Rerank", "type": "main", "index": 0 } ]] },
+    "Claude Rerank":                  { "main": [[ { "node": "Parse + Fallback", "type": "main", "index": 0 } ]] },
+    "Parse + Fallback":               { "main": [[ { "node": "Upsert Plan", "type": "main", "index": 0 } ]] },
+    "Upsert Plan":                    { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-daily-plan-generator-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-daily-plan-generator-v1",
+  "tags": []
+}

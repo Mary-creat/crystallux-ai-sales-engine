@@ -617,6 +617,37 @@ Twilio SMS is live and each client's Calendly link is on file.
       for the client; no-show + completed groups split correctly.
 - [ ] Reference: OPERATIONS_HANDBOOK §29.
 
+### Phase 10d-plan — Morning Priority Task Ordering (B.12a-3)
+
+Enable the daily task plan generator + "Today's Plan" dashboard panel
+for every agent who uses the system.
+
+- [ ] Apply migration `2026-04-24-morning-priority-ordering.sql`.
+- [ ] Verify: `agent_calendar_prefs` has the 9 new columns;
+      `daily_task_plan`, `task_completion_log` tables created; 3
+      RPCs present (`compute_daily_tasks`, `upsert_daily_plan`,
+      `record_task_completion`).
+- [ ] Re-import `workflows/clx-daily-plan-generator-v1.json` and
+      `workflows/clx-task-classifier-v1.json`. Both stay
+      `active: false`.
+- [ ] (Optional) Bind "Anthropic API" credential on the Claude nodes
+      in both workflows. Fallback branches keep them functional
+      without it.
+- [ ] Run agent preference onboarding (`docs/operations/AGENT_PREFERENCE_ONBOARDING.md`
+      5-Q Q&A) for every agent; create their `agent_calendar_prefs`
+      row and hand over the generated `agent_id`.
+- [ ] Inject `window.CLX_N8N_BASE = '<n8n origin>'` into the
+      dashboard page (Cloudflare Pages one-liner or a build-time
+      env substitution).
+- [ ] First smoke test: POST to `/webhook/clx-daily-plan` with
+      `{ client_id }`; confirm a row lands in `daily_task_plan`.
+- [ ] Dashboard check: "Today's Plan" renders the plan; "Done"
+      button writes to `task_completion_log`; "Regenerate" calls
+      the webhook.
+- [ ] Go-live: activate `clx-daily-plan-generator-v1`'s 07:00
+      Schedule Trigger.
+- [ ] Reference: OPERATIONS_HANDBOOK §30.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":
