@@ -2167,3 +2167,136 @@ Optimize button to reach the webhook.
   or the Google Maps Optimization service.
 - No PII beyond addresses already on `appointment_log`. RLS
   service_role-only on `travel_optimization_log`.
+
+
+## 32. Productivity Tier Activation (Phase B.12b-2)
+
+Per-agent productivity tracking with consent-gated data collection,
+AI-classified activities, traffic-light dashboards for managers, and
+a private self-view for agents. Pricing: $1,000/mo per client on top
+of Tier A.
+
+### 32.1 Schema
+
+Migration: `docs/architecture/migrations/2026-04-25-productivity-client-facing.sql`
+
+- `agent_activity_log` — one row per event, check constraints on
+  `activity_type` + `classification`. `idx_activity_unclassified`
+  partial index keeps the classifier batch cheap.
+- `agent_daily_summary` — UNIQUE `(agent_id, summary_date)`,
+  trend (improving/stable/declining), coaching_flags jsonb, ON
+  CONFLICT updates.
+- `team_members` — adds 4 consent columns:
+  `productivity_tracking_consent`,
+  `productivity_tracking_consent_at`,
+  `productivity_tracking_consent_version`,
+  `share_with_manager`.
+- `clients` — adds `productivity_tier_enabled`,
+  `productivity_tier_price`, `productivity_tier_enabled_at`.
+- 4 SECURITY DEFINER RPCs, service_role-only EXECUTE:
+  `record_agent_activity` (consent-gated; returns NULL if consent
+  not granted, no INSERT),
+  `classify_activity_heuristic` (rule-based fallback),
+  `calculate_daily_summary` (aggregate + trend + flags, UPSERT),
+  `enable_productivity_tier` (per-client tier flip).
+- 3 monitoring_thresholds seeds added
+  (`PRODUCTIVITY_TRACKING_FAILED`,
+  `PRODUCTIVITY_CLASSIFIER_FAILED`,
+  `AGENT_PRODUCTIVITY_RED_STREAK`) via ON CONFLICT DO NOTHING.
+
+### 32.2 Workflows
+
+Three dormant (`active: false`):
+
+- **`clx-activity-tracker-v1`** — webhook `/webhook/activity/record`
+  and a 15-min Schedule Trigger. Every path first checks
+  `team_members.productivity_tracking_consent`; if false, returns
+  `{ ok: true, consent: false }` without writing. On consent,
+  calls `record_agent_activity` RPC, then invokes
+  `classify_activity_heuristic` for pre-classification.
+- **`clx-activity-classifier-v1`** — 6h Schedule + manual webhook.
+  Fetches up to 100 `classification='unknown'` rows, batches 20 per
+  Claude Haiku call, parses the JSON array, batch-PATCHes
+  classifications. Falls back to `'neutral'` if Claude is unbound
+  or returns malformed output.
+- **`clx-daily-summary-generator-v1`** — 23:00 Schedule + manual
+  webhook. Fans out across consenting agents, calls
+  `calculate_daily_summary`, re-fetches the fresh row, composes a
+  congratulations email for `trend='improving'` or a focus email
+  for `score < 50`. TESTING MODE redirect hard-coded to
+  `adesholaakintunde+clxtest@gmail.com` until removed for go-live.
+
+### 32.3 Dashboard panels
+
+- `#teamProductivitySection` (admin only). Client id filter + date.
+  Green/yellow/red dot + score + trend arrow + 7-day avg per agent.
+  CSV export button. Only agents with `productivity_tracking_consent
+  = true` appear; others are hidden (not listed as "opt-in pending"
+  to avoid outing opt-outs to the manager).
+- `#myProductivitySection` (client role, also available to admin for
+  testing). Today / 7-day / 30-day cards; breakdown of
+  productive/neutral/unproductive minutes; coaching flags callout;
+  "Share with manager" toggle writes
+  `team_members.share_with_manager`.
+
+### 32.4 Activation flow
+
+1. Flip the tier: call `enable_productivity_tier(client_id, 1000)`
+   in Supabase SQL editor.
+2. Collect agent consent via the form in
+   `docs/operations/PRODUCTIVITY_TRACKING_CONSENT.md`. Store signed
+   PDFs in `docs/private/client-consent/` (gitignored).
+3. Per agent:
+   ```sql
+   UPDATE team_members
+      SET productivity_tracking_consent = true,
+          productivity_tracking_consent_at = now(),
+          productivity_tracking_consent_version = '1.0'
+    WHERE id = '<agent-uuid>';
+   ```
+4. Re-import the 3 workflows. Optionally bind "Anthropic API"
+   credential on the classifier (heuristic fallback keeps it working
+   without Claude).
+5. Keep Schedule Triggers `active: false` until after smoke-testing
+   the webhook paths with a handful of activity events.
+6. Go-live: activate `clx-activity-tracker-v1`'s 15-min Schedule
+   and `clx-daily-summary-generator-v1`'s 23:00 Schedule.
+
+### 32.5 Coaching framework
+
+- 3+ consecutive red days → informational flag on the daily summary
+  + dashboard badge; manager is emailed only if the agent toggled
+  `share_with_manager = true`.
+- Improvement streak (trend=improving 3 days in a row) → celebrate
+  in the agent email; do not surface to manager unless shared.
+- Under 60 min tracked activity → `LOW_TRACKED_TIME` flag with an
+  "insufficient data" disclaimer (avoid shaming part-time days).
+
+### 32.6 Red-flag intervention protocol
+
+1. Manager reviews the flag + the underlying daily summaries.
+2. One-on-one coaching conversation within 72h. Frame:
+   "What's getting in the way? How can I help?"
+3. Never surface the score itself in a disciplinary context.
+4. If an agent declines the conversation, respect it. Tracking is
+   coaching, not performance management.
+
+### 32.7 Privacy + PIPEDA audit trail
+
+- Every consent flip is logged via the `_at` timestamp column and
+  the `_version` column. A future audit can prove when consent was
+  granted and under which policy version.
+- Withdrawal: `UPDATE team_members SET productivity_tracking_consent
+  = false`. The tracker workflow's consent gate begins returning
+  `consent: false` on the very next event; no data is retro-deleted
+  (that requires a manual DELETE on `agent_activity_log` for that
+  agent, to match the PIPEDA "right to deletion" request).
+- Retention: 12 months raw, then a separate cleanup job (not in this
+  migration) anonymises.
+
+### 32.8 Decommission
+
+- Per client: `UPDATE clients SET productivity_tier_enabled = false`.
+  Dashboard panels keep rendering historical data; no new events
+  write once you also set every agent's consent to false.
+- Fully: deactivate the 3 workflows; data stays in place for audit.

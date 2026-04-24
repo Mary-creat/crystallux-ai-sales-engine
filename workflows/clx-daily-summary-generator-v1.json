@@ -1,0 +1,172 @@
+{
+  "name": "CLX - Daily Summary Generator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "hours", "hoursInterval": 24, "triggerAtHour": 23 } ] }
+      },
+      "id": "clx-dsg-v1-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Fires daily at 23:00 local. For each consenting agent with activity today, calls calculate_daily_summary and optionally emails agent/manager per opt-in."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "productivity/summary/run",
+        "options": { "responseData": "={{ JSON.stringify({ ok: true, summaries: $('Compute Summary').all().length }) }}" }
+      },
+      "id": "clx-dsg-v1-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560],
+      "webhookId": "clx-dsg-v1-0002-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/team_members?productivity_tracking_consent=eq.true&select=id,email,full_name,client_id,share_with_manager&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-dsg-v1-0003",
+      "name": "Fetch Consenting Agents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const arr = Array.isArray($input.item.json) ? $input.item.json : [];\nconst today = new Date().toISOString().slice(0, 10);\nreturn arr.map(function(a) { return { json: Object.assign({}, a, { plan_date: today }) }; });",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dsg-v1-0004",
+      "name": "Fan Out Per Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/calculate_daily_summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_agent_id: $json.id, p_date: $json.plan_date }) }}",
+        "options": {}
+      },
+      "id": "clx-dsg-v1-0005",
+      "name": "Compute Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_daily_summary?agent_id=eq.{{ $('Fan Out Per Agent').item.json.id }}&summary_date=eq.{{ $('Fan Out Per Agent').item.json.plan_date }}&select=productivity_score,trend,coaching_flags,productive_minutes,total_minutes_tracked&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-dsg-v1-0006",
+      "name": "Fetch Fresh Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = (Array.isArray($input.item.json) && $input.item.json[0]) || null;\nconst agent = $('Fan Out Per Agent').item.json;\nif (!row) return { json: { _skip: true } };\nconst score = row.productivity_score;\nconst trend = row.trend;\nconst flags = row.coaching_flags || [];\nconst toAgent = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nlet subject, body;\nif (trend === 'improving') {\n  subject = 'Great day, ' + (agent.full_name || 'there') + ' — score ' + score + '/100';\n  body = 'Quick win: your productivity score improved today. Keep the same rhythm tomorrow.';\n} else if (score != null && score < 50) {\n  const topFlag = flags.length > 0 ? (flags[0].message || flags[0].code) : 'Review focus blocks';\n  subject = 'Focus suggestion — score ' + score + '/100';\n  body = 'Your score today: ' + score + '/100. Focus area: ' + topFlag + '.';\n} else {\n  return { json: { _skip: true } };\n}\nconst shouldEmailManager = (trend === 'declining') && agent.share_with_manager === true;\nreturn { json: Object.assign({}, agent, { score, trend, flags, subject, body, to_email: toAgent, email_manager: shouldEmailManager, _skip: false }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-dsg-v1-0007",
+      "name": "Compose Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 480],
+      "notes": "TESTING MODE redirect — delete the const toAgent override to go live with per-agent email delivery."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-dsg-if-skip", "leftValue": "={{ $json._skip || false }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-dsg-v1-0008",
+      "name": "IF Skip Email",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1640, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: Buffer.from('To: ' + $json.to_email + '\\r\\nSubject: ' + $json.subject + '\\r\\nContent-Type: text/plain; charset=utf-8\\r\\n\\r\\n' + $json.body).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'') }) }}",
+        "options": {}
+      },
+      "id": "clx-dsg-v1-0009",
+      "name": "Gmail Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 560],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "gmailOAuth2": { "name": "Gmail" } }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Consenting Agents", "type": "main", "index": 0 } ]] },
+    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Fetch Consenting Agents", "type": "main", "index": 0 } ]] },
+    "Fetch Consenting Agents":        { "main": [[ { "node": "Fan Out Per Agent", "type": "main", "index": 0 } ]] },
+    "Fan Out Per Agent":              { "main": [[ { "node": "Compute Summary", "type": "main", "index": 0 } ]] },
+    "Compute Summary":                { "main": [[ { "node": "Fetch Fresh Summary", "type": "main", "index": 0 } ]] },
+    "Fetch Fresh Summary":            { "main": [[ { "node": "Compose Email", "type": "main", "index": 0 } ]] },
+    "Compose Email":                  { "main": [[ { "node": "IF Skip Email", "type": "main", "index": 0 } ]] },
+    "IF Skip Email":                  { "main": [[], [ { "node": "Gmail Send", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-daily-summary-generator-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-daily-summary-generator-v1",
+  "tags": []
+}

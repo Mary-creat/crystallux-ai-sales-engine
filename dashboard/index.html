@@ -831,6 +831,45 @@
     </div>
   </section>
 
+  <!-- SECTION: TEAM PRODUCTIVITY (B.12b-2 — admin only) -->
+  <section class="section" id="teamProductivitySection" style="display:none">
+    <div class="section-title">Team Productivity <span class="clx-scaffold-badge planned" style="font-size:11px">Productivity tier — needs agent consent</span></div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="prodClientFilter" type="text" placeholder="Client id (optional)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <input id="prodDate" type="date" style="padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="prodLoadTeamBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load team</button>
+        <button id="prodExportBtn" style="padding:6px 14px;background:#4a5568;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Export CSV</button>
+      </div>
+      <div id="prodTeamSummary" style="padding:10px 12px;border-bottom:1px solid #edf2f7;font-size:13px;color:#4a5568"></div>
+      <div id="prodTeamGrid" style="padding:12px;min-height:180px"></div>
+    </div>
+  </section>
+
+  <!-- SECTION: MY PRODUCTIVITY (B.12b-2 — client role self-view) -->
+  <section class="section" id="myProductivitySection" style="display:none">
+    <div class="section-title">My Productivity <span class="clx-scaffold-badge planned" style="font-size:11px">Private — not shared unless you opt in</span></div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="mpAgentId" type="text" placeholder="Your agent id" style="flex:1;min-width:240px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="mpLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load my data</button>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#4a5568"><input id="mpShareToggle" type="checkbox" />Share with manager</label>
+      </div>
+      <div id="mpScoreStrip" style="padding:14px 12px;border-bottom:1px solid #edf2f7;display:flex;gap:20px;flex-wrap:wrap"></div>
+      <div id="mpBreakdown" style="padding:12px 12px 0 12px;font-size:13px;color:#4a5568"></div>
+      <div style="padding:12px">
+        <details style="font-size:12px;color:#4a5568">
+          <summary style="cursor:pointer;font-weight:600">What's tracked &amp; what isn't</summary>
+          <div style="margin-top:8px;line-height:1.5">
+            <strong>Tracked:</strong> Crystallux outreach (emails, calls via Vapi), appointments held, follow-ups, leads qualified / deals closed, dashboard session time (aggregate).<br>
+            <strong>NOT tracked:</strong> browsing outside Crystallux, keyboard/mouse, screen recording, personal messages, activities outside work hours, non-Crystallux apps.<br>
+            Data retention: 12 months then anonymised. Withdraw consent anytime via support. See <code>docs/operations/PRODUCTIVITY_TRACKING_CONSENT.md</code>.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION: ROUTE OPTIMIZER MAP (B.12b-1 — admin + client roles) -->
   <section class="section" id="routeMapSection" style="display:none">
     <div class="section-title">Route Optimizer <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — needs client.travel_optimization_enabled=true</span></div>
@@ -3699,6 +3738,202 @@ async function optimizeRoute() {
   }
 }
 
+// ══ B.12b-2 — Team Productivity (admin) + My Productivity (client) ═
+// Admin sees agents with productivity_tracking_consent=true only; others
+// show a "tracking opt-in pending" placeholder. Client role sees own
+// row via agent_id input; "Share with manager" toggle writes
+// team_members.share_with_manager. No data is read or written unless
+// consent fields are already set server-side.
+function initTeamProductivity() {
+  var section = document.getElementById('teamProductivitySection');
+  if (!section) return;
+  if (window.CLX_ROLE !== 'admin') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  var dateEl = document.getElementById('prodDate');
+  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+  var btn = document.getElementById('prodLoadTeamBtn');
+  if (btn) btn.addEventListener('click', loadTeamProductivity);
+  var exp = document.getElementById('prodExportBtn');
+  if (exp) exp.addEventListener('click', exportTeamProductivityCsv);
+}
+
+async function loadTeamProductivity() {
+  var summary = document.getElementById('prodTeamSummary');
+  var grid = document.getElementById('prodTeamGrid');
+  if (!grid || !hasSupabase()) {
+    if (grid) grid.innerHTML = '<div style="color:#c53030;font-size:13px">Paste Supabase anon key in Settings.</div>';
+    return;
+  }
+  var clientFilter = (document.getElementById('prodClientFilter') || {}).value || '';
+  var date = (document.getElementById('prodDate') || {}).value || new Date().toISOString().slice(0, 10);
+  grid.innerHTML = '<div style="color:#718096;font-size:13px">Loading…</div>';
+  if (summary) summary.innerHTML = '';
+  try {
+    var memUrl = SUPABASE_URL + '/rest/v1/team_members?productivity_tracking_consent=eq.true&select=id,full_name,email,client_id,share_with_manager&limit=500';
+    if (clientFilter) memUrl += '&client_id=eq.' + encodeURIComponent(clientFilter);
+    var memRes = await fetch(memUrl, { headers: supabaseHeaders() });
+    if (!memRes.ok) { grid.innerHTML = '<div style="color:#c53030;font-size:13px">team_members fetch failed (status ' + memRes.status + '). Apply migration 2026-04-25-productivity-client-facing.sql first.</div>'; return; }
+    var members = await memRes.json();
+    if (!Array.isArray(members) || members.length === 0) {
+      grid.innerHTML = '<div style="color:#718096;font-size:13px">No consenting agents found. Collect consent via PRODUCTIVITY_TRACKING_CONSENT.md before tracking.</div>';
+      return;
+    }
+
+    // Batch-fetch summaries for today + 7-day window via one IN query
+    var ids = members.map(function(m) { return m.id; });
+    var sumUrl = SUPABASE_URL + '/rest/v1/agent_daily_summary'
+      + '?agent_id=in.(' + ids.map(function(i) { return encodeURIComponent(i); }).join(',') + ')'
+      + '&summary_date=gte.' + encodeURIComponent(new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10))
+      + '&select=agent_id,summary_date,productivity_score,trend,coaching_flags'
+      + '&order=summary_date.desc&limit=5000';
+    var sumRes = await fetch(sumUrl, { headers: supabaseHeaders() });
+    var summaries = sumRes.ok ? await sumRes.json() : [];
+
+    var byAgent = {};
+    summaries.forEach(function(s) {
+      if (!byAgent[s.agent_id]) byAgent[s.agent_id] = [];
+      byAgent[s.agent_id].push(s);
+    });
+
+    var rows = members.map(function(m) {
+      var list = byAgent[m.id] || [];
+      var today = list.find(function(s) { return s.summary_date === date; });
+      var avg7 = list.length > 0
+        ? Math.round(list.reduce(function(a, s) { return a + (Number(s.productivity_score) || 0); }, 0) / list.length)
+        : null;
+      return {
+        agent_id: m.id,
+        name: m.full_name || m.email || m.id.slice(0, 8),
+        client_id: m.client_id,
+        today: today ? Number(today.productivity_score) : null,
+        trend: today ? today.trend : 'insufficient_data',
+        flags: today ? (today.coaching_flags || []) : [],
+        avg7: avg7
+      };
+    });
+    window.__prodRows = rows;
+
+    var green = rows.filter(function(r) { return r.today != null && r.today >= 80; }).length;
+    var yellow = rows.filter(function(r) { return r.today != null && r.today >= 50 && r.today < 80; }).length;
+    var red = rows.filter(function(r) { return r.today != null && r.today < 50; }).length;
+    var missing = rows.filter(function(r) { return r.today == null; }).length;
+    if (summary) summary.innerHTML = '<strong>' + rows.length + ' agents</strong> · '
+      + '<span style="color:#2f855a">' + green + ' green</span> · '
+      + '<span style="color:#d69e2e">' + yellow + ' yellow</span> · '
+      + '<span style="color:#c53030">' + red + ' red</span> · '
+      + missing + ' no data';
+    grid.innerHTML = rows.map(renderTeamProductivityRow).join('');
+  } catch (e) {
+    grid.innerHTML = '<div style="color:#c53030;font-size:13px">' + FRIENDLY_ERROR + '</div>';
+  }
+}
+
+function renderTeamProductivityRow(r) {
+  var color = '#a0aec0', label = 'no data';
+  if (r.today != null) {
+    if (r.today >= 80) { color = '#2f855a'; label = 'green'; }
+    else if (r.today >= 50) { color = '#d69e2e'; label = 'yellow'; }
+    else { color = '#c53030'; label = 'red'; }
+  }
+  var trendIcon = r.trend === 'improving' ? '↑' : (r.trend === 'declining' ? '↓' : (r.trend === 'stable' ? '→' : '·'));
+  var flagBadges = (r.flags || []).map(function(f) { return '<span style="margin-left:6px;padding:2px 6px;background:#fed7d7;color:#c53030;font-size:10px;border-radius:3px;font-weight:700">' + escapeHtml(f.code || 'FLAG') + '</span>'; }).join('');
+  return '<div style="padding:10px 0;border-top:1px solid #edf2f7;display:flex;gap:12px;align-items:center">'
+    + '<div style="width:12px;height:12px;border-radius:50%;background:' + color + '"></div>'
+    + '<div style="flex:1;font-size:13px;color:#2d3748">' + escapeHtml(r.name) + flagBadges + '</div>'
+    + '<div style="min-width:60px;text-align:right;font-weight:700;color:' + color + ';font-size:14px">' + (r.today != null ? (r.today + '/100') : '—') + '</div>'
+    + '<div style="min-width:50px;text-align:right;font-size:12px;color:#718096">' + trendIcon + '</div>'
+    + '<div style="min-width:60px;text-align:right;font-size:12px;color:#718096">7d ' + (r.avg7 != null ? r.avg7 : '—') + '</div>'
+    + '</div>';
+}
+
+function exportTeamProductivityCsv() {
+  var rows = window.__prodRows || [];
+  if (rows.length === 0) return;
+  var header = 'agent_id,name,client_id,today_score,trend,7d_avg,flags\n';
+  var body = rows.map(function(r) {
+    return [r.agent_id, '"' + String(r.name).replace(/"/g, '""') + '"', r.client_id || '', r.today != null ? r.today : '',
+            r.trend || '', r.avg7 != null ? r.avg7 : '',
+            '"' + (r.flags || []).map(function(f) { return f.code || ''; }).join(';') + '"'].join(',');
+  }).join('\n');
+  var blob = new Blob([header + body], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'team-productivity-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function initMyProductivity() {
+  var section = document.getElementById('myProductivitySection');
+  if (!section) return;
+  if (window.CLX_ROLE !== 'client' && window.CLX_ROLE !== 'admin') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  if (window.CLX_AGENT_ID) {
+    var idEl = document.getElementById('mpAgentId');
+    if (idEl) { idEl.value = window.CLX_AGENT_ID; idEl.readOnly = true; }
+  }
+  var btn = document.getElementById('mpLoadBtn');
+  if (btn) btn.addEventListener('click', loadMyProductivity);
+  var toggle = document.getElementById('mpShareToggle');
+  if (toggle) toggle.addEventListener('change', toggleShareWithManager);
+}
+
+async function loadMyProductivity() {
+  var stripEl = document.getElementById('mpScoreStrip');
+  var breakdownEl = document.getElementById('mpBreakdown');
+  if (!stripEl || !hasSupabase()) return;
+  var agent_id = (document.getElementById('mpAgentId') || {}).value || '';
+  if (!agent_id) { stripEl.innerHTML = '<span style="color:#c53030;font-size:13px">Enter your agent id.</span>'; return; }
+  stripEl.innerHTML = '<span style="color:#718096;font-size:13px">Loading…</span>';
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    var url = SUPABASE_URL + '/rest/v1/agent_daily_summary'
+      + '?agent_id=eq.' + encodeURIComponent(agent_id)
+      + '&summary_date=gte.' + encodeURIComponent(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10))
+      + '&select=summary_date,productivity_score,trend,productive_minutes,neutral_minutes,unproductive_minutes,total_minutes_tracked,coaching_flags'
+      + '&order=summary_date.desc&limit=30';
+    var res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) { stripEl.innerHTML = '<span style="color:#c53030;font-size:13px">Could not load (status ' + res.status + ').</span>'; return; }
+    var rows = await res.json();
+    var todayRow = rows.find(function(r) { return r.summary_date === today; });
+    var avg7 = rows.slice(0, 7).filter(function(r) { return r.productivity_score != null; });
+    var avg7Val = avg7.length > 0 ? Math.round(avg7.reduce(function(a, r) { return a + Number(r.productivity_score); }, 0) / avg7.length) : null;
+    var avg30 = rows.filter(function(r) { return r.productivity_score != null; });
+    var avg30Val = avg30.length > 0 ? Math.round(avg30.reduce(function(a, r) { return a + Number(r.productivity_score); }, 0) / avg30.length) : null;
+    stripEl.innerHTML = '<div><div style="font-size:11px;color:#718096">Today</div><div style="font-size:22px;font-weight:700;color:#2d3748">' + (todayRow && todayRow.productivity_score != null ? (todayRow.productivity_score + '/100') : '—') + '</div></div>'
+      + '<div><div style="font-size:11px;color:#718096">7-day avg</div><div style="font-size:22px;font-weight:700;color:#2d3748">' + (avg7Val != null ? (avg7Val + '/100') : '—') + '</div></div>'
+      + '<div><div style="font-size:11px;color:#718096">30-day avg</div><div style="font-size:22px;font-weight:700;color:#2d3748">' + (avg30Val != null ? (avg30Val + '/100') : '—') + '</div></div>'
+      + '<div><div style="font-size:11px;color:#718096">Trend</div><div style="font-size:18px;font-weight:600;color:#4a5568">' + escapeHtml(todayRow ? todayRow.trend : 'insufficient_data') + '</div></div>';
+    if (breakdownEl) {
+      if (todayRow) {
+        var prod = todayRow.productive_minutes || 0, neut = todayRow.neutral_minutes || 0, unp = todayRow.unproductive_minutes || 0;
+        breakdownEl.innerHTML = '<strong>Today\'s breakdown:</strong> ' + prod + ' min productive · ' + neut + ' min neutral · ' + unp + ' min unproductive (tracked ' + (todayRow.total_minutes_tracked || 0) + ' min).';
+        var flags = todayRow.coaching_flags || [];
+        if (flags.length > 0) breakdownEl.innerHTML += '<div style="margin-top:6px;color:#c53030"><strong>Flags:</strong> ' + flags.map(function(f) { return escapeHtml(f.message || f.code || ''); }).join(' · ') + '</div>';
+      } else {
+        breakdownEl.innerHTML = 'No summary yet for ' + today + '. Run clx-daily-summary-generator-v1 or wait for the 23:00 schedule.';
+      }
+    }
+  } catch (e) {
+    stripEl.innerHTML = '<span style="color:#c53030;font-size:13px">' + FRIENDLY_ERROR + '</span>';
+  }
+}
+
+async function toggleShareWithManager() {
+  if (!hasSupabase()) return;
+  var agent_id = (document.getElementById('mpAgentId') || {}).value || '';
+  var toggle = document.getElementById('mpShareToggle');
+  if (!agent_id || !toggle) return;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/team_members?id=eq.' + encodeURIComponent(agent_id), {
+      method: 'PATCH',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }),
+      body: JSON.stringify({ share_with_manager: !!toggle.checked })
+    });
+  } catch (e) { /* silent */ }
+}
+
 async function fetchAgentScriptPerformance() {
   var bar = document.getElementById('ciUsageBar');
   var stats = document.getElementById('ciUsageStats');
@@ -3736,6 +3971,8 @@ function refreshAll() {
   initYourDay();
   initTodaysPlan();
   initRouteMap();
+  initTeamProductivity();
+  initMyProductivity();
   checkApiStatus();
 }
 

@@ -1,0 +1,162 @@
+{
+  "name": "CLX - Activity Classifier v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "hours", "hoursInterval": 6 } ] }
+      },
+      "id": "clx-ac-v1-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Every 6h, batches up to 100 unknown-classification activities through Claude Haiku for more nuanced labelling than classify_activity_heuristic."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "activity/classifier/run",
+        "options": { "responseData": "={{ JSON.stringify({ ok: true, processed: $('Batch Update').all().length }) }}" }
+      },
+      "id": "clx-ac-v1-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560],
+      "webhookId": "clx-ac-v1-0002-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_activity_log?classification=eq.unknown&select=id,activity_type,minutes_duration,activity_metadata,started_at&order=started_at.desc&limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-ac-v1-0003",
+      "name": "Fetch Unclassified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split into batches of 20 rows for Claude context economy.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst BATCH = 20;\nconst out = [];\nfor (let i = 0; i < rows.length; i += BATCH) {\n  out.push({ json: { batch: rows.slice(i, i + BATCH) } });\n}\nreturn out;",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ac-v1-0004",
+      "name": "Split Batches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const batch = $input.item.json.batch || [];\nconst system_prompt = [\n  'You are Crystallux Productivity Classifier.',\n  'Classify each activity as \"productive\", \"neutral\", or \"unproductive\".',\n  'Output STRICT JSON array of the same length, same order, each element: { id, classification }.',\n  'Rules:',\n  ' - Productive: outreach_sent under 10 min, call_made 2-45 min, meeting_held 15-60 min, lead_qualified, deal_closed, follow_up_sent.',\n  ' - Neutral: dashboard_session under 30 min, manual_note.',\n  ' - Unproductive: idle over 15 min, dashboard_session over 60 min without other activity, repeat of same activity within 5 min.',\n  ' - Default to \"neutral\" if uncertain; never output anything other than the three labels.'\n].join('\\n');\nconst user_prompt = 'Activities (JSON):\\n' + JSON.stringify(batch, null, 2) + '\\n\\nReturn the JSON array now.';\nreturn { json: { batch, system_prompt, user_prompt } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ac-v1-0005",
+      "name": "Prep Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 500, temperature: 0.1, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_prompt }] }) }}",
+        "options": {}
+      },
+      "id": "clx-ac-v1-0006",
+      "name": "Claude Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential. Without it, workflow falls through to Heuristic Fallback which marks every batch item as 'neutral'."
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || {};\nconst prep = $('Prep Prompt').first().json;\nconst batch = prep.batch || [];\n\nlet parsed = null;\ntry {\n  const text = (resp.content && resp.content[0] && resp.content[0].text) || '';\n  if (text.trim().length > 0) parsed = JSON.parse(text.trim());\n} catch (e) { parsed = null; }\n\nif (!Array.isArray(parsed)) {\n  // Fallback: mark neutral so we don't loop on the same rows forever.\n  parsed = batch.map(function(b) { return { id: b.id, classification: 'neutral' }; });\n}\n\n// Normalise + clamp\nparsed = parsed.map(function(p) {\n  let c = String((p && p.classification) || 'neutral').toLowerCase();\n  if (['productive','neutral','unproductive'].indexOf(c) === -1) c = 'neutral';\n  return { id: p.id, classification: c };\n});\n\nreturn { json: { results: parsed } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ac-v1-0007",
+      "name": "Parse Classifications",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Explode the batch into per-row PATCH items so the next HTTP node\n// runs once per activity.\nconst rows = $input.item.json.results || [];\nreturn rows.map(function(r) { return { json: r }; });",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-ac-v1-0008",
+      "name": "Explode Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 480]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_activity_log?id=eq.{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ classification: $json.classification }) }}",
+        "options": {}
+      },
+      "id": "clx-ac-v1-0009",
+      "name": "Batch Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Unclassified", "type": "main", "index": 0 } ]] },
+    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Fetch Unclassified", "type": "main", "index": 0 } ]] },
+    "Fetch Unclassified":             { "main": [[ { "node": "Split Batches", "type": "main", "index": 0 } ]] },
+    "Split Batches":                  { "main": [[ { "node": "Prep Prompt", "type": "main", "index": 0 } ]] },
+    "Prep Prompt":                    { "main": [[ { "node": "Claude Classify", "type": "main", "index": 0 } ]] },
+    "Claude Classify":                { "main": [[ { "node": "Parse Classifications", "type": "main", "index": 0 } ]] },
+    "Parse Classifications":          { "main": [[ { "node": "Explode Results", "type": "main", "index": 0 } ]] },
+    "Explode Results":                { "main": [[ { "node": "Batch Update", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-activity-classifier-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-activity-classifier-v1",
+  "tags": []
+}

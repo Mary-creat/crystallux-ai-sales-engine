@@ -683,6 +683,42 @@ consulting).
       Schedule Trigger.
 - [ ] Reference: OPERATIONS_HANDBOOK §31.
 
+### Phase 16.2 — Productivity Tier Activation (B.12b-2)
+
+Prerequisite: Tier A (B.12a) active for the client.
+
+- [ ] Apply migration `2026-04-25-productivity-client-facing.sql`.
+- [ ] Verify: `agent_activity_log` + `agent_daily_summary` tables
+      present; `team_members` has 4 consent columns; `clients` has
+      3 productivity tier columns; 4 RPCs present.
+- [ ] Flip tier: run
+      `SELECT enable_productivity_tier('<client-uuid>', 1000);`
+- [ ] Collect agent consent via
+      `docs/operations/PRODUCTIVITY_TRACKING_CONSENT.md` (DocuSign
+      or signed PDF). Store signed forms in
+      `docs/private/client-consent/` (gitignored).
+- [ ] Per agent row:
+      `UPDATE team_members SET productivity_tracking_consent = true,
+      productivity_tracking_consent_at = now(),
+      productivity_tracking_consent_version = '1.0' WHERE id = ...`
+- [ ] Re-import 3 workflows: `clx-activity-tracker-v1.json`,
+      `clx-activity-classifier-v1.json`,
+      `clx-daily-summary-generator-v1.json`. Keep `active: false`.
+- [ ] (Optional) Bind "Anthropic API" credential on the classifier;
+      without it the heuristic fallback still produces useful
+      labels.
+- [ ] Smoke test: POST `/webhook/activity/record` with a seeded
+      event; confirm the response carries `consent: true` and a new
+      `activity_id`. POST `/webhook/productivity/summary/run`;
+      confirm `agent_daily_summary` gets an UPSERTed row.
+- [ ] Dashboard check: Team Productivity renders traffic-light
+      grid for admin; My Productivity renders private self-view
+      for client role.
+- [ ] Go-live: activate the tracker's 15-min Schedule and the
+      summary generator's 23:00 Schedule.
+- [ ] Invoice: +$1,000/mo on top of Tier A.
+- [ ] Reference: OPERATIONS_HANDBOOK §32.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":
