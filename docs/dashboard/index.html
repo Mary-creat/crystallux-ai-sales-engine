@@ -698,6 +698,57 @@ function clientIdFilter()  { return isClientScoped() ? '&client_id=eq.' + encode
 function isOpsMode()     { return window.CLX_ROLE === 'ops'; }
 function isGuestMode()   { return window.CLX_ROLE === 'guest'; }
 
+// ══ Phase 2 — Client isolation: forced query scoping ══
+// Wrapper that forcibly appends &client_id=eq.<current-client-id> to
+// any PostgREST URL when role='client'. Admin and ops roles pass
+// through unmodified. Usage:
+//   const url = clxScopeUrl(SUPABASE_URL + '/rest/v1/leads?select=...');
+// For table names where client_id does not exist (e.g., scan_log,
+// monitoring_thresholds, niche_overlays), callers pass skipScope=true
+// OR the function detects the table via URL regex against a known
+// whitelist and skips scoping automatically.
+const CLX_NON_SCOPED_TABLES = [
+  'scan_log',
+  'dashboard_scan_summary',
+  'monitoring_thresholds',
+  'niche_overlays',
+  'discovery_frameworks',
+  'objection_handlers',
+  'closing_scripts',
+  'proposal_templates',
+  'followup_sequences',
+  'competitor_intelligence'
+];
+
+function clxScopeUrl(url, options) {
+  options = options || {};
+  if (options.skipScope) return url;
+  if (window.CLX_ROLE !== 'client') return url;
+  if (!window.CLX_CLIENT_ID) return url;
+
+  // Detect table name from URL path; non-scoped tables bypass
+  try {
+    const m = String(url).match(/\/rest\/v1\/([a-z_]+)/i);
+    if (m && CLX_NON_SCOPED_TABLES.indexOf(m[1]) !== -1) return url;
+  } catch (e) {}
+
+  // Append &client_id=eq.X preserving existing query string
+  const clause = 'client_id=eq.' + encodeURIComponent(window.CLX_CLIENT_ID);
+  if (url.indexOf('?') === -1) return url + '?' + clause;
+  if (url.indexOf('client_id=') !== -1) return url;  // already filtered by caller
+  return url + '&' + clause;
+}
+
+// Convenience helper that combines scoping + supabaseHeaders. New
+// panels from Phase 3+ should use this instead of raw fetch.
+async function clxFetch(url, init) {
+  init = init || {};
+  init.headers = init.headers || supabaseHeaders();
+  const scoped = clxScopeUrl(url, { skipScope: init.skipScope });
+  const res = await fetch(scoped, init);
+  return res;
+}
+
 async function resolveClientContext() {
   if (isAdminMode()) {
     const banner = document.getElementById('adminBanner');
