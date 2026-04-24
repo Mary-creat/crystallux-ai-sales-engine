@@ -1,0 +1,192 @@
+{
+  "name": "CLX - Route Optimizer v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-route-optimizer",
+        "options": { "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, route_log_id: $('Build Response').first().json.route_log_id, ordered_appointment_ids: $('Build Response').first().json.ordered_appointment_ids, total_km_before: $('Build Response').first().json.total_km_before, total_km_after: $('Build Response').first().json.total_km_after, saved_minutes: $('Build Response').first().json.saved_minutes, error: $('Build Response').first().json.error || null }) }}" }
+      },
+      "id": "clx-rto-v1-0001",
+      "name": "Route Optimizer Webhook (DEACTIVATED)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "clx-rto-v1-0001-webhook",
+      "notes": "DEACTIVATED. Body: { client_id, agent_id (optional), date (ISO, defaults today), token }. Runs haversine nearest-neighbour from the client's base location. No paid map API required."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst client_id = body.client_id || null;\nconst agent_id = body.agent_id || null;\nconst date = body.date || new Date().toISOString().slice(0, 10);\nif (!client_id) return { json: { _error: true, error: 'client_id required', ok: false } };\nreturn { json: { client_id, agent_id, date } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rto-v1-0002",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.{{ $json.client_id }}&select=id,base_latitude,base_longitude,travel_optimization_enabled,preferred_drive_speed_kmh&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-rto-v1-0003",
+      "name": "Fetch Client Anchor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const arr = $input.item.json || [];\nconst c = Array.isArray(arr) && arr.length > 0 ? arr[0] : null;\nconst parsed = $('Parse Input').first().json;\nif (!c) return { json: { _error: true, error: 'client not found', ok: false } };\nif (!c.travel_optimization_enabled) return { json: { _skip: true, reason: 'travel_optimization_enabled=false', ok: false, client_id: parsed.client_id } };\nreturn { json: Object.assign({}, parsed, { base_latitude: c.base_latitude, base_longitude: c.base_longitude, speed_kmh: c.preferred_drive_speed_kmh || 40 }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rto-v1-0004",
+      "name": "Validate Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_daily_geo_appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id, p_date: $json.date }) }}",
+        "options": {}
+      },
+      "id": "clx-rto-v1-0005",
+      "name": "Fetch Day's Appointments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Haversine nearest-neighbour from base.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst ctx = $('Validate Client').first().json;\nconst speed = ctx.speed_kmh || 40;\n\nfunction haversine(lat1, lon1, lat2, lon2) {\n  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;\n  const R = 6371.0;\n  const toRad = function(x) { return x * Math.PI / 180; };\n  const dLat = toRad(lat2 - lat1);\n  const dLon = toRad(lon2 - lon1);\n  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;\n  return 2 * R * Math.asin(Math.sqrt(a));\n}\n\nconst geo = rows.filter(function(r) { return r.latitude != null && r.longitude != null; });\nif (geo.length < 2) {\n  return { json: { _skip: true, skip_reason: 'fewer than 2 geocoded appointments', ok: false, client_id: ctx.client_id } };\n}\n\n// Baseline ('before'): trust chronological order\nlet kmBefore = 0;\nlet prev = (ctx.base_latitude != null && ctx.base_longitude != null) ? { latitude: ctx.base_latitude, longitude: ctx.base_longitude } : geo[0];\nfor (const r of geo) {\n  const d = haversine(prev.latitude, prev.longitude, r.latitude, r.longitude);\n  if (d != null) kmBefore += d;\n  prev = r;\n}\n\n// Nearest-neighbour ordering starting from base\nconst remaining = geo.slice();\nconst ordered = [];\nlet current = { latitude: ctx.base_latitude, longitude: ctx.base_longitude };\nif (current.latitude == null || current.longitude == null) {\n  current = remaining.shift();\n  ordered.push(current);\n}\nwhile (remaining.length > 0) {\n  let bestIdx = 0, bestD = Infinity;\n  for (let i = 0; i < remaining.length; i++) {\n    const d = haversine(current.latitude, current.longitude, remaining[i].latitude, remaining[i].longitude);\n    if (d != null && d < bestD) { bestD = d; bestIdx = i; }\n  }\n  current = remaining.splice(bestIdx, 1)[0];\n  ordered.push(current);\n}\n\nlet kmAfter = 0;\nlet p2 = (ctx.base_latitude != null && ctx.base_longitude != null) ? { latitude: ctx.base_latitude, longitude: ctx.base_longitude } : ordered[0];\nfor (const r of ordered) {\n  const d = haversine(p2.latitude, p2.longitude, r.latitude, r.longitude);\n  if (d != null) kmAfter += d;\n  p2 = r;\n}\n\nconst minBefore = Math.round((kmBefore / speed) * 60);\nconst minAfter  = Math.round((kmAfter  / speed) * 60);\n\nreturn { json: {\n  ok: true,\n  client_id: ctx.client_id,\n  agent_id: ctx.agent_id,\n  date: ctx.date,\n  ordered_appointment_ids: ordered.map(function(r) { return r.appointment_id; }),\n  route_geometry: ordered.map(function(r) { return [r.latitude, r.longitude]; }),\n  total_km_before: Number(kmBefore.toFixed(2)),\n  total_km_after: Number(kmAfter.toFixed(2)),\n  total_minutes_before: minBefore,\n  total_minutes_after: minAfter,\n  saved_minutes: Math.max(minBefore - minAfter, 0)\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rto-v1-0006",
+      "name": "Haversine Optimize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-rto-if-skip", "leftValue": "={{ $json._skip || false }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-rto-v1-0007",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ node_name: 'route_optimizer', error_code: 'ROUTE_OPT_SKIPPED', error_message: ($json.skip_reason || 'skipped'), severity: 'info', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-rto-v1-0008",
+      "name": "Log ROUTE_OPT_SKIPPED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 320],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/record_route_optimization",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id, p_agent_id: $json.agent_id, p_date: $json.date, p_ordered_appointment_ids: $json.ordered_appointment_ids, p_km_before: $json.total_km_before, p_km_after: $json.total_km_after, p_minutes_before: $json.total_minutes_before, p_minutes_after: $json.total_minutes_after, p_generator_source: 'haversine', p_route_geometry: $json.route_geometry, p_notes: null }) }}",
+        "options": {}
+      },
+      "id": "clx-rto-v1-0009",
+      "name": "Record Route",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build response — unify both IF branches.\nconst ctx = $('Haversine Optimize').first().json || {};\nif (ctx._skip) {\n  return { json: { ok: false, error: ctx.skip_reason || 'skipped' } };\n}\nconst resp = $input.item.json;\nlet route_log_id = null;\nif (typeof resp === 'string') route_log_id = resp;\nelse if (resp && resp.id) route_log_id = resp.id;\nelse if (Array.isArray(resp) && resp.length > 0 && resp[0].record_route_optimization) route_log_id = resp[0].record_route_optimization;\nreturn { json: Object.assign({ ok: true, route_log_id }, {\n  ordered_appointment_ids: ctx.ordered_appointment_ids,\n  total_km_before: ctx.total_km_before,\n  total_km_after: ctx.total_km_after,\n  saved_minutes: ctx.saved_minutes\n}) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-rto-v1-0010",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 480]
+    }
+  ],
+  "connections": {
+    "Route Optimizer Webhook (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
+    "Parse Input":                           { "main": [[ { "node": "Fetch Client Anchor", "type": "main", "index": 0 } ]] },
+    "Fetch Client Anchor":                   { "main": [[ { "node": "Validate Client", "type": "main", "index": 0 } ]] },
+    "Validate Client":                       { "main": [[ { "node": "Fetch Day's Appointments", "type": "main", "index": 0 } ]] },
+    "Fetch Day's Appointments":              { "main": [[ { "node": "Haversine Optimize", "type": "main", "index": 0 } ]] },
+    "Haversine Optimize":                    { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
+    "IF Skip":                               { "main": [[ { "node": "Log ROUTE_OPT_SKIPPED", "type": "main", "index": 0 } ], [ { "node": "Record Route", "type": "main", "index": 0 } ]] },
+    "Log ROUTE_OPT_SKIPPED":                 { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
+    "Record Route":                          { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-route-optimizer-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-route-optimizer-v1",
+  "tags": []
+}

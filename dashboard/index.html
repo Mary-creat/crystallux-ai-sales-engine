@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Crystallux — Universal AI Sales Engine</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Leaflet CSS + JS — loaded for the B.12b-1 Route Optimizer panel. Free OSM tiles; no key required. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 <style>
   :root{
     --primary:#7F77DD;
@@ -825,6 +828,22 @@
     <div class="section-title">Channels Active</div>
     <div id="channelsActiveContent" class="card">
       <div style="color:#718096;">Loading channel status…</div>
+    </div>
+  </section>
+
+  <!-- SECTION: ROUTE OPTIMIZER MAP (B.12b-1 — admin + client roles) -->
+  <section class="section" id="routeMapSection" style="display:none">
+    <div class="section-title">Route Optimizer <span class="clx-scaffold-badge planned" style="font-size:11px">Dormant — needs client.travel_optimization_enabled=true</span></div>
+    <div class="card" style="padding:0">
+      <div style="padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafc;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="rmClientId" type="text" placeholder="Client id" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <input id="rmDate" type="date" style="padding:6px 10px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px" />
+        <button id="rmLoadBtn" style="padding:6px 14px;background:#3182ce;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Load route</button>
+        <button id="rmOptimizeBtn" style="padding:6px 14px;background:#4a5568;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer">Optimize</button>
+      </div>
+      <div id="rmStats" style="padding:10px 12px;border-bottom:1px solid #edf2f7;font-size:13px;color:#2d3748"></div>
+      <div id="rmMap" style="height:360px;background:#f7fafc;border-bottom:1px solid #edf2f7"></div>
+      <div id="rmStopList" style="padding:12px;min-height:80px"></div>
     </div>
   </section>
 
@@ -3533,6 +3552,153 @@ async function regenerateTodaysPlan() {
   }
 }
 
+// ══ B.12b-1 — Route Optimizer map (admin + client) ═════════════════
+// Renders today's geocoded appointments on a Leaflet map + ordered
+// stop list. "Optimize" POSTs to clx-route-optimizer-v1 webhook which
+// runs haversine nearest-neighbour server-side, writes
+// travel_optimization_log, and returns the ordered ids + geometry.
+var __rmMap = null;
+var __rmLayer = null;
+
+function initRouteMap() {
+  var section = document.getElementById('routeMapSection');
+  if (!section) return;
+  var role = window.CLX_ROLE;
+  if (role !== 'admin' && role !== 'client') { section.style.display = 'none'; return; }
+  section.style.display = '';
+  var dateEl = document.getElementById('rmDate');
+  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+  var idEl = document.getElementById('rmClientId');
+  if (idEl && role === 'client' && clientContext && clientContext.clientId) { idEl.value = clientContext.clientId; idEl.readOnly = true; }
+  var loadBtn = document.getElementById('rmLoadBtn');
+  if (loadBtn) loadBtn.addEventListener('click', loadRouteMap);
+  var optBtn = document.getElementById('rmOptimizeBtn');
+  if (optBtn) optBtn.addEventListener('click', optimizeRoute);
+}
+
+function ensureMap() {
+  if (typeof L === 'undefined') return null;
+  if (__rmMap) return __rmMap;
+  var container = document.getElementById('rmMap');
+  if (!container) return null;
+  __rmMap = L.map('rmMap').setView([43.6532, -79.3832], 11); // Toronto default
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 18
+  }).addTo(__rmMap);
+  return __rmMap;
+}
+
+async function loadRouteMap() {
+  var stats = document.getElementById('rmStats');
+  var stopList = document.getElementById('rmStopList');
+  if (!hasSupabase()) {
+    if (stats) stats.innerHTML = '<span style="color:#c53030">Paste Supabase anon key in Settings.</span>';
+    return;
+  }
+  var client_id = (document.getElementById('rmClientId') || {}).value || '';
+  var date = (document.getElementById('rmDate') || {}).value || new Date().toISOString().slice(0, 10);
+  if (!client_id) { if (stats) stats.innerHTML = 'Enter a client id.'; return; }
+  if (stats) stats.innerHTML = 'Loading…';
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/get_daily_geo_appointments', {
+      method: 'POST',
+      headers: Object.assign({}, supabaseHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ p_client_id: client_id, p_date: date })
+    });
+    if (!res.ok) {
+      if (stats) stats.innerHTML = '<span style="color:#c53030">Could not load (status ' + res.status + '). Apply migration 2026-04-24-geographic-optimization.sql first.</span>';
+      return;
+    }
+    var rows = await res.json();
+    renderRouteMap(rows, null);
+    renderStopList(rows);
+  } catch (e) {
+    if (stats) stats.innerHTML = '<span style="color:#c53030">' + FRIENDLY_ERROR + '</span>';
+  }
+}
+
+function renderRouteMap(rows, polyline) {
+  var map = ensureMap();
+  var stats = document.getElementById('rmStats');
+  if (!map) {
+    if (stats) stats.innerHTML = '<span style="color:#c53030">Leaflet not loaded. Refresh the page.</span>';
+    return;
+  }
+  if (__rmLayer) { map.removeLayer(__rmLayer); __rmLayer = null; }
+  var geo = (rows || []).filter(function(r) { return r.latitude != null && r.longitude != null; });
+  if (stats) {
+    stats.innerHTML = geo.length + ' of ' + (rows || []).length + ' appointments geocoded'
+      + (polyline ? (' · optimized route rendered') : '');
+  }
+  if (geo.length === 0) return;
+  var markers = geo.map(function(r, i) {
+    return L.marker([r.latitude, r.longitude]).bindPopup(
+      '<strong>#' + (i + 1) + ' ' + escapeHtml(r.lead_name || '') + '</strong><br>'
+      + escapeHtml(r.address_line || r.city || '') + '<br>'
+      + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString() : '')
+    );
+  });
+  var layerGroup = L.layerGroup(markers);
+  if (polyline && Array.isArray(polyline) && polyline.length > 1) {
+    layerGroup.addLayer(L.polyline(polyline, { color: '#3182ce', weight: 3, opacity: 0.8 }));
+  }
+  __rmLayer = layerGroup.addTo(map);
+  var bounds = L.latLngBounds(geo.map(function(r) { return [r.latitude, r.longitude]; }));
+  map.fitBounds(bounds, { padding: [24, 24] });
+}
+
+function renderStopList(rows) {
+  var listEl = document.getElementById('rmStopList');
+  if (!listEl) return;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    listEl.innerHTML = '<div style="color:#718096;font-size:13px">No appointments for this day.</div>';
+    return;
+  }
+  listEl.innerHTML = rows.map(function(r, i) {
+    var start = r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    var dist = r.drive_distance_km != null ? (r.drive_distance_km + ' km') : '';
+    var tt = r.travel_time_prev_min != null ? (r.travel_time_prev_min + ' min') : '';
+    var sep = (dist || tt) ? ' · ' + [dist, tt].filter(Boolean).join(' / ') : '';
+    return '<div style="padding:8px 0;border-top:1px solid #edf2f7;display:flex;gap:10px;font-size:13px">'
+      + '<div style="min-width:32px;font-weight:700;color:#3182ce">#' + (i + 1) + '</div>'
+      + '<div style="flex:1"><div>' + escapeHtml(r.lead_name || '(lead)') + ' · ' + start + sep + '</div>'
+      + '<div style="font-size:11px;color:#718096">' + escapeHtml(r.address_line || r.city || '—') + '</div></div>'
+      + '</div>';
+  }).join('');
+}
+
+async function optimizeRoute() {
+  var stats = document.getElementById('rmStats');
+  var client_id = (document.getElementById('rmClientId') || {}).value || '';
+  var date = (document.getElementById('rmDate') || {}).value || new Date().toISOString().slice(0, 10);
+  if (!client_id) { if (stats) stats.innerHTML = 'Enter a client id.'; return; }
+  if (stats) stats.innerHTML = 'Optimizing via clx-route-optimizer-v1…';
+  try {
+    var webhookUrl = (window.CLX_N8N_BASE || '') + '/webhook/clx-route-optimizer';
+    var res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: client_id, date: date, token: (credentials && credentials.supabaseKey) || '' })
+    });
+    if (!res.ok) {
+      if (stats) stats.innerHTML = '<span style="color:#c53030">Optimize call failed (status ' + res.status + '). Activate clx-route-optimizer-v1 in n8n + set window.CLX_N8N_BASE.</span>';
+      return;
+    }
+    var payload = await res.json();
+    if (!payload.ok) {
+      if (stats) stats.innerHTML = '<span style="color:#c53030">' + escapeHtml(payload.error || 'optimize failed') + '</span>';
+      return;
+    }
+    if (stats) stats.innerHTML = 'Saved ' + (payload.saved_minutes || 0) + ' min · '
+      + (payload.total_km_before || 0) + ' km → ' + (payload.total_km_after || 0) + ' km';
+    // Re-fetch to show the new geometry + ordering
+    loadRouteMap();
+  } catch (e) {
+    if (stats) stats.innerHTML = '<span style="color:#c53030">Optimize error: ' + escapeHtml(String(e.message || e)) + '</span>';
+  }
+}
+
 async function fetchAgentScriptPerformance() {
   var bar = document.getElementById('ciUsageBar');
   var stats = document.getElementById('ciUsageStats');
@@ -3569,6 +3735,7 @@ function refreshAll() {
   initClosingIntelligence();
   initYourDay();
   initTodaysPlan();
+  initRouteMap();
   checkApiStatus();
 }
 

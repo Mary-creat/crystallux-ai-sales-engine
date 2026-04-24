@@ -1,0 +1,194 @@
+{
+  "name": "CLX - Appointment Geocoder v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "hours", "hoursInterval": 6 } ] }
+      },
+      "id": "clx-geo-v1-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Every 6h, fetches up to 50 ungeocoded appointments and runs them through Nominatim (OSM, free, no API key). Respect Nominatim's 1 req/sec policy via the throttle node."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clx-appointment-geocoder",
+        "options": { "responseData": "={{ JSON.stringify({ ok: true, processed: $('Update Geocode').all().length }) }}" }
+      },
+      "id": "clx-geo-v1-0002",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560],
+      "webhookId": "clx-geo-v1-0002-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_ungeocoded_appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 50 }) }}",
+        "options": {}
+      },
+      "id": "clx-geo-v1-0003",
+      "name": "Fetch Ungeocoded",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const arr = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn arr.map(function(a) {\n  const addr = [a.address_line, a.city, a.province, a.postal_code, a.country || 'CA'].filter(Boolean).join(', ');\n  return { json: Object.assign({}, a, { query: addr }) };\n});",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-geo-v1-0004",
+      "name": "Prep Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 480]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "clx-geo-v1-0005",
+      "name": "Throttle (Nominatim policy)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [920, 480],
+      "notes": "Nominatim usage policy requires <= 1 req/sec. Kept as a per-item Wait so batch processing respects the ceiling."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://nominatim.openstreetmap.org/search?format=json&limit=1&q={{ encodeURIComponent($json.query) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "crystallux-sales-engine/1.0 (info@crystallux.org)" },
+            { "name": "Accept-Language", "value": "en" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-geo-v1-0006",
+      "name": "Nominatim Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 480],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: To switch to a paid provider (Google Maps, Mapbox), swap this URL + add a credential block. Nominatim is good enough for <=50 geocodes/6h."
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || [];\nconst ctx = $('Prep Queries').item.json;\nif (!Array.isArray(resp) || resp.length === 0) {\n  return { json: Object.assign({}, ctx, { _geocode_missed: true }) };\n}\nconst first = resp[0];\nconst lat = parseFloat(first.lat);\nconst lon = parseFloat(first.lon);\nif (!isFinite(lat) || !isFinite(lon)) {\n  return { json: Object.assign({}, ctx, { _geocode_missed: true }) };\n}\nreturn { json: Object.assign({}, ctx, { latitude: lat, longitude: lon }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-geo-v1-0007",
+      "name": "Parse Geocode",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-geo-if-missed", "leftValue": "={{ $json._geocode_missed || false }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-geo-v1-0008",
+      "name": "IF Missed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1640, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_appointment_geocode",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "params=single-object" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_appointment_id: $json.id, p_latitude: $json.latitude, p_longitude: $json.longitude, p_geocoder: 'nominatim' }) }}",
+        "options": {}
+      },
+      "id": "clx-geo-v1-0009",
+      "name": "Update Geocode",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ node_name: 'appointment_geocoder', error_code: 'GEOCODE_FAILED', error_message: 'No result for appointment ' + $json.id + ' query \"' + String($json.query || '').slice(0, 200) + '\"', severity: 'warning', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-geo-v1-0010",
+      "name": "Log GEOCODE_FAILED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 560],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Ungeocoded", "type": "main", "index": 0 } ]] },
+    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Fetch Ungeocoded", "type": "main", "index": 0 } ]] },
+    "Fetch Ungeocoded":               { "main": [[ { "node": "Prep Queries", "type": "main", "index": 0 } ]] },
+    "Prep Queries":                   { "main": [[ { "node": "Throttle (Nominatim policy)", "type": "main", "index": 0 } ]] },
+    "Throttle (Nominatim policy)":    { "main": [[ { "node": "Nominatim Search", "type": "main", "index": 0 } ]] },
+    "Nominatim Search":               { "main": [[ { "node": "Parse Geocode", "type": "main", "index": 0 } ]] },
+    "Parse Geocode":                  { "main": [[ { "node": "IF Missed", "type": "main", "index": 0 } ]] },
+    "IF Missed":                      { "main": [[ { "node": "Log GEOCODE_FAILED", "type": "main", "index": 0 } ], [ { "node": "Update Geocode", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-appointment-geocoder-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "clx-appointment-geocoder-v1",
+  "tags": []
+}

@@ -648,6 +648,41 @@ for every agent who uses the system.
       Schedule Trigger.
 - [ ] Reference: OPERATIONS_HANDBOOK §30.
 
+### Phase 10d-geo — Geographic Appointment Optimization (B.12b-1)
+
+Enable geocoding + route optimization for clients whose agents travel
+between appointments. No-op for virtual-only verticals (dental,
+consulting).
+
+- [ ] Apply migration `2026-04-24-geographic-optimization.sql`.
+- [ ] Verify: `appointment_log` has 12 new geo columns; `clients`
+      has 6 new geo columns (`base_latitude`, `base_longitude`,
+      `travel_optimization_enabled`, etc.); `travel_optimization_log`
+      table created; 4 RPCs present.
+- [ ] Populate booking workflows (if not already) to copy
+      `leads.{city,province,postal,address}` into
+      `appointment_log.{city,province,postal_code,address_line}`
+      when an appointment is created.
+- [ ] Re-import `workflows/clx-appointment-geocoder-v1.json` and
+      `workflows/clx-route-optimizer-v1.json`. Both stay
+      `active: false`.
+- [ ] For each travelling client: set `base_latitude`,
+      `base_longitude`, `base_address`, and flip
+      `travel_optimization_enabled=true`. Dental / virtual-only
+      clients stay `false`.
+- [ ] First smoke test: POST `/webhook/clx-appointment-geocoder`;
+      confirm up to 50 appointments get `latitude`/`longitude`
+      populated via Nominatim.
+- [ ] Second smoke test: POST `/webhook/clx-route-optimizer` with
+      `{ client_id, date }`; confirm `travel_optimization_log` row
+      lands with saved_minutes > 0 when >=2 stops exist.
+- [ ] Dashboard check: Route Optimizer panel renders the Leaflet
+      map with stop markers; Optimize button re-renders with a
+      blue polyline.
+- [ ] Go-live: activate `clx-appointment-geocoder-v1`'s 6h
+      Schedule Trigger.
+- [ ] Reference: OPERATIONS_HANDBOOK §31.
+
 ### Phase 10e — Weekly rhythm established
 
 Critical — day 1, not "eventually":

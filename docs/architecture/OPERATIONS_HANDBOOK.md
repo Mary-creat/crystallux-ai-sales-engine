@@ -2073,3 +2073,97 @@ button POSTs to the generator webhook; requires
   returns in <200 ms per client on the Supabase free tier.
 - Claude Haiku costs ~$0.002 per plan (1 client). At 10 clients × 250
   working days = ~$5/yr on the Haiku re-rank.
+
+
+## 31. Geographic Appointment Optimization (Phase B.12b-1)
+
+For verticals where agents travel between appointments (insurance
+brokers, real estate, construction, moving services), minimise drive
+time by geocoding each appointment, clustering same-region stops, and
+ordering them via haversine nearest-neighbour from the client's base.
+
+### 31.1 Schema
+
+Migration: `docs/architecture/migrations/2026-04-24-geographic-optimization.sql`
+
+- Extends `appointment_log` with 12 geo columns
+  (`address_line`, `city`, `province`, `postal_code`, `country`,
+  `latitude`, `longitude`, `geocoded_at`, `geocoder`,
+  `travel_time_prev_min`, `drive_distance_km`, `route_batch_id`).
+- Extends `clients` with base coordinates + feature flag
+  (`base_latitude`, `base_longitude`, `base_address`,
+  `travel_optimization_enabled`, `max_daily_km`,
+  `preferred_drive_speed_kmh`).
+- New `travel_optimization_log` — one row per client per agent per
+  day. UNIQUE on `(client_id, agent_id, optimized_for_date)`; ON
+  CONFLICT updates. Stores before/after km + minutes, ordered ids,
+  optional geometry, generator source.
+- RPCs: `get_ungeocoded_appointments`, `update_appointment_geocode`,
+  `get_daily_geo_appointments`, `record_route_optimization`. All
+  SECURITY DEFINER service_role-only.
+
+### 31.2 Workflows
+
+- **`clx-appointment-geocoder-v1`** — every 6 hours fetches up to
+  50 ungeocoded appointments and runs them through Nominatim (OSM,
+  free, no API key required). 1 req/sec throttle via a Wait node
+  respects Nominatim's usage policy. Writes `latitude`/`longitude`
+  back via `update_appointment_geocode`.
+- **`clx-route-optimizer-v1`** — webhook-triggered. Fetches client's
+  base anchor + the day's geocoded appointments, runs haversine
+  nearest-neighbour starting from base, persists the ordering via
+  `record_route_optimization` (which also stamps `route_batch_id`
+  on each appointment row). No paid map API required; swap to
+  Google Directions later if traffic-aware timing is needed.
+
+Both dormant. Nominatim node uses a custom `User-Agent` identifying
+Crystallux per OSM policy.
+
+### 31.3 Dashboard panel
+
+Section `#routeMapSection`, admin + client roles. Leaflet v1.9.4
+loaded from unpkg CDN (free, no key). Two buttons:
+- **Load route** — fetches the day's geocoded stops + renders as
+  markers; shows current ordering (chronological if no optimization
+  row exists yet).
+- **Optimize** — POSTs to `/webhook/clx-route-optimizer`, re-renders
+  with the optimized geometry polyline, shows before/after km + minutes.
+
+Requires `window.CLX_N8N_BASE` set to the n8n origin for the
+Optimize button to reach the webhook.
+
+### 31.4 Activation
+
+1. Apply `2026-04-24-geographic-optimization.sql`.
+2. Per travelling client: `UPDATE clients SET base_latitude=...,
+   base_longitude=..., base_address='...',
+   travel_optimization_enabled=true WHERE id=...`. Sedentary clients
+   (dental, consulting, virtual-only brokers) stay `false` → optimizer
+   short-circuits with `ROUTE_OPT_SKIPPED` info log.
+3. Ensure every `appointment_log` row has at least one of
+   `address_line`, `city`, `postal_code` populated (the booking
+   workflows should copy from `leads.{city,province,postal}`).
+4. Re-import both workflows. Optionally activate the geocoder
+   Schedule Trigger once confident Nominatim latency is acceptable.
+5. Test by calling the optimizer webhook manually; confirm
+   `travel_optimization_log` row lands and each row in
+   `appointment_log` gets a matching `route_batch_id`.
+6. Dashboard: Route Optimizer panel renders map + stop list.
+
+### 31.5 Decommission
+
+- Per client: `UPDATE clients SET travel_optimization_enabled=false`.
+- Globally: deactivate the geocoder's Schedule Trigger; optimizer is
+  webhook-only, so leaving it deactivated is enough.
+
+### 31.6 Cost + policy
+
+- Nominatim is free + no key; usage policy requires <=1 req/sec and
+  a real `User-Agent` identifying the application. We honour both.
+- Leaflet + OSM tiles are free; no key required. For higher quality
+  maps, swap in Mapbox (paid) or Google Maps JS (paid).
+- Haversine nearest-neighbour is O(n²) per day; at 10-15 stops it
+  completes in <5 ms. For larger routes, swap to a Directions API
+  or the Google Maps Optimization service.
+- No PII beyond addresses already on `appointment_log`. RLS
+  service_role-only on `travel_optimization_log`.
