@@ -172,9 +172,110 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1880,
+        2600,
         300
       ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.{{ encodeURIComponent(new Date().toISOString()) }}&affected_verticals=cs.%5B%7B%22vertical%22%3A%22{{ encodeURIComponent($json.vertical || $json.niche || 'insurance_broker') }}%22%7D%5D&select=id,headline,affected_verticals,messaging_angle,suggested_pain_signals,confidence,expires_at&order=processed_at.desc&limit=5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-cr-v2-b9-signals",
+      "name": "Fetch Active Signals For Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "notes": "B.9c addition. Queries market_signals_processed for active, non-expired signals whose affected_verticals JSONB contains the lead's vertical. Returns up to 5 most recent. On failure (market_signals_processed table missing — pre-B.9 DB state), continueOnFail routes through to downstream nodes which gracefully treat empty signals array as no-intelligence-applied."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/client_signal_preferences?client_id=eq.{{ $('Decide Channel').item.json.client_id || '' }}&vertical=eq.{{ encodeURIComponent($('Decide Channel').item.json.vertical || $('Decide Channel').item.json.niche || 'insurance_broker') }}&select=auto_scale_enabled,manual_multiplier_override,max_multiplier_cap,excluded_signal_types&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-cr-v2-b9-prefs",
+      "name": "Fetch Client Signal Preferences",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "notes": "B.9c addition. Client preferences for signal-driven routing. Missing row = apply defaults (auto_scale_enabled=true, max_multiplier_cap=3.0, no excluded types)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Campaign Router v2 — Apply Signal Multiplier (B.9c)\n// Reads active signals (from Fetch Active Signals For Lead), client\n// preferences (from Fetch Client Signal Preferences), and the lead\n// itself (from Decide Channel). Computes:\n//   * max outreach_multiplier across signals affecting this vertical\n//   * best messaging_angle (from the highest-multiplier signal)\n//   * suggested_pain_signals merged from the top signal\n// Gated on client.intelligence_tier_enabled. Non-intelligence clients\n// get the original payload through unchanged with an upsell flag.\n\nconst lead = $('Decide Channel').item.json;\nconst client = lead.clients || {};\nconst signalsRaw = $('Fetch Active Signals For Lead').first() ? $('Fetch Active Signals For Lead').first().json : null;\nconst prefsRaw = $('Fetch Client Signal Preferences').first() ? $('Fetch Client Signal Preferences').first().json : null;\n\nconst signals = Array.isArray(signalsRaw) ? signalsRaw : (signalsRaw && signalsRaw.id ? [signalsRaw] : []);\nconst prefs = Array.isArray(prefsRaw) ? (prefsRaw[0] || null) : (prefsRaw && prefsRaw.client_id ? prefsRaw : null);\nconst defaultPrefs = { auto_scale_enabled: true, manual_multiplier_override: null, max_multiplier_cap: 3.0, excluded_signal_types: [] };\nconst effectivePrefs = prefs || defaultPrefs;\n\n// Intelligence-tier gate: only apply signals to clients on the tier\nconst intelligenceEnabled = client.intelligence_tier_enabled === true || lead.intelligence_tier_enabled === true;\n\nif (!intelligenceEnabled) {\n  return { json: {\n    ...lead,\n    signal_context: null,\n    intelligence_applied: false,\n    intelligence_upsell_opportunity: signals.length > 0\n  } };\n}\n\nif (!effectivePrefs.auto_scale_enabled) {\n  return { json: {\n    ...lead,\n    signal_context: null,\n    intelligence_applied: false,\n    intelligence_reason: 'auto_scale_disabled_by_client'\n  } };\n}\n\n// Filter excluded signal types\nconst excluded = Array.isArray(effectivePrefs.excluded_signal_types) ? effectivePrefs.excluded_signal_types : [];\nconst leadVertical = String(lead.vertical || lead.niche || 'insurance_broker');\n\n// Find highest multiplier + its signal among signals affecting this vertical\nlet maxMultiplier = 1.0;\nlet bestSignal = null;\n\nfor (const s of signals) {\n  if (excluded.includes(s.signal_type)) continue;\n  const verticalsArr = Array.isArray(s.affected_verticals) ? s.affected_verticals : [];\n  const match = verticalsArr.find(av => av && av.vertical === leadVertical);\n  if (!match) continue;\n  const m = Number(match.outreach_multiplier) || 1.0;\n  if (m > maxMultiplier) {\n    maxMultiplier = m;\n    bestSignal = {\n      signal_id: s.id,\n      headline: s.headline,\n      messaging_angle: match.messaging_angle || s.messaging_angle || null,\n      suggested_pain_signals: match.suggested_pain_signals || s.suggested_pain_signals || [],\n      impact: match.impact || null,\n      signal_confidence: s.confidence,\n      multiplier: m\n    };\n  }\n}\n\n// Apply manual override if set, else cap\nconst cap = Number(effectivePrefs.max_multiplier_cap) || 3.0;\nif (effectivePrefs.manual_multiplier_override != null) {\n  maxMultiplier = Number(effectivePrefs.manual_multiplier_override);\n} else if (maxMultiplier > cap) {\n  maxMultiplier = cap;\n}\n\nreturn { json: {\n  ...lead,\n  signal_context: bestSignal,\n  intelligence_applied: true,\n  multiplier_applied: maxMultiplier,\n  original_vertical: leadVertical\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-cr-v2-b9-apply",
+      "name": "Apply Signal Multiplier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_routing_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ signal_id: ($json.signal_context && $json.signal_context.signal_id) || null, client_id: $json.client_id || null, vertical: $json.original_vertical || $json.vertical || null, original_outreach_volume: null, adjusted_outreach_volume: null, multiplier_applied: $json.multiplier_applied || 1.0, messaging_angle_used: ($json.signal_context && $json.signal_context.messaging_angle) || null, lead_count_affected: 1, decision_made_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-cr-v2-b9-log",
+      "name": "Log Signal Routing Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        460
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "notes": "B.9c addition. Writes to signal_routing_log only when intelligence_applied=true. Parallel to Prep Update Campaign so the insert doesn't block the main flow."
     },
     {
       "parameters": {
@@ -319,6 +420,44 @@
     "Decide Channel": {
       "main": [
         [
+          {
+            "node": "Fetch Active Signals For Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Signals For Lead": {
+      "main": [
+        [
+          {
+            "node": "Fetch Client Signal Preferences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Client Signal Preferences": {
+      "main": [
+        [
+          {
+            "node": "Apply Signal Multiplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Signal Multiplier": {
+      "main": [
+        [
+          {
+            "node": "Log Signal Routing Decision",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Prep Update Campaign",
             "type": "main",

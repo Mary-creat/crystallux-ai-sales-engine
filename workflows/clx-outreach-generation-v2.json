@@ -156,6 +156,51 @@
     },
     {
       "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.{{ encodeURIComponent(new Date().toISOString()) }}&affected_verticals=cs.%5B%7B%22vertical%22%3A%22{{ encodeURIComponent(($('Wait').item.json.vertical) || ($('Wait').item.json.niche) || 'insurance_broker') }}%22%7D%5D&select=id,headline,summary,affected_verticals,messaging_angle,suggested_pain_signals,confidence,expires_at&order=processed_at.desc&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-og-v2-b9-fetch-signal",
+      "name": "Fetch Signal For Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
+      },
+      "notes": "B.9c addition. Refetches the single highest-priority active signal for this lead's vertical at generation time. Graceful fallback: failure or empty result -> the Merge Signal Context node keeps the overlay prompt unchanged."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Outreach Generation v2 — Merge Signal Context (B.9c)\n// Reads the single active signal (if any) and the overlay from the\n// previous Merge Segment Overlay step. If the client has\n// intelligence_tier_enabled and a signal affects this vertical,\n// append a MARKET CONTEXT stanza to the overlay's\n// claude_system_prompt. Pass-through in every other case — this is\n// backward-compatible with all pre-B.9 outreach flows.\n\nconst signalRows = $input.item.json;\nconst overlay = $('Merge Segment Overlay').first().json || null;\nconst lead = $('Wait').item.json || {};\nconst client = lead.clients || {};\n\nconst signals = Array.isArray(signalRows) ? signalRows : (signalRows && signalRows.id ? [signalRows] : []);\nconst intelligenceEnabled = client.intelligence_tier_enabled === true\n  || lead.intelligence_tier_enabled === true;\n\n// Pass through if intelligence not enabled or no signal present or\n// overlay missing its prompt field (shouldn't happen post-Merge\n// Segment Overlay, but defensive)\nif (!intelligenceEnabled || signals.length === 0) {\n  return { json: overlay };\n}\n\nconst signal = signals[0];\nconst leadVertical = String(lead.vertical || lead.niche || 'insurance_broker');\nconst verticalsArr = Array.isArray(signal.affected_verticals) ? signal.affected_verticals : [];\nconst match = verticalsArr.find(av => av && av.vertical === leadVertical);\n\nif (!match) {\n  return { json: overlay };\n}\n\nconst messaging = (match.messaging_angle || signal.messaging_angle || '').trim();\nconst suggestedPains = Array.isArray(match.suggested_pain_signals) ? match.suggested_pain_signals\n  : (Array.isArray(signal.suggested_pain_signals) ? signal.suggested_pain_signals : []);\n\nif (!messaging && suggestedPains.length === 0) {\n  return { json: overlay };\n}\n\nconst blockLines = [\n  '',\n  'MARKET CONTEXT (recent signal — apply naturally only if it fits this specific lead):',\n  'Headline: ' + (signal.headline || ''),\n  (signal.summary ? ('Summary: ' + signal.summary) : ''),\n  (messaging ? ('Suggested framing: ' + messaging) : ''),\n  (suggestedPains.length ? ('Pain points this signal creates: ' + suggestedPains.join(', ')) : ''),\n  '',\n  'IMPORTANT:',\n  '- Weave this market context into the outreach naturally if it makes sense for this lead and company.',\n  '- Do NOT mention the signal by headline or source — use it as framing, not as content.',\n  '- If the signal does not specifically affect this lead, ignore it and use the static pain signals from the overlay.',\n  '- Peer-advisor tone always wins over \"current events\" framing.'\n].filter(Boolean).join('\\n');\n\nconst nextOverlay = Object.assign({}, overlay || {});\nnextOverlay.claude_system_prompt = String(nextOverlay.claude_system_prompt || '') + '\\n' + blockLines;\nnextOverlay._intelligence_signal_id = signal.id;\nnextOverlay._intelligence_applied = true;\n\nreturn { json: nextOverlay };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-og-v2-b9-merge-signal",
+      "name": "Merge Signal Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "jsCode": "// CLX Outreach Generation v2 — Build Outreach Prompt (niche-aware)\n// Reads lead from Wait (preserves all fields). Reads niche overlay from previous HTTP.\n// Falls back to generic prompt when no overlay row is returned.\n\nconst lead = $('Wait').item.json || {};\nconst rawOverlay = $input.item.json;\n\nlet overlay = null;\nif (Array.isArray(rawOverlay) && rawOverlay.length > 0) {\n  overlay = rawOverlay[0];\n} else if (rawOverlay && typeof rawOverlay === 'object' && rawOverlay.claude_system_prompt) {\n  overlay = rawOverlay;\n}\n\nlet prompt;\n\nif (overlay && overlay.claude_system_prompt) {\n  const sysPrompt = overlay.claude_system_prompt;\n  const tone = overlay.outreach_tone || '';\n  const painSignals = Array.isArray(overlay.pain_signals) ? overlay.pain_signals : [];\n  const offer = overlay.offer_mapping || {};\n  const primary = offer.primary_offer || {};\n  const foundingPrice = primary.founding_price || 1997;\n  const targetOutcome = primary.target_outcome || '20-30 qualified prospect meetings per month';\n\n  const lines = [\n    sysPrompt,\n    '',\n    'WRITING TONE:',\n    tone,\n    '',\n    'LEAD CONTEXT:',\n    'Name: ' + (lead.full_name || ''),\n    'Company: ' + (lead.company || ''),\n    'Job Title: ' + (lead.job_title || ''),\n    'City: ' + (lead.city || ''),\n    'Vertical: ' + (lead.vertical || lead.industry || ''),\n    'Research Summary: ' + (lead.research_summary || ''),\n    'Likely Business Need: ' + (lead.likely_business_need || ''),\n    'Research Angle: ' + (lead.research_angle || ''),\n    'Detected Signal: ' + (lead.detected_signal || ''),\n    'Growth Stage: ' + (lead.growth_stage || ''),\n    'Campaign: ' + (lead.campaign_name || ''),\n    '',\n    'KNOWN PAIN SIGNALS FOR THIS VERTICAL (reference ONE that matches the lead naturally):',\n    painSignals.map(function(p) { return '- ' + p; }).join('\\n'),\n    '',\n    'OFFER TO INCLUDE:',\n    'Founding client price: $' + foundingPrice + '/month locked for 12 months',\n    'Target outcome: ' + targetOutcome,\n    'Guarantee: 10 qualified discovery meetings within 60 days or money back',\n    '',\n    'CALL TO ACTION:',\n    'Invite them to a 20-minute discovery call. Low commitment. No slide deck, no pressure.',\n    '',\n    'EMAIL STRUCTURE (3 short paragraphs, peer-advisor voice, not SaaS-vendor voice):',\n    'P1: Specific observation from research (company, website, city). Name at least one detail that proves you looked.',\n    'P2: Connect the observation to one pain signal from the vertical list. Introduce the offer ($' + foundingPrice + '/mo founding, 12-month lock, 10-meeting guarantee) in one sentence, framed peer-to-peer.',\n    'P3: 20-minute discovery call invite. Low friction. Suggest this week or next.',\n    '',\n    'STRICT RULES:',\n    'Never sound like a tech vendor. Write as a peer advisor who happens to build software.',\n    'Never use bullet points or dashes.',\n    'Use natural contractions. Short sentences. Conversational rhythm.',\n    'Maximum 140 words in email_body.',\n    'Do NOT include the subject line inside the HTML body.',\n    'Subject line: under 8 words, no trailing punctuation, industry-specific hook.',\n    '',\n    'EMAIL BODY FORMAT (valid inline-styled HTML):',\n    '<div style=\"font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #333333; max-width: 600px;\">',\n    '  <p style=\"margin: 0 0 16px 0;\">[P1: research-specific observation]</p>',\n    '  <p style=\"margin: 0 0 16px 0;\">[P2: pain signal + offer + guarantee]</p>',\n    '  <p style=\"margin: 0 0 16px 0;\">[P3: 20-min discovery call ask]</p>',\n    '  <p style=\"margin: 24px 0 0 0; color: #333333;\">Best regards,<br><strong>Mary Akintunde</strong><br><span style=\"color: #666666; font-size: 13px;\">Founder, Crystallux</span><br><span style=\"color: #666666; font-size: 13px;\">info@crystallux.org | crystallux.org</span></p>',\n    '</div>',\n    '',\n    'Return ONLY raw JSON with no explanation no markdown no code blocks:',\n    '{',\n    '  \"email_subject\": \"industry-specific hook under 8 words\",',\n    '  \"email_body\": \"HTML email body using the template above\",',\n    '  \"linkedin_message\": \"peer-advisor connection request under 250 characters\",',\n    '  \"whatsapp_message\": \"casual peer message under 100 words\",',\n    '  \"followup_message\": \"HTML follow up email referencing the first\",',\n    '  \"outreach_angle\": \"one sentence describing the research hook and pain signal used\",',\n    '  \"personalization_score\": 8',\n    '}'\n  ];\n  prompt = lines.join('\\n');\n} else {\n  const lines = [\n    'You are an expert B2B sales copywriter. Your job is to write highly personalized outreach messages that feel genuinely human and researched.',\n    '',\n    'CRITICAL WRITING RULES:',\n    'Write exactly like a real human professional would write.',\n    'Never use dashes hyphens or bullet points anywhere in any message.',\n    'Write in natural flowing sentences and paragraphs.',\n    'Write with natural contractions. Sound like a real person.',\n    'Sound warm and genuinely curious not salesy.',\n    'Read like a personal note not a marketing email.',\n    'The reader should feel like you know them personally.',\n    'Short sentences. Conversational rhythm. Real words.',\n    '',\n    'Lead Intelligence:',\n    'Name: ' + (lead.full_name || ''),\n    'Company: ' + (lead.company || ''),\n    'Industry: ' + (lead.industry || ''),\n    'Job Title: ' + (lead.job_title || ''),\n    'City: ' + (lead.city || ''),\n    'Research Summary: ' + (lead.research_summary || ''),\n    'Likely Business Need: ' + (lead.likely_business_need || ''),\n    'Research Angle: ' + (lead.research_angle || ''),\n    'Campaign: ' + (lead.campaign_name || ''),\n    'Value Proposition: ' + (lead.campaign_value_proposition || ''),\n    'Pain Point: ' + (lead.campaign_pain_point || ''),\n    'Call To Action: ' + (lead.campaign_call_to_action || ''),\n    'Tone: ' + (lead.campaign_tone || ''),\n    '',\n    'General rules:',\n    'Never use generic openers like I hope this finds you well.',\n    'Reference something specific about their company or industry.',\n    'Every message must feel like it was written specifically for this person.',\n    'End every message with a soft clear call to action.',\n    'Never mention Crystallux by name. Position as their solution.',\n    '',\n    'Email subject line: under 8 words, no punctuation at the end, intriguing not salesy.',\n    '',\n    'EMAIL BODY FORMAT — MUST be valid HTML:',\n    'Use this exact HTML template structure:',\n    '<div style=\"font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #333333; max-width: 600px;\">',\n    '  <p style=\"margin: 0 0 16px 0;\">First paragraph — one specific observation about their business.</p>',\n    '  <p style=\"margin: 0 0 16px 0;\">Second paragraph — one clear relevant value statement.</p>',\n    '  <p style=\"margin: 0 0 16px 0;\">Third paragraph — one soft call to action.</p>',\n    '  <p style=\"margin: 24px 0 0 0; color: #333333;\">Best regards,<br><strong>Mary Akintunde</strong><br><span style=\"color: #666666; font-size: 13px;\">Founder, Crystallux</span><br><span style=\"color: #666666; font-size: 13px;\">info@crystallux.org | crystallux.org</span></p>',\n    '</div>',\n    '',\n    'Maximum 120 words in the email body.',\n    'Three short paragraphs maximum.',\n    'The HTML must be clean and inline-styled for email clients.',\n    'Do NOT include the subject line in the HTML body.',\n    '',\n    'LinkedIn message rules:',\n    'Sound like a genuine connection request.',\n    'Reference one specific thing about their work.',\n    'No pitch in the first message.',\n    'Under 250 characters.',\n    '',\n    'WhatsApp message rules:',\n    'Sound like texting a warm contact.',\n    'Casual and friendly tone.',\n    'Under 100 words.',\n    '',\n    'Follow up message: Use same HTML template as email body. Reference the first outreach naturally, keep it short and human.',\n    '',\n    'Return ONLY raw JSON with no explanation no markdown no code blocks:',\n    '{',\n    '  \"email_subject\": \"compelling subject line under 8 words\",',\n    '  \"email_body\": \"full HTML email body using the template above\",',\n    '  \"linkedin_message\": \"genuine connection request under 250 characters\",',\n    '  \"whatsapp_message\": \"casual warm message under 100 words\",',\n    '  \"followup_message\": \"HTML follow up email using same template\",',\n    '  \"outreach_angle\": \"one sentence describing the hook used\",',\n    '  \"personalization_score\": 8',\n    '}'\n  ];\n  prompt = lines.join('\\n');\n}\n\nreturn {\n  json: {\n    ...lead,\n    niche_overlay_applied: !!overlay,\n    prompt: prompt\n  }\n};",
         "mode": "runOnceForEachItem"
       },
@@ -377,6 +422,28 @@
       ]
     },
     "Merge Segment Overlay": {
+      "main": [
+        [
+          {
+            "node": "Fetch Signal For Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Signal For Outreach": {
+      "main": [
+        [
+          {
+            "node": "Merge Signal Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Signal Context": {
       "main": [
         [
           {

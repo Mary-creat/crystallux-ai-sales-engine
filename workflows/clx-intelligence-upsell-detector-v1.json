@@ -1,0 +1,172 @@
+{
+  "name": "CLX - Intelligence Upsell Detector v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 9 * * 0" }
+          ]
+        }
+      },
+      "id": "clx-iud-0001",
+      "name": "Weekly Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Runs Sunday 09:00 in server TZ. Identifies Crystallux clients NOT on Intelligence tier who would have benefited from 3+ active signals this week. Output: one summary email to info@crystallux.org so Mary can follow up with an upsell pitch."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/admin_execute_select",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_query: 'SELECT c.id AS client_id, c.client_name, c.notification_email, c.vertical, COUNT(DISTINCT s.id) AS missed_signals FROM clients c JOIN market_signals_processed s ON s.affected_verticals @> jsonb_build_array(jsonb_build_object(\\'vertical\\', c.vertical)) WHERE COALESCE(c.intelligence_tier_enabled, false) = false AND s.active = true AND s.expires_at > NOW() AND s.processed_at > NOW() - INTERVAL \\'7 days\\' GROUP BY c.id, c.client_name, c.notification_email, c.vertical HAVING COUNT(DISTINCT s.id) >= 3 ORDER BY missed_signals DESC LIMIT 50' }) }}",
+        "options": {}
+      },
+      "id": "clx-iud-0002",
+      "name": "Query Missed Signal Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        400
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "notes": "Uses admin_execute_select RPC (from admin-copilot migration) as a SELECT-safe executor. Returns clients with 3+ signals in the past week where intelligence_tier_enabled=false."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Intelligence Upsell Detector v1 — Build summary email\n// Takes the result of Query Missed Signal Clients and composes one\n// Gmail send to info@crystallux.org summarising upsell candidates.\n// TESTING MODE preserved: routes through the same\n// adesholaakintunde+clxtest@gmail.com redirect as other senders.\n\nconst rows = $input.item.json;\nconst candidates = Array.isArray(rows) ? rows : [];\n\nif (candidates.length === 0) {\n  return { json: { _skip: true, reason: 'no_upsell_candidates_this_week' } };\n}\n\nconst today = new Date().toISOString().split('T')[0];\nconst subject = 'Crystallux upsell alert: ' + candidates.length + ' clients missed high-impact signals this week';\nconst to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE — remove before production\nconst fromName = 'Crystallux Intelligence';\nconst fromEmail = 'info@crystallux.org';\n\nconst rowsHtml = candidates.map(c => {\n  return '<tr><td style=\"padding:8px;border-bottom:1px solid #eee;\">' + (c.client_name || '—') + '</td>' +\n    '<td style=\"padding:8px;border-bottom:1px solid #eee;\">' + (c.vertical || '—') + '</td>' +\n    '<td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">' + (c.missed_signals || 0) + '</td></tr>';\n}).join('');\n\nconst htmlBody = [\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;max-width:620px;margin:0 auto;color:#1a202c;\">',\n  '  <h2 style=\"color:#2563eb;\">' + candidates.length + ' Intelligence-tier upsell opportunities</h2>',\n  '  <p>Clients who would have benefited from the Market Intelligence tier this past week. Each had 3+ active signals affecting their vertical. Consider reaching out to upgrade them before next week\\'s signals arrive.</p>',\n  '  <table style=\"width:100%;border-collapse:collapse;margin-top:16px;\">',\n  '    <thead><tr><th style=\"text-align:left;padding:8px;background:#f4f5f9;\">Client</th><th style=\"text-align:left;padding:8px;background:#f4f5f9;\">Vertical</th><th style=\"text-align:right;padding:8px;background:#f4f5f9;\">Missed signals</th></tr></thead>',\n  '    <tbody>' + rowsHtml + '</tbody>',\n  '  </table>',\n  '  <p style=\"margin-top:24px;\"><a href=\"https://crystallux.org/dashboard?token=MARY_MASTER_TOKEN\" style=\"background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;\">Open admin dashboard</a></p>',\n  '  <p style=\"font-size:12px;color:#718096;margin-top:16px;\">Weekly report generated ' + today + ' by clx-intelligence-upsell-detector-v1. To change cadence or disable, open the workflow in n8n.</p>',\n  '</div>'\n].join('\\n');\n\nconst encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=';\nconst mime = [\n  'From: \"' + fromName + '\" <' + fromEmail + '>',\n  'To: ' + to,\n  'Subject: ' + encodedSubject,\n  'MIME-Version: 1.0',\n  'Content-Type: text/html; charset=utf-8',\n  'Content-Transfer-Encoding: 7bit',\n  '',\n  htmlBody\n].join('\\r\\n');\n\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-')\n  .replace(/\\//g, '_')\n  .replace(/=+$/, '');\n\nreturn { json: { gmail_raw: raw, to_address: to, candidate_count: candidates.length } };"
+      },
+      "id": "clx-iud-0003",
+      "name": "Build Upsell Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-iud-cond-skip", "leftValue": "={{ $json._skip }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-iud-0004",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "clx-iud-0005",
+      "name": "No Candidates This Week",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.gmail_raw }) }}",
+        "options": {}
+      },
+      "id": "clx-iud-0006",
+      "name": "Send Upsell Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": { "name": "Gmail" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'crystallux-upsell-detector', action_type: 'feature_question', input_text: 'Weekly intelligence upsell report', panel_context: 'market_intelligence', result_summary: 'Sent upsell summary for ' + ($json.candidate_count || 0) + ' candidates', success: true, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-iud-0007",
+      "name": "Log Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        540
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    }
+  ],
+  "connections": {
+    "Weekly Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Query Missed Signal Clients", "type": "main", "index": 0 } ]] },
+    "Query Missed Signal Clients":           { "main": [[ { "node": "Build Upsell Email", "type": "main", "index": 0 } ]] },
+    "Build Upsell Email":                    { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
+    "IF Skip":                               { "main": [[ { "node": "No Candidates This Week", "type": "main", "index": 0 } ], [ { "node": "Send Upsell Summary", "type": "main", "index": 0 } ]] },
+    "Send Upsell Summary":                   { "main": [[ { "node": "Log Audit", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-intelligence-upsell-detector-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-intelligence-upsell-detector-v1",
+  "tags": []
+}

@@ -1647,3 +1647,161 @@ wiring ships in a future pass.
   original 16 sections render as before. Client-side rollback
   only; RLS migration stays for security regardless.
 
+---
+
+## 27. Market Intelligence Activation (Phase B.9)
+
+The Market Intelligence Engine ingests external market signals
+(news, weather, economic indicators, regulatory feeds), classifies
+them via Claude Sonnet 4.5, and dynamically scales outreach volume +
+messaging per vertical for clients on the Intelligence tier. Ships
+dormant: migration + 3 new workflows + additive edits to Campaign
+Router v2 and Outreach Generation v2.
+
+Pricing: +$2,000/month CAD on top of the base tier.
+
+### 27.1 Free signal sources (recommended starting point, $0/mo)
+
+1. **GDELT** — free, unlimited, no signup. Global news events
+   filtered to Canada + Crystallux verticals via query string.
+2. **Bank of Canada Valet** — free, no signup. FX rates + overnight
+   interest rate observations.
+3. **Statistics Canada** — free, no signup. Monthly indicators (not
+   yet wired in v1 ingestion; placeholder in source list).
+4. **FSRA RSS** — free, no signup. Regulatory feed for Ontario
+   insurance + pension + financial services regulation.
+5. **OpenWeatherMap** — free 1000 calls/day dev tier covers
+   top-5 Canadian cities severe-weather alerts.
+   - Sign up at openweathermap.org
+   - Copy API key → `OPENWEATHER_KEY` in `.env`
+6. **NewsAPI** — free 100 requests/day dev tier covers basic
+   Canadian business news.
+   - Sign up at newsapi.org
+   - Copy API key → `NEWSAPI_KEY` in `.env`
+
+### 27.2 Premium tier (scale past 20 Intelligence clients)
+
+- NewsAPI Business: $449/mo unlimited
+- Google Trends via pytrends server or SerpAPI ($50-200/mo)
+- Consider: Bloomberg, Reuters, Financial Post premium feeds later
+
+### 27.3 Anthropic API
+
+- Already required for other features (outreach gen, copilot)
+- B.9 cost estimate: ~$30-50/mo at 50 Intelligence clients
+- Per signal processed: ~$0.005 (Sonnet 4.5 at 1500 tokens)
+
+### 27.4 n8n credentials
+
+Create with name-only binding (no UUIDs):
+
+- **OpenWeatherMap** — HTTP Query Auth, `appid` param. Bind to the
+  Fetch Source node in `clx-signal-ingestion-v1` when targeting
+  that source (requires editing the URL template; current v1 sends
+  URLs as-is).
+- **NewsAPI** — HTTP Query Auth, `apiKey` param. Same binding
+  pattern.
+- **Anthropic API** — already exists if Copilot workflows are
+  active. Bind to Claude Analyze Signal node in
+  `clx-signal-intelligence-v1`.
+
+### 27.5 Activation order
+
+1. Apply migration `2026-04-24-market-intelligence.sql`
+2. Import 3 new workflows:
+   - `clx-signal-ingestion-v1` (dormant, hourly)
+   - `clx-signal-intelligence-v1` (dormant, every 6h)
+   - `clx-intelligence-upsell-detector-v1` (dormant, weekly Sun 9am)
+3. Re-import modified workflows:
+   - `clx-campaign-router-v2` (B.9c additive: Fetch Active Signals
+     For Lead + Fetch Client Signal Preferences + Apply Signal
+     Multiplier + Log Signal Routing Decision nodes)
+   - `clx-outreach-generation-v2` (B.9c additive: Fetch Signal For
+     Outreach + Merge Signal Context nodes)
+4. Configure API keys in `.env`
+5. Create n8n credentials per §27.4
+6. Manually fire `clx-signal-ingestion-v1` once with GDELT-only to
+   test (remove other sources from Prep Ingestion Targets before
+   first run)
+7. Verify `market_signals_raw` populating
+8. Manually fire `clx-signal-intelligence-v1` once
+9. Verify `market_signals_processed` populating with quality output
+10. Spot-check 5 random processed signals — is Claude's analysis
+    accurate? If hallucinations detected, refine system prompt in
+    Build Claude Prompt node
+11. Activate Schedule Trigger on ingestion workflow
+12. Activate Schedule Trigger on intelligence workflow
+13. Monitor for 7 days before enabling on any real clients
+14. Enable Intelligence tier on beta client:
+    `SELECT enable_intelligence_tier('<client-uuid>'::uuid, 2000.00);`
+15. Monitor that client's outreach for 14 days — does multiplier
+    behaviour match expectation?
+16. Expand to more clients gradually; activate upsell detector only
+    after 3+ Intelligence clients are live
+
+### 27.6 Per-client controls
+
+```sql
+-- Enable tier (auto-creates preferences for all active verticals)
+SELECT enable_intelligence_tier('client-uuid', 2000.00);
+
+-- Disable tier
+SELECT disable_intelligence_tier('client-uuid');
+
+-- Adjust specific preferences
+UPDATE client_signal_preferences
+SET auto_scale_enabled = false
+WHERE client_id = 'client-uuid' AND vertical = 'insurance_broker';
+
+-- Manual multiplier override
+UPDATE client_signal_preferences
+SET manual_multiplier_override = 1.5
+WHERE client_id = 'client-uuid' AND vertical = 'consulting';
+
+-- Exclude signal types
+UPDATE client_signal_preferences
+SET excluded_signal_types = '["seasonal","political"]'::jsonb
+WHERE client_id = 'client-uuid' AND vertical = 'real_estate';
+
+-- Raise the cap (default 3.0)
+UPDATE client_signal_preferences
+SET max_multiplier_cap = 4.0
+WHERE client_id = 'client-uuid' AND vertical = 'dental';
+```
+
+### 27.7 Monitoring thresholds
+
+Seeded in the migration:
+
+- `SIGNAL_INGESTION_FAILED` (warning, 3 in 60min)
+- `SIGNAL_PROCESSING_FAILED` (warning, 3 in 60min)
+- `SIGNAL_API_QUOTA_EXCEEDED` (critical, 1 in 60min)
+- `SIGNAL_HALLUCINATION_DETECTED` (warning, 2 in 1440min / 24h)
+- `HIGH_IMPACT_SIGNAL_DETECTED` (warning, 1 in 60min — triggers
+  Mary's alert email via Error Monitor workflow)
+
+### 27.8 Decommission
+
+```sql
+-- Quick mute per client
+SELECT disable_intelligence_tier('client-uuid');
+
+-- Full decommission: deactivate the 3 new workflows in n8n, then
+-- roll back the migration via the trailing rollback block in
+-- 2026-04-24-market-intelligence.sql. Router + Outreach Gen
+-- fall back gracefully — signal_context becomes null for every
+-- lead and the workflows route as pre-B.9.
+```
+
+### 27.9 Safety defaults
+
+- Max multiplier hard-capped at 5.0 (workflow layer)
+- Per-client cap default 3.0 (client_signal_preferences)
+- Low-confidence + no-impact signals are stored as `active=false`
+  (won't route)
+- Signal prompts explicitly instruct Claude not to hallucinate
+- Messaging angles are guidance, not content — Claude is told never
+  to quote the headline verbatim
+- Client isolation preserved: a signal that affects one client's
+  vertical does not leak to other clients' data. RLS unchanged.
+
