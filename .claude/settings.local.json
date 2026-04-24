@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -c \"import re,sys; s=open\\('docs/architecture/migrations/2026-04-23-multi-channel.sql'\\).read\\(\\); print\\('lines:', s.count\\(chr\\(10\\)\\)\\); print\\('bytes:', len\\(s\\)\\); print\\('CREATE TABLE:', len\\(re.findall\\(r'CREATE TABLE IF NOT EXISTS', s\\)\\)\\); print\\('ALTER TABLE:', len\\(re.findall\\(r'ALTER TABLE', s\\)\\)\\); print\\('CREATE OR REPLACE FUNCTION:', len\\(re.findall\\(r'CREATE OR REPLACE FUNCTION', s\\)\\)\\); print\\('CREATE POLICY:', len\\(re.findall\\(r'CREATE POLICY', s\\)\\)\\); print\\('unterminated DO block test:'\\); import subprocess\")",
-      "Bash(python -c \"s=open\\('docs/architecture/migrations/2026-04-23-multi-channel.sql'\\).read\\(\\); opens=s.count\\('DO \\\\$\\\\$'\\); closes=s.count\\('\\\\$\\\\$;'\\); print\\(f'DO \\\\$\\\\$ opens: {opens}, \\\\$\\\\$; closes: {closes}'\\)\")"
-    ]
-  }
-}
