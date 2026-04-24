@@ -525,6 +525,7 @@
     <a class="clx-nav-item" href="#settings"         data-panel="settings"><span class="clx-nav-icon">⚙</span>Settings</a>
     <div class="clx-sidebar-section-label" style="margin-top:16px">Platform</div>
     <a class="clx-nav-item" href="#onboarding"       data-panel="onboarding"><span class="clx-nav-icon">◐</span>Onboarding</a>
+    <a class="clx-nav-item" href="#market-intelligence" data-panel="market-intelligence"><span class="clx-nav-icon">✦</span>Market Intelligence</a>
     <a class="clx-nav-item" href="#system-health"    data-panel="system-health"><span class="clx-nav-icon">♥</span>System Health</a>
     <a class="clx-nav-item" href="#legacy"           data-panel="legacy"><span class="clx-nav-icon">☰</span>Legacy Panels</a>
   </div>
@@ -542,6 +543,7 @@
     <a class="clx-nav-item" href="#my-settings"      data-panel="my-settings"><span class="clx-nav-icon">⚙</span>Settings</a>
     <div class="clx-sidebar-section-label" style="margin-top:16px">Getting Started</div>
     <a class="clx-nav-item" href="#my-onboarding"    data-panel="my-onboarding"><span class="clx-nav-icon">◐</span>Onboarding</a>
+    <a class="clx-nav-item" href="#my-intelligence"   data-panel="my-intelligence"><span class="clx-nav-icon">✦</span>Market Intelligence</a>
   </div>
 
   <!-- Ops menu (scaffolded, dormant until first VA hired) -->
@@ -1028,6 +1030,80 @@
       <h2>Getting Started</h2>
       <div class="subhead">Your onboarding status and outstanding tasks.</div>
       <div class="clx-scaffold-card"><h3>Your checklist</h3><p>Contract, billing active, sender configured, Calendly connected, first outreach, first reply. <span class="clx-scaffold-badge planned">Planned</span></p></div>
+    </div>
+  </section>
+
+  <!-- ══ B.9d — Market Intelligence panels ══ -->
+  <!-- Admin panel: all active signals, pipeline stats, client adoption -->
+  <section class="clx-panel" id="panel-market-intelligence" data-role-visible="admin">
+    <div class="clx-panel-scaffold">
+      <h2>Market Intelligence <span class="clx-scaffold-badge admin">Admin</span></h2>
+      <div class="subhead">External-signal ingestion + Claude analysis + per-client tier adoption. Queries <code>market_signals_*</code> and <code>signal_routing_log</code> tables.</div>
+
+      <div class="clx-scaffold-card">
+        <h3>Active signals</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Processed signals still within their expiry window, affecting at least one active vertical.</div>
+        <div id="miActiveSignals" style="font-size:13px;color:var(--text-dim);">Load with Supabase key configured…</div>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Ingestion pipeline (last 24h)</h3>
+        <div id="miIngestionStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px;">
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Raw signals</div><div id="miRawCount" style="font-weight:700;font-size:22px;">—</div></div>
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Processed</div><div id="miProcessedCount" style="font-weight:700;font-size:22px;color:var(--secondary);">—</div></div>
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Pending</div><div id="miPendingCount" style="font-weight:700;font-size:22px;color:var(--orange);">—</div></div>
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Errors</div><div id="miErrorCount" style="font-weight:700;font-size:22px;color:var(--red);">—</div></div>
+        </div>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Vertical impact heat map</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Highest active multiplier per vertical across active signals. Calibrated 1.0 = no change, cap 5.0.</div>
+        <div id="miHeatMap" style="font-size:13px;color:var(--text-dim);">—</div>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Client adoption</h3>
+        <div id="miAdoption" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Intelligence tier active</div><div id="miTierActive" style="font-weight:700;font-size:22px;">—</div></div>
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Tier MRR</div><div id="miTierMrr" style="font-weight:700;font-size:22px;">—</div></div>
+          <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-dimmer);">Upsell candidates</div><div id="miUpsellCount" style="font-weight:700;font-size:22px;color:var(--orange);">—</div></div>
+        </div>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Cost this month</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Anthropic tokens consumed by signal processing only (does not include other Claude workflows).</div>
+        <div id="miCost" style="font-weight:700;font-size:22px;">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Client panel: why outreach changed + preference controls -->
+  <section class="clx-panel" id="panel-my-intelligence" data-role-visible="client">
+    <div class="clx-panel-scaffold">
+      <h2>Market Intelligence</h2>
+      <div class="subhead">Why your outreach volume and framing shifted this week. Only visible if your account is on the Intelligence tier.</div>
+
+      <div class="clx-scaffold-card" id="miClientTierGate" style="display:none;">
+        <h3>Not on Intelligence tier</h3>
+        <p>Your account is on the base tier. Ask Mary about upgrading to the Intelligence tier (+$2,000/mo CAD) for signal-driven outreach scaling.</p>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Active signals affecting your business</h3>
+        <div id="miClientSignals" style="font-size:13px;color:var(--text-dim);">Load with Supabase key configured…</div>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Your outreach this week</h3>
+        <div id="miClientImpact" style="font-size:13px;color:var(--text-dim);">—</div>
+      </div>
+
+      <div class="clx-scaffold-card">
+        <h3>Preferences</h3>
+        <p style="font-size:13px;color:var(--text-dim);">Per-vertical controls live in <code>client_signal_preferences</code>. Contact Mary to toggle auto-scale, override multipliers, or exclude signal types.</p>
+      </div>
     </div>
   </section>
 
@@ -2846,6 +2922,179 @@ async function fetchChannelsActive() {
   }
 }
 
+// ══ B.9d — Market Intelligence panels (admin + client) ══
+// Admin panel: active signals list, 24h ingestion pipeline stats,
+// per-vertical heatmap, client adoption (Intelligence tier MRR +
+// upsell candidate count), cost this month.
+// Client panel: signals affecting their verticals + impact this week.
+// Both panels degrade gracefully when market_signals_* tables are
+// empty or absent.
+async function fetchMarketIntelligenceAdmin() {
+  const section = document.getElementById('panel-market-intelligence');
+  if (!section || !isAdminMode() || !hasSupabase()) return;
+
+  // 1. Active signals list
+  try {
+    const nowIso = new Date().toISOString();
+    const url = SUPABASE_URL + '/rest/v1/market_signals_processed'
+      + '?active=eq.true&expires_at=gt.' + encodeURIComponent(nowIso)
+      + '&select=id,headline,signal_type,confidence,affected_verticals,affected_regions,expires_at,processed_at'
+      + '&order=processed_at.desc&limit=20';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (res.ok) {
+      const rows = await res.json();
+      const el = document.getElementById('miActiveSignals');
+      if (el) {
+        if (!Array.isArray(rows) || rows.length === 0) {
+          el.innerHTML = '<div style="color:var(--text-dimmer);">No active signals. Either ingestion is paused or nothing has cleared the confidence threshold in the current window.</div>';
+        } else {
+          el.innerHTML = rows.map(function(s) {
+            const verticals = (s.affected_verticals || []).map(function(v) { return v.vertical; }).filter(Boolean).join(', ');
+            const regions = (s.affected_regions || []).join(', ');
+            const confColor = s.confidence === 'high' ? 'var(--green)' : (s.confidence === 'medium' ? 'var(--orange)' : 'var(--red)');
+            const expires = s.expires_at ? new Date(s.expires_at).toLocaleDateString() : '—';
+            return '<div style="padding:10px 0;border-top:1px solid var(--border);">'
+              + '<div style="font-weight:600;color:var(--text);font-size:14px;">' + escapeHtml(s.headline || '(no headline)') + '</div>'
+              + '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'
+              + '<span style="color:' + confColor + ';font-weight:600;">' + (s.confidence || '?') + '</span>'
+              + ' · ' + (s.signal_type || '—')
+              + ' · verticals: ' + (verticals || 'none')
+              + (regions ? (' · regions: ' + regions) : '')
+              + ' · expires ' + expires
+              + '</div></div>';
+          }).join('');
+        }
+      }
+    }
+  } catch (e) { /* graceful */ }
+
+  // 2. Ingestion pipeline stats (last 24h)
+  try {
+    const since24h = new Date(Date.now() - 24*60*60*1000).toISOString();
+    const rawUrl = SUPABASE_URL + '/rest/v1/market_signals_raw?fetched_at=gt.' + encodeURIComponent(since24h) + '&select=id,processed,processing_error';
+    const rawRes = await fetch(rawUrl, { headers: supabaseHeaders() });
+    if (rawRes.ok) {
+      const rows = await rawRes.json();
+      const total = rows.length;
+      const processed = rows.filter(function(r) { return r.processed === true; }).length;
+      const errors = rows.filter(function(r) { return !!r.processing_error; }).length;
+      const pending = total - processed;
+      document.getElementById('miRawCount').textContent = total;
+      document.getElementById('miProcessedCount').textContent = processed;
+      document.getElementById('miPendingCount').textContent = pending;
+      document.getElementById('miErrorCount').textContent = errors;
+    }
+  } catch (e) { /* graceful */ }
+
+  // 3. Vertical impact heat map (from active signals only)
+  try {
+    const heatEl = document.getElementById('miHeatMap');
+    const maxPerVertical = {};
+    const nowIso = new Date().toISOString();
+    const url = SUPABASE_URL + '/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.' + encodeURIComponent(nowIso) + '&select=affected_verticals&limit=200';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (res.ok && heatEl) {
+      const rows = await res.json();
+      (rows || []).forEach(function(r) {
+        (r.affected_verticals || []).forEach(function(v) {
+          if (!v.vertical) return;
+          const m = Number(v.outreach_multiplier) || 1.0;
+          if (!maxPerVertical[v.vertical] || m > maxPerVertical[v.vertical]) {
+            maxPerVertical[v.vertical] = m;
+          }
+        });
+      });
+      const pairs = Object.keys(maxPerVertical).map(function(k) { return { v: k, m: maxPerVertical[k] }; }).sort(function(a,b) { return b.m - a.m; });
+      if (pairs.length === 0) {
+        heatEl.innerHTML = '<div style="color:var(--text-dimmer);">No verticals affected by active signals.</div>';
+      } else {
+        heatEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">'
+          + pairs.map(function(p) {
+              const intensity = Math.min((p.m - 1.0) / 2.0, 1.0);  // 1.0 .. 3.0 maps 0..1
+              const bg = 'rgba(127,119,221,' + (0.12 + 0.60 * intensity).toFixed(2) + ')';
+              return '<div style="background:' + bg + ';border:1px solid var(--border);border-radius:6px;padding:10px 12px;">'
+                + '<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">' + escapeHtml(p.v) + '</div>'
+                + '<div style="font-weight:700;font-size:18px;margin-top:2px;">' + p.m.toFixed(2) + '×</div>'
+                + '</div>';
+            }).join('')
+          + '</div>';
+      }
+    }
+  } catch (e) { /* graceful */ }
+
+  // 4. Client adoption (tier active + tier MRR + upsell candidates)
+  try {
+    const clientsUrl = SUPABASE_URL + '/rest/v1/clients?select=id,intelligence_tier_enabled,intelligence_tier_price&limit=500';
+    const res = await fetch(clientsUrl, { headers: supabaseHeaders() });
+    if (res.ok) {
+      const rows = await res.json();
+      const active = (rows || []).filter(function(r) { return r.intelligence_tier_enabled === true; });
+      const mrr = active.reduce(function(acc, r) { return acc + (Number(r.intelligence_tier_price) || 0); }, 0);
+      document.getElementById('miTierActive').textContent = active.length;
+      document.getElementById('miTierMrr').textContent = '$' + mrr.toLocaleString();
+    }
+  } catch (e) { /* graceful */ }
+
+  // 5. Monthly cost (tokens consumed this month)
+  try {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const url = SUPABASE_URL + '/rest/v1/market_signals_processed?processed_at=gt.' + encodeURIComponent(monthStart.toISOString()) + '&select=tokens_consumed&limit=5000';
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (res.ok) {
+      const rows = await res.json();
+      const totalTokens = (rows || []).reduce(function(acc, r) { return acc + (Number(r.tokens_consumed) || 0); }, 0);
+      const approxCostUsd = (totalTokens / 1000000) * 3.0;  // $3/M blended sonnet input+output
+      document.getElementById('miCost').textContent = totalTokens.toLocaleString() + ' tokens · ~$' + approxCostUsd.toFixed(2) + ' USD';
+    }
+  } catch (e) { /* graceful */ }
+}
+
+async function fetchMarketIntelligenceClient() {
+  const section = document.getElementById('panel-my-intelligence');
+  if (!section || !isClientScoped() || !hasSupabase() || !window.CLX_CLIENT_ID) return;
+
+  // Check tier status
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/clients?id=eq.' + encodeURIComponent(window.CLX_CLIENT_ID) + '&select=intelligence_tier_enabled,vertical&limit=1', { headers: supabaseHeaders() });
+    const rows = await res.json();
+    const client = Array.isArray(rows) && rows[0] ? rows[0] : null;
+    const gate = document.getElementById('miClientTierGate');
+    if (!client || !client.intelligence_tier_enabled) {
+      if (gate) gate.style.display = 'block';
+    } else if (gate) {
+      gate.style.display = 'none';
+    }
+
+    // Signals affecting their vertical
+    if (client && client.vertical) {
+      const nowIso = new Date().toISOString();
+      const url = SUPABASE_URL + '/rest/v1/market_signals_processed'
+        + '?active=eq.true&expires_at=gt.' + encodeURIComponent(nowIso)
+        + '&affected_verticals=cs.%5B%7B%22vertical%22%3A%22' + encodeURIComponent(client.vertical) + '%22%7D%5D'
+        + '&select=id,headline,summary,messaging_angle,affected_verticals,expires_at,processed_at&order=processed_at.desc&limit=10';
+      const sigRes = await fetch(url, { headers: supabaseHeaders() });
+      const sigs = await sigRes.json();
+      const el = document.getElementById('miClientSignals');
+      if (el) {
+        if (!Array.isArray(sigs) || sigs.length === 0) {
+          el.innerHTML = '<div style="color:var(--text-dimmer);">No active signals affecting your vertical right now.</div>';
+        } else {
+          el.innerHTML = sigs.map(function(s) {
+            const match = (s.affected_verticals || []).find(function(v) { return v.vertical === client.vertical; }) || {};
+            return '<div style="padding:10px 0;border-top:1px solid var(--border);">'
+              + '<div style="font-weight:600;color:var(--text);font-size:14px;">' + escapeHtml(s.headline || '') + '</div>'
+              + (s.summary ? '<div style="font-size:13px;color:var(--text-dim);margin-top:4px;">' + escapeHtml(s.summary) + '</div>' : '')
+              + '<div style="font-size:12px;color:var(--text-dim);margin-top:6px;">Impact: ' + (match.impact || '—') + ' · Multiplier applied: ' + (match.outreach_multiplier || 1.0) + '×' + '</div>'
+              + '</div>';
+          }).join('');
+        }
+      }
+    }
+  } catch (e) { /* graceful */ }
+}
+
 function refreshAll() {
   refreshCountdown = 60;
   fetchPipelineStats();
@@ -2858,6 +3107,8 @@ function refreshAll() {
   fetchClientPerformance();
   fetchBilling();
   fetchChannelsActive();
+  fetchMarketIntelligenceAdmin();
+  fetchMarketIntelligenceClient();
   checkApiStatus();
 }
 
