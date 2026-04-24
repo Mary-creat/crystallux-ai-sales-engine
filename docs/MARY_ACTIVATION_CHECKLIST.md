@@ -473,9 +473,214 @@ Three access patterns:
 
 ---
 
-**Done.** When every checkbox above is ticked, Crystallux is live
-across all channels with billing, monitoring, segmentation, and
-dashboard. New-vertical onboarding runs through the queued-seeding
-batch; new channels get added using the same pattern as the existing
-ones (credential by name, active=false import, runbook in
-OPERATIONS_HANDBOOK, per-client flip).
+**Technical launch complete** when every checkbox above is ticked.
+Crystallux is live across all channels with billing, monitoring,
+segmentation, and dashboard. New-vertical onboarding runs through the
+queued-seeding batch; new channels get added using the same pattern
+as the existing ones (credential by name, active=false import,
+runbook in OPERATIONS_HANDBOOK, per-client flip).
+
+**Commercial launch** is Phases 10 and 11 below. These convert the
+technical platform into a revenue-generating business.
+
+---
+
+## Phase 10 — Commercial & Operational Activation
+
+Post-technical-launch work: make Crystallux sellable, supportable, and
+contractually defensible. Estimated 10-15 hours of Mary's time across
+2-3 weeks. Runs in parallel with Phase 11 (Mary's own outreach).
+
+Reference: all files in `docs/commercial/` and `docs/operations/`.
+
+### Phase 10a — Legal foundation (lawyer required, highest priority)
+
+Before signing the first paying client:
+
+- [ ] Engage Canadian business lawyer (Ontario) for bundle review of
+      Contract + ToS + Privacy Policy. Budget $1,000-2,500.
+      Files: `docs/operations/CLIENT_CONTRACT_TEMPLATE.md`,
+      `docs/operations/TERMS_OF_SERVICE.md`,
+      `docs/operations/PRIVACY_POLICY.md`.
+- [ ] Implement lawyer edits to all three documents
+- [ ] Publish finalised Terms of Service at `crystallux.org/terms`
+- [ ] Publish finalised Privacy Policy at `crystallux.org/privacy`
+- [ ] Save contract template as DocuSign (or HelloSign) template with
+      merge fields for per-client customisation
+- [ ] Configure info@crystallux.org as registered privacy contact
+
+### Phase 10b — Website + public presence (designer may be required)
+
+Before launch day:
+
+- [ ] Build crystallux.org landing page from
+      `docs/commercial/LANDING_PAGE_COPY.md` (designer handoff
+      included in the doc)
+- [ ] Build `/pricing` page from `docs/commercial/PRICING_PAGE.md`
+- [ ] Add 3-page site structure: Home, Pricing, Book a Call
+- [ ] Calendly-embedded booking page at `crystallux.org/book-a-call`
+- [ ] LinkedIn company page created per
+      `docs/commercial/LINKEDIN_COMPANY_PAGE.md`
+- [ ] Email signature deployed on info@crystallux.org per
+      `docs/commercial/EMAIL_SIGNATURE.md`
+- [ ] Banner image for LinkedIn + Twitter if applicable
+- [ ] Retire / redirect any legacy MGA content on crystallux.org
+
+### Phase 10c — Sales collateral
+
+Ready to use in first discovery call:
+
+- [ ] PDF of sales one-pager produced from
+      `docs/commercial/SALES_ONE_PAGER.md` (designer exports to PDF)
+- [ ] Demo video recorded per `docs/commercial/DEMO_VIDEO_SCRIPT.md`,
+      password-protected with `founding`, URL captured in:
+      - Pricing page below tier table
+      - Landing page below How It Works
+      - Post-demo email template in `COLD_OUTREACH_TEMPLATES.md`
+      - LinkedIn company page pinned post
+- [ ] Case study template loaded in Google Docs / Notion for use
+      per `docs/commercial/CASE_STUDY_TEMPLATE.md` when first
+      milestone client hits a result
+- [ ] Testimonial collection process documented in Notion per
+      `docs/commercial/TESTIMONIAL_COLLECTION.md`
+
+### Phase 10d — Operational processes live
+
+Before first client onboarding:
+
+- [ ] Auto-responder deployed on info@crystallux.org per
+      `docs/operations/SUPPORT_FLOW.md`
+- [ ] Gmail labels configured: billing, technical, feature-request,
+      account, sales, urgent, defer
+- [ ] Notion / Google Sheet client tracker ready with pipeline stages
+- [ ] Weekly check-in Calendly event + 15-minute template ready
+- [ ] Onboarding call Calendly event + 30-minute template ready
+- [ ] Slack webhook for incident alerts configured against
+      clx-error-monitor-v1
+- [ ] Statuspage.io account created or status.crystallux.org HTML
+      page deployed per `docs/operations/INCIDENT_RESPONSE.md`
+- [ ] VA role posted (OnlineJobs.ph, Upwork, or LinkedIn) if already
+      at 3+ clients
+
+### Phase 10e — Weekly rhythm established
+
+Critical — day 1, not "eventually":
+
+- [ ] Monday + Friday weekly business review time blocked on Mary's
+      calendar per `docs/operations/WEEKLY_BUSINESS_REVIEW.md`
+- [ ] Metrics spreadsheet (Notion or Google Sheet) created with
+      weekly + monthly + quarterly metric definitions
+- [ ] Monthly retrospective file created (gitignored)
+- [ ] Quarterly strategic questions calendar entry set
+
+### Phase 10 exit criteria
+
+- [ ] First contract signed using lawyer-reviewed template
+- [ ] First client onboarded using `ONBOARDING_CALL_SCRIPT.md`
+- [ ] First weekly check-in held using `WEEKLY_CHECK_IN.md`
+- [ ] First support ticket resolved within SLA per `SUPPORT_FLOW.md`
+- [ ] First Stripe invoice paid and reflected in clients.subscription_status
+- [ ] First weekly business review completed end-to-end
+
+---
+
+## Phase 11 — Mary's Own Outreach
+
+Reference: all files in `docs/mary-outreach/`. Runs in parallel with
+Phase 10 — Mary's outreach does not wait for commercial collateral
+to be 100% finalised. Uses `docs/commercial/COLD_OUTREACH_TEMPLATES.md`
+from day 1.
+
+### Phase 11a — HubSpot CRM (Mary's separate setup, flagged here)
+
+Before daily cadence begins:
+
+- [ ] HubSpot CRM account created (free tier)
+- [ ] Pipeline stages configured: Contacted, Replied, Demo Booked,
+      Demo Held, Proposal Sent, POC Active, Closed Won, Closed Lost
+- [ ] Custom fields added per `MARY_TARGET_LIST_BUILDER.md`
+      (source, vertical, CASL consent status, first outreach date,
+      last activity date, deal size, founding/standard tier,
+      objection captured)
+- [ ] Gmail-HubSpot sync enabled
+
+### Phase 11b — Target list + tools
+
+- [ ] LinkedIn Sales Navigator Essentials activated ($99 CAD/mo)
+- [ ] Apollo.io Basic activated (~$65 CAD/mo)
+- [ ] Email verification tool picked and configured (Hunter.io or
+      Neverbounce)
+- [ ] First 30-person target list built in HubSpot per
+      `MARY_TARGET_LIST_BUILDER.md` ICP criteria
+- [ ] CASL consent verified on every target in the list
+
+### Phase 11c — Daily cadence commitment
+
+Non-negotiable. Reference: `DAILY_OUTREACH_CADENCE.md`.
+
+- [ ] 30 minutes blocked daily at a consistent time (recommended:
+      8:30-9:00am ET before client work begins)
+- [ ] Day-1 routine executed: 15 LinkedIn connection requests +
+      5 personalised Email 1 sends + reply handling + HubSpot
+      logging
+- [ ] Daily routine executed for full first week without skip
+- [ ] Weekly touch target of 100 sustained through month 1
+
+### Phase 11d — Launch day (one coordinated day)
+
+Reference: `LAUNCH_ANNOUNCEMENT.md`.
+
+- [ ] Pick launch date (Tuesday or Wednesday, mid-month, not adjacent
+      to holiday)
+- [ ] Pre-launch: 7-14 days ahead, approach 10 amplifiers with the
+      soft ask template
+- [ ] Launch day 9am ET: LinkedIn founder-voice post live
+- [ ] Launch day 10am ET: first batch of network email sends (30-40
+      recipients, BCC)
+- [ ] Launch day 12pm ET: Crystallux company page launch post
+- [ ] Launch day 2pm ET: tag amplifiers
+- [ ] Launch week: respond to every comment + DM within 4 hours
+- [ ] Launch week: 2 additional email batches (~100 total network
+      recipients over 3 days)
+
+### Phase 11e — Referral program (post-month-1 introduction)
+
+Reference: `REFERRAL_PROGRAM.md`.
+
+- [ ] Referral tracking Notion / Google Sheet created
+- [ ] `referred_by` column migration planned (bundle as
+      `2026-04-24-referrals.sql` follow-up migration)
+- [ ] Introduce program during month-2 weekly check-ins with each
+      active client (only if they're happy and hitting metrics)
+- [ ] First referral-sourced client onboarded; free-month credit
+      applied
+
+### Phase 11 exit criteria
+
+- [ ] 2+ paying clients sourced from Mary's own outreach
+- [ ] HubSpot pipeline has 40+ tracked contacts across stages
+- [ ] Weekly outreach volume of 100 touches sustained for 4
+      consecutive weeks
+- [ ] First referral-sourced client signed
+- [ ] Mary reports the daily cadence is sustainable (not burning
+      her out)
+
+---
+
+## Phases 10 + 11 time estimate
+
+Over 2-3 weeks of elapsed time, Mary's actual hours:
+
+- Phase 10 legal foundation: 4-6 hours (most time is lawyer
+  turnaround; Mary's review is light)
+- Phase 10 website + collateral: 6-10 hours (more if no designer)
+- Phase 10 operational processes: 2-3 hours
+- Phase 10 weekly rhythm: 30 min/week ongoing
+- Phase 11 HubSpot setup: 2-3 hours
+- Phase 11 target list + tools: 3-5 hours
+- Phase 11 daily cadence: 30 min/day × 15 business days = 7.5 hours
+- Phase 11 launch day: 4-6 hours (planning + execution + day-of
+  response)
+
+Total Mary hours for Phases 10 + 11: **29-42 hours over 2-3 weeks**,
+plus sustained 30 min/day Phase 11 cadence.
