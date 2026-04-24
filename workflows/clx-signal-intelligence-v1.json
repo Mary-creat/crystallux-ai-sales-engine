@@ -1,0 +1,410 @@
+{
+  "name": "CLX - Signal Intelligence v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 6 }
+          ]
+        }
+      },
+      "id": "clx-sin-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Runs every 6 hours, batches unprocessed raw signals, analyses via Claude Sonnet 4.5, writes to market_signals_processed. Requires ANTHROPIC_API_KEY in .env + 'Anthropic API' credential bound to Claude Analyze node. Cost estimate: ~$0.005 per signal × 50 signals/batch × 4 batches/day = ~$1/day."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?processed=eq.false&fetched_at=lt.{{ encodeURIComponent(new Date(Date.now() - 10 * 60 * 1000).toISOString()) }}&order=fetched_at.asc&select=id,source,external_id,raw_payload,raw_url,fetched_at&limit=50",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-sin-0002",
+      "name": "Fetch Unprocessed Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "notes": "Only selects signals older than 10 min so a still-in-progress ingestion run doesn't get partially processed."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/niche_overlays?is_active=eq.true&select=vertical,niche_display_name,lead_target_type,pain_signals",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clx-sin-0003",
+      "name": "Fetch Active Verticals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 600],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Intelligence v1 — Fan out one item per raw signal\n// Fetch Unprocessed Signals returns an array in a single item; we\n// split it into N items so downstream per-signal processing works.\n// Also passes verticals context alongside (same reference every\n// iteration — Claude prompt builder reads it).\n\nconst signalsRaw = $('Fetch Unprocessed Signals').first().json;\nconst verticalsRaw = $('Fetch Active Verticals').first().json;\n\nconst signals = Array.isArray(signalsRaw) ? signalsRaw : (signalsRaw && signalsRaw.id ? [signalsRaw] : []);\nconst verticals = Array.isArray(verticalsRaw) ? verticalsRaw : [];\n\nif (signals.length === 0) {\n  return [{ json: { _empty: true, reason: 'no_unprocessed_signals' } }];\n}\n\nreturn signals.map(s => ({ json: { signal: s, verticals } }));"
+      },
+      "id": "clx-sin-0004",
+      "name": "Fan Out Signals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-sin-cond-empty", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sin-0005",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [920, 500]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "clx-sin-0006",
+      "name": "Split In Batches (5)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1160, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Intelligence v1 — Build Claude prompt\n// Constructs the system + user prompt Claude receives for a single\n// raw signal. Verticals list comes from the same item (attached in\n// Fan Out). Claude returns JSON that matches the\n// market_signals_processed schema.\n\nconst signal = $json.signal;\nconst verticals = Array.isArray($json.verticals) ? $json.verticals : [];\nconst today = new Date().toISOString().split('T')[0];\n\nconst verticalList = verticals.map(v => {\n  const name = v.vertical || v.niche_name || 'unknown';\n  const targets = v.lead_target_type || 'mixed';\n  return `${name} (targets: ${targets})`;\n}).join(', ');\n\nconst systemPrompt = [\n  'You are a market intelligence analyst for Crystallux, a Canadian B2B lead-generation platform serving these verticals: ' + (verticals.map(v => v.vertical || v.niche_name).filter(Boolean).join(', ') || 'insurance_broker') + '.',\n  '',\n  'Your job: analyse a signal (news article, weather alert, economic indicator, regulatory filing) and determine which verticals it affects, how, and with what urgency.',\n  '',\n  'Output strictly as valid JSON only. No markdown, no preamble, no explanation outside the JSON structure.',\n  '',\n  'Schema:',\n  '{',\n  '  \"signal_type\": \"natural_disaster|economic|regulatory|seasonal|news_event|trend|political|technological\",',\n  '  \"headline\": \"1-line summary under 100 chars\",',\n  '  \"summary\": \"2-3 sentence analysis explaining why this signal matters\",',\n  '  \"affected_regions\": [\"ON\", \"BC\"],',\n  '  \"affected_verticals\": [',\n  '    {',\n  '      \"vertical\": \"insurance_broker\",',\n  '      \"impact\": \"very_high|high|moderate|low|negative\",',\n  '      \"outreach_multiplier\": 1.5,',\n  '      \"messaging_angle\": \"How to frame outreach given this signal. Peer-advisor tone. 1-2 sentences.\",',\n  '      \"suggested_pain_signals\": [\"specific pains this signal creates — strings\"],',\n  '      \"urgency_window_hours\": 168',\n  '    }',\n  '  ],',\n  '  \"decay_time_days\": 7,',\n  '  \"confidence\": \"high|medium|low\"',\n  '}',\n  '',\n  'Rules:',\n  '- Do NOT hallucinate. If the signal is irrelevant to any vertical, return empty affected_verticals array and confidence: low.',\n  '- Be conservative with outreach_multiplier. 1.0 = no change. 2.0 = double outreach. 3.0 = major spike. Reserve 4.0+ for rare existential events.',\n  '- messaging_angle must be specific to Canadian context and peer-advisor tone (short, direct, no jargon).',\n  '- Only include verticals in the active list provided. Reject unknown verticals.',\n  '- Consider regulatory signals (FSRA, CRTC, RIBO, RCDSO) carefully — they can be HIGH impact for specific verticals.',\n  '- Seasonal signals should have 60-90 day decay, not 7.',\n  '- If input looks like an aggregated daily indicator (Bank of Canada observations with minor day-over-day change), default to confidence: low and multiplier near 1.0.'\n].join('\\n');\n\nconst userPrompt = [\n  'Signal to analyze:',\n  'Source: ' + signal.source,\n  'Date: ' + signal.fetched_at,\n  'Raw data: ' + JSON.stringify(signal.raw_payload || {}, null, 2).slice(0, 3000),\n  '',\n  'Current date: ' + today,\n  'Active verticals available: ' + (verticalList || 'insurance_broker (targets: mixed)'),\n  '',\n  'Analyse and return JSON.'\n].join('\\n');\n\nreturn { json: {\n  raw_signal_id: signal.id,\n  source: signal.source,\n  raw_url: signal.raw_url || null,\n  system_prompt: systemPrompt,\n  user_prompt: userPrompt\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sin-0007",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 1500, temperature: 0.3, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_prompt }] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "clx-sin-0008",
+      "name": "Claude Analyze Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 600],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "notes": "TODO: Bind 'Anthropic API' credential (HTTP Header Auth, header name: x-api-key, value: $ANTHROPIC_API_KEY). Same credential bound in clx-copilot-* workflows. No credentials block attached yet."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Intelligence v1 — Parse Claude response\n// Extracts JSON from Claude's text response, strips markdown fences,\n// validates required structure. Failure modes: parse error,\n// empty/unexpected response, missing required keys → mark as\n// needs_review and route to the scan_errors path.\n\nconst resp = $input.item.json || {};\nconst ctx = $('Build Claude Prompt').first().json;\n\nlet textOut = null;\ntry {\n  textOut = (resp.content && resp.content[0] && resp.content[0].text) || null;\n} catch (e) { textOut = null; }\n\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\n\nif (!textOut) {\n  return { json: {\n    raw_signal_id: ctx.raw_signal_id,\n    needs_review: true,\n    parse_error: 'no_text_in_response',\n    raw_response: JSON.stringify(resp).slice(0, 500)\n  } };\n}\n\nconst cleaned = String(textOut).replace(/```json|```/g, '').trim();\nlet parsed = null;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  return { json: {\n    raw_signal_id: ctx.raw_signal_id,\n    needs_review: true,\n    parse_error: e.message,\n    raw_text: cleaned.slice(0, 500)\n  } };\n}\n\n// Schema validation\nif (!parsed.signal_type || !Array.isArray(parsed.affected_verticals)) {\n  return { json: {\n    raw_signal_id: ctx.raw_signal_id,\n    needs_review: true,\n    parse_error: 'missing_required_fields',\n    raw_text: cleaned.slice(0, 500)\n  } };\n}\n\n// Clamp multipliers 0.1 .. 5.0 and impact values\nconst validImpacts = ['very_high','high','moderate','low','negative'];\nconst validSignalTypes = ['natural_disaster','economic','regulatory','seasonal','news_event','trend','political','technological'];\nconst validConfidence = ['high','medium','low'];\n\nif (!validSignalTypes.includes(parsed.signal_type)) {\n  parsed.signal_type = 'news_event';\n}\nif (!validConfidence.includes(parsed.confidence)) {\n  parsed.confidence = 'low';\n}\nparsed.affected_verticals = (parsed.affected_verticals || []).map(v => ({\n  vertical: v.vertical,\n  impact: validImpacts.includes(v.impact) ? v.impact : 'moderate',\n  outreach_multiplier: Math.min(Math.max(Number(v.outreach_multiplier) || 1.0, 0.1), 5.0),\n  messaging_angle: v.messaging_angle || '',\n  suggested_pain_signals: Array.isArray(v.suggested_pain_signals) ? v.suggested_pain_signals : [],\n  urgency_window_hours: Number(v.urgency_window_hours) || 168\n}));\n\nreturn { json: {\n  raw_signal_id: ctx.raw_signal_id,\n  signal_type: parsed.signal_type,\n  headline: (parsed.headline || '(no headline)').slice(0, 500),\n  summary: parsed.summary || null,\n  affected_regions: Array.isArray(parsed.affected_regions) ? parsed.affected_regions : [],\n  affected_verticals: parsed.affected_verticals,\n  messaging_angle: (parsed.affected_verticals[0] && parsed.affected_verticals[0].messaging_angle) || null,\n  suggested_pain_signals: (parsed.affected_verticals[0] && parsed.affected_verticals[0].suggested_pain_signals) || [],\n  decay_time_days: Math.min(Math.max(Number(parsed.decay_time_days) || 30, 1), 180),\n  confidence: parsed.confidence,\n  source_url: ctx.raw_url,\n  claude_model_used: 'claude-sonnet-4-5-20250929',\n  tokens_consumed: tokens,\n  needs_review: false\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sin-0009",
+      "name": "Parse + Validate Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-sin-cond-review", "leftValue": "={{ $json.needs_review }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sin-0010",
+      "name": "IF Needs Review",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2120, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'signal_intelligence_parse', error_code: 'SIGNAL_PROCESSING_FAILED', error_message: 'raw_signal_id=' + $json.raw_signal_id + ' error=' + ($json.parse_error || 'unknown'), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sin-0011",
+      "name": "Log Processing Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 460],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?id=eq.{{ $json.raw_signal_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ processed: true, processing_error: $json.parse_error || 'needs_review' }) }}",
+        "options": {}
+      },
+      "id": "clx-sin-0012",
+      "name": "Mark Raw Processed (Error Path)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2600, 460],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Signal Intelligence v1 — Prep processed row\n// Builds the INSERT body for market_signals_processed. Computes\n// expires_at = now + decay_time_days. Flips active=false for\n// low-confidence signals with no vertical impact (avoids routing on\n// noise).\n\nconst a = $json;\nconst now = new Date();\nconst expiresAt = new Date(now.getTime() + (a.decay_time_days || 30) * 24 * 60 * 60 * 1000);\n\nconst noImpact = !Array.isArray(a.affected_verticals) || a.affected_verticals.length === 0;\nconst active = a.confidence !== 'low' && !noImpact;\n\nconst hasVeryHighImpact = Array.isArray(a.affected_verticals)\n  && a.affected_verticals.some(v => v.impact === 'very_high');\n\nreturn { json: {\n  rpc_body: {\n    raw_signal_id: a.raw_signal_id,\n    signal_type: a.signal_type,\n    headline: a.headline,\n    summary: a.summary,\n    affected_regions: a.affected_regions || [],\n    affected_verticals: a.affected_verticals || [],\n    messaging_angle: a.messaging_angle,\n    suggested_pain_signals: a.suggested_pain_signals || [],\n    decay_time_days: a.decay_time_days || 30,\n    confidence: a.confidence,\n    active,\n    expires_at: expiresAt.toISOString(),\n    source_url: a.source_url,\n    claude_model_used: a.claude_model_used,\n    tokens_consumed: a.tokens_consumed || 0\n  },\n  raw_signal_id: a.raw_signal_id,\n  hasVeryHighImpact,\n  tokens_consumed: a.tokens_consumed || 0\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clx-sin-0013",
+      "name": "Prep Processed Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2360, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rpc_body) }}",
+        "options": {}
+      },
+      "id": "clx-sin-0014",
+      "name": "Insert Processed Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2600, 700],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?id=eq.{{ $json.raw_signal_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ processed: true }) }}",
+        "options": {}
+      },
+      "id": "clx-sin-0015",
+      "name": "Mark Raw Processed (OK Path)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2840, 700],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-sin-cond-high", "leftValue": "={{ $json.hasVeryHighImpact }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sin-0016",
+      "name": "IF Very High Impact",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3080, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'signal_intelligence_very_high_impact', error_code: 'HIGH_IMPACT_SIGNAL_DETECTED', error_message: 'raw_signal_id=' + $json.raw_signal_id + ' — very_high impact flagged. Check dashboard Market Intelligence panel.', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sin-0017",
+      "name": "Alert High Impact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3320, 620],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'crystallux-signal-intelligence', action_type: 'vertical_generated', input_text: 'Signal intelligence batch processed raw_signal_id=' + $json.raw_signal_id, panel_context: 'market_intelligence', generated_content: { tokens: $json.tokens_consumed || 0, cost_estimate_usd: ((($json.tokens_consumed || 0) / 1000000) * 3.0).toFixed(5) }, result_summary: 'ok', success: true, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "clx-sin-0018",
+      "name": "Log Cost + Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3320, 780],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+      },
+      "notes": "Logs to admin_action_log with action_type='vertical_generated' — closest existing enum value. Cost estimate rough: (tokens/1M) × $3/M blended input+output. Actual cost tracking via Anthropic dashboard."
+    },
+    {
+      "parameters": {},
+      "id": "clx-sin-0019",
+      "name": "Batch Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3560, 700]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Unprocessed Signals", "type": "main", "index": 0 }, { "node": "Fetch Active Verticals", "type": "main", "index": 0 } ]] },
+    "Fetch Unprocessed Signals":      { "main": [[ { "node": "Fan Out Signals", "type": "main", "index": 0 } ]] },
+    "Fetch Active Verticals":         { "main": [[ { "node": "Fan Out Signals", "type": "main", "index": 0 } ]] },
+    "Fan Out Signals":                { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Split In Batches (5)", "type": "main", "index": 0 } ]] },
+    "Split In Batches (5)":           { "main": [[], [ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":            { "main": [[ { "node": "Claude Analyze Signal", "type": "main", "index": 0 } ]] },
+    "Claude Analyze Signal":          { "main": [[ { "node": "Parse + Validate Claude", "type": "main", "index": 0 } ]] },
+    "Parse + Validate Claude":        { "main": [[ { "node": "IF Needs Review", "type": "main", "index": 0 } ]] },
+    "IF Needs Review":                { "main": [[ { "node": "Log Processing Failure", "type": "main", "index": 0 } ], [ { "node": "Prep Processed Row", "type": "main", "index": 0 } ]] },
+    "Log Processing Failure":         { "main": [[ { "node": "Mark Raw Processed (Error Path)", "type": "main", "index": 0 } ]] },
+    "Mark Raw Processed (Error Path)":{ "main": [[ { "node": "Batch Continue", "type": "main", "index": 0 } ]] },
+    "Prep Processed Row":             { "main": [[ { "node": "Insert Processed Signal", "type": "main", "index": 0 } ]] },
+    "Insert Processed Signal":        { "main": [[ { "node": "Mark Raw Processed (OK Path)", "type": "main", "index": 0 } ]] },
+    "Mark Raw Processed (OK Path)":   { "main": [[ { "node": "IF Very High Impact", "type": "main", "index": 0 } ]] },
+    "IF Very High Impact":            { "main": [[ { "node": "Alert High Impact", "type": "main", "index": 0 } ], [ { "node": "Log Cost + Audit", "type": "main", "index": 0 } ]] },
+    "Alert High Impact":              { "main": [[ { "node": "Log Cost + Audit", "type": "main", "index": 0 } ]] },
+    "Log Cost + Audit":               { "main": [[ { "node": "Batch Continue", "type": "main", "index": 0 } ]] },
+    "Batch Continue":                 { "main": [[ { "node": "Split In Batches (5)", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "clx-signal-intelligence-v1",
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "id": "clx-signal-intelligence-v1",
+  "tags": []
+}
