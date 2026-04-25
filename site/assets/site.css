@@ -29,10 +29,20 @@
   --text-6xl: 3.75rem;
   --text-7xl: 4.5rem;
 
+  /* Phase 8 display scale (Stripe/Vercel) */
+  --text-display-xl: 4.5rem;    /* 72px hero h1 */
+  --text-display-lg: 3.75rem;   /* 60px section heroes */
+  --text-display-md: 3rem;      /* 48px major section headings */
+  --text-display-sm: 2.25rem;   /* 36px subsection headings */
+
   --leading-tight:   1.1;
   --leading-snug:    1.25;
   --leading-normal:  1.5;
   --leading-relaxed: 1.625;
+
+  --leading-display: 1.05;
+  --leading-heading: 1.2;
+  --leading-body:    1.6;
 
   --tracking-tighter: -0.05em;
   --tracking-tight:   -0.025em;
@@ -40,31 +50,48 @@
   --tracking-wide:    0.025em;
   --tracking-wider:   0.05em;
 
-  /* ─── Brand (violet) ─── */
-  --color-brand-50:  #F5F3FF;
+  --tracking-display:  -0.04em;
+  --tracking-headline: -0.02em;
+  --tracking-body:     0;
+
+  /* ─── Brand (violet). Phase 8 restrained palette. ─── */
+  --color-brand-50:  #F8F7FF;
   --color-brand-100: #EDE9FE;
   --color-brand-200: #DDD6FE;
   --color-brand-300: #C4B5FD;
   --color-brand-400: #A78BFA;
-  --color-brand-500: #8B5CF6;
-  --color-brand-600: #7C3AED;
-  --color-brand-700: #6D28D9;
-  --color-brand-800: #5B21B6;
-  --color-brand-900: #4C1D95;
+  --color-brand-500: #7C3AED;
+  --color-brand-600: #6D28D9;
+  --color-brand-700: #5B21B6;
+  --color-brand-800: #4C1D95;
+  --color-brand-900: #3F1A87;
 
-  /* ─── Neutral ─── */
+  /* ─── Neutral / Zinc gray ramp (Phase 8) ─── */
   --color-neutral-0:   #FFFFFF;
   --color-neutral-50:  #FAFAFA;
-  --color-neutral-100: #F5F5F5;
-  --color-neutral-200: #E5E5E5;
-  --color-neutral-300: #D4D4D4;
-  --color-neutral-400: #A3A3A3;
-  --color-neutral-500: #737373;
-  --color-neutral-600: #525252;
-  --color-neutral-700: #404040;
-  --color-neutral-800: #262626;
-  --color-neutral-900: #171717;
-  --color-neutral-950: #0A0A0A;
+  --color-neutral-100: #F4F4F5;
+  --color-neutral-200: #E4E4E7;
+  --color-neutral-300: #D4D4D8;
+  --color-neutral-400: #A1A1AA;
+  --color-neutral-500: #71717A;
+  --color-neutral-600: #52525B;
+  --color-neutral-700: #3F3F46;
+  --color-neutral-800: #27272A;
+  --color-neutral-900: #18181B;
+  --color-neutral-950: #09090B;
+
+  /* Phase 8 alias names per spec */
+  --color-gray-50:  var(--color-neutral-50);
+  --color-gray-100: var(--color-neutral-100);
+  --color-gray-200: var(--color-neutral-200);
+  --color-gray-300: var(--color-neutral-300);
+  --color-gray-400: var(--color-neutral-400);
+  --color-gray-500: var(--color-neutral-500);
+  --color-gray-600: var(--color-neutral-600);
+  --color-gray-700: var(--color-neutral-700);
+  --color-gray-800: var(--color-neutral-800);
+  --color-gray-900: var(--color-neutral-900);
+  --color-gray-950: var(--color-neutral-950);
 
   /* ─── Semantic ─── */
   --color-success-500: #10B981;
@@ -76,11 +103,18 @@
   --bg-secondary: var(--color-neutral-50);
   --bg-accent:    var(--color-brand-50);
 
+  /* Phase 8 functional aliases */
+  --bg-default:  var(--bg-primary);
+  --bg-subtle:   var(--bg-secondary);
+  --bg-elevated: var(--color-neutral-0);
+
   --text-primary:   var(--color-neutral-900);
   --text-secondary: var(--color-neutral-600);
+  --text-tertiary:  var(--color-neutral-500);
   --text-muted:     var(--color-neutral-500);
   --text-on-brand:  var(--color-neutral-0);
 
+  --border-subtle:   var(--color-neutral-200);
   --border-default:  var(--color-neutral-200);
   --border-emphasis: var(--color-neutral-300);
 
@@ -664,3 +698,321 @@ address { font-style: normal; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHASE 8. Premium SaaS visual layer.
+   Stripe / Vercel / Notion-grade typography, restrained palette,
+   and conversion-focused hero pattern. Loaded last so it overrides
+   the legacy .clx-* baseline above.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Typography overrides on legacy headings ─── */
+.clx-h1 {
+  font-size: var(--text-display-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-display);
+}
+.clx-h2 {
+  font-size: var(--text-display-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-headline);
+  line-height: var(--leading-heading);
+}
+.clx-h3 {
+  font-size: var(--text-display-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-headline);
+  line-height: var(--leading-heading);
+}
+.clx-subhead {
+  font-size: var(--text-xl);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+.clx-lead {
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --text-display-xl: 2.5rem;
+    --text-display-lg: 2.25rem;
+    --text-display-md: 1.875rem;
+    --text-display-sm: 1.5rem;
+  }
+  .clx-h1 { font-size: var(--text-display-xl); }
+  .clx-h2 { font-size: var(--text-display-md); }
+  .clx-h3 { font-size: var(--text-display-sm); }
+}
+
+/* ─── New hero pattern (used by index + industry pages) ─── */
+.hero {
+  padding: var(--space-32) 0 var(--space-24) 0;
+  background: var(--bg-default);
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 70% 0%, var(--color-brand-50) 0%, transparent 50%);
+  z-index: 0;
+  pointer-events: none;
+}
+.hero > .container-xl,
+.hero > .clx-container {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--space-16);
+  align-items: center;
+}
+.hero-content { max-width: 640px; }
+.hero-eyebrow { margin-bottom: var(--space-6); }
+
+.eyebrow-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-brand-50);
+  color: var(--color-brand-700);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-brand-100);
+  letter-spacing: var(--tracking-body);
+}
+
+.hero-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-display-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-display);
+  color: var(--text-primary);
+  margin-bottom: var(--space-6);
+}
+.hero-title-emphasis {
+  background: linear-gradient(135deg, var(--color-brand-500) 0%, var(--color-brand-700) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.hero-subtitle {
+  font-size: var(--text-xl);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+  max-width: 560px;
+  margin-bottom: var(--space-10);
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-bottom: var(--space-12);
+  flex-wrap: wrap;
+}
+
+/* Phase 8 button system (parallel to legacy .clx-btn) */
+.btn-primary,
+.btn-secondary,
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.08s ease;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  padding: var(--space-3) var(--space-5);
+}
+.btn-primary {
+  background: var(--color-brand-500);
+  color: var(--text-on-brand);
+  box-shadow: 0 1px 2px rgba(124, 58, 237, 0.15);
+}
+.btn-primary:hover {
+  background: var(--color-brand-600);
+  color: var(--text-on-brand);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+  transform: translateY(-1px);
+}
+.btn-primary:active { background: var(--color-brand-700); transform: translateY(0); }
+.btn-secondary {
+  background: var(--bg-default);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.btn-secondary:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border-emphasis);
+  color: var(--text-primary);
+}
+.btn-link {
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  padding: var(--space-3) var(--space-2);
+  border: none;
+}
+.btn-link:hover { color: var(--color-brand-600); transform: translateX(2px); }
+.btn-link .arrow-icon,
+.btn-link::after {
+  content: '\2192';
+  font-size: 1.05em;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.btn-link:hover::after { transform: translateX(2px); }
+.btn-lg {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-base);
+}
+
+/* Trust strip below hero */
+.hero-trust {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-6);
+}
+.trust-label {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  font-weight: var(--weight-medium);
+  margin-bottom: var(--space-3);
+  letter-spacing: var(--tracking-body);
+}
+.trust-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.trust-points li {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.trust-points li::before {
+  content: '\2713';
+  color: var(--color-success);
+  font-weight: var(--weight-bold);
+  font-size: 0.95em;
+}
+
+/* Hero visual / mockup (placeholder slot) */
+.hero-visual {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.hero-mockup {
+  width: 100%;
+  max-width: 540px;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(180deg, var(--bg-subtle) 0%, var(--bg-default) 100%);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 24px 48px -12px rgba(24, 24, 27, 0.08), 0 8px 16px -4px rgba(24, 24, 27, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .hero > .container-xl,
+  .hero > .clx-container {
+    grid-template-columns: 1fr;
+    gap: var(--space-10);
+  }
+  .hero-visual { justify-content: flex-start; }
+  .hero-mockup { max-width: 100%; }
+}
+@media (max-width: 768px) {
+  .hero { padding: var(--space-20) 0 var(--space-16); }
+  .hero-title { font-size: var(--text-display-xl); }
+  .hero-subtitle { font-size: var(--text-lg); }
+  .hero-actions { gap: var(--space-3); }
+  .trust-points { gap: var(--space-4); }
+}
+
+/* Refined section background alternation */
+.section-bg-subtle { background: var(--bg-subtle); }
+.section-bg-default { background: var(--bg-default); }
+
+/* Section heading helpers (use alongside .clx-h2 if needed) */
+.section-heading {
+  font-size: var(--text-display-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-headline);
+  line-height: var(--leading-heading);
+  color: var(--text-primary);
+}
+.section-subheading {
+  font-size: var(--text-xl);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+  max-width: 640px;
+}
+
+/* Refine the legacy hero gradient to the restrained Phase 8 background */
+.clx-hero {
+  background: var(--bg-default);
+  position: relative;
+}
+.clx-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 70% 0%, var(--color-brand-50) 0%, transparent 50%);
+  z-index: 0;
+  pointer-events: none;
+}
+.clx-hero > .clx-container { position: relative; z-index: 1; }
+
+/* Restrained vertical hero (industry pages) */
+.clx-vertical-hero {
+  background: var(--bg-default);
+  position: relative;
+}
+.clx-vertical-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 70% 0%, var(--color-brand-50) 0%, transparent 55%);
+  z-index: 0;
+  pointer-events: none;
+}
+.clx-vertical-hero > .clx-container { position: relative; z-index: 1; }
+
+/* Refine the dark CTA band. Keep it gray-950 not violet. */
+.clx-cta-band {
+  background: linear-gradient(180deg, var(--color-gray-900) 0%, var(--color-gray-950) 100%);
+}
+
+/* Ensure btn-primary hover on the CTA band stays readable */
+.clx-cta-band .btn-primary,
+.clx-cta-band .clx-btn-primary {
+  background: var(--color-neutral-0);
+  color: var(--color-brand-700);
+}
+.clx-cta-band .btn-primary:hover,
+.clx-cta-band .clx-btn-primary:hover {
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
