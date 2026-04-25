@@ -81,7 +81,7 @@ Public status: `crystallux.org/dashboard/status.html` (already referenced in eve
 
 All four addresses can forward to the same inbox:
 
-- `hello@crystallux.org` (general inquiries, website footer, contact page)
+- `info@crystallux.org` (general inquiries, website footer, contact page)
 - `support@crystallux.org` (existing client support)
 - `security@crystallux.org` (responsible disclosure per `/.well-known/security.txt`)
 - `careers@crystallux.org` (careers inquiries from About page)
@@ -110,7 +110,7 @@ All four addresses can forward to the same inbox:
 - No blog. Premature for pre-revenue stage.
 - No career page. Hiring plan is in `docs/operations/HIRING_PLAN.md`. Publish a careers page when recruiting begins.
 - No pricing calculator. The three tiers on `pricing.html` cover 95 percent of self-serve questions.
-- No live chat widget. We handle inquiries via `hello@crystallux.org` for now.
+- No live chat widget. We handle inquiries via `info@crystallux.org` for now.
 
 ## How it ties to existing work
 
