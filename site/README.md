@@ -1,4 +1,6 @@
-# site/ — Public Crystallux SaaS website
+﻿# site/
+
+The public-facing Crystallux SaaS website.
 
 Static, no-build, plain HTML + CSS + vanilla JS. Separate from `dashboard/`. Deploy the whole `site/` tree to crystallux.org; the dashboard stays at `crystallux.org/dashboard/` (served from the sibling `dashboard/` directory).
 
@@ -14,8 +16,8 @@ site/
 ├── contact.html                       Contact
 ├── book.html                          Book a demo (Calendly embed)
 ├── faq.html                           FAQ
-├── terms.html                         Terms of Service (template — lawyer review needed)
-├── privacy.html                       Privacy Policy (template — lawyer review needed)
+├── terms.html                         Terms of Service (template; lawyer review needed)
+├── privacy.html                       Privacy Policy (template; lawyer review needed)
 ├── industries/
 │   ├── index.html                     Industries hub
 │   ├── insurance-brokers.html         Most mature showcase vertical
@@ -52,7 +54,7 @@ php -S localhost:8080 -t site
 Confirm:
 - Home loads at `http://localhost:8080/`
 - Industries pages load at `http://localhost:8080/industries/insurance-brokers.html` etc.
-- Footer links to `/dashboard/status.html` (will 404 locally unless you serve the repo root — that's fine, the link is an absolute path for production where `site/` and `dashboard/` are both deployed under the same domain)
+- Footer links to `/dashboard/status.html` will 404 locally unless you serve the repo root. That is fine. The link is an absolute path for production where `site/` and `dashboard/` are both deployed under the same domain.
 
 To preview the dashboard alongside, serve the repo root:
 
@@ -99,10 +101,10 @@ All four addresses can forward to the same inbox:
 
 ## SEO + security files (managed per deploy)
 
-- `site/sitemap.xml` — 16 URLs, update `<lastmod>` on meaningful page edits.
-- `site/robots.txt` — allows all crawlers except `/dashboard/`.
-- `site/.well-known/security.txt` — responsible disclosure contact; update `Expires:` before 2027-04-25.
-- `site/_headers` — Cloudflare Pages security headers + CSP + cache directives.
+- `site/sitemap.xml`: 16 URLs, update `<lastmod>` on meaningful page edits.
+- `site/robots.txt`: allows all crawlers except `/dashboard/`.
+- `site/.well-known/security.txt`: responsible disclosure contact; update `Expires:` before 2027-04-25.
+- `site/_headers`: Cloudflare Pages security headers + CSP + cache directives.
 
 ## What's intentionally not built (scope discipline)
 

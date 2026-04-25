@@ -1,4 +1,4 @@
-/* Crystallux public site — minimal shared JS (header mobile toggle + active nav marking) */
+﻿/* Crystallux public site. Minimal shared JS (header mobile toggle + active nav marking). */
 (function () {
   // Mobile nav toggle
   var burger = document.querySelector('.clx-burger');
