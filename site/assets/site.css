@@ -915,23 +915,25 @@ address { font-style: normal; }
   font-size: 0.95em;
 }
 
-/* Hero visual / mockup (placeholder slot) */
+/* Hero visual / mockup */
 .hero-visual {
   display: flex;
   justify-content: flex-end;
   align-items: center;
 }
-.hero-mockup {
+.hero-mockup,
+.hero-mockup-img {
   width: 100%;
-  max-width: 540px;
+  max-width: 580px;
   aspect-ratio: 4 / 3;
   border-radius: var(--radius-2xl);
-  background: linear-gradient(180deg, var(--bg-subtle) 0%, var(--bg-default) 100%);
+  background: var(--bg-default);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 24px 48px -12px rgba(24, 24, 27, 0.08), 0 8px 16px -4px rgba(24, 24, 27, 0.04);
+  box-shadow: 0 24px 48px -12px rgba(24, 24, 27, 0.10), 0 8px 16px -4px rgba(24, 24, 27, 0.04);
   position: relative;
   overflow: hidden;
 }
+.hero-mockup-img { display: block; height: auto; }
 
 @media (max-width: 1024px) {
   .hero > .container-xl,

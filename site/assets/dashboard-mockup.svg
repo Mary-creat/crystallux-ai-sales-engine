@@ -1,0 +1,216 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Crystallux dashboard preview">
+  <title>Crystallux dashboard preview</title>
+  <desc>Stylised wireframe of the Crystallux dashboard showing sidebar navigation, KPI cards, lead list, and trend chart.</desc>
+  <defs>
+    <linearGradient id="frameGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAFAFA"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#5B21B6"/>
+    </linearGradient>
+    <linearGradient id="chartLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.0"/>
+      <stop offset="0.4" stop-color="#7C3AED" stop-opacity="1"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#18181B" flood-opacity="0.06"/>
+    </filter>
+    <filter id="frameShadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#18181B" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <!-- Browser frame -->
+  <g filter="url(#frameShadow)">
+    <rect x="20" y="20" width="760" height="560" rx="16" fill="url(#frameGrad)" stroke="#E4E4E7"/>
+
+    <!-- Browser chrome -->
+    <rect x="20" y="20" width="760" height="40" rx="16" fill="#F4F4F5"/>
+    <rect x="20" y="44" width="760" height="16" fill="#F4F4F5"/>
+    <circle cx="44" cy="40" r="6" fill="#EF4444"/>
+    <circle cx="64" cy="40" r="6" fill="#F59E0B"/>
+    <circle cx="84" cy="40" r="6" fill="#10B981"/>
+    <rect x="240" y="30" width="320" height="20" rx="10" fill="#FFFFFF" stroke="#E4E4E7"/>
+    <text x="400" y="44" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#71717A">crystallux.org/dashboard</text>
+  </g>
+
+  <!-- Sidebar -->
+  <g>
+    <rect x="20" y="60" width="170" height="520" fill="#FAFAFA"/>
+    <rect x="190" y="60" width="1" height="520" fill="#E4E4E7"/>
+
+    <!-- Logo lockup -->
+    <rect x="40" y="80" width="22" height="22" rx="6" fill="url(#brandGrad)"/>
+    <text x="70" y="96" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#18181B">Crystallux</text>
+
+    <!-- Nav items -->
+    <g font-family="Inter, system-ui, sans-serif" font-size="12" fill="#3F3F46">
+      <!-- Active: Overview -->
+      <rect x="32" y="130" width="146" height="32" rx="8" fill="#F8F7FF" stroke="#EDE9FE"/>
+      <rect x="40" y="142" width="14" height="2" fill="#7C3AED"/>
+      <rect x="40" y="148" width="10" height="2" fill="#7C3AED"/>
+      <rect x="40" y="154" width="14" height="2" fill="#7C3AED"/>
+      <text x="64" y="150" font-weight="600" fill="#5B21B6">Overview</text>
+
+      <text x="40" y="186" fill="#52525B">Leads</text>
+      <text x="40" y="218" fill="#52525B">Campaigns</text>
+      <text x="40" y="250" fill="#52525B">Replies</text>
+      <text x="40" y="282" fill="#52525B">Bookings</text>
+      <text x="40" y="314" fill="#52525B">Settings</text>
+    </g>
+
+    <!-- Sidebar footer hint -->
+    <rect x="32" y="500" width="146" height="56" rx="10" fill="#FFFFFF" stroke="#E4E4E7"/>
+    <text x="44" y="522" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="#18181B">Founding plan</text>
+    <text x="44" y="538" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#71717A">12-month rate locked</text>
+    <rect x="44" y="544" width="80" height="4" rx="2" fill="#E4E4E7"/>
+    <rect x="44" y="544" width="56" height="4" rx="2" fill="#7C3AED"/>
+  </g>
+
+  <!-- Top header -->
+  <g>
+    <text x="210" y="100" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="700" fill="#18181B" letter-spacing="-0.4">Welcome back, Filip</text>
+    <text x="210" y="118" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#71717A">Here is what is moving in your pipeline this week.</text>
+
+    <!-- Avatar circle -->
+    <circle cx="750" cy="98" r="14" fill="#EDE9FE"/>
+    <text x="750" y="103" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="700" fill="#5B21B6">F</text>
+  </g>
+
+  <!-- KPI cards row -->
+  <g filter="url(#cardShadow)">
+    <rect x="210" y="140" width="135" height="80" rx="10" fill="#FFFFFF" stroke="#E4E4E7"/>
+    <rect x="355" y="140" width="135" height="80" rx="10" fill="#FFFFFF" stroke="#E4E4E7"/>
+    <rect x="500" y="140" width="135" height="80" rx="10" fill="#FFFFFF" stroke="#E4E4E7"/>
+    <rect x="645" y="140" width="115" height="80" rx="10" fill="#FFFFFF" stroke="#E4E4E7"/>
+  </g>
+  <g font-family="Inter, system-ui, sans-serif">
+    <text x="222" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">MEETINGS</text>
+    <text x="222" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">20</text>
+    <text x="248" y="190" font-size="11" fill="#10B981" font-weight="600">+12%</text>
+    <text x="222" y="208" font-size="10" fill="#71717A">vs last month</text>
+
+    <text x="367" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">REPLIES</text>
+    <text x="367" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">127</text>
+    <text x="402" y="190" font-size="11" fill="#10B981" font-weight="600">+8%</text>
+    <text x="367" y="208" font-size="10" fill="#71717A">vs last month</text>
+
+    <text x="512" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">HOT LEADS</text>
+    <text x="512" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">15</text>
+    <text x="540" y="190" font-size="11" fill="#7C3AED" font-weight="600">live</text>
+    <text x="512" y="208" font-size="10" fill="#71717A">score above 70</text>
+
+    <text x="657" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">REPLY RATE</text>
+    <text x="657" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">94<tspan font-size="14" fill="#71717A">%</tspan></text>
+    <text x="657" y="208" font-size="10" fill="#71717A">7-day rolling</text>
+  </g>
+
+  <!-- Lead table -->
+  <g filter="url(#cardShadow)">
+    <rect x="210" y="244" width="370" height="280" rx="12" fill="#FFFFFF" stroke="#E4E4E7"/>
+  </g>
+  <g font-family="Inter, system-ui, sans-serif">
+    <text x="226" y="266" font-size="13" font-weight="700" fill="#18181B">Recent leads</text>
+    <text x="226" y="282" font-size="11" fill="#71717A">Updated 2 minutes ago</text>
+
+    <!-- Table header -->
+    <rect x="210" y="294" width="370" height="1" fill="#E4E4E7"/>
+    <text x="226" y="312" font-size="9" font-weight="600" fill="#71717A" letter-spacing="0.5">NAME</text>
+    <text x="346" y="312" font-size="9" font-weight="600" fill="#71717A" letter-spacing="0.5">COMPANY</text>
+    <text x="476" y="312" font-size="9" font-weight="600" fill="#71717A" letter-spacing="0.5">STATUS</text>
+    <rect x="210" y="320" width="370" height="1" fill="#E4E4E7"/>
+
+    <!-- Row 1: Replied -->
+    <circle cx="234" cy="346" r="10" fill="#EDE9FE"/>
+    <text x="234" y="350" text-anchor="middle" font-size="10" font-weight="700" fill="#5B21B6">SK</text>
+    <text x="252" y="345" font-size="12" fill="#18181B" font-weight="500">Sarah Kim</text>
+    <text x="252" y="358" font-size="10" fill="#71717A">sarah@kimagency.ca</text>
+    <text x="346" y="349" font-size="11" fill="#3F3F46">Kim Insurance</text>
+    <rect x="476" y="338" width="78" height="20" rx="10" fill="#DCFCE7"/>
+    <text x="515" y="351" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">Replied</text>
+
+    <rect x="210" y="372" width="370" height="1" fill="#F4F4F5"/>
+
+    <!-- Row 2: Booked -->
+    <circle cx="234" cy="398" r="10" fill="#EDE9FE"/>
+    <text x="234" y="402" text-anchor="middle" font-size="10" font-weight="700" fill="#5B21B6">DR</text>
+    <text x="252" y="397" font-size="12" fill="#18181B" font-weight="500">Daniel Roy</text>
+    <text x="252" y="410" font-size="10" fill="#71717A">d.roy@royco.ca</text>
+    <text x="346" y="401" font-size="11" fill="#3F3F46">Royco Brokers</text>
+    <rect x="476" y="390" width="78" height="20" rx="10" fill="#EDE9FE"/>
+    <text x="515" y="403" text-anchor="middle" font-size="10" font-weight="600" fill="#5B21B6">Booked</text>
+
+    <rect x="210" y="424" width="370" height="1" fill="#F4F4F5"/>
+
+    <!-- Row 3: Hot -->
+    <circle cx="234" cy="450" r="10" fill="#EDE9FE"/>
+    <text x="234" y="454" text-anchor="middle" font-size="10" font-weight="700" fill="#5B21B6">MO</text>
+    <text x="252" y="449" font-size="12" fill="#18181B" font-weight="500">Marc Olsen</text>
+    <text x="252" y="462" font-size="10" fill="#71717A">marc@olsenlegal.ca</text>
+    <text x="346" y="453" font-size="11" fill="#3F3F46">Olsen Legal</text>
+    <rect x="476" y="442" width="78" height="20" rx="10" fill="#FEF3C7"/>
+    <text x="515" y="455" text-anchor="middle" font-size="10" font-weight="600" fill="#92400E">Hot</text>
+
+    <rect x="210" y="476" width="370" height="1" fill="#F4F4F5"/>
+
+    <!-- Row 4: Sent -->
+    <circle cx="234" cy="502" r="10" fill="#EDE9FE"/>
+    <text x="234" y="506" text-anchor="middle" font-size="10" font-weight="700" fill="#5B21B6">TC</text>
+    <text x="252" y="501" font-size="12" fill="#18181B" font-weight="500">Tara Chen</text>
+    <text x="252" y="514" font-size="10" fill="#71717A">tara@chendental.ca</text>
+    <text x="346" y="505" font-size="11" fill="#3F3F46">Chen Dental</text>
+    <rect x="476" y="494" width="78" height="20" rx="10" fill="#F4F4F5"/>
+    <text x="515" y="507" text-anchor="middle" font-size="10" font-weight="600" fill="#52525B">Sent</text>
+  </g>
+
+  <!-- Trend chart card -->
+  <g filter="url(#cardShadow)">
+    <rect x="595" y="244" width="165" height="280" rx="12" fill="#FFFFFF" stroke="#E4E4E7"/>
+  </g>
+  <g font-family="Inter, system-ui, sans-serif">
+    <text x="611" y="266" font-size="13" font-weight="700" fill="#18181B">Meetings trend</text>
+    <text x="611" y="282" font-size="10" fill="#71717A">Last 30 days</text>
+
+    <!-- Chart axis -->
+    <line x1="611" y1="430" x2="744" y2="430" stroke="#E4E4E7" stroke-width="1"/>
+    <line x1="611" y1="380" x2="744" y2="380" stroke="#F4F4F5" stroke-width="1" stroke-dasharray="2 3"/>
+    <line x1="611" y1="330" x2="744" y2="330" stroke="#F4F4F5" stroke-width="1" stroke-dasharray="2 3"/>
+
+    <!-- Chart area fill -->
+    <path d="M611,418 L630,408 L650,395 L668,400 L687,378 L705,365 L724,348 L744,330 L744,430 L611,430 Z" fill="url(#chartFill)"/>
+    <!-- Chart line -->
+    <path d="M611,418 L630,408 L650,395 L668,400 L687,378 L705,365 L724,348 L744,330" fill="none" stroke="url(#chartLine)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- End-of-line marker -->
+    <circle cx="744" cy="330" r="4" fill="#FFFFFF" stroke="#7C3AED" stroke-width="2"/>
+
+    <!-- Footer label -->
+    <text x="611" y="466" font-size="11" font-weight="600" fill="#18181B">+38% vs prior</text>
+    <text x="611" y="482" font-size="10" fill="#71717A">Healthy growth pace.</text>
+
+    <!-- Legend chip -->
+    <rect x="611" y="494" width="56" height="16" rx="8" fill="#F8F7FF"/>
+    <circle cx="619" cy="502" r="3" fill="#7C3AED"/>
+    <text x="626" y="506" font-size="9" font-weight="600" fill="#5B21B6">Booked</text>
+  </g>
+
+  <!-- Floating Copilot FAB -->
+  <g filter="url(#cardShadow)">
+    <circle cx="740" cy="554" r="20" fill="url(#brandGrad)"/>
+  </g>
+  <!-- Sparkle icon -->
+  <g stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" fill="none">
+    <path d="M740,545 L740,555"/>
+    <path d="M735,550 L745,550"/>
+    <path d="M736,562 L744,562"/>
+    <path d="M740,558 L740,566"/>
+  </g>
+  <circle cx="740" cy="550" r="1.4" fill="#FFFFFF"/>
+</svg>
