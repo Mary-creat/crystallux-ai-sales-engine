@@ -1563,6 +1563,97 @@ address { font-style: normal; }
   .pricing-tier { padding: var(--space-8) var(--space-6); }
 }
 
+/* ─── FAQ accordion (Phase 8.9) ─── */
+.faq {
+  padding: var(--space-32) 0;
+  background: var(--bg-default);
+}
+.faq > .clx-container,
+.faq > .container-md { max-width: 780px; margin: 0 auto; padding: 0 var(--space-6); }
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-16);
+}
+
+.faq-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.faq-item:hover { border-color: var(--border-default); }
+.faq-item[open] {
+  border-color: var(--color-brand-200);
+  box-shadow: var(--shadow-sm);
+}
+
+.faq-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  list-style: none;
+  user-select: none;
+  gap: var(--space-4);
+  letter-spacing: var(--tracking-headline);
+  transition: color 0.2s ease;
+}
+.faq-question::-webkit-details-marker { display: none; }
+.faq-question::marker { display: none; }
+.faq-question:hover { color: var(--color-brand-700); }
+
+.faq-toggle {
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+  transition: transform 0.3s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+.faq-item[open] .faq-toggle {
+  transform: rotate(45deg);
+  color: var(--color-brand-600);
+}
+
+.faq-answer {
+  padding: var(--space-5) var(--space-6) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--border-subtle);
+}
+.faq-answer p {
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+  margin: 0;
+  font-size: var(--text-base);
+}
+.faq-answer p + p { margin-top: var(--space-3); }
+
+.faq-cta {
+  text-align: center;
+  padding: var(--space-12);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+}
+.faq-cta p {
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-4) 0;
+}
+
+@media (max-width: 640px) {
+  .faq { padding: var(--space-20) 0; }
+  .faq-question { font-size: var(--text-base); padding: var(--space-5); }
+  .faq-answer { padding: var(--space-4) var(--space-5) var(--space-5); }
+}
+
 /* Section heading helpers (use alongside .clx-h2 if needed) */
 .section-heading {
   font-size: var(--text-display-md);
