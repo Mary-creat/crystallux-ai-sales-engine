@@ -93,23 +93,21 @@
   </g>
   <g font-family="Inter, system-ui, sans-serif">
     <text x="222" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">MEETINGS</text>
-    <text x="222" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">20</text>
-    <text x="248" y="190" font-size="11" fill="#10B981" font-weight="600">+12%</text>
-    <text x="222" y="208" font-size="10" fill="#71717A">vs last month</text>
+    <text x="222" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">20+</text>
+    <text x="222" y="208" font-size="10" fill="#71717A">qualified per month</text>
 
-    <text x="367" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">REPLIES</text>
-    <text x="367" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">127</text>
-    <text x="402" y="190" font-size="11" fill="#10B981" font-weight="600">+8%</text>
-    <text x="367" y="208" font-size="10" fill="#71717A">vs last month</text>
+    <text x="367" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">VERTICALS</text>
+    <text x="367" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">5</text>
+    <text x="392" y="190" font-size="11" fill="#7C3AED" font-weight="600">active</text>
+    <text x="367" y="208" font-size="10" fill="#71717A">lead inventory ready</text>
 
-    <text x="512" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">HOT LEADS</text>
-    <text x="512" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">15</text>
-    <text x="540" y="190" font-size="11" fill="#7C3AED" font-weight="600">live</text>
-    <text x="512" y="208" font-size="10" fill="#71717A">score above 70</text>
+    <text x="512" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">ACTIVATION</text>
+    <text x="512" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">24h</text>
+    <text x="512" y="208" font-size="10" fill="#71717A">after onboarding</text>
 
-    <text x="657" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">REPLY RATE</text>
-    <text x="657" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">94<tspan font-size="14" fill="#71717A">%</tspan></text>
-    <text x="657" y="208" font-size="10" fill="#71717A">7-day rolling</text>
+    <text x="657" y="160" font-size="10" font-weight="500" fill="#71717A" letter-spacing="0.5">GUARANTEE</text>
+    <text x="657" y="190" font-size="22" font-weight="700" fill="#18181B" letter-spacing="-0.5">30-day</text>
+    <text x="657" y="208" font-size="10" fill="#71717A">window or month free</text>
   </g>
 
   <!-- Lead table -->
