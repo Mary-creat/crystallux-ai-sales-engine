@@ -220,21 +220,21 @@ etc.) coexist so any existing `.clx-*` selector keeps working.
 
 | Page | Hero | Feature grid | Industries | Pricing | Testimonial | FAQ | About | Status |
 |---|---|---|---|---|---|---|---|---|
-| index.html | new | new | teaser | . | new | . | . | **Phase 8 complete** |
-| pricing.html | . | . | . | new (3-tier) | . | . | . | **Phase 8 complete** |
-| faq.html | . | . | . | . | . | new (accordion) | . | **Phase 8 complete** |
-| about.html | new | . | . | . | . | . | new | **Phase 8 complete** |
-| industries/index.html | . | . | new (5+2) | . | . | . | . | **Phase 8 complete** |
-| industries/insurance-brokers.html | template | template | . | strip | Filip 9.5/10 | template | . | **Phase 8 complete** |
-| industries/consulting.html | template | template | . | strip | placeholder | template | . | **Phase 8 complete** |
-| industries/real-estate.html | template | template | . | strip | placeholder | template | . | **Phase 8 complete** |
-| industries/construction.html | template | template | . | strip | placeholder | template | . | **Phase 8 complete** |
-| industries/dental.html | template | template | . | strip | placeholder | template | . | **Phase 8 complete** |
-| features.html | . | . | . | . | . | . | . | inherits typography + palette only |
-| how-it-works.html | . | . | . | . | . | . | . | inherits typography + palette only |
-| contact.html | . | . | . | . | . | . | . | inherits typography + palette only |
-| book.html | . | . | . | . | . | . | . | inherits typography + palette only |
-| privacy.html / terms.html | . | . | . | . | . | . | . | inherits typography + palette only |
+| index.html | new | new | teaser |   | new |   |   | **Phase 8 complete** |
+| pricing.html |   |   |   | new (3-tier) |   |   |   | **Phase 8 complete** |
+| faq.html |   |   |   |   |   | new (accordion) |   | **Phase 8 complete** |
+| about.html | new |   |   |   |   |   | new | **Phase 8 complete** |
+| industries/index.html |   |   | new (5+2) |   |   |   |   | **Phase 8 complete** |
+| industries/insurance-brokers.html | template | template |   | strip | Filip 9.5/10 | template |   | **Phase 8 complete** |
+| industries/consulting.html | template | template |   | strip | placeholder | template |   | **Phase 8 complete** |
+| industries/real-estate.html | template | template |   | strip | placeholder | template |   | **Phase 8 complete** |
+| industries/construction.html | template | template |   | strip | placeholder | template |   | **Phase 8 complete** |
+| industries/dental.html | template | template |   | strip | placeholder | template |   | **Phase 8 complete** |
+| features.html |   |   |   |   |   |   |   | inherits typography + palette only |
+| how-it-works.html |   |   |   |   |   |   |   | inherits typography + palette only |
+| contact.html |   |   |   |   |   |   |   | inherits typography + palette only |
+| book.html |   |   |   |   |   |   |   | inherits typography + palette only |
+| privacy.html / terms.html |   |   |   |   |   |   |   | inherits typography + palette only |
 
 Pages marked "inherits" pick up the refined Inter scale, Zinc neutrals,
 and brand-violet token via the legacy `.clx-*` selectors that already
