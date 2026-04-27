@@ -66,6 +66,18 @@ The following credentials must be configured in n8n before activating workflows:
 | [Service Packages](docs/business/service-packages.md) | Client-facing one-page overview of all four packages with comparison table and value propositions |
 | [Competitive Positioning](docs/business/competitive-positioning.md) | Market differentiation analysis — what competitors offer, what Crystallux offers, and why the combination is defensible |
 | [Client Onboarding](docs/business/client-onboarding.md) | Complete onboarding framework — discovery call questions, configuration checklist, setup steps, training outline, and 30-day success metrics |
+
+## Security
+
+Crystallux maintains a comprehensive security operating manual:
+
+- Full handbook: [docs/security/CRYSTALLUX_SECURITY_HANDBOOK.md](docs/security/CRYSTALLUX_SECURITY_HANDBOOK.md)
+- Pre-launch checklist: [docs/security/PRE_LAUNCH_CHECKLIST.md](docs/security/PRE_LAUNCH_CHECKLIST.md)
+- Incident response: [docs/security/INCIDENT_RESPONSE_QUICK_SHEET.md](docs/security/INCIDENT_RESPONSE_QUICK_SHEET.md)
+- Client security summary: [docs/commercial/CRYSTALLUX_SECURITY_SUMMARY.md](docs/commercial/CRYSTALLUX_SECURITY_SUMMARY.md)
+
+Security contact: security@crystallux.org
+
 ## MCP Gateway
 
 | Endpoint | Method | Purpose |
