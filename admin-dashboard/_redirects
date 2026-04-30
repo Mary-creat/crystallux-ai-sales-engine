@@ -1,0 +1,17 @@
+# Cloudflare Pages routing for admin.crystallux.org
+#
+# Bare root → bootstrap page (which validates session and forwards).
+# /pages/<x>  is the canonical location for each panel page.
+# Anything else 404s through Cloudflare's default page.
+
+/                       /index.html             200
+/login                  /login-redirect.html    200
+/overview               /pages/overview.html    301
+/clients                /pages/clients.html     301
+/leads                  /pages/leads.html       301
+/workflows              /pages/workflows.html   301
+/billing                /pages/billing.html     301
+/onboarding             /pages/onboarding.html  301
+/audit-log              /pages/audit-log.html   301
+/market-intelligence    /pages/market-intelligence.html  301
+/settings               /pages/settings.html    301

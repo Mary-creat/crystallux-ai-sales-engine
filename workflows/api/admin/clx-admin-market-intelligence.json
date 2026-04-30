@@ -1,0 +1,210 @@
+{
+  "name": "CLX - Admin Market Intelligence v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/market-intelligence",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "adm-mi-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-market-intelligence-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-mi-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "adm-mi-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-mi-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "adm-mi-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.' + new Date().toISOString() + '&select=signal_type,affected_verticals,severity,expires_at,processed_at&order=processed_at.desc&limit=80' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-mi-0006",
+      "name": "Active Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?fetched_at=gt.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=id,processed&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-mi-0007",
+      "name": "Raw 24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 360],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?intelligence_tier_enabled=eq.true&select=id&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-mi-0008",
+      "name": "Intel Subs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 520],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?processed_at=gt.' + new Date(Date.now() - 30*24*60*60*1000).toISOString() + '&select=tokens_consumed&limit=10000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-mi-0009",
+      "name": "Tokens MTD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 680],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const signals = $('Active Signals').first().json;\nconst raw = $('Raw 24h').first().json;\nconst subs = $('Intel Subs').first().json;\nconst tok = $('Tokens MTD').first().json;\nconst signalArr = Array.isArray(signals) ? signals : [];\nconst rawArr = Array.isArray(raw) ? raw : [];\nconst processed24h = rawArr.filter(r => r.processed === true).length;\nconst tokensMtd = (Array.isArray(tok) ? tok : []).reduce((s, r) => s + (r.tokens_consumed || 0), 0);\nreturn { json: {\n  ok: true,\n  active_signals: signalArr.length,\n  raw_24h: rawArr.length,\n  processed_24h: processed24h,\n  intel_subs: Array.isArray(subs) ? subs.length : 0,\n  tokens_mtd: tokensMtd,\n  signals: signalArr\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "adm-mi-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "adm-mi-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "adm-mi-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 60]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token",   "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Admin",     "type": "main", "index": 0 } ]] },
+    "Check Admin":      { "main": [[ { "node": "IF Admin OK",     "type": "main", "index": 0 } ]] },
+    "IF Admin OK":      { "main": [
+                                   [
+                                     { "node": "Active Signals", "type": "main", "index": 0 },
+                                     { "node": "Raw 24h",         "type": "main", "index": 0 },
+                                     { "node": "Intel Subs",      "type": "main", "index": 0 },
+                                     { "node": "Tokens MTD",      "type": "main", "index": 0 }
+                                   ],
+                                   [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
+                                 ] },
+    "Active Signals":   { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Raw 24h":          { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Intel Subs":       { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Tokens MTD":       { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

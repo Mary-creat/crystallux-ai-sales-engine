@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leads · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">Leads</h1>
+        <div class="clx-page-sub">All leads across all clients.</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <select id="statusFilter" class="clx-select" style="width:160px">
+          <option value="all">All statuses</option>
+          <option>New Lead</option><option>Researched</option><option>Scored</option>
+          <option>Outreach Ready</option><option>Contacted</option><option>Replied</option>
+          <option>Booking Sent</option><option>Booked</option><option>Lost</option>
+        </select>
+        <select id="limitFilter" class="clx-select" style="width:120px">
+          <option value="50" selected>50 rows</option>
+          <option value="100">100 rows</option>
+          <option value="250">250 rows</option>
+        </select>
+      </div>
+    </div>
+    <div id="leadsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+  </div></main>
+</div>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('limitFilter').addEventListener('change', load);
+});
+
+async function load() {
+  var status = document.getElementById('statusFilter').value;
+  var limit  = parseInt(document.getElementById('limitFilter').value, 10) || 50;
+  clxApi.renderLoading(document.getElementById('leadsTable'));
+  var filters = { limit: limit };
+  if (status && status !== 'all') filters.status = status;
+  var res = await clxApi.adminGet('list-leads', filters);
+  var el = document.getElementById('leadsTable');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var rows = (res.data && res.data.leads) || [];
+  if (!rows.length) { clxApi.renderEmpty(el, 'No leads match these filters.', '◍'); return; }
+  clxComp.renderTable(el, rows, [
+    { key: 'company',      label: 'Company' },
+    { key: 'client_name',  label: 'Client' },
+    { key: 'industry',     label: 'Industry' },
+    { key: 'city',         label: 'City' },
+    { key: 'lead_status',  label: 'Status', format: function(r){
+      return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+    }, html: true },
+    { key: 'lead_score',   label: 'Score' },
+    { key: 'updated_at',   label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
+  ]);
+}
+</script>
+</body>
+</html>

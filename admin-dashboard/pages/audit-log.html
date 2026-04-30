@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Audit Log · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Audit Log</h1>
+      <div class="clx-page-sub">Recent sessions and admin actions. Sourced from <code>auth_sessions</code> + <code>admin_action_log</code> (Phase 4).</div>
+    </div></div>
+    <div class="clx-card" style="padding:0;margin-bottom:16px">
+      <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Active sessions</div></div>
+      <div id="sessionsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+    <div class="clx-card" style="padding:0">
+      <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Admin actions</div></div>
+      <div id="actionsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </div></main>
+</div>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+});
+async function load() {
+  var res = await clxApi.adminGet('audit-log');
+  var sEl = document.getElementById('sessionsTable');
+  var aEl = document.getElementById('actionsTable');
+  if (!res.ok) { clxApi.renderError(sEl, res); aEl.innerHTML = ''; return; }
+  var d = res.data || {};
+
+  var sessions = d.sessions || [];
+  if (!sessions.length) clxApi.renderEmpty(sEl, 'No active sessions.', '◔');
+  else clxComp.renderTable(sEl, sessions, [
+    { key: 'email',           label: 'User' },
+    { key: 'user_role',       label: 'Role', format: function(r){
+        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.user_role) + '">' + clxComp.escapeHtml(r.user_role || '—') + '</span>';
+      }, html: true },
+    { key: 'ip_address',      label: 'IP' },
+    { key: 'created_at',      label: 'Started',  format: function(r){ return clxComp.formatDateTime(r.created_at); } },
+    { key: 'last_activity_at',label: 'Last seen', format: function(r){ return clxComp.relativeTime(r.last_activity_at); } },
+    { key: 'expires_at',      label: 'Expires', format: function(r){ return clxComp.formatDateTime(r.expires_at); } }
+  ]);
+
+  var actions = d.actions || [];
+  if (!actions.length) clxApi.renderEmpty(aEl, 'No admin actions logged yet. (admin_action_log lands in Phase 4.)', '∅');
+  else clxComp.renderTable(aEl, actions, [
+    { key: 'actor_email',  label: 'Actor' },
+    { key: 'action',       label: 'Action' },
+    { key: 'target_type',  label: 'Target type' },
+    { key: 'target_id',    label: 'Target id' },
+    { key: 'occurred_at',  label: 'When', format: function(r){ return clxComp.relativeTime(r.occurred_at); } }
+  ]);
+}
+</script>
+</body>
+</html>

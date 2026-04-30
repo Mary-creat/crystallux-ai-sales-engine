@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Workflows · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Workflows</h1>
+      <div class="clx-page-sub">n8n workflow status &amp; recent errors. Sourced from <code>scan_log</code> + n8n execution stats.</div>
+    </div></div>
+    <div class="clx-stat-grid" id="wfStats"></div>
+    <div class="clx-card" style="padding:0">
+      <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Workflows</div></div>
+      <div id="wfTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </div></main>
+</div>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+});
+async function load() {
+  var res = await clxApi.adminGet('workflow-status');
+  var el = document.getElementById('wfTable');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var d = res.data || {};
+  clxComp.renderStatGrid(document.getElementById('wfStats'), [
+    { label: 'Total runs (24h)', value: d.runs_24h    != null ? d.runs_24h    : '—' },
+    { label: 'Errors (24h)',      value: d.errors_24h  != null ? d.errors_24h  : '—' },
+    { label: 'Avg duration',     value: d.avg_ms      != null ? d.avg_ms + ' ms' : '—' },
+    { label: 'Active workflows', value: d.active_count!= null ? d.active_count : '—' }
+  ]);
+  var rows = d.workflows || [];
+  if (!rows.length) { clxApi.renderEmpty(el, 'No workflow data yet.', '⚙'); return; }
+  clxComp.renderTable(el, rows, [
+    { key: 'name',        label: 'Workflow' },
+    { key: 'last_status', label: 'Last status', format: function(r){
+        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.last_status) + '">' + clxComp.escapeHtml(r.last_status || '—') + '</span>';
+      }, html: true },
+    { key: 'runs_24h',    label: 'Runs (24h)' },
+    { key: 'errors_24h',  label: 'Errors (24h)' },
+    { key: 'last_run_at', label: 'Last run', format: function(r){ return clxComp.relativeTime(r.last_run_at); } }
+  ]);
+}
+</script>
+</body>
+</html>

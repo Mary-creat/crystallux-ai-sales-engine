@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Client · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <a href="/pages/clients.html" style="color:var(--text-muted);font-size:13px">← All clients</a>
+        <h1 class="clx-page-title" id="clientName" style="margin-top:4px">Loading…</h1>
+        <div class="clx-page-sub" id="clientSub">—</div>
+      </div>
+    </div>
+    <div id="clientBody"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading client…</div></div>
+  </div></main>
+</div>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  var id = new URLSearchParams(window.location.search).get('id');
+  if (!id) { document.getElementById('clientBody').innerHTML = '<div class="clx-empty">No client id supplied.</div>'; return; }
+  load(id);
+});
+
+async function load(id) {
+  var res = await clxApi.adminGet('client-detail', { client_id: id });
+  var el = document.getElementById('clientBody');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var c = res.data && res.data.client;
+  if (!c) { clxApi.renderEmpty(el, 'Client not found.', '∅'); return; }
+
+  document.getElementById('clientName').textContent = c.client_name || '—';
+  document.getElementById('clientSub').textContent = (c.industry || '—') + ' · ' + (c.city || '—');
+
+  var stats = res.data.stats || {};
+  var leads = res.data.recent_leads || [];
+
+  el.innerHTML =
+    '<div class="clx-stat-grid" id="cdStats"></div>' +
+    '<div class="clx-card" style="padding:0;margin-top:8px">' +
+      '<div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Profile</div></div>' +
+      '<div style="padding:14px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;font-size:13px">' +
+        kv('Calendly',   c.calendly_link, true) +
+        kv('Notify email', c.notification_email) +
+        kv('CRM',        (c.crm_type || '—') + (c.crm_sync_enabled ? ' (sync on)' : '')) +
+        kv('Retainer',    clxComp.formatMoney(c.monthly_retainer)) +
+        kv('Per booking', clxComp.formatMoney(c.fee_per_booking)) +
+        kv('Stripe sub',  c.subscription_status || '—') +
+        kv('Plan',        c.subscription_plan || '—') +
+        kv('Active',      c.active === false ? 'No' : 'Yes') +
+      '</div>' +
+    '</div>' +
+    '<div class="clx-card" style="padding:0;margin-top:14px">' +
+      '<div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Recent leads</div></div>' +
+      '<div id="cdLeads"></div>' +
+    '</div>';
+
+  clxComp.renderStatGrid(document.getElementById('cdStats'), [
+    { label: 'Total leads',   value: (stats.total_leads || 0).toLocaleString() },
+    { label: 'Contacted',     value: stats.contacted || 0 },
+    { label: 'Replied',       value: stats.replied   || 0 },
+    { label: 'Booked (mtd)',  value: stats.booked_mtd || 0 }
+  ]);
+  clxComp.renderTable(document.getElementById('cdLeads'), leads, [
+    { key: 'company',     label: 'Company' },
+    { key: 'lead_status', label: 'Status', format: function (r) {
+      return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+    }, html: true },
+    { key: 'updated_at',  label: 'Updated', format: function (r) { return clxComp.relativeTime(r.updated_at); } }
+  ], { empty: 'No leads for this client yet.' });
+}
+
+function kv(k, v, isLink) {
+  var safe = clxComp.escapeHtml(v == null || v === '' ? '—' : v);
+  if (isLink && v) safe = '<a href="' + safe + '" target="_blank" rel="noopener" style="color:var(--color-brand-600)">' + safe + '</a>';
+  return '<div><div class="clx-stat-label">' + k + '</div><div style="margin-top:3px">' + safe + '</div></div>';
+}
+</script>
+</body>
+</html>

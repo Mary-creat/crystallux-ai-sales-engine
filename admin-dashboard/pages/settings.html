@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Settings · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Settings</h1>
+      <div class="clx-page-sub">Account, security, system info.</div>
+    </div></div>
+
+    <div class="clx-card" style="margin-bottom:16px">
+      <div class="clx-card-head"><div class="clx-card-title">Account</div></div>
+      <div id="acctBody"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+
+    <div class="clx-card" style="margin-bottom:16px">
+      <div class="clx-card-head"><div class="clx-card-title">Security</div></div>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:14px">
+        Change your password by signing out and using the
+        <a href="https://crystallux.org/forgot-password.html" style="color:var(--color-brand-600);font-weight:600">password-reset flow</a>.
+        Setting a new password automatically signs out every active session.
+      </p>
+      <button class="clx-btn clx-btn-secondary" onclick="clxAuth.logout()">Sign out</button>
+    </div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">System</div></div>
+      <div id="sysBody" style="font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:12px;color:var(--text-secondary);line-height:1.7">Loading…</div>
+    </div>
+  </div></main>
+</div>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function (user) {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  document.getElementById('acctBody').innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;font-size:13px">' +
+      kv('Email', user.email) +
+      kv('Role',  user.role) +
+      kv('Session expires', clxComp.formatDateTime(localStorage.getItem('clx_session_expires'))) +
+    '</div>';
+
+  document.getElementById('sysBody').innerHTML =
+    'API host: <strong>automation.crystallux.org</strong><br>' +
+    'Database: <strong>zqwatouqmqgkmaslydbr.supabase.co</strong><br>' +
+    'Build: scale-sprint-v1<br>' +
+    'See <code>docs/architecture/AUTH_ARCHITECTURE.md</code> for the full architecture overview.';
+});
+
+function kv(k, v) {
+  return '<div><div class="clx-stat-label">' + k + '</div><div style="margin-top:3px">' + (v || '—') + '</div></div>';
+}
+</script>
+</body>
+</html>

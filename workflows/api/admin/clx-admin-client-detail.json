@@ -1,0 +1,203 @@
+{
+  "name": "CLX - Admin Client Detail v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/client-detail",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "adm-cd-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-client-detail-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nconst client_id = String(body.client_id || '').trim();\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nif (!client_id) return { json: { ok: false, status: 400, error: 'client_id required' } };\nreturn { json: { token, client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-cd-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "adm-cd-0003",
+      "name": "IF Bad Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "adm-cd-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true, client_id: $('Extract Inputs').item.json.client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-cd-0005",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "adm-cd-0006",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($json.client_id) + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-cd-0007",
+      "name": "Query Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 280],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Admin').item.json.client_id) + '&select=company,lead_status,updated_at&order=updated_at.desc&limit=10' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-cd-0008",
+      "name": "Query Recent Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 460],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Admin').item.json.client_id) + '&select=lead_status' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-cd-0009",
+      "name": "Query Lead Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 620],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientRows = $('Query Client').first().json;\nconst recentRows = $('Query Recent Leads').first().json;\nconst statsRows = $('Query Lead Stats').first().json;\nconst client = Array.isArray(clientRows) ? clientRows[0] : null;\nif (!client) return { json: { ok: true, client: null } };\nconst all = Array.isArray(statsRows) ? statsRows : [];\nconst counts = {};\nall.forEach(r => { const s = r.lead_status || 'New Lead'; counts[s] = (counts[s] || 0) + 1; });\nconst stats = {\n  total_leads: all.length,\n  contacted: counts['Contacted'] || 0,\n  replied:   counts['Replied']   || 0,\n  booked_mtd: counts['Booked']   || 0\n};\nreturn { json: { ok: true, client, stats, recent_leads: Array.isArray(recentRows) ? recentRows : [] } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "adm-cd-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "adm-cd-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2060, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "adm-cd-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 200]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract Inputs",    "type": "main", "index": 0 } ]] },
+    "Extract Inputs":     { "main": [[ { "node": "IF Bad Input",       "type": "main", "index": 0 } ]] },
+    "IF Bad Input":       { "main": [
+                                     [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ],
+                                     [ { "node": "Validate Session",   "type": "main", "index": 0 } ]
+                                   ] },
+    "Validate Session":   { "main": [[ { "node": "Check Admin",        "type": "main", "index": 0 } ]] },
+    "Check Admin":        { "main": [[ { "node": "IF Admin OK",        "type": "main", "index": 0 } ]] },
+    "IF Admin OK":        { "main": [
+                                     [
+                                       { "node": "Query Client",       "type": "main", "index": 0 },
+                                       { "node": "Query Recent Leads", "type": "main", "index": 0 },
+                                       { "node": "Query Lead Stats",   "type": "main", "index": 0 }
+                                     ],
+                                     [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ]
+                                   ] },
+    "Query Client":       { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
+    "Query Recent Leads": { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
+    "Query Lead Stats":   { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
+    "Shape Response":     { "main": [[ { "node": "Respond OK",         "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,371 @@
+/* ═══ Crystallux Admin Dashboard — shared stylesheet ═══════════════════
+   Responsive shell. Loaded by every page in /admin-dashboard/pages/.
+   Design tokens lifted from the marketing site (assets/site.css) for
+   visual consistency without coupling the two stylesheets — admin
+   pages should feel familiar to Mary but never have to ship marketing
+   CSS to clients.
+   =================================================================== */
+
+:root {
+  /* Brand */
+  --color-brand-50:  #F8F7FF;
+  --color-brand-100: #EDE9FE;
+  --color-brand-200: #DDD6FE;
+  --color-brand-300: #C4B5FD;
+  --color-brand-400: #A78BFA;
+  --color-brand-500: #7C3AED;
+  --color-brand-600: #6D28D9;
+  --color-brand-700: #5B21B6;
+
+  /* Neutral ramp */
+  --gray-0:   #FFFFFF;
+  --gray-50:  #FAFAFA;
+  --gray-100: #F4F4F5;
+  --gray-200: #E4E4E7;
+  --gray-300: #D4D4D8;
+  --gray-400: #A1A1AA;
+  --gray-500: #71717A;
+  --gray-600: #52525B;
+  --gray-700: #3F3F46;
+  --gray-800: #27272A;
+  --gray-900: #18181B;
+
+  /* Semantic */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error:   #EF4444;
+  --info:    #3B82F6;
+
+  /* Surface tokens */
+  --bg-page:    var(--gray-50);
+  --bg-card:    var(--gray-0);
+  --bg-sidebar: var(--gray-0);
+  --bg-hover:   var(--gray-100);
+  --border:     var(--gray-200);
+  --border-strong: var(--gray-300);
+
+  --text-primary:   var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-muted:     var(--gray-500);
+  --text-inverse:   var(--gray-0);
+
+  /* Spacing + radius */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* Layout */
+  --sidebar-w: 240px;
+  --topbar-h:  60px;
+  --content-max: 1400px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-page);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+
+/* ─── App shell: topbar + sidebar + content ──────────────────────── */
+.clx-topbar {
+  position: sticky; top: 0; z-index: 50;
+  height: var(--topbar-h);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; gap: 16px;
+}
+.clx-topbar-left { display: flex; align-items: center; gap: 14px; }
+.clx-topbar-right { display: flex; align-items: center; gap: 12px; }
+.clx-logo {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-weight: 800; font-size: 17px; color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.clx-logo-mark {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+  color: #fff; font-weight: 800; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.clx-role-pill {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 9px; border-radius: 99px;
+  background: var(--color-brand-100); color: var(--color-brand-700);
+}
+.clx-user-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-secondary);
+}
+.clx-user-chip strong { color: var(--text-primary); font-weight: 600; }
+.clx-icon-btn {
+  width: 36px; height: 36px; border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: var(--bg-card);
+  color: var(--text-secondary); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+.clx-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-burger { display: none; }
+
+.clx-shell { display: flex; align-items: flex-start; min-height: calc(100vh - var(--topbar-h)); }
+
+/* Sidebar — sticky on desktop, slide-in on mobile */
+.clx-sidebar {
+  flex: 0 0 var(--sidebar-w);
+  width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  position: sticky; top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  overflow-y: auto;
+  padding: 16px 12px;
+}
+.clx-nav-section {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted);
+  padding: 14px 12px 6px;
+}
+.clx-nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  color: var(--text-secondary); font-size: 13.5px; font-weight: 500;
+  cursor: pointer; transition: background .12s, color .12s;
+  margin-bottom: 1px;
+}
+.clx-nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-nav-item.active {
+  background: var(--color-brand-100); color: var(--color-brand-700);
+  font-weight: 600;
+}
+.clx-nav-icon {
+  width: 18px; text-align: center; font-size: 14px; flex-shrink: 0;
+}
+
+/* Backdrop for mobile drawer */
+.clx-backdrop {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 40;
+  backdrop-filter: blur(2px);
+}
+.clx-backdrop.show { display: block; }
+
+/* Main content column */
+.clx-main { flex: 1 1 0; min-width: 0; width: 100%; }
+.clx-content {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 24px 28px 64px;
+}
+
+/* Page header */
+.clx-page-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
+}
+.clx-page-title {
+  font-size: 24px; font-weight: 700; color: var(--text-primary);
+  letter-spacing: -0.01em; line-height: 1.2;
+}
+.clx-page-sub {
+  font-size: 13.5px; color: var(--text-secondary); margin-top: 4px;
+}
+
+/* Cards */
+.clx-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 20px;
+}
+.clx-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; gap: 10px;
+}
+.clx-card-title {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+}
+.clx-card-sub { font-size: 12.5px; color: var(--text-muted); }
+
+/* Stat card grid */
+.clx-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.clx-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+}
+.clx-stat-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.clx-stat-value {
+  font-size: 26px; font-weight: 700; color: var(--text-primary);
+  margin-top: 4px; line-height: 1.1;
+}
+.clx-stat-delta {
+  font-size: 12px; color: var(--text-muted); margin-top: 4px;
+}
+.clx-stat-delta.up { color: var(--success); }
+.clx-stat-delta.down { color: var(--error); }
+
+/* Tables */
+.clx-table-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.clx-table-scroll { overflow-x: auto; }
+.clx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.clx-table th {
+  text-align: left; padding: 11px 16px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted);
+  background: var(--gray-50); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.clx-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+.clx-table tbody tr:last-child td { border-bottom: none; }
+.clx-table tbody tr:hover td { background: var(--bg-hover); }
+
+/* Badges */
+.clx-badge {
+  display: inline-block; padding: 3px 9px; border-radius: 99px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.clx-badge-gray   { background: var(--gray-100);  color: var(--gray-700); }
+.clx-badge-blue   { background: #DBEAFE; color: #1E40AF; }
+.clx-badge-green  { background: #D1FAE5; color: #065F46; }
+.clx-badge-yellow { background: #FEF3C7; color: #92400E; }
+.clx-badge-red    { background: #FEE2E2; color: #991B1B; }
+.clx-badge-purple { background: var(--color-brand-100); color: var(--color-brand-700); }
+
+/* Buttons */
+.clx-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 9px 16px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent;
+  transition: background .12s, border-color .12s;
+  min-height: 36px;
+}
+.clx-btn-primary {
+  background: var(--color-brand-600); color: #fff;
+}
+.clx-btn-primary:hover { background: var(--color-brand-700); }
+.clx-btn-secondary {
+  background: var(--bg-card); color: var(--text-primary);
+  border-color: var(--border);
+}
+.clx-btn-secondary:hover { background: var(--bg-hover); }
+.clx-btn-ghost {
+  background: transparent; color: var(--text-secondary);
+}
+.clx-btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Spinner / skeleton */
+.clx-spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid var(--border); border-top-color: var(--color-brand-600);
+  border-radius: 50%; animation: clx-spin .8s linear infinite;
+}
+@keyframes clx-spin { to { transform: rotate(360deg); } }
+.clx-loading-row {
+  padding: 28px; text-align: center; color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Friendly states */
+.clx-empty {
+  padding: 32px 18px; text-align: center; color: var(--text-muted);
+  font-size: 13.5px; line-height: 1.55;
+}
+.clx-empty .clx-empty-icon {
+  font-size: 28px; margin-bottom: 10px; display: block;
+}
+.clx-error-banner {
+  background: rgba(239,68,68,0.07);
+  border: 1px solid rgba(239,68,68,0.25);
+  color: var(--error);
+  padding: 11px 14px;
+  border-radius: var(--r-sm);
+  font-size: 13px; line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* Inputs */
+.clx-input, .clx-select {
+  width: 100%; padding: 9px 12px;
+  font: inherit; font-size: 13.5px;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.clx-input:focus, .clx-select:focus {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px var(--color-brand-100);
+}
+.clx-field { margin-bottom: 14px; }
+.clx-field label {
+  display: block; font-size: 12.5px; font-weight: 600;
+  color: var(--text-primary); margin-bottom: 5px;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────
+   Below 1024px the sidebar collapses to a fixed-position drawer
+   toggled by the burger button in the topbar. min-width:0 on
+   .clx-main ensures wide tables don't push the page wider than
+   the viewport (the original /dashboard symptom). */
+@media (max-width: 1024px) {
+  .clx-burger { display: inline-flex; }
+  .clx-sidebar {
+    position: fixed; top: 0; left: 0;
+    height: 100vh; width: 280px;
+    transform: translateX(-100%); transition: transform .22s ease;
+    z-index: 60; padding-top: 70px;
+    box-shadow: 0 0 30px rgba(0,0,0,0);
+    flex-basis: auto;
+  }
+  .clx-sidebar.open {
+    transform: translateX(0);
+    box-shadow: 0 0 30px rgba(0,0,0,0.25);
+  }
+  .clx-content { padding: 20px 18px 48px; }
+}
+@media (max-width: 640px) {
+  .clx-topbar { padding: 0 14px; }
+  .clx-content { padding: 16px 14px 40px; }
+  .clx-page-title { font-size: 20px; }
+  .clx-stat-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .clx-table th, .clx-table td { padding: 10px 12px; }
+}
+
+/* Print: collapse the chrome so audit reports can be exported */
+@media print {
+  .clx-topbar, .clx-sidebar, .clx-burger { display: none !important; }
+  .clx-content { max-width: none; padding: 0; }
+}

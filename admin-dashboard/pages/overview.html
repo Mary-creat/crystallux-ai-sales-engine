@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Overview · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+
+<!-- Topbar -->
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger" aria-label="Open navigation">☰</button>
+    <a href="/pages/overview.html" class="clx-logo">
+      <span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span>
+    </a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight">
+    <span class="clx-user-chip"><span class="clx-spinner"></span></span>
+  </div>
+</header>
+
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar" aria-label="Admin navigation"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head">
+        <div>
+          <h1 class="clx-page-title">Overview</h1>
+          <div class="clx-page-sub">Platform-wide health, this morning.</div>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <div id="kpiGrid" class="clx-stat-grid">
+        <div class="clx-stat-card"><div class="clx-stat-label">Loading…</div><div class="clx-stat-value"><span class="clx-spinner"></span></div></div>
+      </div>
+
+      <!-- Side-by-side: workflow status + recent leads -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px" id="twoCol">
+        <div class="clx-card" style="padding:0">
+          <div class="clx-card-head" style="padding:16px 18px 0">
+            <div class="clx-card-title">Workflow status</div>
+            <a class="clx-btn clx-btn-ghost" href="/pages/workflows.html" style="padding:5px 8px;font-size:12px">All →</a>
+          </div>
+          <div id="workflowList"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+        </div>
+        <div class="clx-card" style="padding:0">
+          <div class="clx-card-head" style="padding:16px 18px 0">
+            <div class="clx-card-title">Recent leads</div>
+            <a class="clx-btn clx-btn-ghost" href="/pages/leads.html" style="padding:5px 8px;font-size:12px">All →</a>
+          </div>
+          <div id="recentLeads"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Onboarding pipeline strip -->
+      <div class="clx-card" style="margin-bottom:18px">
+        <div class="clx-card-head">
+          <div class="clx-card-title">Onboarding pipeline</div>
+          <a class="clx-btn clx-btn-ghost" href="/pages/onboarding.html" style="padding:5px 8px;font-size:12px">Manage →</a>
+        </div>
+        <div id="onboardingStrip"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<style>
+  @media (max-width:900px){ #twoCol{grid-template-columns:1fr !important} }
+</style>
+
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function (user) {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  loadOverview();
+});
+
+async function loadOverview() {
+  // Run the four panel calls in parallel — they're independent.
+  var [health, workflows, leads, onboarding] = await Promise.all([
+    clxApi.adminGet('system-health'),
+    clxApi.adminGet('workflow-status'),
+    clxApi.adminGet('list-leads', { limit: 8 }),
+    clxApi.adminGet('onboarding-pipeline')
+  ]);
+
+  // KPI grid
+  var grid = document.getElementById('kpiGrid');
+  if (health.ok && health.data) {
+    var d = health.data;
+    clxComp.renderStatGrid(grid, [
+      { label: 'Total leads',      value: d.total_leads      != null ? d.total_leads.toLocaleString() : '—' },
+      { label: 'Active clients',   value: d.active_clients   != null ? d.active_clients               : '—' },
+      { label: 'Booked this week', value: d.booked_this_week != null ? d.booked_this_week             : '—' },
+      { label: 'Errors (24h)',     value: d.errors_24h       != null ? d.errors_24h                   : '—' },
+      { label: 'MRR',              value: d.mrr_cad          != null ? clxComp.formatMoney(d.mrr_cad) : '—' }
+    ]);
+  } else {
+    clxApi.renderError(grid, health);
+  }
+
+  // Workflow status (last 10)
+  var wfEl = document.getElementById('workflowList');
+  if (workflows.ok && Array.isArray(workflows.data && workflows.data.workflows)) {
+    var rows = workflows.data.workflows.slice(0, 8);
+    if (!rows.length) clxApi.renderEmpty(wfEl, 'No workflow runs yet.', '⚙');
+    else clxComp.renderTable(wfEl, rows, [
+      { key: 'name',        label: 'Workflow' },
+      { key: 'last_status', label: 'Status', format: function(r){
+          return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.last_status) + '">' + clxComp.escapeHtml(r.last_status || '—') + '</span>';
+        }, html: true },
+      { key: 'last_run_at', label: 'Last run', format: function(r){ return clxComp.relativeTime(r.last_run_at); } }
+    ]);
+  } else {
+    clxApi.renderError(wfEl, workflows);
+  }
+
+  // Recent leads
+  var leEl = document.getElementById('recentLeads');
+  if (leads.ok && Array.isArray(leads.data && leads.data.leads)) {
+    var lr = leads.data.leads;
+    if (!lr.length) clxApi.renderEmpty(leEl, 'No leads ingested yet.', '◍');
+    else clxComp.renderTable(leEl, lr, [
+      { key: 'company',    label: 'Company' },
+      { key: 'lead_status',label: 'Status', format: function(r){
+          return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+        }, html: true },
+      { key: 'updated_at', label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
+    ]);
+  } else {
+    clxApi.renderError(leEl, leads);
+  }
+
+  // Onboarding strip
+  var obEl = document.getElementById('onboardingStrip');
+  if (onboarding.ok && onboarding.data) {
+    var counts = onboarding.data.stage_counts || {};
+    var total = Object.keys(counts).reduce(function(s,k){ return s + (counts[k] || 0); }, 0);
+    if (!total) {
+      clxApi.renderEmpty(obEl, 'No clients in onboarding right now.', '◐');
+    } else {
+      var stages = ['intake','provisioning','content_setup','first_send','active'];
+      obEl.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap">' + stages.map(function(s){
+        var n = counts[s] || 0;
+        return '<div style="flex:1;min-width:120px;padding:14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-card)">' +
+          '<div class="clx-stat-label">' + s.replace('_',' ') + '</div>' +
+          '<div class="clx-stat-value" style="font-size:22px">' + n + '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+  } else {
+    clxApi.renderError(obEl, onboarding);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Market Intelligence · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Market Intelligence</h1>
+      <div class="clx-page-sub">Signals processed, vertical activity, intelligence-tier health.</div>
+    </div></div>
+    <div class="clx-stat-grid" id="miStats"></div>
+    <div class="clx-card" style="padding:0">
+      <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Active signals</div></div>
+      <div id="miTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </div></main>
+</div>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+});
+async function load() {
+  var res = await clxApi.adminGet('market-intelligence');
+  var el = document.getElementById('miTable');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var d = res.data || {};
+  clxComp.renderStatGrid(document.getElementById('miStats'), [
+    { label: 'Raw signals (24h)',     value: d.raw_24h        != null ? d.raw_24h        : '—' },
+    { label: 'Processed (24h)',       value: d.processed_24h  != null ? d.processed_24h  : '—' },
+    { label: 'Active signals',        value: d.active_signals != null ? d.active_signals : '—' },
+    { label: 'Intelligence subs',     value: d.intel_subs     != null ? d.intel_subs     : '—' },
+    { label: 'Tokens used (mtd)',     value: d.tokens_mtd     != null ? d.tokens_mtd.toLocaleString() : '—' }
+  ]);
+  var rows = d.signals || [];
+  if (!rows.length) { clxApi.renderEmpty(el, 'No active signals right now.', '✦'); return; }
+  clxComp.renderTable(el, rows, [
+    { key: 'signal_type',         label: 'Type' },
+    { key: 'affected_verticals',  label: 'Verticals', format: function(r){
+        return Array.isArray(r.affected_verticals) ? r.affected_verticals.join(', ') : (r.affected_verticals || '—');
+      } },
+    { key: 'severity',            label: 'Severity', format: function(r){
+        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.severity) + '">' + clxComp.escapeHtml(r.severity || '—') + '</span>';
+      }, html: true },
+    { key: 'expires_at',          label: 'Expires', format: function(r){ return clxComp.formatDateTime(r.expires_at); } },
+    { key: 'processed_at',        label: 'Processed', format: function(r){ return clxComp.relativeTime(r.processed_at); } }
+  ]);
+}
+</script>
+</body>
+</html>

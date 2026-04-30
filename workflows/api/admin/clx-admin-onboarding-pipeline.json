@@ -1,0 +1,145 @@
+{
+  "name": "CLX - Admin Onboarding Pipeline v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/onboarding-pipeline",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "adm-op-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-onboarding-pipeline-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-op-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "adm-op-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-op-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "adm-op-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?onboarding_stage=neq.active&select=id,client_name,industry,city,onboarding_stage,onboarding_started_at,onboarding_next_action&order=onboarding_started_at.asc&limit=200",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-op-0006",
+      "name": "Query Onboarding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst stage_counts = {};\nrows.forEach(r => {\n  const s = r.onboarding_stage || 'intake';\n  stage_counts[s] = (stage_counts[s] || 0) + 1;\n});\n// Compute days_in_stage from onboarding_started_at\nrows.forEach(r => {\n  if (r.onboarding_started_at) {\n    const days = Math.floor((Date.now() - new Date(r.onboarding_started_at).getTime()) / (1000*60*60*24));\n    r.days_in_stage = days;\n    r.started_at = r.onboarding_started_at;\n  } else {\n    r.days_in_stage = null;\n    r.started_at = null;\n  }\n  r.next_action = r.onboarding_next_action;\n});\nreturn { json: { ok: true, stage_counts, clients: rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-op-0007",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "adm-op-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1820, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "adm-op-0009",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 420]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token",    "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Admin",      "type": "main", "index": 0 } ]] },
+    "Check Admin":      { "main": [[ { "node": "IF Admin OK",      "type": "main", "index": 0 } ]] },
+    "IF Admin OK":      { "main": [
+                                   [ { "node": "Query Onboarding", "type": "main", "index": 0 } ],
+                                   [ { "node": "Respond 4xx",      "type": "main", "index": 0 } ]
+                                 ] },
+    "Query Onboarding": { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

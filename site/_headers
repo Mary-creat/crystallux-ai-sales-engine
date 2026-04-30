@@ -2,7 +2,7 @@
 # Applies globally to every response served from the site tree.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com https://zqwatouqmqgkmaslydbr.supabase.co; frame-src https://calendly.com; frame-ancestors 'none'; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com https://zqwatouqmqgkmaslydbr.supabase.co https://automation.crystallux.org; frame-src https://calendly.com; frame-ancestors 'none'; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff

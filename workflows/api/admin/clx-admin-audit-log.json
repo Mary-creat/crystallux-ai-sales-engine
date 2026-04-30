@@ -1,0 +1,189 @@
+{
+  "name": "CLX - Admin Audit Log v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/audit-log",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "adm-al-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-audit-log-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-al-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "adm-al-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-al-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "adm-al-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_sessions?revoked_at=is.null&expires_at=gt.now&select=id,user_id,ip_address,user_agent,created_at,last_activity_at,expires_at&order=last_activity_at.desc&limit=80",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-al-0006",
+      "name": "Active Sessions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?select=id,email,user_role&limit=200",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-al-0007",
+      "name": "All Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 380],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log?select=actor_email,action,target_type,target_id,occurred_at&order=occurred_at.desc&limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-al-0008",
+      "name": "Admin Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 540],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessions = Array.isArray($('Active Sessions').first().json) ? $('Active Sessions').first().json : [];\nconst users = Array.isArray($('All Users').first().json) ? $('All Users').first().json : [];\nconst actionsRaw = $('Admin Actions').first().json;\nconst actions = Array.isArray(actionsRaw) ? actionsRaw : [];\n// Join sessions to users by user_id (avoid PostgREST embedding for simplicity)\nconst byId = {};\nusers.forEach(u => byId[u.id] = u);\nsessions.forEach(s => {\n  const u = byId[s.user_id] || {};\n  s.email = u.email || '—';\n  s.user_role = u.user_role || '—';\n});\nreturn { json: { ok: true, sessions, actions } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "adm-al-0009",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "adm-al-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "adm-al-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 60]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token",   "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Admin",     "type": "main", "index": 0 } ]] },
+    "Check Admin":      { "main": [[ { "node": "IF Admin OK",     "type": "main", "index": 0 } ]] },
+    "IF Admin OK":      { "main": [
+                                   [
+                                     { "node": "Active Sessions", "type": "main", "index": 0 },
+                                     { "node": "All Users",        "type": "main", "index": 0 },
+                                     { "node": "Admin Actions",    "type": "main", "index": 0 }
+                                   ],
+                                   [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
+                                 ] },
+    "Active Sessions":  { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "All Users":        { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Admin Actions":    { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

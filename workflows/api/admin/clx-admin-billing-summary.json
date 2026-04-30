@@ -1,0 +1,143 @@
+{
+  "name": "CLX - Admin Billing Summary v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/billing-summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "adm-bs-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-billing-summary-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-bs-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "adm-bs-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-bs-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "adm-bs-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?select=id,client_name,subscription_status,subscription_plan,monthly_retainer,fee_per_booking,next_billing_date,last_payment_amount,last_payment_at,trial_ends_at&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "adm-bs-0006",
+      "name": "Query Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst PLAN_PRICES = { founding_1997:1997, standard_2497:2497, construction_1497:1497, moving_997:997, cleaning_997:997, salon_997:997, intelligence_3997:3997 };\nconst summary = { mrr_cad: 0, active_count: 0, trialing_count: 0, past_due_count: 0, canceled_count: 0 };\nrows.forEach(c => {\n  const s = c.subscription_status;\n  if (s === 'active')   { summary.active_count++;   summary.mrr_cad += PLAN_PRICES[c.subscription_plan] || (c.monthly_retainer || 0); }\n  if (s === 'trialing') { summary.trialing_count++;}\n  if (s === 'past_due') { summary.past_due_count++; }\n  if (s === 'canceled' || s === 'cancelled') { summary.canceled_count++; }\n});\nrows.sort((a,b) => (b.monthly_retainer || 0) - (a.monthly_retainer || 0));\nreturn { json: Object.assign({ ok: true, clients: rows }, summary) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "adm-bs-0007",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "adm-bs-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1820, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "adm-bs-0009",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 420]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token",   "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Admin",     "type": "main", "index": 0 } ]] },
+    "Check Admin":      { "main": [[ { "node": "IF Admin OK",     "type": "main", "index": 0 } ]] },
+    "IF Admin OK":      { "main": [
+                                   [ { "node": "Query Clients",   "type": "main", "index": 0 } ],
+                                   [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
+                                 ] },
+    "Query Clients":    { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

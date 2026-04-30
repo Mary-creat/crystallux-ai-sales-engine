@@ -1,0 +1,24 @@
+# Cloudflare Pages security headers for admin.crystallux.org
+# All admin pages are noindex; the only network egress is to
+# automation.crystallux.org (n8n).
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-site
+  X-Robots-Tag: noindex, nofollow
+
+# Long-cache the immutable shared assets — they're versioned by
+# branch / commit so cache hit rate stays high.
+/shared/*
+  Cache-Control: public, max-age=86400, must-revalidate
+
+# Pages must always re-validate so a deploy reaches users on next
+# load instead of waiting for cache TTL.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
