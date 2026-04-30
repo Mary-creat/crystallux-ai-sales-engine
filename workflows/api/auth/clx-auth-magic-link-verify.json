@@ -1,0 +1,219 @@
+{
+  "name": "CLX - Auth Magic Link Verify v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/magic-link-verify",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "auth-mlv-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-auth-magic-link-verify-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst token = String(body.token || '').trim();\nif (token.length < 16) return { json: { ok: false, status: 400, error: 'Missing token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-mlv-0002",
+      "name": "Validate Token Param",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_magic_links?token=eq.' + encodeURIComponent($json.token) + '&select=id,email,expires_at,used_at&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "auth-mlv-0003",
+      "name": "Lookup Magic Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst link = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!link) return { json: { ok: false, status: 401, error: 'Link invalid' } };\nif (link.used_at) return { json: { ok: false, status: 401, error: 'Link already used' } };\nif (new Date(link.expires_at).getTime() <= Date.now()) return { json: { ok: false, status: 401, error: 'Link expired' } };\nreturn { json: { ok: true, link_id: link.id, email: link.email } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-mlv-0004",
+      "name": "Check Link Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-mlv-0005",
+      "name": "IF Link Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?email=eq.' + encodeURIComponent($json.email) + '&select=id,email,user_role,client_id,locked_until&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "auth-mlv-0006",
+      "name": "Lookup User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst user = Array.isArray(rows) && rows[0] ? rows[0] : null;\nconst link = $('Check Link Status').item.json;\nif (!user) return { json: { ok: false, status: 401, error: 'No account for this email' } };\nif (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {\n  return { json: { ok: false, status: 423, error: 'Account locked' } };\n}\nconst crypto = require('crypto');\nconst sessionToken = crypto.randomBytes(48).toString('base64url');\nconst expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();\nreturn { json: { ok: true, user_id: user.id, email: user.email, user_role: user.user_role, client_id: user.client_id, link_id: link.link_id, session_token: sessionToken, expires_at } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-mlv-0007",
+      "name": "Mint Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 220]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_magic_links?id=eq.' + encodeURIComponent($json.link_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"used_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": {}
+      },
+      "id": "auth-mlv-0008",
+      "name": "Mark Link Used",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_sessions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"user_id\": \"{{ $('Mint Session').item.json.user_id }}\", \"session_token\": \"{{ $('Mint Session').item.json.session_token }}\", \"expires_at\": \"{{ $('Mint Session').item.json.expires_at }}\", \"ip_address\": \"{{ $('Webhook').first().json.headers['cf-connecting-ip'] || $('Webhook').first().json.headers['x-forwarded-for'] || null }}\", \"user_agent\": \"{{ ($('Webhook').first().json.headers['user-agent'] || '').replace(/\\\"/g, '') }}\" }",
+        "options": {}
+      },
+      "id": "auth-mlv-0009",
+      "name": "Insert Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2020, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/register_successful_login",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_user_id\": \"{{ $('Mint Session').item.json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "auth-mlv-0010",
+      "name": "Mark Login Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2240, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, session_token: $('Mint Session').item.json.session_token, expires_at: $('Mint Session').item.json.expires_at, user: { email: $('Mint Session').item.json.email, role: $('Mint Session').item.json.user_role, client_id: $('Mint Session').item.json.client_id } } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "auth-mlv-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2460, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Invalid link' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "auth-mlv-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 420]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Validate Token Param","type": "main", "index": 0 } ]] },
+    "Validate Token Param": { "main": [[ { "node": "Lookup Magic Link",   "type": "main", "index": 0 } ]] },
+    "Lookup Magic Link":    { "main": [[ { "node": "Check Link Status",   "type": "main", "index": 0 } ]] },
+    "Check Link Status":    { "main": [[ { "node": "IF Link Valid",       "type": "main", "index": 0 } ]] },
+    "IF Link Valid":        { "main": [
+                                       [ { "node": "Lookup User",         "type": "main", "index": 0 } ],
+                                       [ { "node": "Respond 4xx",         "type": "main", "index": 0 } ]
+                                     ] },
+    "Lookup User":          { "main": [[ { "node": "Mint Session",        "type": "main", "index": 0 } ]] },
+    "Mint Session":         { "main": [[ { "node": "Mark Link Used",      "type": "main", "index": 0 } ]] },
+    "Mark Link Used":       { "main": [[ { "node": "Insert Session",      "type": "main", "index": 0 } ]] },
+    "Insert Session":       { "main": [[ { "node": "Mark Login Success",  "type": "main", "index": 0 } ]] },
+    "Mark Login Success":   { "main": [[ { "node": "Respond OK",          "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

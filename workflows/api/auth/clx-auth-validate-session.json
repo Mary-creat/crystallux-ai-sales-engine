@@ -1,0 +1,155 @@
+{
+  "name": "CLX - Auth Validate Session v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/validate-session",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "auth-vs-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-auth-validate-session-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract session token from Authorization: Bearer <token> OR body.session_token.\n// This webhook is the SINGLE source of truth used by every other API\n// webhook to gate access. It is read-only on the session layer except\n// for a sliding-window touch_session() call after a successful match.\nconst headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nlet token = '';\nif (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();\nif (!token && body.session_token) token = String(body.session_token).trim();\nif (!token) return { json: { ok: false, status: 401, error: 'No session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-vs-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-vs-0003",
+      "name": "IF No Token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "auth-vs-0004",
+      "name": "Validate Session RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// validate_session returns 0 or 1 row. 0 = invalid/expired/revoked.\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nreturn { json: {\n  ok: true,\n  user_id: row.user_id,\n  email: row.email,\n  user_role: row.user_role,\n  client_id: row.client_id,\n  expires_at: row.expires_at\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-vs-0005",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-vs-0006",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/touch_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $('Extract Token').item.json.token }}\", \"p_extend_seconds\": 604800 }",
+        "options": {}
+      },
+      "id": "auth-vs-0007",
+      "name": "Touch Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 320],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, user: { id: $('Shape Response').item.json.user_id, email: $('Shape Response').item.json.email, role: $('Shape Response').item.json.user_role, client_id: $('Shape Response').item.json.client_id }, expires_at: $('Shape Response').item.json.expires_at } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "auth-vs-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1800, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Invalid or expired session' } }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "auth-vs-0009",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1580, 500]
+    }
+  ],
+  "connections": {
+    "Webhook":             { "main": [[ { "node": "Extract Token",       "type": "main", "index": 0 } ]] },
+    "Extract Token":       { "main": [[ { "node": "IF No Token",          "type": "main", "index": 0 } ]] },
+    "IF No Token":         { "main": [
+                                      [ { "node": "Respond 401",         "type": "main", "index": 0 } ],
+                                      [ { "node": "Validate Session RPC","type": "main", "index": 0 } ]
+                                    ] },
+    "Validate Session RPC":{ "main": [[ { "node": "Shape Response",      "type": "main", "index": 0 } ]] },
+    "Shape Response":      { "main": [[ { "node": "IF Valid",            "type": "main", "index": 0 } ]] },
+    "IF Valid":            { "main": [
+                                      [ { "node": "Touch Session",       "type": "main", "index": 0 } ],
+                                      [ { "node": "Respond 401",         "type": "main", "index": 0 } ]
+                                    ] },
+    "Touch Session":       { "main": [[ { "node": "Respond OK",          "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

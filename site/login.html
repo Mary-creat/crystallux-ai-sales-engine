@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign in | Crystallux</title>
+<meta name="description" content="Sign in to your Crystallux dashboard." />
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="canonical" href="https://crystallux.org/login.html">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  /* Local form styles — kept inline to avoid bloating the global stylesheet
+     for what is a small auth-only surface. Mirrors the design tokens
+     defined in assets/site.css. */
+  .auth-shell{max-width:420px;margin:80px auto;padding:0 20px}
+  .auth-card{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:14px;padding:36px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.04)}
+  .auth-title{font-size:24px;font-weight:700;color:var(--text-primary);margin-bottom:6px;letter-spacing:-0.01em}
+  .auth-sub{font-size:14px;color:var(--text-secondary);margin-bottom:24px;line-height:1.55}
+  .auth-field{margin-bottom:14px}
+  .auth-field label{display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
+  .auth-field input{
+    width:100%;padding:11px 14px;font:inherit;font-size:14px;
+    background:var(--bg-default);color:var(--text-primary);
+    border:1px solid var(--border-default);border-radius:8px;
+    transition:border-color .15s,box-shadow .15s;outline:none;
+  }
+  .auth-field input:focus{border-color:var(--color-brand-500);box-shadow:0 0 0 3px var(--color-brand-100)}
+  .auth-field input[aria-invalid="true"]{border-color:var(--color-error-500)}
+  .auth-row{display:flex;justify-content:space-between;align-items:center;margin:6px 0 18px}
+  .auth-row a{font-size:13px;color:var(--color-brand-600);font-weight:600;text-decoration:none}
+  .auth-row a:hover{text-decoration:underline}
+  .auth-btn{
+    width:100%;padding:12px 20px;border-radius:8px;border:none;
+    font:inherit;font-weight:600;font-size:14px;cursor:pointer;
+    background:var(--color-brand-600);color:#fff;
+    transition:background .15s;
+  }
+  .auth-btn:hover{background:var(--color-brand-700)}
+  .auth-btn:disabled{opacity:0.65;cursor:wait}
+  .auth-btn.secondary{background:transparent;color:var(--color-brand-600);border:1px solid var(--border-emphasis)}
+  .auth-btn.secondary:hover{background:var(--bg-subtle)}
+  .auth-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--text-muted);font-size:12px}
+  .auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--border-subtle)}
+  .auth-msg{
+    padding:11px 14px;border-radius:8px;font-size:13px;line-height:1.5;
+    margin-bottom:14px;display:none;
+  }
+  .auth-msg.show{display:block}
+  .auth-msg.error{background:rgba(239,68,68,0.08);color:var(--color-error-500);border:1px solid rgba(239,68,68,0.25)}
+  .auth-msg.info{background:var(--color-brand-50);color:var(--color-brand-700);border:1px solid var(--color-brand-200)}
+  .auth-foot{text-align:center;margin-top:18px;font-size:13px;color:var(--text-muted)}
+  .auth-foot a{color:var(--color-brand-600);font-weight:600;text-decoration:none}
+  .auth-foot a:hover{text-decoration:underline}
+  @media (max-width:480px){
+    .auth-shell{margin:40px auto}
+    .auth-card{padding:28px 22px}
+  }
+</style>
+</head>
+<body>
+
+<header class="clx-header">
+  <div class="clx-header-inner">
+    <a href="index.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux</a>
+    <div class="clx-header-cta">
+      <a href="contact.html" class="clx-btn clx-btn-secondary">Need help?</a>
+    </div>
+  </div>
+</header>
+
+<main class="auth-shell">
+  <div class="auth-card">
+    <h1 class="auth-title">Sign in to Crystallux</h1>
+    <p class="auth-sub">Use your email and password, or request a one-time sign-in link instead.</p>
+
+    <div class="auth-msg" id="msg" role="alert" aria-live="polite"></div>
+
+    <form id="loginForm" novalidate>
+      <div class="auth-field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required inputmode="email" />
+      </div>
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8" />
+      </div>
+      <div class="auth-row">
+        <span></span>
+        <a href="forgot-password.html">Forgot password?</a>
+      </div>
+      <button type="submit" class="auth-btn" id="loginBtn">Sign in</button>
+    </form>
+
+    <div class="auth-divider">or</div>
+
+    <button type="button" class="auth-btn secondary" id="magicBtn">Send magic link instead</button>
+
+    <div class="auth-foot">
+      Need an account? <a href="contact.html">Contact us</a>
+    </div>
+  </div>
+</main>
+
+<script>
+(function() {
+  // ─── Auth endpoints ─────────────────────────────────────────────
+  // All requests go to n8n at automation.crystallux.org. Tokens
+  // come back as JSON; we store them in localStorage for the
+  // dashboard to pick up. (httpOnly cookies are deferred to a
+  // future hardening pass — they require the dashboard to be on
+  // the same registered domain as the issuer, which is the case
+  // for app./admin.crystallux.org but adds CORS complexity now.)
+  var AUTH_BASE  = 'https://automation.crystallux.org/webhook';
+  var LOGIN_URL  = AUTH_BASE + '/auth/login';
+  var MAGIC_URL  = AUTH_BASE + '/auth/magic-link';
+
+  function $(id) { return document.getElementById(id); }
+  function setMsg(text, kind) {
+    var el = $('msg');
+    el.className = 'auth-msg show ' + (kind || 'error');
+    el.textContent = text;
+  }
+  function clearMsg() { $('msg').className = 'auth-msg'; }
+  function setLoading(btn, isLoading, idleLabel) {
+    btn.disabled = isLoading;
+    btn.textContent = isLoading ? 'Working…' : idleLabel;
+  }
+
+  // After login, redirect to the role-appropriate dashboard.
+  function postLoginRedirect(role) {
+    if (role === 'admin') return 'https://admin.crystallux.org/';
+    if (role === 'client') return 'https://app.crystallux.org/';
+    return '/';
+  }
+
+  // ─── Email + password login ────────────────────────────────────
+  $('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    clearMsg();
+    var email = $('email').value.trim();
+    var password = $('password').value;
+    if (!email || !password) { setMsg('Email and password are required.'); return; }
+    var btn = $('loginBtn');
+    setLoading(btn, true, 'Sign in');
+    try {
+      var res = await fetch(LOGIN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: password })
+      });
+      var data = await res.json().catch(function(){ return {}; });
+      if (!res.ok || !data.ok) {
+        setMsg(data.error || ('Sign-in failed (' + res.status + ').'));
+        return;
+      }
+      // Persist token. The receiving dashboard's auth.js reads it
+      // and validates server-side on every page load.
+      try {
+        localStorage.setItem('clx_session_token', data.session_token);
+        localStorage.setItem('clx_session_expires', data.expires_at);
+        localStorage.setItem('clx_user_email', (data.user && data.user.email) || '');
+        localStorage.setItem('clx_user_role',  (data.user && data.user.role)  || '');
+        localStorage.setItem('clx_user_client_id', (data.user && data.user.client_id) || '');
+      } catch (e) { /* storage disabled — session still works for this tab via memory */ }
+      window.location.href = postLoginRedirect(data.user && data.user.role);
+    } catch (err) {
+      setMsg('Network error. Please try again.');
+    } finally {
+      setLoading(btn, false, 'Sign in');
+    }
+  });
+
+  // ─── Magic link request ────────────────────────────────────────
+  $('magicBtn').addEventListener('click', async function() {
+    clearMsg();
+    var email = $('email').value.trim();
+    if (!email) { setMsg('Enter your email first, then tap "Send magic link".'); $('email').focus(); return; }
+    var btn = this;
+    setLoading(btn, true, 'Send magic link instead');
+    try {
+      var res = await fetch(MAGIC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      });
+      var data = await res.json().catch(function(){ return {}; });
+      // 200 always — the API does not leak account existence.
+      sessionStorage.setItem('clx_magic_email', email);
+      window.location.href = '/magic-link-sent.html';
+    } catch (err) {
+      setMsg('Network error. Please try again.');
+    } finally {
+      setLoading(btn, false, 'Send magic link instead');
+    }
+  });
+})();
+</script>
+</body>
+</html>

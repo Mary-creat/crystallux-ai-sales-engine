@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Check your inbox | Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .auth-shell{max-width:480px;margin:80px auto;padding:0 20px;text-align:center}
+  .auth-card{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:14px;padding:48px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.04)}
+  .auth-icon{font-size:48px;margin-bottom:16px}
+  .auth-title{font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:8px;letter-spacing:-0.01em}
+  .auth-sub{font-size:14px;color:var(--text-secondary);line-height:1.55;margin-bottom:8px}
+  .auth-email{font-weight:600;color:var(--text-primary)}
+  .auth-foot{margin-top:22px;font-size:13px;color:var(--text-muted)}
+  .auth-foot a{color:var(--color-brand-600);font-weight:600;text-decoration:none}
+  .auth-foot a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header class="clx-header">
+  <div class="clx-header-inner">
+    <a href="index.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux</a>
+  </div>
+</header>
+
+<main class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-icon" aria-hidden="true">&#9993;</div>
+    <h1 class="auth-title">Check your inbox</h1>
+    <p class="auth-sub">If <span class="auth-email" id="email">that email</span> is associated with an account, a sign-in link is on its way.</p>
+    <p class="auth-sub">The link expires in 15 minutes. You can close this tab.</p>
+    <div class="auth-foot">
+      Didn't receive it? <a href="/login.html">Try again</a> &middot; <a href="contact.html">Get help</a>
+    </div>
+  </div>
+</main>
+
+<script>
+  // Show the email the user just submitted, if we have it.
+  try {
+    var e = sessionStorage.getItem('clx_magic_email');
+    if (e) document.getElementById('email').textContent = e;
+  } catch (err) {}
+</script>
+</body>
+</html>

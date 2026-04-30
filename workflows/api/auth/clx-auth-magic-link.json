@@ -1,0 +1,118 @@
+{
+  "name": "CLX - Auth Magic Link v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/magic-link",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "auth-ml-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-auth-magic-link-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Issue magic-link token regardless of whether the email maps to a\n// real user (do not leak existence). The verify webhook is where\n// existence is enforced. Token: 32-byte base64url (43 chars).\nconst body = $input.item.json.body || {};\nconst email = String(body.email || '').trim().toLowerCase();\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) {\n  return { json: { ok: false, status: 400, error: 'valid email required' } };\n}\nconst crypto = require('crypto');\nconst token = crypto.randomBytes(32).toString('base64url');\nconst expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();\nreturn { json: { ok: true, email, token, expires_at } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-ml-0002",
+      "name": "Mint Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-ml-0003",
+      "name": "IF Email OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_magic_links",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"email\": \"{{ $json.email }}\", \"token\": \"{{ $json.token }}\", \"expires_at\": \"{{ $json.expires_at }}\", \"ip_address\": \"{{ $('Webhook').first().json.headers['cf-connecting-ip'] || $('Webhook').first().json.headers['x-forwarded-for'] || null }}\" }",
+        "options": {}
+      },
+      "id": "auth-ml-0004",
+      "name": "Insert Magic Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PLACEHOLDER — wire to email provider in Phase 1 follow-up.\n// Build the click URL (this is what lands in the user's inbox):\nconst t = $('Mint Token').item.json;\nconst clickUrl = 'https://crystallux.org/auth/magic-link-verify.html?token=' + encodeURIComponent(t.token);\nreturn { json: {\n  to: t.email,\n  subject: 'Your Crystallux sign-in link',\n  text: 'Click to sign in (valid 15 min):\\n' + clickUrl,\n  click_url: clickUrl,\n  delivery: 'PLACEHOLDER — not actually sent. Replace this Code node with a real email node (Postmark/SendGrid/SMTP) before going live.'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-ml-0005",
+      "name": "Send Email (placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, message: 'If that email is associated with an account, a sign-in link has been sent.' } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "auth-ml-0006",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1360, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Bad request' } }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "auth-ml-0007",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 400]
+    }
+  ],
+  "connections": {
+    "Webhook":                  { "main": [[ { "node": "Mint Token",                "type": "main", "index": 0 } ]] },
+    "Mint Token":               { "main": [[ { "node": "IF Email OK",               "type": "main", "index": 0 } ]] },
+    "IF Email OK":              { "main": [
+                                           [ { "node": "Insert Magic Link",         "type": "main", "index": 0 } ],
+                                           [ { "node": "Respond 4xx",               "type": "main", "index": 0 } ]
+                                         ] },
+    "Insert Magic Link":        { "main": [[ { "node": "Send Email (placeholder)",  "type": "main", "index": 0 } ]] },
+    "Send Email (placeholder)": { "main": [[ { "node": "Respond OK",                "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

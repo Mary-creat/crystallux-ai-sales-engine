@@ -1,0 +1,70 @@
+{
+  "name": "CLX - Auth Logout v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/logout",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "auth-lo-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-auth-logout-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nlet token = '';\nif (auth.toLowerCase().startsWith('bearer ')) token = auth.slice(7).trim();\nif (!token && body.session_token) token = String(body.session_token).trim();\nif (!token) return { json: { ok: false, error: 'No session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-lo-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/revoke_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "auth-lo-0003",
+      "name": "Revoke Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "auth-lo-0004",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [860, 300]
+    }
+  ],
+  "connections": {
+    "Webhook":        { "main": [[ { "node": "Extract Token",  "type": "main", "index": 0 } ]] },
+    "Extract Token":  { "main": [[ { "node": "Revoke Session", "type": "main", "index": 0 } ]] },
+    "Revoke Session": { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

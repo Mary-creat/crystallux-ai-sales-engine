@@ -1,0 +1,214 @@
+{
+  "name": "CLX - Auth Login v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/login",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "auth-login-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-auth-login-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLX Auth Login — validate request body\n// Expected: { email, password }\n// Requires n8n env: NODE_FUNCTION_ALLOW_EXTERNAL=bcryptjs\nconst body = $input.item.json.body || $input.item.json;\nconst email = String(body.email || '').trim().toLowerCase();\nconst password = String(body.password || '');\nconst errors = [];\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) errors.push('valid email required');\nif (password.length < 8) errors.push('password too short');\nif (errors.length) return { json: { ok: false, status: 400, error: errors.join(', ') } };\nreturn { json: { email, password } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-login-0002",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-login-0003",
+      "name": "IF Validation Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?select=id,email,password_hash,user_role,client_id,locked_until,failed_login_attempts&email=eq.' + encodeURIComponent($json.email) + '&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "auth-login-0004",
+      "name": "Lookup User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify password with bcryptjs (cost 12). Branches on lock and mismatch.\nconst rows = $input.item.json;\nconst payload = $('Validate Input').item.json;\nconst user = Array.isArray(rows) && rows[0] ? rows[0] : null;\n\nif (!user) {\n  return { json: { ok: false, status: 401, error: 'Invalid credentials' } };\n}\nif (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {\n  return { json: { ok: false, status: 423, error: 'Account locked. Try again in 15 minutes.', locked_until: user.locked_until } };\n}\nif (!user.password_hash) {\n  return { json: { ok: false, status: 401, error: 'Use magic link for this account' } };\n}\n\nlet bcrypt;\ntry { bcrypt = require('bcryptjs'); }\ncatch (e) { return { json: { ok: false, status: 500, error: 'Server bcrypt unavailable. Set NODE_FUNCTION_ALLOW_EXTERNAL=bcryptjs.' } }; }\n\nconst match = await bcrypt.compare(payload.password, user.password_hash);\nif (!match) {\n  return { json: { ok: false, status: 401, error: 'Invalid credentials', failed: true, email: user.email } };\n}\n\n// Generate 48-byte session token → 64-char base64url\nconst crypto = require('crypto');\nconst token = crypto.randomBytes(48).toString('base64url');\nconst expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();\n\nreturn { json: {\n  ok: true,\n  user_id: user.id,\n  user_role: user.user_role,\n  client_id: user.client_id,\n  email: user.email,\n  session_token: token,\n  expires_at\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-login-0005",
+      "name": "Verify Password",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-login-0006",
+      "name": "IF Password OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_sessions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.user_id }}\",\n  \"session_token\": \"{{ $json.session_token }}\",\n  \"expires_at\": \"{{ $json.expires_at }}\",\n  \"ip_address\": \"{{ $('Webhook').first().json.headers['cf-connecting-ip'] || $('Webhook').first().json.headers['x-forwarded-for'] || null }}\",\n  \"user_agent\": \"{{ ($('Webhook').first().json.headers['user-agent'] || '').replace(/\"/g, '') }}\"\n}",
+        "options": {}
+      },
+      "id": "auth-login-0007",
+      "name": "Insert Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 320],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/register_successful_login",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_user_id\": \"{{ $json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "auth-login-0008",
+      "name": "Mark Login Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 320],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, session_token: $('Verify Password').item.json.session_token, expires_at: $('Verify Password').item.json.expires_at, user: { email: $('Verify Password').item.json.email, role: $('Verify Password').item.json.user_role, client_id: $('Verify Password').item.json.client_id } } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "auth-login-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2020, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/register_failed_login",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_email\": \"{{ $('Validate Input').item.json.email }}\" }",
+        "options": {}
+      },
+      "id": "auth-login-0010",
+      "name": "Mark Login Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 500],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Invalid credentials' } }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "auth-login-0011",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1800, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Bad request' } }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "auth-login-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 200]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Validate Input",       "type": "main", "index": 0 } ]] },
+    "Validate Input":       { "main": [[ { "node": "IF Validation Failed", "type": "main", "index": 0 } ]] },
+    "IF Validation Failed": { "main": [
+                                       [ { "node": "Respond 4xx",          "type": "main", "index": 0 } ],
+                                       [ { "node": "Lookup User",          "type": "main", "index": 0 } ]
+                                     ] },
+    "Lookup User":          { "main": [[ { "node": "Verify Password",      "type": "main", "index": 0 } ]] },
+    "Verify Password":      { "main": [[ { "node": "IF Password OK",       "type": "main", "index": 0 } ]] },
+    "IF Password OK":       { "main": [
+                                       [ { "node": "Insert Session",       "type": "main", "index": 0 } ],
+                                       [ { "node": "Mark Login Failed",    "type": "main", "index": 0 } ]
+                                     ] },
+    "Insert Session":       { "main": [[ { "node": "Mark Login Success",   "type": "main", "index": 0 } ]] },
+    "Mark Login Success":   { "main": [[ { "node": "Respond OK",           "type": "main", "index": 0 } ]] },
+    "Mark Login Failed":    { "main": [[ { "node": "Respond 401",          "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

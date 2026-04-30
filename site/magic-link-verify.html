@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Signing you in… | Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .auth-shell{max-width:480px;margin:80px auto;padding:0 20px;text-align:center}
+  .auth-card{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:14px;padding:48px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.04)}
+  .auth-spinner{
+    width:36px;height:36px;border-radius:50%;
+    border:3px solid var(--color-brand-100);border-top-color:var(--color-brand-600);
+    animation:auth-spin .8s linear infinite;margin:0 auto 16px
+  }
+  @keyframes auth-spin{to{transform:rotate(360deg)}}
+  .auth-title{font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:8px;letter-spacing:-0.01em}
+  .auth-sub{font-size:14px;color:var(--text-secondary);line-height:1.55}
+  .auth-msg{padding:11px 14px;border-radius:8px;font-size:13px;line-height:1.5;margin-top:14px;display:none;text-align:left}
+  .auth-msg.show{display:block}
+  .auth-msg.error{background:rgba(239,68,68,0.08);color:var(--color-error-500);border:1px solid rgba(239,68,68,0.25)}
+  .auth-foot{margin-top:18px;font-size:13px;color:var(--text-muted)}
+  .auth-foot a{color:var(--color-brand-600);font-weight:600;text-decoration:none}
+</style>
+</head>
+<body>
+<header class="clx-header">
+  <div class="clx-header-inner">
+    <a href="index.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux</a>
+  </div>
+</header>
+
+<main class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-spinner" id="spinner" aria-hidden="true"></div>
+    <h1 class="auth-title" id="title">Signing you in…</h1>
+    <p class="auth-sub" id="sub">Verifying your link.</p>
+    <div class="auth-msg" id="msg" role="alert" aria-live="polite"></div>
+    <div class="auth-foot"><a href="/login.html">Back to sign in</a></div>
+  </div>
+</main>
+
+<script>
+(function() {
+  var VERIFY_URL = 'https://automation.crystallux.org/webhook/auth/magic-link-verify';
+  var qs = new URLSearchParams(window.location.search);
+  var token = qs.get('token') || '';
+
+  function fail(text) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('title').textContent = 'Link not valid';
+    document.getElementById('sub').textContent = '';
+    var m = document.getElementById('msg');
+    m.classList.add('show', 'error');
+    m.textContent = text || 'This sign-in link is invalid or has expired. Request a new one.';
+  }
+
+  function postLoginRedirect(role) {
+    if (role === 'admin') return 'https://admin.crystallux.org/';
+    if (role === 'client') return 'https://app.crystallux.org/';
+    return '/';
+  }
+
+  if (!token) { fail('Missing token in link. Try requesting a new one.'); return; }
+
+  fetch(VERIFY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token })
+  }).then(function(res) {
+    return res.json().then(function(data) { return { res: res, data: data }; });
+  }).then(function(r) {
+    if (!r.res.ok || !r.data || !r.data.ok) { fail(r.data && r.data.error); return; }
+    try {
+      localStorage.setItem('clx_session_token', r.data.session_token);
+      localStorage.setItem('clx_session_expires', r.data.expires_at);
+      localStorage.setItem('clx_user_email', (r.data.user && r.data.user.email) || '');
+      localStorage.setItem('clx_user_role',  (r.data.user && r.data.user.role)  || '');
+      localStorage.setItem('clx_user_client_id', (r.data.user && r.data.user.client_id) || '');
+    } catch (e) {}
+    window.location.href = postLoginRedirect(r.data.user && r.data.user.role);
+  }).catch(function() {
+    fail('Network error verifying link. Try again.');
+  });
+})();
+</script>
+</body>
+</html>
