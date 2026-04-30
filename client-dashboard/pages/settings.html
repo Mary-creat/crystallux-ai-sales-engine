@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Settings · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Client</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Settings</h1>
+      <div class="clx-page-sub">Account, notifications, and preferences.</div>
+    </div></div>
+
+    <div id="msg" class="clx-error-banner" style="display:none"></div>
+
+    <div class="clx-card" style="margin-bottom:14px">
+      <div class="clx-card-head"><div class="clx-card-title">Account</div></div>
+      <div id="acctBody" style="font-size:13.5px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+
+    <div class="clx-card" style="margin-bottom:14px">
+      <div class="clx-card-head"><div class="clx-card-title">Notification preferences</div></div>
+      <form id="notifForm">
+        <div class="clx-field">
+          <label for="notifEmail">Notification email</label>
+          <input class="clx-input" type="email" id="notifEmail" autocomplete="email" />
+        </div>
+        <div class="clx-field" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="dailyDigest" style="width:18px;height:18px">
+          <label for="dailyDigest" style="margin:0">Send daily digest at 8am ET</label>
+        </div>
+        <div class="clx-field" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="bookingAlerts" style="width:18px;height:18px">
+          <label for="bookingAlerts" style="margin:0">Real-time alerts when a meeting is booked</label>
+        </div>
+        <button type="submit" class="clx-btn clx-btn-primary" id="saveBtn">Save changes</button>
+      </form>
+    </div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Security</div></div>
+      <p style="color:var(--text-secondary);font-size:13.5px;margin-bottom:14px">
+        Sign out, or reset your password via the
+        <a href="https://crystallux.org/forgot-password.html" style="color:var(--color-brand-600);font-weight:600">password-reset flow</a>.
+        Resetting signs out every active session.
+      </p>
+      <button class="clx-btn clx-btn-secondary" onclick="clxAuth.logout()">Sign out</button>
+    </div>
+  </div></main>
+</div>
+<nav class="clx-bottom-nav" id="clxBottomNav"></nav>
+
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+var __orig = null;
+clxAuth.require('client').then(function (user) {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load(user);
+  document.getElementById('notifForm').addEventListener('submit', save);
+});
+
+function setMsg(text, kind) {
+  var m = document.getElementById('msg');
+  m.style.display = 'block';
+  m.style.background = kind === 'ok' ? '#D1FAE5' : 'rgba(239,68,68,0.07)';
+  m.style.borderColor = kind === 'ok' ? '#A7F3D0' : 'rgba(239,68,68,0.25)';
+  m.style.color = kind === 'ok' ? '#065F46' : 'var(--error)';
+  m.textContent = text;
+}
+
+async function load(user) {
+  var res = await clxApi.clientGet('settings');
+  var el = document.getElementById('acctBody');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var d = res.data || {};
+  var c = d.client || {};
+  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">' +
+    kv('Login email', user.email) +
+    kv('Account name', c.client_name) +
+    kv('Industry', c.industry) +
+    kv('City', c.city) +
+  '</div>';
+  __orig = {
+    notification_email: c.notification_email || user.email || '',
+    daily_digest: !!c.daily_digest_opt_in,
+    booking_alerts: !!c.booking_alerts_opt_in
+  };
+  document.getElementById('notifEmail').value = __orig.notification_email;
+  document.getElementById('dailyDigest').checked = __orig.daily_digest;
+  document.getElementById('bookingAlerts').checked = __orig.booking_alerts;
+}
+
+async function save(e) {
+  e.preventDefault();
+  document.getElementById('msg').style.display = 'none';
+  var btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  var body = {
+    notification_email: document.getElementById('notifEmail').value.trim(),
+    daily_digest_opt_in: document.getElementById('dailyDigest').checked,
+    booking_alerts_opt_in: document.getElementById('bookingAlerts').checked
+  };
+  var res = await clxApi.clientPost('settings', body);
+  btn.disabled = false; btn.textContent = 'Save changes';
+  if (res.ok) setMsg('Saved.', 'ok');
+  else setMsg(res.error || 'Could not save.', 'error');
+}
+
+function kv(k, v) {
+  return '<div><div class="clx-stat-label">' + k + '</div><div style="margin-top:3px">' + (v ? clxComp.escapeHtml(v) : '—') + '</div></div>';
+}
+</script>
+</body>
+</html>

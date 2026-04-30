@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Overview · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/pages/overview.html" class="clx-logo">
+      <span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill" id="rolePill">Client</span>
+    </a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title" id="hello">Overview</h1>
+      <div class="clx-page-sub" id="clientName">—</div>
+    </div></div>
+    <div class="clx-stat-grid" id="kpiGrid">
+      <div class="clx-stat-card"><div class="clx-stat-label">Loading…</div><div class="clx-stat-value"><span class="clx-spinner"></span></div></div>
+    </div>
+
+    <div class="clx-card" style="padding:0;margin-bottom:14px">
+      <div class="clx-card-head" style="padding:14px 16px 0">
+        <div class="clx-card-title">Recent leads</div>
+        <a class="clx-btn clx-btn-ghost" href="/pages/leads.html" style="padding:5px 8px;font-size:12px">All →</a>
+      </div>
+      <div id="recentLeads" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+
+    <div class="clx-card" style="padding:0">
+      <div class="clx-card-head" style="padding:14px 16px 0">
+        <div class="clx-card-title">Upcoming bookings</div>
+        <a class="clx-btn clx-btn-ghost" href="/pages/bookings.html" style="padding:5px 8px;font-size:12px">All →</a>
+      </div>
+      <div id="upcomingBookings" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </div></main>
+</div>
+<nav class="clx-bottom-nav" id="clxBottomNav"></nav>
+
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('client').then(function (user) {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('hello').textContent = greeting() + ', ' + (user.email || 'there').split('@')[0];
+  load();
+}).catch(function(){});
+
+function greeting() {
+  var h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+async function load() {
+  var [overview, leads, bookings] = await Promise.all([
+    clxApi.clientGet('overview'),
+    clxApi.clientGet('leads', { limit: 5 }),
+    clxApi.clientGet('bookings', { upcoming: true, limit: 5 })
+  ]);
+
+  // Show client name
+  if (overview.ok && overview.data && overview.data.client) {
+    document.getElementById('clientName').textContent = overview.data.client.client_name || '';
+  }
+
+  // KPI grid
+  var grid = document.getElementById('kpiGrid');
+  if (overview.ok && overview.data && overview.data.stats) {
+    var s = overview.data.stats;
+    clxComp.renderStatGrid(grid, [
+      { label: 'Total leads',       value: (s.total_leads || 0).toLocaleString() },
+      { label: 'New (7d)',          value: s.new_7d || 0 },
+      { label: 'Replies (30d)',     value: s.replies_30d || 0 },
+      { label: 'Booked (30d)',      value: s.booked_30d || 0 }
+    ]);
+  } else {
+    clxApi.renderError(grid, overview);
+  }
+
+  // Recent leads
+  var leEl = document.getElementById('recentLeads');
+  if (leads.ok && leads.data && Array.isArray(leads.data.leads)) {
+    var rows = leads.data.leads;
+    if (!rows.length) clxApi.renderEmpty(leEl, 'No leads yet — your first scans land within 24 hours of activation.', '◍');
+    else clxComp.renderList(leEl, rows, function (r) {
+      return {
+        primary:   r.company || '(no company name)',
+        secondary: [r.industry, r.city].filter(Boolean).join(' · '),
+        badge:     r.lead_status,
+        right:     clxComp.relativeTime(r.updated_at)
+      };
+    });
+  } else {
+    clxApi.renderError(leEl, leads);
+  }
+
+  // Upcoming bookings
+  var boEl = document.getElementById('upcomingBookings');
+  if (bookings.ok && bookings.data && Array.isArray(bookings.data.bookings)) {
+    var rows = bookings.data.bookings;
+    if (!rows.length) clxApi.renderEmpty(boEl, 'No bookings scheduled. Calls land here as they are booked.', '◨');
+    else clxComp.renderList(boEl, rows, function (r) {
+      return {
+        primary:   r.company || r.attendee_name || '(no name)',
+        secondary: r.event_type || '',
+        right:     clxComp.formatDateTime(r.scheduled_start)
+      };
+    });
+  } else {
+    clxApi.renderError(boEl, bookings);
+  }
+}
+</script>
+</body>
+</html>

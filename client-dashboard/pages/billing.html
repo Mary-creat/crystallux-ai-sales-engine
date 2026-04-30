@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Billing · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Client</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Billing</h1>
+      <div class="clx-page-sub">Your subscription and payment history.</div>
+    </div></div>
+    <div id="billBody"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+  </div></main>
+</div>
+<nav class="clx-bottom-nav" id="clxBottomNav"></nav>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('client').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+});
+async function load() {
+  var res = await clxApi.clientGet('billing');
+  var el = document.getElementById('billBody');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var d = res.data || {};
+  var b = d.billing || {};
+  var portalUrl = d.portal_url;
+  var statusKind = clxComp.badgeFor(b.subscription_status);
+  var banner = '';
+  if (b.subscription_status === 'past_due') {
+    banner = '<div class="clx-error-banner">Payment failed. Update billing to keep your engine running.</div>';
+  } else if (b.subscription_status === 'trialing') {
+    var days = b.trial_ends_at ? Math.max(0, Math.ceil((new Date(b.trial_ends_at) - new Date()) / (1000*60*60*24))) : null;
+    banner = '<div class="clx-error-banner" style="background:#FEF3C7;border-color:#FDE68A;color:#92400E">Trial ends ' + (days != null ? ('in ' + days + ' day' + (days === 1 ? '' : 's') + '.') : 'soon.') + '</div>';
+  }
+  el.innerHTML = banner +
+    '<div class="clx-stat-grid" id="bStats"></div>' +
+    '<div class="clx-card">' +
+      '<div class="clx-card-head"><div class="clx-card-title">Subscription</div></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:13.5px">' +
+        kv('Status', '<span class="clx-badge clx-badge-' + statusKind + '">' + clxComp.escapeHtml(b.subscription_status || '—') + '</span>', true) +
+        kv('Plan',   b.subscription_plan) +
+        kv('Next billing',  clxComp.formatDate(b.next_billing_date)) +
+        kv('Last payment',  clxComp.formatMoney(b.last_payment_amount)) +
+        kv('Last paid on',  clxComp.formatDate(b.last_payment_at)) +
+        kv('Trial ends',    clxComp.formatDate(b.trial_ends_at)) +
+      '</div>' +
+      (portalUrl ? '<div style="margin-top:18px"><a href="' + portalUrl + '" class="clx-btn clx-btn-primary" target="_blank" rel="noopener">Manage billing</a></div>' : '') +
+    '</div>';
+  clxComp.renderStatGrid(document.getElementById('bStats'), [
+    { label: 'Status',          value: b.subscription_status || '—' },
+    { label: 'Plan',            value: b.subscription_plan   || '—' },
+    { label: 'Last payment',    value: clxComp.formatMoney(b.last_payment_amount) }
+  ]);
+}
+function kv(k, v, isHtml) {
+  return '<div><div class="clx-stat-label">' + k + '</div><div style="margin-top:3px">' + (isHtml ? v : clxComp.escapeHtml(v == null || v === '' ? '—' : v)) + '</div></div>';
+}
+</script>
+</body>
+</html>

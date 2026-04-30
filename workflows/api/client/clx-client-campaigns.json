@@ -1,0 +1,166 @@
+{
+  "name": "CLX - Client Campaigns v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "client/campaigns",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cli-cm-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-client-campaigns-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-cm-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "cli-cm-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'client' && row.user_role !== 'team_member') return { json: { ok: false, status: 403, error: 'Client access required' } };\nif (!row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nreturn { json: { ok: true, client_id: row.client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-cm-0004",
+      "name": "Check Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cli-cm-0005",
+      "name": "IF Client OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/campaigns?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,name,channel,status,sent,replies,started_at,updated_at&order=updated_at.desc&limit=200' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-cm-0006",
+      "name": "Query Campaigns",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Client').item.json.client_id) + '&outreach_sent_at=gt.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id,lead_status&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-cm-0007",
+      "name": "Sent 7d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 380],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const camps = $('Query Campaigns').first().json;\nconst sentRows = $('Sent 7d').first().json;\nconst campaigns = Array.isArray(camps) ? camps : [];\nconst sent = Array.isArray(sentRows) ? sentRows : [];\nconst sent_7d = sent.length;\nconst replies_7d = sent.filter(r => r.lead_status === 'Replied').length;\nconst active_count = campaigns.filter(c => (c.status || '').toLowerCase() === 'active').length;\nconst reply_rate = sent_7d > 0 ? (replies_7d / sent_7d) : 0;\nreturn { json: { ok: true, campaigns, active_count, sent_7d, replies_7d, reply_rate } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cli-cm-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "cli-cm-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "cli-cm-0010",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 60]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token",   "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Client",    "type": "main", "index": 0 } ]] },
+    "Check Client":     { "main": [[ { "node": "IF Client OK",    "type": "main", "index": 0 } ]] },
+    "IF Client OK":     { "main": [
+                                   [
+                                     { "node": "Query Campaigns", "type": "main", "index": 0 },
+                                     { "node": "Sent 7d",         "type": "main", "index": 0 }
+                                   ],
+                                   [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
+                                 ] },
+    "Query Campaigns":  { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Sent 7d":          { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leads · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Client</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">My leads</h1>
+      <div class="clx-page-sub">All leads in your pipeline.</div>
+    </div></div>
+    <div class="clx-field" style="margin-bottom:16px">
+      <select class="clx-select" id="statusFilter">
+        <option value="all">All statuses</option>
+        <option>New Lead</option><option>Researched</option><option>Scored</option>
+        <option>Outreach Ready</option><option>Contacted</option><option>Replied</option>
+        <option>Booking Sent</option><option>Booked</option><option>Lost</option>
+      </select>
+    </div>
+    <div id="leadsList"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+  </div></main>
+</div>
+<nav class="clx-bottom-nav" id="clxBottomNav"></nav>
+
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('client').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+  document.getElementById('statusFilter').addEventListener('change', load);
+});
+
+async function load() {
+  clxApi.renderLoading(document.getElementById('leadsList'));
+  var status = document.getElementById('statusFilter').value;
+  var filters = { limit: 100 };
+  if (status && status !== 'all') filters.status = status;
+  var res = await clxApi.clientGet('leads', filters);
+  var el = document.getElementById('leadsList');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  var rows = (res.data && res.data.leads) || [];
+  if (!rows.length) { clxApi.renderEmpty(el, 'No leads match this filter yet.', '◍'); return; }
+  clxComp.renderList(el, rows, function (r) {
+    return {
+      primary: r.company || '(no company)',
+      secondary: [r.industry, r.city, r.lead_score ? ('score ' + r.lead_score) : null].filter(Boolean).join(' · '),
+      badge: r.lead_status,
+      right: clxComp.relativeTime(r.updated_at)
+    };
+  });
+}
+</script>
+</body>
+</html>

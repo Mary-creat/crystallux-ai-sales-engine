@@ -1,0 +1,10 @@
+# Cloudflare Pages routing for app.crystallux.org
+
+/                /index.html              200
+/overview        /pages/overview.html     301
+/leads           /pages/leads.html        301
+/campaigns       /pages/campaigns.html    301
+/bookings        /pages/bookings.html     301
+/activity        /pages/activity.html     301
+/billing         /pages/billing.html      301
+/settings        /pages/settings.html     301

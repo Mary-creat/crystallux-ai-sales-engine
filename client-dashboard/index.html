@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/layout.css">
+</head>
+<body>
+<div style="text-align:center;padding:80px 20px">
+  <div class="clx-spinner" style="width:28px;height:28px"></div>
+  <div style="color:var(--text-muted);font-size:13px;margin-top:14px">Signing you in…</div>
+</div>
+<script src="shared/auth.js"></script>
+<script>
+  (function () {
+    var token = clxAuth.getToken();
+    if (!token) {
+      window.location.replace('https://crystallux.org/login.html?next=' + encodeURIComponent(window.location.href));
+      return;
+    }
+    clxAuth.validate().then(function (user) {
+      if (user.role === 'client' || user.role === 'team_member') window.location.replace('pages/overview.html');
+      else if (user.role === 'admin') window.location.replace('https://admin.crystallux.org/');
+      else window.location.replace('https://crystallux.org/login.html?why=wrong-role');
+    }).catch(function () {
+      window.location.replace('https://crystallux.org/login.html?why=invalid-session');
+    });
+  })();
+</script>
+</body>
+</html>

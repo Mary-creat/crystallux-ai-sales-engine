@@ -1,0 +1,164 @@
+{
+  "name": "CLX - Client Overview v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "client/overview",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cli-ov-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-client-overview-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-ov-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "cli-ov-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract client_id FROM THE SESSION ROW. Never read it from the\n// request body — that is the cross-tenant isolation anchor.\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'client' && row.user_role !== 'team_member') return { json: { ok: false, status: 403, error: 'Client access required' } };\nif (!row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nreturn { json: { ok: true, client_id: row.client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-ov-0004",
+      "name": "Check Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cli-ov-0005",
+      "name": "IF Client OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($json.client_id) + '&select=id,client_name,industry,city,vertical,active&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-ov-0006",
+      "name": "Query Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Client').item.json.client_id) + '&select=lead_status,date_created,updated_at,outreach_sent_at&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-ov-0007",
+      "name": "Query Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 360],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientRows = $('Query Client').first().json;\nconst leadRows = $('Query Leads').first().json;\nconst client = Array.isArray(clientRows) ? clientRows[0] : null;\nconst leads = Array.isArray(leadRows) ? leadRows : [];\nconst now = Date.now();\nconst d7 = now - 7*24*60*60*1000;\nconst d30 = now - 30*24*60*60*1000;\nlet new_7d = 0, replies_30d = 0, booked_30d = 0;\nleads.forEach(l => {\n  if (l.date_created && new Date(l.date_created).getTime() >= d7) new_7d += 1;\n  if (l.lead_status === 'Replied' && l.updated_at && new Date(l.updated_at).getTime() >= d30) replies_30d += 1;\n  if (l.lead_status === 'Booked'  && l.updated_at && new Date(l.updated_at).getTime() >= d30) booked_30d += 1;\n});\nreturn { json: {\n  ok: true,\n  client: client || null,\n  stats: { total_leads: leads.length, new_7d, replies_30d, booked_30d }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cli-ov-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "cli-ov-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "cli-ov-0010",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 60]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token",   "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Client",    "type": "main", "index": 0 } ]] },
+    "Check Client":     { "main": [[ { "node": "IF Client OK",    "type": "main", "index": 0 } ]] },
+    "IF Client OK":     { "main": [
+                                   [
+                                     { "node": "Query Client", "type": "main", "index": 0 },
+                                     { "node": "Query Leads",  "type": "main", "index": 0 }
+                                   ],
+                                   [ { "node": "Respond 4xx",  "type": "main", "index": 0 } ]
+                                 ] },
+    "Query Client":     { "main": [[ { "node": "Shape Response","type": "main", "index": 0 } ]] },
+    "Query Leads":      { "main": [[ { "node": "Shape Response","type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",    "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bookings · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Client</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Bookings &amp; replies</h1>
+      <div class="clx-page-sub">Calls scheduled and inbound replies that need attention.</div>
+    </div></div>
+
+    <div class="clx-card" style="padding:0;margin-bottom:14px">
+      <div class="clx-card-head" style="padding:14px 16px 0"><div class="clx-card-title">Upcoming bookings</div></div>
+      <div id="upcoming" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+
+    <div class="clx-card" style="padding:0">
+      <div class="clx-card-head" style="padding:14px 16px 0"><div class="clx-card-title">Recent replies</div></div>
+      <div id="replies" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </div></main>
+</div>
+<nav class="clx-bottom-nav" id="clxBottomNav"></nav>
+<script src="../shared/auth.js"></script>
+<script src="../shared/api.js"></script>
+<script src="../shared/components.js"></script>
+<script>
+clxAuth.require('client').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  load();
+});
+async function load() {
+  var [book, reps] = await Promise.all([
+    clxApi.clientGet('bookings', { upcoming: true, limit: 30 }),
+    clxApi.clientGet('replies',  { limit: 30 })
+  ]);
+  var bEl = document.getElementById('upcoming');
+  if (book.ok && book.data && Array.isArray(book.data.bookings)) {
+    if (!book.data.bookings.length) clxApi.renderEmpty(bEl, 'No upcoming bookings.', '◨');
+    else clxComp.renderList(bEl, book.data.bookings, function (r) {
+      return {
+        primary: r.company || r.attendee_name || '(no name)',
+        secondary: r.event_type || '',
+        right: clxComp.formatDateTime(r.scheduled_start)
+      };
+    });
+  } else { clxApi.renderError(bEl, book); }
+
+  var rEl = document.getElementById('replies');
+  if (reps.ok && reps.data && Array.isArray(reps.data.replies)) {
+    if (!reps.data.replies.length) clxApi.renderEmpty(rEl, 'No replies yet.', '✉');
+    else clxComp.renderList(rEl, reps.data.replies, function (r) {
+      return {
+        primary: r.company || r.from_email || '(unknown)',
+        secondary: (r.email_subject || r.snippet || '').slice(0, 120),
+        badge: r.lead_status,
+        right: clxComp.relativeTime(r.replied_at || r.updated_at)
+      };
+    });
+  } else { clxApi.renderError(rEl, reps); }
+}
+</script>
+</body>
+</html>
