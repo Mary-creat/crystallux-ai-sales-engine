@@ -137,7 +137,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_log?error_count=gt.0&scanned_at=gte.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=error_count' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_log?errors=gt.0&scanned_at=gte.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=errors' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -155,7 +155,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pull counts and shape the response.\nconst leadCountHeader = $('Count Leads').first().binary || $('Count Leads').first().json;\nconst leadHeaders = $('Count Leads').first().headers || {};\nconst leadRange = leadHeaders['content-range'] || '';\nconst totalLeads = parseInt(String(leadRange).split('/')[1], 10);\nconst PLAN_PRICES = { founding_1997:1997, standard_2497:2497, construction_1497:1497, moving_997:997, cleaning_997:997, salon_997:997, intelligence_3997:3997 };\nconst clients = $('Active Clients').first().json || [];\nlet mrr = 0; let activeCount = 0;\n(Array.isArray(clients) ? clients : []).forEach(c => {\n  if (c.subscription_status === 'active' || c.subscription_status === 'trialing') {\n    activeCount += 1;\n    mrr += PLAN_PRICES[c.subscription_plan] || (c.monthly_retainer || 0);\n  }\n});\nconst bookHeaders = $('Count Booked Week').first().headers || {};\nconst bookRange = bookHeaders['content-range'] || '';\nconst bookedWeek = parseInt(String(bookRange).split('/')[1], 10);\nconst errorRows = $('Errors 24h').first().json;\nlet errors24h = 0;\nif (Array.isArray(errorRows)) errorRows.forEach(r => { errors24h += (r.error_count || 0); });\nreturn { json: {\n  ok: true,\n  total_leads: isNaN(totalLeads) ? null : totalLeads,\n  active_clients: activeCount,\n  booked_this_week: isNaN(bookedWeek) ? null : bookedWeek,\n  errors_24h: errors24h,\n  mrr_cad: mrr\n} };",
+        "jsCode": "// Pull counts and shape the response.\nconst leadCountHeader = $('Count Leads').first().binary || $('Count Leads').first().json;\nconst leadHeaders = $('Count Leads').first().headers || {};\nconst leadRange = leadHeaders['content-range'] || '';\nconst totalLeads = parseInt(String(leadRange).split('/')[1], 10);\nconst PLAN_PRICES = { founding_1997:1997, standard_2497:2497, construction_1497:1497, moving_997:997, cleaning_997:997, salon_997:997, intelligence_3997:3997 };\nconst clients = $('Active Clients').first().json || [];\nlet mrr = 0; let activeCount = 0;\n(Array.isArray(clients) ? clients : []).forEach(c => {\n  if (c.subscription_status === 'active' || c.subscription_status === 'trialing') {\n    activeCount += 1;\n    mrr += PLAN_PRICES[c.subscription_plan] || (c.monthly_retainer || 0);\n  }\n});\nconst bookHeaders = $('Count Booked Week').first().headers || {};\nconst bookRange = bookHeaders['content-range'] || '';\nconst bookedWeek = parseInt(String(bookRange).split('/')[1], 10);\nconst errorRows = $('Errors 24h').first().json;\nlet errors24h = 0;\nif (Array.isArray(errorRows)) errorRows.forEach(r => { errors24h += (r.errors || 0); });\nreturn { json: {\n  ok: true,\n  total_leads: isNaN(totalLeads) ? null : totalLeads,\n  active_clients: activeCount,\n  booked_this_week: isNaN(bookedWeek) ? null : bookedWeek,\n  errors_24h: errors24h,\n  mrr_cad: mrr\n} };",
         "mode": "runOnceForAllItems"
       },
       "id": "adm-sh-0010",

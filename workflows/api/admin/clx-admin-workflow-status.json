@@ -76,7 +76,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_log?scanned_at=gte.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=workflow_name,status,error_count,scan_count,duration_ms,scanned_at&order=scanned_at.desc&limit=1000' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_log?scanned_at=gte.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=workflow_name,status,errors,duration_ms,scanned_at&order=scanned_at.desc&limit=1000' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -94,7 +94,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Aggregate workflow runs from scan_log into a per-workflow summary.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byName = {};\nlet runs = 0, errors = 0, ms = 0, msCount = 0;\nrows.forEach(r => {\n  const name = r.workflow_name || 'unknown';\n  if (!byName[name]) byName[name] = { name, runs_24h: 0, errors_24h: 0, last_status: null, last_run_at: null };\n  const w = byName[name];\n  w.runs_24h += 1;\n  if (r.error_count > 0) w.errors_24h += 1;\n  if (!w.last_run_at || new Date(r.scanned_at) > new Date(w.last_run_at)) {\n    w.last_run_at = r.scanned_at;\n    w.last_status = r.status || (r.error_count > 0 ? 'error' : 'ok');\n  }\n  runs += 1;\n  if (r.error_count > 0) errors += 1;\n  if (typeof r.duration_ms === 'number') { ms += r.duration_ms; msCount += 1; }\n});\nconst workflows = Object.values(byName).sort((a, b) => (b.runs_24h - a.runs_24h));\nconst avg_ms = msCount ? Math.round(ms / msCount) : null;\nreturn { json: {\n  ok: true,\n  runs_24h: runs,\n  errors_24h: errors,\n  avg_ms: avg_ms,\n  active_count: workflows.length,\n  workflows: workflows.slice(0, 60)\n} };",
+        "jsCode": "// Aggregate workflow runs from scan_log into a per-workflow summary.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byName = {};\nlet runs = 0, errors = 0, ms = 0, msCount = 0;\nrows.forEach(r => {\n  const name = r.workflow_name || 'unknown';\n  if (!byName[name]) byName[name] = { name, runs_24h: 0, errors_24h: 0, last_status: null, last_run_at: null };\n  const w = byName[name];\n  w.runs_24h += 1;\n  if (r.errors > 0) w.errors_24h += 1;\n  if (!w.last_run_at || new Date(r.scanned_at) > new Date(w.last_run_at)) {\n    w.last_run_at = r.scanned_at;\n    w.last_status = r.status || (r.errors > 0 ? 'error' : 'ok');\n  }\n  runs += 1;\n  if (r.errors > 0) errors += 1;\n  if (typeof r.duration_ms === 'number') { ms += r.duration_ms; msCount += 1; }\n});\nconst workflows = Object.values(byName).sort((a, b) => (b.runs_24h - a.runs_24h));\nconst avg_ms = msCount ? Math.round(ms / msCount) : null;\nreturn { json: {\n  ok: true,\n  runs_24h: runs,\n  errors_24h: errors,\n  avg_ms: avg_ms,\n  active_count: workflows.length,\n  workflows: workflows.slice(0, 60)\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "adm-ws-0007",
