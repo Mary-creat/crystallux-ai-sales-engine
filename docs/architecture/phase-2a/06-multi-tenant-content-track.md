@@ -38,8 +38,11 @@ belongs to one of their personas.
       '<JOHN_REPLICA_ID>',
       'You are John, founder of Acme Roofing in Hamilton ON …',
       <pulled from clients.video_monthly_cap>);
-   UPDATE clients SET default_persona_id = <new_persona_id>
-     WHERE id = '<acme_client_id>';
+   -- Default persona linkage lives in the junction table.
+   -- clients schema is NOT modified.
+   INSERT INTO client_default_personas (client_id, persona_id)
+   VALUES ('<acme_client_id>', <new_persona_id>)
+   ON CONFLICT (client_id) DO UPDATE SET persona_id = EXCLUDED.persona_id;
    ```
 3. **Client-side:** the client's dashboard exposes a "Generate Content"
    panel (Phase 2b client UI) that POSTs to `/content/generate` with

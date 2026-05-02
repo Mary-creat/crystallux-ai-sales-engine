@@ -23,7 +23,7 @@ prospects. Real bookings against real people.
 | Wed | Replica training completes; `personas.tavus_replica_id` set | Mary |
 | Wed | Activate `clx-video-content-generate` and `clx-video-tavus-status-poll` (only) | Mary |
 | Thu | First broker content_piece generated end-to-end (not yet outreach-bridged — sanity check) | Mary |
-| Thu | Bridge first 3 leads manually (`UPDATE leads SET content_piece_id=…, lead_status='Campaign Assigned'`) | Mary |
+| Thu | Bridge first 3 leads manually (`INSERT INTO lead_persona_links (...)` + `UPDATE leads SET video_url=…, lead_status='Campaign Assigned'` — leads schema untouched) | Mary |
 | Thu | Activate `clx-outreach-generation-v2` and `clx-outreach-sender-v2` | Mary |
 | Fri | First outreach fires; first reply or first booking | system |
 | Fri | Reconcile `persona_usage_log` against Tavus dashboard for billing accuracy | Mary |
@@ -100,7 +100,7 @@ Tavus minutes consumed.
 | Mon | First-client onboarding call (Mary leads, concierge replica setup) |
 | Mon | Stripe subscription created (existing `clx-stripe-provision-v1` runs) |
 | Tue | Client records Tavus training video; replica training started |
-| Wed | Replica trained; admin inserts client persona row, sets `clients.default_persona_id` |
+| Wed | Replica trained; admin inserts client persona row + `client_default_personas` mapping (clients schema untouched) |
 | Wed | Client logs into dashboard, generates first content_piece via "Generate Content" panel |
 | Thu | Client publishes to LinkedIn (first paid distribution) |
 | Thu | Verify persona_usage_log row written; Stripe metering hook fires (still stubbed but log captured) |
@@ -122,11 +122,14 @@ can articulate the top 3 friction points from the concierge process.
 - [ ] `99-open-questions.md` reviewed and answered
 - [ ] Q1–Q7 confirmations recorded (or doc revisions made if changed)
 - [ ] Backup current Supabase schema before apply
-- [ ] Apply `2026-05-02-phase-2a-foundation.sql`
-- [ ] Verify all 6 new tables present
-- [ ] Verify additive columns added (`leads.persona_context_id`,
-      `leads.content_piece_id`, `clients.default_persona_id`,
-      `campaigns.persona_id`)
+- [ ] Apply `2026-05-02-phase-2a-foundation.sql` (strict-additive variant)
+- [ ] Verify all 9 new tables present (6 core + 3 junction):
+      `personas`, `distribution_platforms`, `content_pieces`,
+      `platform_variants`, `distribution_log`, `persona_usage_log`,
+      `lead_persona_links`, `client_default_personas`,
+      `campaign_persona_links`
+- [ ] Verify existing schema unchanged: `\d leads`, `\d clients`,
+      `\d campaigns` should match pre-migration column lists exactly
 - [ ] Verify the 8 distribution_platforms seed rows
 - [ ] Verify the 2 personas seed rows (`mary_broker`, `mary_builder`)
 - [ ] Run `LIMIT 0` SELECTs against each new table for column existence

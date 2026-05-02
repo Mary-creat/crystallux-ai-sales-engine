@@ -202,27 +202,52 @@ deferred to Phase 2c.
 
 ---
 
-## Additive ALTER TABLE columns on existing tables
+## Junction tables (NOT ALTER TABLE on existing tables)
 
-All `ADD COLUMN IF NOT EXISTS`. Never modifying type, never dropping.
+> **Strict additive constraint** (Mary's post-Q-review override): the
+> existing `leads`, `clients`, and `campaigns` tables are NOT modified.
+> No `ADD COLUMN`, no FK constraints attached to existing tables, no
+> COMMENT statements on existing columns. Persona linkage to existing
+> tables lives entirely in three new junction tables. Inbound FKs are
+> owned by the junction tables; pg_class entries for leads / clients /
+> campaigns are unchanged after this migration applies.
 
+### 7a. `lead_persona_links`
+Replaces what would have been `leads.persona_context_id` +
+`leads.content_piece_id`. One row per lead at most.
 ```sql
-ALTER TABLE leads
-  ADD COLUMN IF NOT EXISTS persona_context_id  uuid NULL,  -- which persona owns this lead's outreach
-  ADD COLUMN IF NOT EXISTS content_piece_id    uuid NULL;  -- broker-track linkage to canonical content
-
-ALTER TABLE clients
-  ADD COLUMN IF NOT EXISTS default_persona_id  uuid NULL;  -- client's primary persona
-
-ALTER TABLE campaigns
-  ADD COLUMN IF NOT EXISTS persona_id          uuid NULL;
+lead_persona_links (
+  lead_id          uuid PK → leads(id) ON DELETE CASCADE
+  persona_id       uuid NULL → personas(id) ON DELETE SET NULL
+  content_piece_id uuid NULL → content_pieces(id) ON DELETE SET NULL
+  created_at, updated_at
+)
 ```
 
-Existing workflows continue to ignore these columns. Future workflows
-that opt-in (Phase 2b+ retrofits) can read them.
+### 7b. `client_default_personas`
+Replaces what would have been `clients.default_persona_id`.
+```sql
+client_default_personas (
+  client_id  uuid PK → clients(id) ON DELETE CASCADE
+  persona_id uuid NOT NULL → personas(id) ON DELETE RESTRICT
+  created_at, updated_at
+)
+```
 
-**Foreign keys are added as constraints AFTER the columns exist** in
-the migration so re-runs against a partial schema still work.
+### 7c. `campaign_persona_links`
+Replaces what would have been `campaigns.persona_id`. Guarded for
+the case where the `campaigns` table doesn't yet exist (depends on
+2026-05-01-audit-fixes).
+```sql
+campaign_persona_links (
+  campaign_id uuid PK → campaigns(id) ON DELETE CASCADE
+  persona_id  uuid NOT NULL → personas(id) ON DELETE RESTRICT
+  created_at
+)
+```
+
+Existing workflows ignore these junction tables entirely. Phase 2b+
+retrofits opt in by joining when they need persona context.
 
 ---
 

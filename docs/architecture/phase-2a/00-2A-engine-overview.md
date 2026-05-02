@@ -133,8 +133,10 @@ Lead Research v2 (existing, schedule) → enriches leads row
        ↓
 Content Generator (NEW, webhook) → produces content_pieces row
        ↓
-[broker manually links content_piece → lead via leads.content_piece_id,
- OR a small bridge writes leads.video_url from content_pieces.tavus_video_url]
+[broker manually links content_piece → lead via
+ INSERT INTO lead_persona_links (lead_id, persona_id, content_piece_id),
+ then writes leads.video_url from content_pieces.tavus_video_url —
+ leads schema is unchanged; lead_persona_links is the new junction table]
        ↓
 Outreach Sender v2 (existing, schedule 60min) → picks up the lead, uses video URL
        ↓
@@ -160,10 +162,13 @@ shows reuse of Components 2-5 via state.
 
 ## Persona layer — the threading principle
 
-A `persona_id` is added (nullable) to every table where the persona
-matters: `leads.persona_context_id`, `content_pieces.persona_id`,
-`distribution_log.persona_id`, etc. Existing workflows ignore the
-column unless they're explicitly retrofitted later (Phase 2b+).
+A `persona_id` is threaded through every place the persona matters.
+For new tables it's a column (`content_pieces.persona_id`,
+`distribution_log.persona_id`, etc.). For existing tables it's a
+junction-table FK so the existing schema stays bit-for-bit untouched
+(`lead_persona_links.persona_id`, `client_default_personas.persona_id`,
+`campaign_persona_links.persona_id`). Existing workflows ignore the
+junction tables entirely; Phase 2b+ retrofits opt in by joining.
 
 Personas:
 - **Mary the Broker** (`mary_broker`) — insurance broker selling life,

@@ -32,11 +32,17 @@ compress the time from "lead identified" to "appointment booked".
 │                              │  status=ready, tavus_video_url set    │
 │                              │                                       │
 │ ③ Bridge into outreach     (state-driven, no new workflow)           │
+│   -- Persona/content linkage lives in the new junction table;        │
+│   -- leads schema is NOT modified (strict additive).                 │
+│   INSERT INTO lead_persona_links (lead_id, persona_id, content_piece_id) │
+│   VALUES (<lead_id>,                                                 │
+│           (SELECT id FROM personas WHERE persona_key='mary_broker'), │
+│           <piece_id>);                                               │
+│   -- Only writes to existing leads columns (data, not schema):       │
 │   UPDATE leads SET                                                   │
-│     content_piece_id = <piece_id>,                                   │
-│     video_url        = (SELECT tavus_video_url …),                   │
-│     persona_context_id = (SELECT id FROM personas WHERE key…),       │
-│     lead_status      = 'Campaign Assigned'                           │
+│     video_url   = (SELECT tavus_video_url FROM content_pieces        │
+│                     WHERE id = <piece_id>),                          │
+│     lead_status = 'Campaign Assigned'                                │
 │    WHERE id = <lead_id>                                              │
 │                              │                                       │
 │                              ▼                                       │
@@ -141,7 +147,7 @@ chosen topic from the broker persona's POV.
 - [ ] Migration applied (Mary, after morning Q&A review)
 - [ ] Persona row updated with replica_id and prompt_framing (Mary)
 - [ ] First content_pieces row generated and reaches status='ready'
-- [ ] First lead manually bridged (`leads.content_piece_id` + status updated)
+- [ ] First lead manually bridged (row in `lead_persona_links` + `leads.lead_status='Campaign Assigned'`)
 - [ ] Outreach Sender activated and processes the lead on next tick
 - [ ] First reply received (or first booking landed)
 - [ ] Tavus minutes consumed reconciled against persona_usage_log

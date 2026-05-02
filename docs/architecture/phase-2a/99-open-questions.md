@@ -91,10 +91,13 @@ are the minority.
 **What this means for Component 1:** Phase 2a's Content Generator does
 **not** "call" the existing engines. It writes a `content_pieces` row,
 and:
-- For broker-track personalized outreach: writes/updates the relevant
-  `leads` row's `video_url` (or new `content_piece_id` FK column added
-  by the migration), and the existing Outreach Sender picks it up on
-  its next 60-min tick.
+- For broker-track personalized outreach: an INSERT into the new
+  junction table `lead_persona_links` records the persona/content link,
+  then a small bridge UPDATE writes `leads.video_url` from
+  `content_pieces.tavus_video_url` and sets `leads.lead_status =
+  'Campaign Assigned'` (touching only existing columns — leads schema
+  unchanged). The existing Outreach Sender picks the lead up on its
+  next 60-min tick.
 - For builder-track multi-platform distribution: writes
   `platform_variants` rows, and the new distribution workflows
   (`clx-video-distribute-linkedin` etc.) are the things that fire to
