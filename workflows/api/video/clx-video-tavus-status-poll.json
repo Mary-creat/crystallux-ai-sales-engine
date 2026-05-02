@@ -1,0 +1,160 @@
+{
+  "name": "CLX - Video Tavus Status Poll v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [ { "field": "seconds", "secondsInterval": 90 } ]
+        }
+      },
+      "id": "vid-tps-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "notes": "DEACTIVATED — do not activate until: (1) migration 2026-05-02-phase-2a-foundation.sql applied, (2) Tavus credential 'Tavus Crystallux' (Header Auth, x-api-key) created, (3) at least one persona has tavus_replica_id set, (4) clx-video-content-generate is also active. See docs/architecture/phase-2a/02-content-generator-design.md and 07-rollout-plan.md."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_pieces?status=eq.generating&tavus_request_id=not.is.null&order=generated_at.asc&limit=25&select=id,persona_id,tavus_request_id,tavus_replica_id,generated_at,track",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "vid-tps-0002",
+      "name": "Find Generating Pieces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "id": "vid-tps-0003",
+      "name": "Split By Piece",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tavus status check — STUB.\n// Real: GET https://tavusapi.com/v2/videos/{tavus_request_id}\n//   header: x-api-key (via 'Tavus Crystallux' credential)\n// Returns one of: queued | generating | ready | failed\n// For scaffolding: emit a no-op signal so downstream branch is\n// reachable. Replace with httpRequest before activation.\nconst piece = $input.item.json;\nreturn { json: { ...piece, tavus_status: 'queued', tavus_video_url: null, tavus_thumbnail_url: null, tavus_duration_seconds: null, _stub: 'replace-with-tavus-httpRequest' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-tps-0004",
+      "name": "Check Tavus Status (STUB — wire Tavus before activation)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "outputKey": "ready",   "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "r1", "leftValue": "={{ $json.tavus_status }}", "rightValue": "ready",  "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } },
+            { "outputKey": "failed",  "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "r2", "leftValue": "={{ $json.tavus_status }}", "rightValue": "failed", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } }
+          ]
+        }
+      },
+      "id": "vid-tps-0005",
+      "name": "Switch Status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_pieces?id=eq.{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'ready', tavus_video_url: $json.tavus_video_url, tavus_thumbnail_url: $json.tavus_thumbnail_url, tavus_duration_seconds: $json.tavus_duration_seconds, ready_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "vid-tps-0006",
+      "name": "Mark Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/persona_usage_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ persona_id: $json.persona_id, content_piece_id: $json.id, tavus_minutes_used: ($json.tavus_duration_seconds || 0) / 60.0 }) }}",
+        "options": {}
+      },
+      "id": "vid-tps-0007",
+      "name": "Log Persona Usage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_pieces?id=eq.{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'failed', status_detail: 'Tavus reported failed' }) }}",
+        "options": {}
+      },
+      "id": "vid-tps-0008",
+      "name": "Mark Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 400],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)":  { "main": [[ { "node": "Find Generating Pieces", "type": "main", "index": 0 } ]] },
+    "Find Generating Pieces":          { "main": [[ { "node": "Split By Piece",         "type": "main", "index": 0 } ]] },
+    "Split By Piece":                  { "main": [[ { "node": "Check Tavus Status (STUB — wire Tavus before activation)", "type": "main", "index": 0 } ]] },
+    "Check Tavus Status (STUB — wire Tavus before activation)": { "main": [[ { "node": "Switch Status", "type": "main", "index": 0 } ]] },
+    "Switch Status":                   { "main": [
+                                                   [ { "node": "Mark Ready",  "type": "main", "index": 0 } ],
+                                                   [ { "node": "Mark Failed", "type": "main", "index": 0 } ]
+                                                 ] },
+    "Mark Ready":                      { "main": [[ { "node": "Log Persona Usage", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

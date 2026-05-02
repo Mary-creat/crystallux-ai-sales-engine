@@ -1,0 +1,231 @@
+{
+  "name": "CLX - Video Content Generate v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "content/generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "vid-cg-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-video-content-generate-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst body = $input.item.json.body || {};\nreturn { json: { token, persona_key: body.persona_key || null, persona_id: body.persona_id || null, topic: body.topic || null, brief: body.brief || null, track: body.track || 'broker', niche_override: body.niche_override || null, source_lead_id: body.source_lead_id || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-cg-0002",
+      "name": "Extract Token + Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "vid-cg-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst role = row.user_role;\nif (role !== 'admin' && role !== 'client' && role !== 'team_member') return { json: { ok: false, status: 403, error: 'Insufficient role' } };\nif ((role === 'client' || role === 'team_member') && !row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nreturn { json: { ok: true, scope: role === 'admin' ? 'admin' : 'client', client_id: row.client_id || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-cg-0004",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "vid-cg-0005",
+      "name": "IF Auth OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/personas?{{ $('Extract Token + Body').first().json.persona_id ? 'id=eq.' + $('Extract Token + Body').first().json.persona_id : 'persona_key=eq.' + encodeURIComponent($('Extract Token + Body').first().json.persona_key) }}&select=id,persona_key,client_id,persona_type,tavus_replica_id,niche_overlay_default,prompt_framing,monthly_tavus_minute_cap,active&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "vid-cg-0006",
+      "name": "Resolve Persona",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Persona resolution + scope check.\n// Cross-tenant guard: a client session may only use a persona whose\n// client_id matches their session's client_id. Internal personas\n// (client_id IS NULL) require admin scope.\nconst rows = $input.item.json;\nconst persona = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!persona) return { json: { ok: false, status: 404, error: 'Persona not found' } };\nif (!persona.active) return { json: { ok: false, status: 410, error: 'Persona inactive' } };\nif (!persona.tavus_replica_id) return { json: { ok: false, status: 412, error: 'Persona has no Tavus replica configured. See docs/architecture/phase-2a/03-tavus-integration-plan.md' } };\n\nconst auth = $('Check Role').first().json;\nif (auth.scope === 'client') {\n  if (persona.client_id !== auth.client_id) return { json: { ok: false, status: 403, error: 'Cross-tenant access denied' } };\n} else if (auth.scope === 'admin') {\n  // admin may use any persona; no additional check\n}\n\nconst req = $('Extract Token + Body').first().json;\nreturn { json: { ok: true, persona, request: req, auth } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-cg-0007",
+      "name": "Persona Scope Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compose Anthropic prompt — STUB.\n// Real implementation: call Anthropic via httpRequest with\n//   system = persona.prompt_framing + niche_overlay.video_script_template\n//   user   = topic + brief + (lead context if source_lead_id set)\n//   model  = claude-opus-4-7\n//   prompt caching enabled on system blocks\n// For Phase 2a scaffolding this node is a placeholder that emits\n// a script-shaped object so the downstream Tavus call can be wired\n// without live API consumption during stub testing.\nconst data = $input.item.json;\nconst req = data.request;\nconst persona = data.persona;\nconst stubScript = `[STUB SCRIPT — Anthropic node not yet wired]\\nPersona: ${persona.persona_key}\\nTopic: ${req.topic}\\nBrief: ${req.brief || '(none)'}\\nNiche: ${req.niche_override || persona.niche_overlay_default || '(persona default)'}\\n— Replace this node with Anthropic httpRequest before activation —`;\nreturn { json: { ...data, script: stubScript, script_model: 'stub-not-wired' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-cg-0008",
+      "name": "Compose Script (STUB — wire Anthropic before activation)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_pieces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  persona_id: $json.persona.id,\n  topic: $json.request.topic,\n  brief: $json.request.brief,\n  script: $json.script,\n  script_model: $json.script_model,\n  niche: $json.request.niche_override || $json.persona.niche_overlay_default,\n  source_lead_id: $json.request.source_lead_id,\n  tavus_replica_id: $json.persona.tavus_replica_id,\n  status: 'draft',\n  track: $json.request.track\n}) }}",
+        "options": {}
+      },
+      "id": "vid-cg-0009",
+      "name": "Insert content_pieces (draft)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Submit Tavus job — STUB.\n// Real implementation: POST https://tavusapi.com/v2/videos with\n//   replica_id, script, video_name. Tavus credential 'Tavus Crystallux'\n//   (Header Auth, x-api-key) must be created before activation.\n// For scaffolding this node fakes a tavus_request_id so the\n// downstream UPDATE proves the schema works end-to-end.\nconst piece = Array.isArray($input.item.json) ? $input.item.json[0] : $input.item.json;\nconst stubReqId = 'stub_' + (piece.id || 'unknown') + '_' + Date.now();\nreturn { json: { ...piece, tavus_request_id: stubReqId } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-cg-0010",
+      "name": "Submit Tavus Job (STUB — wire Tavus before activation)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2300, 200]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_pieces?id=eq.{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tavus_request_id: $json.tavus_request_id, status: 'generating', generated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "vid-cg-0011",
+      "name": "Mark Generating",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2540, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stripe Meter Hook — STUBBED for Phase 2a.\n// Phase 2c: emit Stripe usage event when persona.client_id IS NOT NULL.\n// For now: write a placeholder persona_usage_log row with estimated minutes.\n// (Estimate is reconciled to actual when polling sees status=ready.)\nconst piece = Array.isArray($input.item.json) ? $input.item.json[0] : $input.item.json;\nreturn { json: { ...piece, _stripe_meter_stub: 'phase_2c_pending' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vid-cg-0012",
+      "name": "Stripe Meter Hook (STUBBED — Phase 2c)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2780, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, content_piece_id: $json.id, status: $json.status, tavus_request_id: $json.tavus_request_id }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "id": "vid-cg-0013",
+      "name": "Respond 202 Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [3020, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "vid-cg-0014",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":             { "main": [[ { "node": "Extract Token + Body",      "type": "main", "index": 0 } ]] },
+    "Extract Token + Body":{ "main": [[ { "node": "Validate Session",          "type": "main", "index": 0 } ]] },
+    "Validate Session":    { "main": [[ { "node": "Check Role",                "type": "main", "index": 0 } ]] },
+    "Check Role":          { "main": [[ { "node": "IF Auth OK",                "type": "main", "index": 0 } ]] },
+    "IF Auth OK":          { "main": [
+                                       [ { "node": "Resolve Persona",          "type": "main", "index": 0 } ],
+                                       [ { "node": "Respond 4xx",              "type": "main", "index": 0 } ]
+                                     ] },
+    "Resolve Persona":                 { "main": [[ { "node": "Persona Scope Check", "type": "main", "index": 0 } ]] },
+    "Persona Scope Check":             { "main": [[ { "node": "Compose Script (STUB — wire Anthropic before activation)", "type": "main", "index": 0 } ]] },
+    "Compose Script (STUB — wire Anthropic before activation)": { "main": [[ { "node": "Insert content_pieces (draft)", "type": "main", "index": 0 } ]] },
+    "Insert content_pieces (draft)":   { "main": [[ { "node": "Submit Tavus Job (STUB — wire Tavus before activation)", "type": "main", "index": 0 } ]] },
+    "Submit Tavus Job (STUB — wire Tavus before activation)": { "main": [[ { "node": "Mark Generating", "type": "main", "index": 0 } ]] },
+    "Mark Generating":                 { "main": [[ { "node": "Stripe Meter Hook (STUBBED — Phase 2c)", "type": "main", "index": 0 } ]] },
+    "Stripe Meter Hook (STUBBED — Phase 2c)": { "main": [[ { "node": "Respond 202 Accepted", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
