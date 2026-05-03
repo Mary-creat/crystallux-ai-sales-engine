@@ -137,7 +137,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, session_token: $('Verify Password').item.json.session_token, expires_at: $('Verify Password').item.json.expires_at, user: { email: $('Verify Password').item.json.email, role: $('Verify Password').item.json.user_role, client_id: $('Verify Password').item.json.client_id } } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, session_token: $('Verify Password').item.json.session_token, expires_at: $('Verify Password').item.json.expires_at, user: { email: $('Verify Password').item.json.email, role: $('Verify Password').item.json.user_role, client_id: $('Verify Password').item.json.client_id } }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "auth-login-0009",
@@ -170,7 +170,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $('Verify Password').item.json.error || 'Invalid credentials' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $('Verify Password').item.json.error || 'Invalid credentials' }) }}",
         "options": { "responseCode": 401 }
       },
       "id": "auth-login-0011",
@@ -182,7 +182,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Bad request' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
         "options": { "responseCode": "={{ $json.status || 400 }}" }
       },
       "id": "auth-login-0012",

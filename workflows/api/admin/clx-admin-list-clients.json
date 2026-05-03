@@ -109,7 +109,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, clients: $json } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, clients: $json }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "adm-lc-0008",
@@ -121,7 +121,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
         "options": { "responseCode": "={{ $json.status || 401 }}" }
       },
       "id": "adm-lc-0009",

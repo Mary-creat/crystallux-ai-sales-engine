@@ -144,7 +144,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json }}",
+        "responseBody": "={{ JSON.stringify($json) }}",
         "options": { "responseCode": 200 }
       },
       "id": "adm-al-0010",
@@ -156,7 +156,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
         "options": { "responseCode": "={{ $json.status || 401 }}" }
       },
       "id": "adm-al-0011",

@@ -113,7 +113,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, user: { id: $('Shape Response').item.json.user_id, email: $('Shape Response').item.json.email, role: $('Shape Response').item.json.user_role, client_id: $('Shape Response').item.json.client_id }, expires_at: $('Shape Response').item.json.expires_at } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, user: { id: $('Shape Response').item.json.user_id, email: $('Shape Response').item.json.email, role: $('Shape Response').item.json.user_role, client_id: $('Shape Response').item.json.client_id }, expires_at: $('Shape Response').item.json.expires_at }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "auth-vs-0008",
@@ -125,7 +125,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Invalid or expired session' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid or expired session' }) }}",
         "options": { "responseCode": 401 }
       },
       "id": "auth-vs-0009",

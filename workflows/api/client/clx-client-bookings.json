@@ -95,7 +95,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, bookings: Array.isArray($json) ? $json : [] } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, bookings: Array.isArray($json) ? $json : [] }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "cli-bk-0007",
@@ -107,7 +107,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
         "options": { "responseCode": "={{ $json.status || 401 }}" }
       },
       "id": "cli-bk-0008",

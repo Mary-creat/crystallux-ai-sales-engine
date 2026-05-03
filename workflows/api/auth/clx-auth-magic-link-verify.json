@@ -177,7 +177,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, session_token: $('Mint Session').item.json.session_token, expires_at: $('Mint Session').item.json.expires_at, user: { email: $('Mint Session').item.json.email, role: $('Mint Session').item.json.user_role, client_id: $('Mint Session').item.json.client_id } } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, session_token: $('Mint Session').item.json.session_token, expires_at: $('Mint Session').item.json.expires_at, user: { email: $('Mint Session').item.json.email, role: $('Mint Session').item.json.user_role, client_id: $('Mint Session').item.json.client_id } }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "auth-mlv-0011",
@@ -189,7 +189,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Invalid link' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid link' }) }}",
         "options": { "responseCode": "={{ $json.status || 401 }}" }
       },
       "id": "auth-mlv-0012",

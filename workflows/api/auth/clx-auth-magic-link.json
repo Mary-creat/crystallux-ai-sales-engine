@@ -81,7 +81,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, message: 'If that email is associated with an account, a sign-in link has been sent.' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'If that email is associated with an account, a sign-in link has been sent.' }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "auth-ml-0006",
@@ -93,7 +93,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: $json.error || 'Bad request' } }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
         "options": { "responseCode": "={{ $json.status || 400 }}" }
       },
       "id": "auth-ml-0007",

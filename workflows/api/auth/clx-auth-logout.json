@@ -50,7 +50,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true } }}",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "auth-lo-0004",
