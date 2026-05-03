@@ -31,7 +31,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
@@ -44,7 +44,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [640, 300],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
@@ -78,7 +78,7 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.' + new Date().toISOString() + '&select=signal_type,affected_verticals,severity,expires_at,processed_at&order=processed_at.desc&limit=80' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
@@ -88,7 +88,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 200],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -97,7 +97,7 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?fetched_at=gt.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=id,processed&limit=5000' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
@@ -107,7 +107,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 360],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -116,7 +116,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?intelligence_tier_enabled=eq.true&select=id&limit=500",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
@@ -126,7 +126,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 520],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -135,7 +135,7 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?processed_at=gt.' + new Date(Date.now() - 30*24*60*60*1000).toISOString() + '&select=tokens_consumed&limit=10000' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
@@ -145,7 +145,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 680],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
       "continueOnFail": true,
       "alwaysOutputData": true
     },

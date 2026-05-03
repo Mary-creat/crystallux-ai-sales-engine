@@ -31,7 +31,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
         "sendBody": true,
@@ -44,7 +44,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [640, 300],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
@@ -78,7 +78,7 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/campaigns?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,name,channel,status,sent,replies,started_at,updated_at&order=updated_at.desc&limit=200' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
@@ -88,7 +88,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 200],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -97,7 +97,7 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Client').item.json.client_id) + '&outreach_sent_at=gt.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id,lead_status&limit=5000' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
@@ -107,7 +107,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 380],
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
