@@ -64,7 +64,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// validate_session returns 0 or 1 row. 0 = invalid/expired/revoked.\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nreturn { json: {\n  ok: true,\n  user_id: row.user_id,\n  email: row.email,\n  user_role: row.user_role,\n  client_id: row.client_id,\n  expires_at: row.expires_at\n} };",
+        "jsCode": "// validate_session returns 0 or 1 row. 0 = invalid/expired/revoked.\nconst raw = $input.item.json;\n// Defensive: array OR auto-unwrapped single object. See clx-auth-login note.\nconst row = Array.isArray(raw) ? (raw[0] || null) : (raw && (raw.user_id || raw.id) ? raw : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nreturn { json: {\n  ok: true,\n  user_id: row.user_id,\n  email: row.email,\n  user_role: row.user_role,\n  client_id: row.client_id,\n  expires_at: row.expires_at\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "auth-vs-0005",

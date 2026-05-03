@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst link = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!link) return { json: { ok: false, status: 401, error: 'Link invalid' } };\nif (link.used_at) return { json: { ok: false, status: 401, error: 'Link already used' } };\nif (new Date(link.expires_at).getTime() <= Date.now()) return { json: { ok: false, status: 401, error: 'Link expired' } };\nreturn { json: { ok: true, link_id: link.id, email: link.email } };",
+        "jsCode": "const raw = $input.item.json;\n// Defensive: array OR auto-unwrapped single object. See clx-auth-login note.\nconst link = Array.isArray(raw) ? (raw[0] || null) : (raw && raw.id ? raw : null);\nif (!link) return { json: { ok: false, status: 401, error: 'Link invalid' } };\nif (link.used_at) return { json: { ok: false, status: 401, error: 'Link already used' } };\nif (new Date(link.expires_at).getTime() <= Date.now()) return { json: { ok: false, status: 401, error: 'Link expired' } };\nreturn { json: { ok: true, link_id: link.id, email: link.email } };",
         "mode": "runOnceForEachItem"
       },
       "id": "auth-mlv-0004",
@@ -93,7 +93,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst user = Array.isArray(rows) && rows[0] ? rows[0] : null;\nconst link = $('Check Link Status').item.json;\nif (!user) return { json: { ok: false, status: 401, error: 'No account for this email' } };\nif (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {\n  return { json: { ok: false, status: 423, error: 'Account locked' } };\n}\nconst crypto = require('crypto');\nconst sessionToken = crypto.randomBytes(48).toString('base64url');\nconst expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();\nreturn { json: { ok: true, user_id: user.id, email: user.email, user_role: user.user_role, client_id: user.client_id, link_id: link.link_id, session_token: sessionToken, expires_at } };",
+        "jsCode": "const raw = $input.item.json;\n// Defensive: array OR auto-unwrapped single object. See clx-auth-login note.\nconst user = Array.isArray(raw) ? (raw[0] || null) : (raw && raw.id ? raw : null);\nconst link = $('Check Link Status').item.json;\nif (!user) return { json: { ok: false, status: 401, error: 'No account for this email' } };\nif (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {\n  return { json: { ok: false, status: 423, error: 'Account locked' } };\n}\nconst crypto = require('crypto');\nconst sessionToken = crypto.randomBytes(48).toString('base64url');\nconst expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();\nreturn { json: { ok: true, user_id: user.id, email: user.email, user_role: user.user_role, client_id: user.client_id, link_id: link.link_id, session_token: sessionToken, expires_at } };",
         "mode": "runOnceForEachItem"
       },
       "id": "auth-mlv-0007",
