@@ -16,6 +16,26 @@
   <div class="clx-spinner" style="width:28px;height:28px"></div>
   <div style="color:var(--text-muted);font-size:13px;margin-top:14px">Signing you in…</div>
 </div>
+<script>
+  // Cross-origin token handoff: site/login.html (crystallux.org) cannot
+  // write to this origin's localStorage, so it passes the session token
+  // via URL hash fragment. Hash fragments are NOT sent over HTTP, so
+  // the token does not appear in any server log of this request.
+  // We must run this BEFORE auth.js below so getToken() finds it.
+  (function () {
+    var hash = window.location.hash || '';
+    var match = hash.match(/[#&]token=([^&]+)/);
+    if (match && match[1]) {
+      try { localStorage.setItem('clx_session_token', decodeURIComponent(match[1])); } catch (e) {}
+      // Strip the token from the URL so it doesn't sit in browser
+      // history or get re-applied on refresh.
+      try {
+        history.replaceState({}, document.title,
+          window.location.pathname + window.location.search);
+      } catch (e) { /* old browser — leave hash as-is, harmless */ }
+    }
+  })();
+</script>
 <script src="shared/auth.js"></script>
 <script>
   (function () {

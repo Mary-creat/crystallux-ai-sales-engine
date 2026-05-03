@@ -108,13 +108,17 @@
 
 <script>
 (function() {
-  // ─── Auth endpoints ─────────────────────────────────────────────
-  // All requests go to n8n at automation.crystallux.org. Tokens
-  // come back as JSON; we store them in localStorage for the
-  // dashboard to pick up. (httpOnly cookies are deferred to a
-  // future hardening pass — they require the dashboard to be on
-  // the same registered domain as the issuer, which is the case
-  // for app./admin.crystallux.org but adds CORS complexity now.)
+  'use strict';
+
+  // All requests go to n8n at automation.crystallux.org. Token comes
+  // back in the JSON response and is then handed off to the receiving
+  // dashboard via a URL hash fragment, because the dashboards live on
+  // different origins (app./admin.crystallux.org) and localStorage is
+  // not shared cross-origin. Hash fragments are NOT sent over the
+  // wire, so the token does not appear in HTTP request logs of the
+  // receiving page; the dashboard reads window.location.hash, copies
+  // the token into its own localStorage, then strips the hash from
+  // the URL before any other code runs.
   var AUTH_BASE  = 'https://automation.crystallux.org/webhook';
   var LOGIN_URL  = AUTH_BASE + '/auth/login';
   var MAGIC_URL  = AUTH_BASE + '/auth/magic-link';
@@ -122,82 +126,117 @@
   function $(id) { return document.getElementById(id); }
   function setMsg(text, kind) {
     var el = $('msg');
+    if (!el) return;
     el.className = 'auth-msg show ' + (kind || 'error');
     el.textContent = text;
   }
-  function clearMsg() { $('msg').className = 'auth-msg'; }
+  function clearMsg() { var el = $('msg'); if (el) el.className = 'auth-msg'; }
   function setLoading(btn, isLoading, idleLabel) {
+    if (!btn) return;
     btn.disabled = isLoading;
     btn.textContent = isLoading ? 'Working…' : idleLabel;
   }
 
-  // After login, redirect to the role-appropriate dashboard.
-  function postLoginRedirect(role) {
-    if (role === 'admin') return 'https://admin.crystallux.org/';
-    if (role === 'client') return 'https://app.crystallux.org/';
-    return '/';
+  function postLoginRedirect(role, sessionToken) {
+    var base;
+    if (role === 'admin') base = 'https://admin.crystallux.org/';
+    else if (role === 'client' || role === 'team_member') base = 'https://app.crystallux.org/';
+    else return '/';
+    return base + '#token=' + encodeURIComponent(sessionToken || '');
   }
 
-  // ─── Email + password login ────────────────────────────────────
-  $('loginForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    clearMsg();
-    var email = $('email').value.trim();
-    var password = $('password').value;
-    if (!email || !password) { setMsg('Email and password are required.'); return; }
-    var btn = $('loginBtn');
-    setLoading(btn, true, 'Sign in');
-    try {
-      var res = await fetch(LOGIN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, password: password })
-      });
-      var data = await res.json().catch(function(){ return {}; });
-      if (!res.ok || !data.ok) {
-        setMsg(data.error || ('Sign-in failed (' + res.status + ').'));
-        return;
-      }
-      // Persist token. The receiving dashboard's auth.js reads it
-      // and validates server-side on every page load.
-      try {
-        localStorage.setItem('clx_session_token', data.session_token);
-        localStorage.setItem('clx_session_expires', data.expires_at);
-        localStorage.setItem('clx_user_email', (data.user && data.user.email) || '');
-        localStorage.setItem('clx_user_role',  (data.user && data.user.role)  || '');
-        localStorage.setItem('clx_user_client_id', (data.user && data.user.client_id) || '');
-      } catch (e) { /* storage disabled — session still works for this tab via memory */ }
-      window.location.href = postLoginRedirect(data.user && data.user.role);
-    } catch (err) {
-      setMsg('Network error. Please try again.');
-    } finally {
-      setLoading(btn, false, 'Sign in');
+  function attach() {
+    var form = $('loginForm');
+    var magic = $('magicBtn');
+    if (!form) {
+      // Should never happen — the script tag is below the form.
+      // Surface visibly rather than failing silently.
+      setMsg('Login form failed to initialize. Reload the page.');
+      return;
     }
-  });
 
-  // ─── Magic link request ────────────────────────────────────────
-  $('magicBtn').addEventListener('click', async function() {
-    clearMsg();
-    var email = $('email').value.trim();
-    if (!email) { setMsg('Enter your email first, then tap "Send magic link".'); $('email').focus(); return; }
-    var btn = this;
-    setLoading(btn, true, 'Send magic link instead');
-    try {
-      var res = await fetch(MAGIC_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email })
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      clearMsg();
+      var emailInput = $('email');
+      var passwordInput = $('password');
+      var email = emailInput ? emailInput.value.trim() : '';
+      var password = passwordInput ? passwordInput.value : '';
+      if (!email || !password) { setMsg('Email and password are required.'); return; }
+      var btn = $('loginBtn');
+      setLoading(btn, true, 'Sign in');
+      try {
+        var res = await fetch(LOGIN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: password })
+        });
+        var data = await res.json().catch(function(){ return {}; });
+        if (!res.ok || !data.ok) {
+          setMsg(data.error || ('Sign-in failed (' + res.status + ').'));
+          return;
+        }
+        // Same-origin localStorage write (informational; the dashboard
+        // uses its own origin's localStorage populated via the URL
+        // hash on arrival).
+        try {
+          localStorage.setItem('clx_session_token', data.session_token);
+          localStorage.setItem('clx_session_expires', data.expires_at);
+          localStorage.setItem('clx_user_email', (data.user && data.user.email) || '');
+          localStorage.setItem('clx_user_role',  (data.user && data.user.role)  || '');
+          localStorage.setItem('clx_user_client_id', (data.user && data.user.client_id) || '');
+        } catch (e) {}
+        window.location.href = postLoginRedirect(
+          data.user && data.user.role,
+          data.session_token
+        );
+      } catch (err) {
+        setMsg('Network error. Please try again.');
+      } finally {
+        setLoading(btn, false, 'Sign in');
+      }
+    });
+
+    if (magic) {
+      magic.addEventListener('click', async function() {
+        clearMsg();
+        var emailInput = $('email');
+        var email = emailInput ? emailInput.value.trim() : '';
+        if (!email) { setMsg('Enter your email first, then tap "Send magic link".'); if (emailInput) emailInput.focus(); return; }
+        var btn = this;
+        setLoading(btn, true, 'Send magic link instead');
+        try {
+          var res = await fetch(MAGIC_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+          });
+          await res.json().catch(function(){ return {}; });
+          // 200 always — the API does not leak account existence.
+          try { sessionStorage.setItem('clx_magic_email', email); } catch (e) {}
+          window.location.href = '/magic-link-sent.html';
+        } catch (err) {
+          setMsg('Network error. Please try again.');
+        } finally {
+          setLoading(btn, false, 'Send magic link instead');
+        }
       });
-      var data = await res.json().catch(function(){ return {}; });
-      // 200 always — the API does not leak account existence.
-      sessionStorage.setItem('clx_magic_email', email);
-      window.location.href = '/magic-link-sent.html';
-    } catch (err) {
-      setMsg('Network error. Please try again.');
-    } finally {
-      setLoading(btn, false, 'Send magic link instead');
     }
-  });
+  }
+
+  // Defensive against any DOM-timing weirdness (parser-injected
+  // beacon scripts, async script evaluation on edge platforms, etc.):
+  // attach immediately if the document has finished parsing, otherwise
+  // wait for DOMContentLoaded. Without this guard, a single
+  // null-deref at attach time prevents preventDefault() from ever
+  // running, the form does its native GET submit, and the page reloads
+  // with the user's password in the URL bar — the symptom that
+  // motivated this rewrite.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attach);
+  } else {
+    attach();
+  }
 })();
 </script>
 </body>
