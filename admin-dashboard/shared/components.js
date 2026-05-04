@@ -147,7 +147,7 @@
   // hardcoded nav-html string when fetch fails (e.g. file://).
   function injectNav(target) {
     if (!target) return Promise.resolve();
-    return fetch('shared/nav.html').then(function (r) {
+    return fetch('/shared/nav.html').then(function (r) {
       if (!r.ok) throw new Error('nav fetch failed');
       return r.text();
     }).then(function (html) {

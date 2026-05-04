@@ -126,7 +126,7 @@
 
   function injectNav(target) {
     if (!target) return Promise.resolve();
-    return fetch('shared/nav.html').then(function (r) {
+    return fetch('/shared/nav.html').then(function (r) {
       if (!r.ok) throw new Error('nav fetch failed');
       return r.text();
     }).then(function (html) {
@@ -140,7 +140,7 @@
 
   function injectBottomNav(target) {
     if (!target) return Promise.resolve();
-    return fetch('shared/bottom-nav.html').then(function (r) {
+    return fetch('/shared/bottom-nav.html').then(function (r) {
       if (!r.ok) throw new Error('bn fetch failed');
       return r.text();
     }).then(function (html) {
