@@ -6,6 +6,132 @@
 (function (global) {
   'use strict';
 
+  // ── Hardcoded fallback nav. Used by injectNav's catch path so the
+  //    sidebar is never empty even if /shared/nav.html fetch fails OR
+  //    Cloudflare Pages serves the SPA index.html as a 404 fallback.
+  global.CLX_FALLBACK_NAV =
+    '<div class="clx-nav-section">Admin</div>' +
+    '<a class="clx-nav-item" href="/pages/overview.html"><span class="clx-nav-icon">◉</span>Overview</a>' +
+    '<a class="clx-nav-item" href="/pages/clients.html"><span class="clx-nav-icon">▤</span>Clients</a>' +
+    '<a class="clx-nav-item" href="/pages/leads.html"><span class="clx-nav-icon">◍</span>Leads</a>' +
+    '<a class="clx-nav-item" href="/pages/workflows.html"><span class="clx-nav-icon">⚙</span>Workflows</a>' +
+    '<a class="clx-nav-item" href="/pages/billing.html"><span class="clx-nav-icon">$</span>Billing</a>' +
+    '<div class="clx-nav-section">Platform</div>' +
+    '<a class="clx-nav-item" href="/pages/onboarding.html"><span class="clx-nav-icon">◐</span>Onboarding</a>' +
+    '<a class="clx-nav-item" href="/pages/market-intelligence.html"><span class="clx-nav-icon">✦</span>Market Intelligence</a>' +
+    '<a class="clx-nav-item" href="/pages/audit-log.html"><span class="clx-nav-icon">◔</span>Audit Log</a>' +
+    '<div class="clx-nav-section">Account</div>' +
+    '<a class="clx-nav-item" href="/pages/settings.html"><span class="clx-nav-icon">⚒</span>Settings</a>';
+
+  // ── CSS resilience. The dashboard pages link /shared/layout.css via
+  //    a <link> tag, but if that request gets canceled (Cloudflare edge
+  //    cache lag, mid-load navigation, MIME mismatch from a SPA-fallback
+  //    response), the .clx-sidebar pane collapses to 0 width and the
+  //    correctly-loaded nav links inside it become invisible. We probe
+  //    for a known custom property and, if missing, fetch the stylesheet
+  //    and inject it via JS. Final fallback is a minimal inline ruleset
+  //    that keeps the page laid-out even if both paths fail.
+  function ensureLayoutCss() {
+    try {
+      var probe = getComputedStyle(document.documentElement)
+        .getPropertyValue('--color-brand-500').trim();
+      if (probe) return; // layout.css already applied via <link>
+    } catch (e) {}
+    fetch('/shared/layout.css', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject('http-' + r.status); })
+      .then(function (css) {
+        var s = document.createElement('style');
+        s.setAttribute('data-clx-fallback', 'layout');
+        s.textContent = css;
+        document.head.appendChild(s);
+      })
+      .catch(function () {
+        var s = document.createElement('style');
+        s.setAttribute('data-clx-fallback', 'minimal');
+        s.textContent = CLX_MINIMAL_CSS;
+        document.head.appendChild(s);
+      });
+  }
+  var CLX_MINIMAL_CSS =
+    ':root{--color-brand-500:#7C3AED;--color-brand-100:#EDE9FE;--color-brand-700:#5B21B6;' +
+    '--bg-page:#FAFAFA;--bg-card:#FFFFFF;--bg-hover:#F4F4F5;--border:#E4E4E7;' +
+    '--text-primary:#18181B;--text-secondary:#52525B;--text-muted:#71717A;' +
+    '--r-sm:6px;--sidebar-w:240px;--topbar-h:60px}' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    'body{font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;' +
+    'color:var(--text-primary);background:var(--bg-page);min-height:100vh}' +
+    'a{color:inherit;text-decoration:none}' +
+    '.clx-topbar{position:sticky;top:0;z-index:50;height:var(--topbar-h);' +
+    'background:var(--bg-card);border-bottom:1px solid var(--border);' +
+    'display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:16px}' +
+    '.clx-topbar-left,.clx-topbar-right{display:flex;align-items:center;gap:12px}' +
+    '.clx-logo{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:17px}' +
+    '.clx-logo-mark{width:28px;height:28px;border-radius:7px;' +
+    'background:linear-gradient(135deg,var(--color-brand-500),var(--color-brand-700));' +
+    'color:#fff;font-weight:800;font-size:14px;display:inline-flex;' +
+    'align-items:center;justify-content:center}' +
+    '.clx-role-pill{font-size:11px;font-weight:600;text-transform:uppercase;' +
+    'padding:3px 9px;border-radius:99px;background:var(--color-brand-100);' +
+    'color:var(--color-brand-700)}' +
+    '.clx-shell{display:flex;align-items:flex-start;min-height:calc(100vh - var(--topbar-h))}' +
+    '.clx-sidebar{flex:0 0 var(--sidebar-w);width:var(--sidebar-w);background:var(--bg-card);' +
+    'border-right:1px solid var(--border);position:sticky;top:var(--topbar-h);' +
+    'height:calc(100vh - var(--topbar-h));overflow-y:auto;padding:16px 12px}' +
+    '.clx-nav-section{font-size:10px;font-weight:700;text-transform:uppercase;' +
+    'letter-spacing:.08em;color:var(--text-muted);padding:14px 12px 6px}' +
+    '.clx-nav-item{display:flex;align-items:center;gap:11px;padding:9px 12px;' +
+    'border-radius:var(--r-sm);color:var(--text-secondary);font-size:13.5px;font-weight:500}' +
+    '.clx-nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}' +
+    '.clx-nav-item.active{background:var(--color-brand-100);color:var(--color-brand-700);' +
+    'font-weight:600}' +
+    '.clx-nav-icon{width:18px;text-align:center;flex-shrink:0}' +
+    '.clx-main{flex:1;min-width:0}' +
+    '.clx-content{max-width:1400px;margin:0 auto;padding:24px}' +
+    '.clx-page-head{margin-bottom:18px}' +
+    '.clx-page-title{font-size:22px;font-weight:700;letter-spacing:-.01em}' +
+    '.clx-page-sub{font-size:13px;color:var(--text-muted);margin-top:4px}' +
+    '.clx-card{background:var(--bg-card);border:1px solid var(--border);' +
+    'border-radius:14px;padding:18px}' +
+    '.clx-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}' +
+    '.clx-card-title{font-size:14px;font-weight:600}' +
+    '.clx-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));' +
+    'gap:12px;margin-bottom:18px}' +
+    '.clx-stat-card{background:var(--bg-card);border:1px solid var(--border);' +
+    'border-radius:10px;padding:16px}' +
+    '.clx-stat-label{font-size:12px;color:var(--text-muted);margin-bottom:4px}' +
+    '.clx-stat-value{font-size:24px;font-weight:700}' +
+    '.clx-table-scroll{overflow-x:auto}' +
+    '.clx-table{width:100%;border-collapse:collapse;font-size:13px}' +
+    '.clx-table th{text-align:left;padding:10px 14px;color:var(--text-muted);' +
+    'font-weight:600;border-bottom:1px solid var(--border)}' +
+    '.clx-table td{padding:10px 14px;border-bottom:1px solid var(--border)}' +
+    '.clx-spinner{display:inline-block;width:14px;height:14px;' +
+    'border:2px solid var(--border);border-top-color:var(--color-brand-500);' +
+    'border-radius:50%;animation:clx-spin .7s linear infinite}' +
+    '@keyframes clx-spin{to{transform:rotate(360deg)}}' +
+    '.clx-loading-row{padding:14px 18px;color:var(--text-muted);font-size:13px;' +
+    'display:flex;align-items:center;gap:10px}' +
+    '.clx-empty{padding:30px;text-align:center;color:var(--text-muted)}' +
+    '.clx-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;' +
+    'border-radius:8px;border:1px solid var(--border);background:var(--bg-card);' +
+    'color:var(--text-primary);font-weight:500;font-size:13px;cursor:pointer}' +
+    '.clx-btn:hover{background:var(--bg-hover)}' +
+    '.clx-btn-ghost{border-color:transparent;background:transparent;color:var(--text-secondary)}' +
+    '.clx-badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;' +
+    'font-weight:600;text-transform:uppercase;letter-spacing:.04em}' +
+    '.clx-badge-green{background:#D1FAE5;color:#065F46}' +
+    '.clx-badge-red{background:#FEE2E2;color:#991B1B}' +
+    '.clx-badge-blue{background:#DBEAFE;color:#1E40AF}' +
+    '.clx-badge-yellow{background:#FEF3C7;color:#92400E}' +
+    '.clx-badge-purple{background:#EDE9FE;color:#5B21B6}' +
+    '.clx-badge-gray{background:#F4F4F5;color:#52525B}';
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureLayoutCss);
+  } else {
+    ensureLayoutCss();
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
