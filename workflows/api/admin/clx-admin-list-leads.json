@@ -93,7 +93,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, leads: $json }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, leads: Array.isArray($json) ? $json : ($json && Object.keys($json).length ? [$json] : []) }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "adm-ll-0007",

@@ -95,7 +95,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, bookings: Array.isArray($json) ? $json : [] }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, bookings: Array.isArray($json) ? $json : ($json && Object.keys($json).length ? [$json] : []) }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "cli-bk-0007",
