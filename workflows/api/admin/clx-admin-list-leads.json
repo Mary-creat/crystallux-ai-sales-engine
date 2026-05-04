@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst f = (body.filters || {});\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 50, 1), 500);\nlet qs = 'select=id,company,industry,city,lead_status,lead_score,phone,source,client_id,client_name,updated_at&order=updated_at.desc&limit=' + limit;\nif (f.status && f.status !== 'all') qs += '&lead_status=eq.' + encodeURIComponent(f.status);\nif (f.client_id) qs += '&client_id=eq.' + encodeURIComponent(f.client_id);\nreturn { json: { token, qs } };",
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst f = (body.filters || {});\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 50, 1), 500);\nlet qs = 'select=id,company,industry,city,lead_status,lead_score,phone,source,client_id,date_created&order=date_created.desc&limit=' + limit;\nif (f.status && f.status !== 'all') qs += '&lead_status=eq.' + encodeURIComponent(f.status);\nif (f.client_id) qs += '&client_id=eq.' + encodeURIComponent(f.client_id);\nreturn { json: { token, qs } };",
         "mode": "runOnceForEachItem"
       },
       "id": "adm-ll-0002",

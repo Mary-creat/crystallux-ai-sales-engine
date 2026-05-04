@@ -48,7 +48,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nconst inputs = $('Extract Inputs').item.json;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'client' && row.user_role !== 'team_member') return { json: { ok: false, status: 403, error: 'Client access required' } };\nif (!row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nconst qs = 'client_id=eq.' + encodeURIComponent(row.client_id)\n         + '&select=id,company,lead_status,updated_at&order=updated_at.desc&limit=' + inputs.limit;\nreturn { json: { ok: true, qs } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nconst inputs = $('Extract Inputs').item.json;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'client' && row.user_role !== 'team_member') return { json: { ok: false, status: 403, error: 'Client access required' } };\nif (!row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nconst qs = 'client_id=eq.' + encodeURIComponent(row.client_id)\n         + '&select=id,company,lead_status,date_created&order=date_created.desc&limit=' + inputs.limit;\nreturn { json: { ok: true, qs } };",
         "mode": "runOnceForEachItem"
       },
       "id": "cli-ac-0004",
@@ -92,7 +92,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// Map lead-update rows into a generic activity shape so the UI is stable\n// even after we add other event sources (bookings, billing) later.\nconst activity = rows.map(r => ({\n  event: r.lead_status,\n  event_type: r.lead_status,\n  company: r.company,\n  detail: 'Lead status: ' + (r.lead_status || '—'),\n  lead_status: r.lead_status,\n  occurred_at: r.updated_at\n}));\nreturn { json: { ok: true, activity } };",
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// Map lead-update rows into a generic activity shape so the UI is stable\n// even after we add other event sources (bookings, billing) later.\nconst activity = rows.map(r => ({\n  event: r.lead_status,\n  event_type: r.lead_status,\n  company: r.company,\n  detail: 'Lead status: ' + (r.lead_status || '—'),\n  lead_status: r.lead_status,\n  occurred_at: r.date_created\n}));\nreturn { json: { ok: true, activity } };",
         "mode": "runOnceForEachItem"
       },
       "id": "cli-ac-0007",

@@ -76,7 +76,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=lead_status,outreach_sent_at,updated_at,date_created&limit=10000' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=lead_status,outreach_sent_at,date_created,date_created&limit=10000' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
@@ -92,7 +92,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst now = Date.now();\nconst d30 = now - 30*24*60*60*1000;\nconst d7  = now - 7*24*60*60*1000;\nconst counts = {};\nlet contacted_30d = 0, replied_30d = 0, booked_30d = 0, sent_7d = 0;\nrows.forEach(r => {\n  const s = r.lead_status || 'New Lead';\n  counts[s] = (counts[s] || 0) + 1;\n  if (r.outreach_sent_at) {\n    const t = new Date(r.outreach_sent_at).getTime();\n    if (t >= d30) contacted_30d += 1;\n    if (t >= d7)  sent_7d      += 1;\n  }\n  const u = r.updated_at ? new Date(r.updated_at).getTime() : 0;\n  if (s === 'Replied' && u >= d30) replied_30d += 1;\n  if (s === 'Booked'  && u >= d30) booked_30d += 1;\n});\nconst reply_rate_30d = contacted_30d > 0 ? (replied_30d / contacted_30d) : 0;\nconst booking_rate_30d = replied_30d > 0 ? (booked_30d  / replied_30d ) : 0;\nreturn { json: {\n  ok: true,\n  funnel: counts,\n  totals: { total_leads: rows.length, contacted_30d, replied_30d, booked_30d, sent_7d },\n  rates: { reply_rate_30d, booking_rate_30d }\n} };",
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst now = Date.now();\nconst d30 = now - 30*24*60*60*1000;\nconst d7  = now - 7*24*60*60*1000;\nconst counts = {};\nlet contacted_30d = 0, replied_30d = 0, booked_30d = 0, sent_7d = 0;\nrows.forEach(r => {\n  const s = r.lead_status || 'New Lead';\n  counts[s] = (counts[s] || 0) + 1;\n  if (r.outreach_sent_at) {\n    const t = new Date(r.outreach_sent_at).getTime();\n    if (t >= d30) contacted_30d += 1;\n    if (t >= d7)  sent_7d      += 1;\n  }\n  const u = r.date_created ? new Date(r.date_created).getTime() : 0;\n  if (s === 'Replied' && u >= d30) replied_30d += 1;\n  if (s === 'Booked'  && u >= d30) booked_30d += 1;\n});\nconst reply_rate_30d = contacted_30d > 0 ? (replied_30d / contacted_30d) : 0;\nconst booking_rate_30d = replied_30d > 0 ? (booked_30d  / replied_30d ) : 0;\nreturn { json: {\n  ok: true,\n  funnel: counts,\n  totals: { total_leads: rows.length, contacted_30d, replied_30d, booked_30d, sent_7d },\n  rates: { reply_rate_30d, booking_rate_30d }\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "cli-pf-0007",

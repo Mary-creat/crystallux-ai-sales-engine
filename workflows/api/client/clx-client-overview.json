@@ -93,7 +93,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Client').item.json.client_id) + '&select=lead_status,date_created,updated_at,outreach_sent_at&limit=5000' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Client').item.json.client_id) + '&select=lead_status,date_created,date_created,outreach_sent_at&limit=5000' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
@@ -109,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const clientRows = $('Query Client').first().json;\nconst leadRows = $('Query Leads').first().json;\nconst client = Array.isArray(clientRows) ? clientRows[0] : null;\nconst leads = Array.isArray(leadRows) ? leadRows : [];\nconst now = Date.now();\nconst d7 = now - 7*24*60*60*1000;\nconst d30 = now - 30*24*60*60*1000;\nlet new_7d = 0, replies_30d = 0, booked_30d = 0;\nleads.forEach(l => {\n  if (l.date_created && new Date(l.date_created).getTime() >= d7) new_7d += 1;\n  if (l.lead_status === 'Replied' && l.updated_at && new Date(l.updated_at).getTime() >= d30) replies_30d += 1;\n  if (l.lead_status === 'Booked'  && l.updated_at && new Date(l.updated_at).getTime() >= d30) booked_30d += 1;\n});\nreturn { json: {\n  ok: true,\n  client: client || null,\n  stats: { total_leads: leads.length, new_7d, replies_30d, booked_30d }\n} };",
+        "jsCode": "const clientRows = $('Query Client').first().json;\nconst leadRows = $('Query Leads').first().json;\nconst client = Array.isArray(clientRows) ? clientRows[0] : null;\nconst leads = Array.isArray(leadRows) ? leadRows : [];\nconst now = Date.now();\nconst d7 = now - 7*24*60*60*1000;\nconst d30 = now - 30*24*60*60*1000;\nlet new_7d = 0, replies_30d = 0, booked_30d = 0;\nleads.forEach(l => {\n  if (l.date_created && new Date(l.date_created).getTime() >= d7) new_7d += 1;\n  if (l.lead_status === 'Replied' && l.date_created && new Date(l.date_created).getTime() >= d30) replies_30d += 1;\n  if (l.lead_status === 'Booked'  && l.date_created && new Date(l.date_created).getTime() >= d30) booked_30d += 1;\n});\nreturn { json: {\n  ok: true,\n  client: client || null,\n  stats: { total_leads: leads.length, new_7d, replies_30d, booked_30d }\n} };",
         "mode": "runOnceForAllItems"
       },
       "id": "cli-ov-0008",

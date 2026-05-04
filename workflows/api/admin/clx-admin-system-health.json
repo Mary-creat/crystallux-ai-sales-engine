@@ -115,7 +115,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Booked&updated_at=gte.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id&limit=1' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Booked&date_created=gte.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id&limit=1' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
