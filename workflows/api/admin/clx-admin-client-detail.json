@@ -64,7 +64,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true, client_id: $('Extract Inputs').item.json.client_id } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true, client_id: $('Extract Inputs').item.json.client_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "adm-cd-0005",

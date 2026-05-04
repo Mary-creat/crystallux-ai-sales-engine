@@ -48,7 +48,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'client' && row.user_role !== 'team_member') return { json: { ok: false, status: 403, error: 'Client access required' } };\nif (!row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nreturn { json: { ok: true, client_id: row.client_id } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'client' && row.user_role !== 'team_member') return { json: { ok: false, status: 403, error: 'Client access required' } };\nif (!row.client_id) return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\nreturn { json: { ok: true, client_id: row.client_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "cli-pf-0004",

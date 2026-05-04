@@ -48,7 +48,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) && rows[0] ? rows[0] : null;\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
         "mode": "runOnceForEachItem"
       },
       "id": "adm-mi-0004",
