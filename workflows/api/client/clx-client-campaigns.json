@@ -95,7 +95,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Client').item.json.client_id) + '&outreach_sent_at=gt.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id,lead_status&limit=5000' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&outreach_sent_at=gt.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id,lead_status&limit=5000' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
@@ -111,14 +111,25 @@
     },
     {
       "parameters": {
-        "jsCode": "const camps = $('Query Campaigns').first().json;\nconst sentRows = $('Sent 7d').first().json;\nconst campaigns = Array.isArray(camps) ? camps : [];\nconst sent = Array.isArray(sentRows) ? sentRows : [];\nconst sent_7d = sent.length;\nconst replies_7d = sent.filter(r => r.lead_status === 'Replied').length;\nconst active_count = campaigns.filter(c => (c.status || '').toLowerCase() === 'active').length;\nconst reply_rate = sent_7d > 0 ? (replies_7d / sent_7d) : 0;\nreturn { json: { ok: true, campaigns, active_count, sent_7d, replies_7d, reply_rate } };",
+        "mode": "append",
+        "numberInputs": 2
+      },
+      "id": "cli-cm-0011",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1500, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst campaigns = allOf('Query Campaigns');\nconst sent = allOf('Sent 7d');\nconst sent_7d = sent.length;\nconst replies_7d = sent.filter(function (r) { return r.lead_status === 'Replied'; }).length;\nconst active_count = campaigns.filter(function (c) { return (c.status || '').toLowerCase() === 'active'; }).length;\nconst reply_rate = sent_7d > 0 ? (replies_7d / sent_7d) : 0;\nreturn { json: { ok: true, campaigns: campaigns, active_count: active_count, sent_7d: sent_7d, replies_7d: replies_7d, reply_rate: reply_rate } };",
         "mode": "runOnceForAllItems"
       },
       "id": "cli-cm-0008",
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1620, 280]
+      "position": [1700, 280]
     },
     {
       "parameters": {
@@ -157,8 +168,9 @@
                                    ],
                                    [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
                                  ] },
-    "Query Campaigns":  { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
-    "Sent 7d":          { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Query Campaigns":  { "main": [[ { "node": "Merge Branches",  "type": "main", "index": 0 } ]] },
+    "Sent 7d":          { "main": [[ { "node": "Merge Branches",  "type": "main", "index": 1 } ]] },
+    "Merge Branches":   { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
     "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },

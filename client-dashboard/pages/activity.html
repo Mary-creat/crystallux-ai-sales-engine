@@ -24,7 +24,7 @@
       <h1 class="clx-page-title">Activity</h1>
       <div class="clx-page-sub">Latest changes across your pipeline.</div>
     </div></div>
-    <div id="activityList"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    <div id="activityList"></div>
   </div></main>
 </div>
 <nav class="clx-bottom-nav" id="clxBottomNav"></nav>
@@ -32,10 +32,31 @@
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var EVT_ICON = {
+  status_change: 'arrow-right',
+  contact:       'mail',
+  contacted:     'mail',
+  reply:         'message-square',
+  replied:       'message-square',
+  booking:       'calendar',
+  booked:        'calendar',
+  scored:        'sparkles',
+  researched:    'eye',
+  lost:          'x-circle',
+  imported:      'inbox',
+  default:       'activity'
+};
+var EVT_VARIANT = {
+  status_change: 'purple', contact: 'sky', contacted: 'sky',
+  reply: 'amber', replied: 'amber', booking: 'emerald', booked: 'emerald',
+  scored: 'purple', researched: 'gray', lost: 'rose', imported: 'gray', default: 'purple'
+};
+
 clxAuth.require('client').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('activityList').innerHTML = clxComp.skeleton(8, 3);
   load();
 });
 async function load() {
@@ -43,9 +64,13 @@ async function load() {
   var el = document.getElementById('activityList');
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var rows = (res.data && res.data.activity) || [];
-  if (!rows.length) { clxApi.renderEmpty(el, 'No activity recorded yet.', '≣'); return; }
+  if (!rows.length) { clxComp.renderEmpty(el, 'No activity recorded yet.', 'activity'); return; }
   clxComp.renderList(el, rows, function (r) {
+    var key = (r.event_type || r.event || '').toLowerCase().replace(/\s+/g, '_');
+    var ic = EVT_ICON[key] || EVT_ICON.default;
+    var variant = EVT_VARIANT[key] || EVT_VARIANT.default;
     return {
+      leftIcon: ic, leftIconVariant: variant,
       primary:   r.company || r.event || '(activity)',
       secondary: r.detail || (r.from_status && r.to_status ? (r.from_status + ' → ' + r.to_status) : ''),
       badge:     r.lead_status || r.event_type,

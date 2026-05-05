@@ -20,19 +20,27 @@
 <div class="clx-shell">
   <nav class="clx-sidebar" id="clxSidebar"></nav>
   <main class="clx-main"><div class="clx-content">
-    <div class="clx-page-head"><div>
-      <h1 class="clx-page-title">My leads</h1>
-      <div class="clx-page-sub">All leads in your pipeline.</div>
-    </div></div>
-    <div class="clx-field" style="margin-bottom:16px">
-      <select class="clx-select" id="statusFilter">
-        <option value="all">All statuses</option>
-        <option>New Lead</option><option>Researched</option><option>Scored</option>
-        <option>Outreach Ready</option><option>Contacted</option><option>Replied</option>
-        <option>Booking Sent</option><option>Booked</option><option>Lost</option>
-      </select>
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">My leads</h1>
+        <div class="clx-page-sub">All leads in your pipeline.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <span class="clx-input-wrap">
+          <span class="clx-icon-prefix" id="searchIcon"></span>
+          <input id="searchInput" class="clx-input" placeholder="Search company…" style="min-width:200px;padding-left:34px">
+        </span>
+        <select class="clx-select" id="statusFilter" style="width:160px">
+          <option value="all">All statuses</option>
+          <option>New Lead</option><option>Researched</option><option>Scored</option>
+          <option>Outreach Ready</option><option>Contacted</option><option>Replied</option>
+          <option>Booking Sent</option><option>Booked</option><option>Lost</option>
+        </select>
+      </div>
     </div>
-    <div id="leadsList"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="leadsList"></div>
   </div></main>
 </div>
 <nav class="clx-bottom-nav" id="clxBottomNav"></nav>
@@ -41,30 +49,76 @@
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var __rows = [];
+
 clxAuth.require('client').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('searchIcon').innerHTML = clxComp.icon('search', 'sm');
+
+  var kpi = document.getElementById('kpiGrid');
+  for (var i = 0; i < 4; i++) {
+    kpi.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('leadsList').innerHTML = clxComp.skeleton(6, 3);
+
   load();
   document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('searchInput').addEventListener('input', renderRows);
 });
 
 async function load() {
-  clxApi.renderLoading(document.getElementById('leadsList'));
   var status = document.getElementById('statusFilter').value;
   var filters = { limit: 100 };
   if (status && status !== 'all') filters.status = status;
   var res = await clxApi.clientGet('leads', filters);
+  if (!res.ok) { clxApi.renderError(document.getElementById('leadsList'), res); return; }
+  __rows = (res.data && res.data.leads) || [];
+  renderKpis();
+  renderRows();
+}
+
+function renderKpis() {
+  var total = __rows.length;
+  var contacted = __rows.filter(function(r){ return ['contacted','replied','booking sent','booked'].indexOf((r.lead_status||'').toLowerCase()) !== -1; }).length;
+  var replied   = __rows.filter(function(r){ return ['replied','booking sent','booked'].indexOf((r.lead_status||'').toLowerCase()) !== -1; }).length;
+  var booked    = __rows.filter(function(r){ return (r.lead_status||'').toLowerCase() === 'booked'; }).length;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'In view',   value: total,    icon: 'target',         variant: 'leads'    },
+    { label: 'Contacted', value: contacted,icon: 'mail',           variant: 'activity' },
+    { label: 'Replied',   value: replied,  icon: 'message-square', variant: 'bookings' },
+    { label: 'Booked',    value: booked,   icon: 'calendar',       variant: 'revenue'  }
+  ]);
+}
+
+function renderRows() {
+  var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  var rows = __rows.filter(function(r){
+    if (!q) return true;
+    return [r.company, r.industry, r.city].some(function(v){
+      return (v || '').toLowerCase().indexOf(q) !== -1;
+    });
+  });
   var el = document.getElementById('leadsList');
-  if (!res.ok) { clxApi.renderError(el, res); return; }
-  var rows = (res.data && res.data.leads) || [];
-  if (!rows.length) { clxApi.renderEmpty(el, 'No leads match this filter yet.', '◍'); return; }
+  if (!rows.length) {
+    clxComp.renderEmpty(el, 'No leads match this filter yet.', 'inbox');
+    return;
+  }
   clxComp.renderList(el, rows, function (r) {
     return {
+      leftIcon: 'target', leftIconVariant: 'purple',
       primary: r.company || '(no company)',
-      secondary: [r.industry, r.city, r.lead_score ? ('score ' + r.lead_score) : null].filter(Boolean).join(' · '),
+      secondary: [r.industry, r.city].filter(Boolean).join(' · '),
       badge: r.lead_status,
-      right: clxComp.relativeTime(r.updated_at)
+      right: clxComp.relativeTime(r.updated_at),
+      extra: r.lead_score != null
+        ? '<span style="display:inline-flex;align-items:center;gap:8px;width:160px">' +
+            clxComp.scoreBar(r.lead_score) +
+            '<span style="font-size:12px;color:var(--text-muted)">score ' + r.lead_score + '</span>' +
+          '</span>'
+        : null
     };
   });
 }

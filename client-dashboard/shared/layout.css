@@ -255,6 +255,16 @@ button { font-family: inherit; }
 .clx-list-primary { font-weight: 600; font-size: 14.5px; color: var(--text-primary); }
 .clx-list-secondary { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
 .clx-list-right { text-align: right; font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+.clx-list-icon {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-brand-50); color: var(--color-brand-600);
+}
+.clx-list-icon.--sky      { background: #E0F2FE; color: #0369A1; }
+.clx-list-icon.--emerald  { background: #D1FAE5; color: #047857; }
+.clx-list-icon.--amber    { background: #FEF3C7; color: #B45309; }
+.clx-list-icon.--rose     { background: #FFE4E6; color: #BE123C; }
+.clx-list-icon.--gray     { background: var(--gray-100); color: var(--gray-500); }
 
 /* ─── Badges ───────────────────────────────────────────────────────── */
 .clx-badge {

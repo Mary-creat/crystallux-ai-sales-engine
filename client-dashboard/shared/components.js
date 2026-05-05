@@ -220,7 +220,10 @@
   /**
    * Render a list of rows as stacked cards (mobile-friendly).
    * Each row spec:
-   *   { primary, secondary, right, badge, badgeKind, href }
+   *   { primary, secondary, right, badge, badgeKind, href,
+   *     leftIcon (name), leftIconVariant (purple|sky|emerald|amber|rose|gray),
+   *     primaryHtml (true to skip escaping), rightHtml (literal HTML),
+   *     extra (literal HTML appended below secondary) }
    * The shape function turns a data row into that spec.
    */
   function renderList(container, rows, shape, options) {
@@ -235,14 +238,25 @@
     var html = '<div class="clx-list">' + rows.map(function (row) {
       var s = shape(row) || {};
       var rightHtml = '';
-      if (s.badge) rightHtml += '<span class="clx-badge clx-badge-' + (s.badgeKind || badgeFor(s.badge)) + '">' + escapeHtml(s.badge) + '</span>';
-      if (s.right) rightHtml += '<div class="clx-list-secondary" style="margin-top:6px">' + escapeHtml(s.right) + '</div>';
+      if (s.rightHtml) rightHtml += s.rightHtml;
+      else {
+        if (s.badge) rightHtml += '<span class="clx-badge clx-badge-' + (s.badgeKind || badgeFor(s.badge)) + '">' + escapeHtml(s.badge) + '</span>';
+        if (s.right) rightHtml += '<div class="clx-list-secondary" style="margin-top:6px">' + escapeHtml(s.right) + '</div>';
+      }
+      var leftHtml = '';
+      if (s.leftIcon) {
+        var variantCls = s.leftIconVariant ? ' --' + s.leftIconVariant : '';
+        leftHtml = '<span class="clx-list-icon' + variantCls + '">' + icon(s.leftIcon, 'md') + '</span>';
+      }
       var cls = 'clx-list-row' + (s.href ? ' linkish' : '');
       var attr = s.href ? ' data-href="' + escapeHtml(s.href) + '"' : '';
+      var primary = s.primaryHtml ? (s.primary || '—') : escapeHtml(s.primary || '—');
       return '<div class="' + cls + '"' + attr + '>' +
+        leftHtml +
         '<div style="min-width:0;flex:1">' +
-          '<div class="clx-list-primary">' + escapeHtml(s.primary || '—') + '</div>' +
+          '<div class="clx-list-primary">' + primary + '</div>' +
           (s.secondary ? '<div class="clx-list-secondary">' + escapeHtml(s.secondary) + '</div>' : '') +
+          (s.extra ? '<div style="margin-top:6px">' + s.extra + '</div>' : '') +
         '</div>' +
         '<div class="clx-list-right">' + rightHtml + '</div>' +
       '</div>';

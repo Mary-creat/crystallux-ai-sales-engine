@@ -25,7 +25,7 @@
       <div class="clx-page-sub">Active outreach sequences and their performance.</div>
     </div></div>
     <div class="clx-stat-grid" id="cmpStats"></div>
-    <div id="cmpList"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    <div id="cmpList"></div>
   </div></main>
 </div>
 <nav class="clx-bottom-nav" id="clxBottomNav"></nav>
@@ -33,10 +33,20 @@
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var CHANNEL_ICON = { email: 'mail', sms: 'message-square', linkedin: 'briefcase', dm: 'message-square', call: 'activity' };
+
 clxAuth.require('client').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  var stats = document.getElementById('cmpStats');
+  for (var i = 0; i < 4; i++) {
+    stats.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('cmpList').innerHTML = clxComp.skeleton(5, 3);
+
   load();
 });
 async function load() {
@@ -45,19 +55,34 @@ async function load() {
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var d = res.data || {};
   clxComp.renderStatGrid(document.getElementById('cmpStats'), [
-    { label: 'Active campaigns', value: d.active_count != null ? d.active_count : '—' },
-    { label: 'Sent (7d)',         value: d.sent_7d      != null ? d.sent_7d      : '—' },
-    { label: 'Replies (7d)',      value: d.replies_7d   != null ? d.replies_7d   : '—' },
-    { label: 'Reply rate',        value: d.reply_rate   != null ? (Math.round(d.reply_rate * 100) + '%') : '—' }
+    { label: 'Active campaigns', value: d.active_count != null ? d.active_count : '—',
+      icon: 'play', variant: 'activity' },
+    { label: 'Sent (7d)',        value: d.sent_7d      != null ? d.sent_7d      : '—',
+      icon: 'mail', variant: 'leads' },
+    { label: 'Replies (7d)',     value: d.replies_7d   != null ? d.replies_7d   : '—',
+      icon: 'message-square', variant: 'bookings' },
+    { label: 'Reply rate',       value: d.reply_rate   != null ? (Math.round(d.reply_rate * 100) + '%') : '—',
+      icon: 'trending-up', variant: 'revenue' }
   ]);
   var rows = d.campaigns || [];
-  if (!rows.length) { clxApi.renderEmpty(el, 'No campaigns yet. Your first sequences land within 7 days of activation.', '⚏'); return; }
+  if (!rows.length) { clxComp.renderEmpty(el, 'No campaigns yet. Your first sequences land within 7 days of activation.', 'play'); return; }
   clxComp.renderList(el, rows, function (r) {
+    var ch = (r.channel || '').toLowerCase();
+    var sent = r.sent || 0, replied = r.replied || 0;
+    var rate = sent > 0 ? (replied / sent * 100) : 0;
     return {
+      leftIcon: CHANNEL_ICON[ch] || 'zap',
+      leftIconVariant: ch === 'email' ? 'sky' : ch === 'sms' ? 'emerald' : ch === 'linkedin' ? 'purple' : 'gray',
       primary: r.name || r.campaign_name || '(unnamed)',
-      secondary: [r.channel, r.status].filter(Boolean).join(' · ') + (r.sent ? ' · ' + r.sent + ' sent' : ''),
+      secondary: [r.channel, r.status].filter(Boolean).join(' · ') + (sent ? ' · ' + sent + ' sent' : ''),
       badge: r.status,
-      right: clxComp.relativeTime(r.updated_at)
+      right: clxComp.relativeTime(r.updated_at),
+      extra: sent > 0
+        ? '<span style="display:inline-flex;align-items:center;gap:8px;width:200px">' +
+            '<span style="flex:1">' + clxComp.progressBar(rate, 100) + '</span>' +
+            '<span style="font-size:12px;color:var(--text-muted)">' + Math.round(rate) + '% reply</span>' +
+          '</span>'
+        : null
     };
   });
 }

@@ -9,6 +9,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .clx-switch {
+    position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0;
+  }
+  .clx-switch input { opacity: 0; width: 0; height: 0; }
+  .clx-switch .slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--gray-300); border-radius: 999px;
+    transition: background .15s;
+  }
+  .clx-switch .slider::before {
+    content: ""; position: absolute; height: 16px; width: 16px;
+    left: 3px; top: 3px; background: #fff; border-radius: 50%;
+    transition: transform .15s;
+  }
+  .clx-switch input:checked + .slider { background: var(--color-brand-600); }
+  .clx-switch input:checked + .slider::before { transform: translateX(18px); }
+</style>
 </head>
 <body>
 <header class="clx-topbar">
@@ -28,37 +46,41 @@
     <div id="msg" class="clx-error-banner" style="display:none"></div>
 
     <div class="clx-card" style="margin-bottom:14px">
-      <div class="clx-card-head"><div class="clx-card-title">Account</div></div>
+      <div id="acctHead"></div>
       <div id="acctBody" style="font-size:13.5px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
     </div>
 
     <div class="clx-card" style="margin-bottom:14px">
-      <div class="clx-card-head"><div class="clx-card-title">Notification preferences</div></div>
+      <div id="notifHead"></div>
       <form id="notifForm">
         <div class="clx-field">
           <label for="notifEmail">Notification email</label>
           <input class="clx-input" type="email" id="notifEmail" autocomplete="email" />
         </div>
-        <div class="clx-field" style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="dailyDigest" style="width:18px;height:18px">
-          <label for="dailyDigest" style="margin:0">Send daily digest at 8am ET</label>
+        <div class="clx-field" style="display:flex;align-items:center;gap:12px">
+          <label class="clx-switch"><input type="checkbox" id="dailyDigest"><span class="slider"></span></label>
+          <label for="dailyDigest" style="margin:0;cursor:pointer">Send daily digest at 8am ET</label>
         </div>
-        <div class="clx-field" style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="bookingAlerts" style="width:18px;height:18px">
-          <label for="bookingAlerts" style="margin:0">Real-time alerts when a meeting is booked</label>
+        <div class="clx-field" style="display:flex;align-items:center;gap:12px">
+          <label class="clx-switch"><input type="checkbox" id="bookingAlerts"><span class="slider"></span></label>
+          <label for="bookingAlerts" style="margin:0;cursor:pointer">Real-time alerts when a meeting is booked</label>
         </div>
-        <button type="submit" class="clx-btn clx-btn-primary" id="saveBtn">Save changes</button>
+        <button type="submit" class="clx-btn clx-btn-primary" id="saveBtn" style="display:inline-flex;align-items:center;gap:8px">
+          <span id="saveIcon"></span>Save changes
+        </button>
       </form>
     </div>
 
     <div class="clx-card">
-      <div class="clx-card-head"><div class="clx-card-title">Security</div></div>
+      <div id="secHead"></div>
       <p style="color:var(--text-secondary);font-size:13.5px;margin-bottom:14px">
         Sign out, or reset your password via the
         <a href="https://crystallux.org/forgot-password.html" style="color:var(--color-brand-600);font-weight:600">password-reset flow</a>.
         Resetting signs out every active session.
       </p>
-      <button class="clx-btn clx-btn-secondary" onclick="clxAuth.logout()">Sign out</button>
+      <button class="clx-btn clx-btn-danger" id="logoutBtn" style="display:inline-flex;align-items:center;gap:8px">
+        <span id="logoutIcon"></span>Sign out
+      </button>
     </div>
   </div></main>
 </div>
@@ -73,6 +95,16 @@ clxAuth.require('client').then(function (user) {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  document.getElementById('acctHead').innerHTML  = clxComp.sectionHead('Account');
+  document.getElementById('notifHead').innerHTML = clxComp.sectionHead('Notification preferences');
+  document.getElementById('secHead').innerHTML   = clxComp.sectionHead('Security');
+  document.getElementById('saveIcon').innerHTML  = clxComp.icon('check-circle', 'sm');
+  document.getElementById('logoutIcon').innerHTML= clxComp.icon('log-out', 'sm');
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    if (confirm('Sign out of Crystallux?')) clxAuth.logout();
+  });
+
   load(user);
   document.getElementById('notifForm').addEventListener('submit', save);
 });
@@ -92,12 +124,20 @@ async function load(user) {
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var d = res.data || {};
   var c = d.client || {};
-  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">' +
-    kv('Login email', user.email) +
-    kv('Account name', c.client_name) +
-    kv('Industry', c.industry) +
-    kv('City', c.city) +
-  '</div>';
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">' +
+      clxComp.avatar(c.client_name || user.email, 'lg') +
+      '<div>' +
+        '<div style="font-weight:700;font-size:15.5px">' + clxComp.escapeHtml(c.client_name || user.email) + '</div>' +
+        '<div class="clx-stat-label" style="margin-top:2px">' + clxComp.escapeHtml(user.email) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">' +
+      kv('Login email', user.email) +
+      kv('Account name', c.client_name) +
+      kv('Industry', c.industry) +
+      kv('City', c.city) +
+    '</div>';
   __orig = {
     notification_email: c.notification_email || user.email || '',
     daily_digest: !!c.daily_digest_opt_in,
@@ -119,7 +159,8 @@ async function save(e) {
     booking_alerts_opt_in: document.getElementById('bookingAlerts').checked
   };
   var res = await clxApi.clientPost('settings', body);
-  btn.disabled = false; btn.textContent = 'Save changes';
+  btn.disabled = false;
+  btn.innerHTML = '<span>' + clxComp.icon('check-circle', 'sm') + '</span>Save changes';
   if (res.ok) setMsg('Saved.', 'ok');
   else setMsg(res.error || 'Could not save.', 'error');
 }

@@ -24,7 +24,7 @@
       <h1 class="clx-page-title">Billing</h1>
       <div class="clx-page-sub">Your subscription and payment history.</div>
     </div></div>
-    <div id="billBody"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+    <div id="billBody"></div>
   </div></main>
 </div>
 <nav class="clx-bottom-nav" id="clxBottomNav"></nav>
@@ -36,6 +36,13 @@ clxAuth.require('client').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  document.getElementById('billBody').innerHTML =
+    '<div class="clx-stat-grid">' +
+      Array(4).fill('<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>').join('') +
+    '</div>' +
+    '<div class="clx-card"><span class="clx-skeleton" style="height:120px;display:block"></span></div>';
+
   load();
 });
 async function load() {
@@ -45,32 +52,48 @@ async function load() {
   var d = res.data || {};
   var b = d.billing || {};
   var portalUrl = d.portal_url;
-  var statusKind = clxComp.badgeFor(b.subscription_status);
+  var status = (b.subscription_status || '').toLowerCase();
+
   var banner = '';
-  if (b.subscription_status === 'past_due') {
-    banner = '<div class="clx-error-banner">Payment failed. Update billing to keep your engine running.</div>';
-  } else if (b.subscription_status === 'trialing') {
+  if (status === 'past_due') {
+    banner = '<div class="clx-error-banner" style="display:flex;align-items:center;gap:10px">' +
+      clxComp.icon('alert-triangle', 'md') +
+      '<span>Payment failed. Update billing to keep your engine running.</span></div>';
+  } else if (status === 'trialing') {
     var days = b.trial_ends_at ? Math.max(0, Math.ceil((new Date(b.trial_ends_at) - new Date()) / (1000*60*60*24))) : null;
-    banner = '<div class="clx-error-banner" style="background:#FEF3C7;border-color:#FDE68A;color:#92400E">Trial ends ' + (days != null ? ('in ' + days + ' day' + (days === 1 ? '' : 's') + '.') : 'soon.') + '</div>';
+    banner = '<div class="clx-error-banner" style="background:#E0F2FE;border-color:#BAE6FD;color:#0C4A6E;display:flex;align-items:center;gap:10px">' +
+      clxComp.icon('clock', 'md') +
+      '<span>Trial ends ' + (days != null ? ('in ' + days + ' day' + (days === 1 ? '' : 's') + '.') : 'soon.') + '</span></div>';
   }
+
   el.innerHTML = banner +
     '<div class="clx-stat-grid" id="bStats"></div>' +
     '<div class="clx-card">' +
-      '<div class="clx-card-head"><div class="clx-card-title">Subscription</div></div>' +
+      '<div class="clx-card-head"><div class="clx-card-title" style="display:inline-flex;align-items:center;gap:8px">' +
+        clxComp.icon('dollar-sign', 'sm') + 'Subscription</div></div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:13.5px">' +
-        kv('Status', '<span class="clx-badge clx-badge-' + statusKind + '">' + clxComp.escapeHtml(b.subscription_status || '—') + '</span>', true) +
-        kv('Plan',   b.subscription_plan) +
+        kv('Status', '<span class="clx-badge clx-badge-' + clxComp.badgeFor(b.subscription_status) + (status === 'past_due' ? ' --pulse' : '') + '">' + clxComp.escapeHtml(b.subscription_status || '—') + '</span>', true) +
+        kv('Plan',          b.subscription_plan) +
         kv('Next billing',  clxComp.formatDate(b.next_billing_date)) +
         kv('Last payment',  clxComp.formatMoney(b.last_payment_amount)) +
         kv('Last paid on',  clxComp.formatDate(b.last_payment_at)) +
         kv('Trial ends',    clxComp.formatDate(b.trial_ends_at)) +
       '</div>' +
-      (portalUrl ? '<div style="margin-top:18px"><a href="' + portalUrl + '" class="clx-btn clx-btn-primary" target="_blank" rel="noopener">Manage billing</a></div>' : '') +
+      (portalUrl ? '<div style="margin-top:18px">' +
+        '<a href="' + clxComp.escapeHtml(portalUrl) + '" class="clx-btn clx-btn-primary" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px">' +
+          clxComp.icon('arrow-right', 'sm') + 'Manage billing</a></div>' : '') +
     '</div>';
+
   clxComp.renderStatGrid(document.getElementById('bStats'), [
-    { label: 'Status',          value: b.subscription_status || '—' },
-    { label: 'Plan',            value: b.subscription_plan   || '—' },
-    { label: 'Last payment',    value: clxComp.formatMoney(b.last_payment_amount) }
+    { label: 'Status', value: b.subscription_status || '—',
+      icon: status === 'past_due' ? 'alert-triangle' : 'check-circle',
+      variant: status === 'past_due' ? 'errors' : 'activity' },
+    { label: 'Plan',         value: b.subscription_plan || '—',
+      icon: 'sparkles', variant: 'leads' },
+    { label: 'Last payment', value: clxComp.formatMoney(b.last_payment_amount),
+      icon: 'dollar-sign', variant: 'revenue' },
+    { label: 'Next billing', value: clxComp.formatDate(b.next_billing_date),
+      icon: 'calendar', variant: 'bookings' }
   ]);
 }
 function kv(k, v, isHtml) {

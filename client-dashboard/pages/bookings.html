@@ -27,12 +27,12 @@
 
     <div class="clx-card" style="padding:0;margin-bottom:14px">
       <div class="clx-card-head" style="padding:14px 16px 0"><div class="clx-card-title">Upcoming bookings</div></div>
-      <div id="upcoming" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="upcoming" style="padding:8px 16px 16px"></div>
     </div>
 
     <div class="clx-card" style="padding:0">
       <div class="clx-card-head" style="padding:14px 16px 0"><div class="clx-card-title">Recent replies</div></div>
-      <div id="replies" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="replies" style="padding:8px 16px 16px"></div>
     </div>
   </div></main>
 </div>
@@ -41,10 +41,14 @@
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
 clxAuth.require('client').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('upcoming').innerHTML = clxComp.skeleton(4, 3);
+  document.getElementById('replies').innerHTML  = clxComp.skeleton(4, 3);
   load();
 });
 async function load() {
@@ -54,21 +58,26 @@ async function load() {
   ]);
   var bEl = document.getElementById('upcoming');
   if (book.ok && book.data && Array.isArray(book.data.bookings)) {
-    if (!book.data.bookings.length) clxApi.renderEmpty(bEl, 'No upcoming bookings.', '◨');
+    if (!book.data.bookings.length) clxComp.renderEmpty(bEl, 'No upcoming bookings.', 'calendar');
     else clxComp.renderList(bEl, book.data.bookings, function (r) {
+      var dt = r.scheduled_start ? new Date(r.scheduled_start) : null;
+      var dow = dt && !isNaN(dt.getTime()) ? DOW[dt.getDay()] : '';
       return {
+        leftIcon: 'calendar', leftIconVariant: 'emerald',
         primary: r.company || r.attendee_name || '(no name)',
         secondary: r.event_type || '',
-        right: clxComp.formatDateTime(r.scheduled_start)
+        rightHtml: '<span class="clx-badge clx-badge-purple">' + clxComp.escapeHtml(dow) + '</span>' +
+                   '<div class="clx-list-secondary" style="margin-top:6px">' + clxComp.escapeHtml(clxComp.formatDateTime(r.scheduled_start)) + '</div>'
       };
     });
   } else { clxApi.renderError(bEl, book); }
 
   var rEl = document.getElementById('replies');
   if (reps.ok && reps.data && Array.isArray(reps.data.replies)) {
-    if (!reps.data.replies.length) clxApi.renderEmpty(rEl, 'No replies yet.', '✉');
+    if (!reps.data.replies.length) clxComp.renderEmpty(rEl, 'No replies yet.', 'mail');
     else clxComp.renderList(rEl, reps.data.replies, function (r) {
       return {
+        leftIcon: 'message-square', leftIconVariant: 'sky',
         primary: r.company || r.from_email || '(unknown)',
         secondary: (r.email_subject || r.snippet || '').slice(0, 120),
         badge: r.lead_status,

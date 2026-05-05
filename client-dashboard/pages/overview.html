@@ -26,8 +26,18 @@
       <h1 class="clx-page-title" id="hello">Overview</h1>
       <div class="clx-page-sub" id="clientName">—</div>
     </div></div>
-    <div class="clx-stat-grid" id="kpiGrid">
-      <div class="clx-stat-card"><div class="clx-stat-label">Loading…</div><div class="clx-stat-value"><span class="clx-spinner"></span></div></div>
+
+    <div class="clx-stat-grid" id="kpiGrid"></div>
+
+    <div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Conversion funnel</div></div>
+        <div id="funnel" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;min-height:140px"></div>
+      </div>
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Lead activity</div></div>
+        <div id="activitySpark" style="min-height:90px"></div>
+      </div>
     </div>
 
     <div class="clx-card" style="padding:0;margin-bottom:14px">
@@ -35,7 +45,7 @@
         <div class="clx-card-title">Recent leads</div>
         <a class="clx-btn clx-btn-ghost" href="/pages/leads.html" style="padding:5px 8px;font-size:12px">All →</a>
       </div>
-      <div id="recentLeads" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="recentLeads" style="padding:8px 16px 16px"></div>
     </div>
 
     <div class="clx-card" style="padding:0">
@@ -43,11 +53,12 @@
         <div class="clx-card-title">Upcoming bookings</div>
         <a class="clx-btn clx-btn-ghost" href="/pages/bookings.html" style="padding:5px 8px;font-size:12px">All →</a>
       </div>
-      <div id="upcomingBookings" style="padding:8px 16px 16px"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="upcomingBookings" style="padding:8px 16px 16px"></div>
     </div>
   </div></main>
 </div>
 <nav class="clx-bottom-nav" id="clxBottomNav"></nav>
+<style>@media (max-width:760px){.clx-two-col{grid-template-columns:1fr !important}}</style>
 
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
@@ -58,6 +69,18 @@ clxAuth.require('client').then(function (user) {
   clxComp.injectBottomNav(document.getElementById('clxBottomNav'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
   document.getElementById('hello').textContent = greeting() + ', ' + (user.email || 'there').split('@')[0];
+
+  // Skeletons
+  var kpi = document.getElementById('kpiGrid');
+  for (var i = 0; i < 4; i++) {
+    kpi.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('funnel').innerHTML = '<span class="clx-skeleton" style="width:130px;height:130px;border-radius:50%"></span>';
+  document.getElementById('activitySpark').innerHTML = '<span class="clx-skeleton" style="height:70px;display:block"></span>';
+  document.getElementById('recentLeads').innerHTML = clxComp.skeleton(4, 3);
+  document.getElementById('upcomingBookings').innerHTML = clxComp.skeleton(3, 3);
+
   load();
 }).catch(function(){});
 
@@ -69,38 +92,69 @@ function greeting() {
 }
 
 async function load() {
-  var [overview, leads, bookings] = await Promise.all([
+  var [overview, leads, bookings, leads30] = await Promise.all([
     clxApi.clientGet('overview'),
     clxApi.clientGet('leads', { limit: 5 }),
-    clxApi.clientGet('bookings', { upcoming: true, limit: 5 })
+    clxApi.clientGet('bookings', { upcoming: true, limit: 5 }),
+    clxApi.clientGet('leads', { limit: 200 })
   ]);
 
-  // Show client name
   if (overview.ok && overview.data && overview.data.client) {
     document.getElementById('clientName').textContent = overview.data.client.client_name || '';
   }
 
-  // KPI grid
   var grid = document.getElementById('kpiGrid');
   if (overview.ok && overview.data && overview.data.stats) {
     var s = overview.data.stats;
     clxComp.renderStatGrid(grid, [
-      { label: 'Total leads',       value: (s.total_leads || 0).toLocaleString() },
-      { label: 'New (7d)',          value: s.new_7d || 0 },
-      { label: 'Replies (30d)',     value: s.replies_30d || 0 },
-      { label: 'Booked (30d)',      value: s.booked_30d || 0 }
+      { label: 'Total leads',   value: (s.total_leads || 0).toLocaleString(),
+        icon: 'target', variant: 'leads', href: '/pages/leads.html' },
+      { label: 'New (7d)',      value: s.new_7d || 0,
+        icon: 'sparkles', variant: 'activity' },
+      { label: 'Replies (30d)', value: s.replies_30d || 0,
+        icon: 'message-square', variant: 'bookings', href: '/pages/bookings.html' },
+      { label: 'Booked (30d)',  value: s.booked_30d || 0,
+        icon: 'calendar', variant: 'revenue', href: '/pages/bookings.html' }
     ]);
   } else {
     clxApi.renderError(grid, overview);
   }
 
-  // Recent leads
+  // Funnel donut
+  var funnelEl = document.getElementById('funnel');
+  if (overview.ok && overview.data && overview.data.stats) {
+    var s = overview.data.stats;
+    var slices = [
+      { label: 'Total',     value: s.total_leads || 0, color: '#A78BFA' },
+      { label: 'Contacted', value: s.contacted_30d || 0, color: '#7C3AED' },
+      { label: 'Replied',   value: s.replies_30d || 0,   color: '#3B82F6' },
+      { label: 'Booked',    value: s.booked_30d || 0,    color: '#10B981' }
+    ].filter(function(x){ return x.value > 0; });
+    if (slices.length) {
+      var topVal = slices[0].value;
+      funnelEl.innerHTML = clxComp.donut(slices, { centerLabel: topVal, centerSub: 'leads' }) +
+        '<div style="flex:1;min-width:140px">' + clxComp.donutLegend(slices) + '</div>';
+    } else {
+      clxComp.renderEmpty(funnelEl, 'No funnel data yet', 'pie-chart');
+    }
+  }
+
+  // Activity sparkline (from 30d leads)
+  var sparkEl = document.getElementById('activitySpark');
+  if (leads30.ok && leads30.data && Array.isArray(leads30.data.leads)) {
+    var buckets = bucketByDay(leads30.data.leads, 30);
+    var sum = buckets.reduce(function(a,b){return a+b;}, 0);
+    sparkEl.innerHTML = '<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">' + sum + ' lead' + (sum===1?'':'s') + ' added in last 30 days</div>' +
+      clxComp.sparkline(buckets, { width: 360, height: 70 });
+  }
+
   var leEl = document.getElementById('recentLeads');
   if (leads.ok && leads.data && Array.isArray(leads.data.leads)) {
     var rows = leads.data.leads;
-    if (!rows.length) clxApi.renderEmpty(leEl, 'No leads yet — your first scans land within 24 hours of activation.', '◍');
+    if (!rows.length) clxComp.renderEmpty(leEl, 'No leads yet — your first scans land within 24 hours of activation.', 'inbox');
     else clxComp.renderList(leEl, rows, function (r) {
       return {
+        leftIcon:  'target', leftIconVariant: 'purple',
         primary:   r.company || '(no company name)',
         secondary: [r.industry, r.city].filter(Boolean).join(' · '),
         badge:     r.lead_status,
@@ -111,13 +165,13 @@ async function load() {
     clxApi.renderError(leEl, leads);
   }
 
-  // Upcoming bookings
   var boEl = document.getElementById('upcomingBookings');
   if (bookings.ok && bookings.data && Array.isArray(bookings.data.bookings)) {
     var rows = bookings.data.bookings;
-    if (!rows.length) clxApi.renderEmpty(boEl, 'No bookings scheduled. Calls land here as they are booked.', '◨');
+    if (!rows.length) clxComp.renderEmpty(boEl, 'No bookings scheduled. Calls land here as they are booked.', 'calendar');
     else clxComp.renderList(boEl, rows, function (r) {
       return {
+        leftIcon:  'calendar', leftIconVariant: 'emerald',
         primary:   r.company || r.attendee_name || '(no name)',
         secondary: r.event_type || '',
         right:     clxComp.formatDateTime(r.scheduled_start)
@@ -126,6 +180,24 @@ async function load() {
   } else {
     clxApi.renderError(boEl, bookings);
   }
+}
+
+function bucketByDay(leads, days) {
+  var now = new Date();
+  var todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  var msPerDay = 86400000;
+  var buckets = new Array(days).fill(0);
+  leads.forEach(function (l) {
+    var raw = l.date_created || l.created_at || l.updated_at;
+    if (!raw) return;
+    var t = new Date(raw).getTime();
+    if (isNaN(t)) return;
+    var d = new Date(t);
+    var dayUTC = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    var idx = days - 1 - Math.floor((todayUTC - dayUTC) / msPerDay);
+    if (idx >= 0 && idx < days) buckets[idx]++;
+  });
+  return buckets;
 }
 </script>
 </body>
