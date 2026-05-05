@@ -104,7 +104,9 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1560, 280],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -121,7 +123,9 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1560, 460],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -138,11 +142,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1560, 620],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "const clientRows = $('Query Client').first().json;\nconst recentRows = $('Query Recent Leads').first().json;\nconst statsRows = $('Query Lead Stats').first().json;\nconst client = Array.isArray(clientRows) ? clientRows[0] : null;\nif (!client) return { json: { ok: true, client: null } };\nconst all = Array.isArray(statsRows) ? statsRows : [];\nconst counts = {};\nall.forEach(r => { const s = r.lead_status || 'New Lead'; counts[s] = (counts[s] || 0) + 1; });\nconst stats = {\n  total_leads: all.length,\n  contacted: counts['Contacted'] || 0,\n  replied:   counts['Replied']   || 0,\n  booked_mtd: counts['Booked']   || 0\n};\nreturn { json: { ok: true, client, stats, recent_leads: Array.isArray(recentRows) ? recentRows : [] } };",
+        "jsCode": "// Defensive read of each parallel branch — any single Supabase call failing\n// (transient 5xx, RLS hiccup, schema mismatch) used to crash this whole node\n// with 'Node X hasn't been executed'. safeNode() degrades the bad branch to\n// null/[]; the rest of the panel still renders.\nconst safeNode = (name) => { try { return $(name).first().json; } catch (e) { return null; } };\nconst toArr = (raw) => {\n  if (Array.isArray(raw)) return raw;\n  if (raw && typeof raw === 'object' && Object.keys(raw).length) return [raw];\n  return [];\n};\nconst clientArr = toArr(safeNode('Query Client'));\nconst client = clientArr[0] || null;\nif (!client) return { json: { ok: true, client: null } };\nconst statsArr = toArr(safeNode('Query Lead Stats'));\nconst recentArr = toArr(safeNode('Query Recent Leads'));\nconst counts = {};\nstatsArr.forEach(r => { const s = r.lead_status || 'New Lead'; counts[s] = (counts[s] || 0) + 1; });\nconst stats = {\n  total_leads: statsArr.length,\n  contacted: counts['Contacted'] || 0,\n  replied:   counts['Replied']   || 0,\n  booked_mtd: counts['Booked']   || 0\n};\nreturn { json: { ok: true, client, stats, recent_leads: recentArr } };",
         "mode": "runOnceForAllItems"
       },
       "id": "adm-cd-0010",

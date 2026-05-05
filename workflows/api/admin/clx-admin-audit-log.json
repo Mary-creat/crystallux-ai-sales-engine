@@ -132,7 +132,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const sessions = Array.isArray($('Active Sessions').first().json) ? $('Active Sessions').first().json : [];\nconst users = Array.isArray($('All Users').first().json) ? $('All Users').first().json : [];\nconst actionsRaw = $('Admin Actions').first().json;\nconst actions = Array.isArray(actionsRaw) ? actionsRaw : [];\n// Join sessions to users by user_id (avoid PostgREST embedding for simplicity)\nconst byId = {};\nusers.forEach(u => byId[u.id] = u);\nsessions.forEach(s => {\n  const u = byId[s.user_id] || {};\n  s.email = u.email || '—';\n  s.user_role = u.user_role || '—';\n});\nreturn { json: { ok: true, sessions, actions } };",
+        "jsCode": "// Defensive read of each parallel branch — see clx-admin-client-detail.json\n// for the rationale. safeNode degrades a non-executed/failed branch to []\n// so the audit log still renders if any single query fails.\nconst safeNode = (name) => { try { return $(name).first().json; } catch (e) { return null; } };\nconst toArr = (raw) => Array.isArray(raw) ? raw : (raw && typeof raw === 'object' && Object.keys(raw).length ? [raw] : []);\nconst sessions = toArr(safeNode('Active Sessions'));\nconst users = toArr(safeNode('All Users'));\nconst actions = toArr(safeNode('Admin Actions'));\n// Join sessions to users by user_id (avoid PostgREST embedding for simplicity)\nconst byId = {};\nusers.forEach(u => byId[u.id] = u);\nsessions.forEach(s => {\n  const u = byId[s.user_id] || {};\n  s.email = u.email || '—';\n  s.user_role = u.user_role || '—';\n});\nreturn { json: { ok: true, sessions, actions } };",
         "mode": "runOnceForAllItems"
       },
       "id": "adm-al-0009",
