@@ -220,6 +220,18 @@ Crystallux sells **five distinct productized services**. Each is a complete, sta
 | Manager | "See my team" | Team leaders (5+) | $497 – $2,997 per team |
 | Operator | "Run everything" | Mid-market firms | $5,997 – $25,000 |
 
+### Add-on intelligence tiers
+
+Layer on top of any service tier; sold per-client per month.
+
+| Tier | Feature | Price (CAD/mo) | Spec |
+|------|---------|----------------|------|
+| B | Productivity tracking + supervisor dashboard | $1,000 | [OPERATIONS_HANDBOOK §32](OPERATIONS_HANDBOOK.md) |
+| C | Listening Intelligence (live transcript + post-call coaching) | $2,500 | [OPERATIONS_HANDBOOK §33](OPERATIONS_HANDBOOK.md) |
+| **D** | **Behavioral Intelligence (per-lead signal monitoring + triggered outreach)** | **$1,500 – $3,500** | [OPERATIONS_HANDBOOK §35](OPERATIONS_HANDBOOK.md) |
+
+Tier D is the differentiator: where Pipeline finds *who* to talk to and Listening Intelligence improves *what* gets said on the call, Behavioral Intelligence decides *when* to reach out. It works for **every vertical Crystallux serves** (insurance, real estate, mortgage, dental, consulting, construction, legal, financial advisors, agencies, more). It monitors 10 categories of person-level signals (life events, business changes, industry news, sports, news mentions, social activity, vertical-specific events such as policy renewals or property listings or treatment plans, financial milestones, geographic moves, internal calendar gaps) and either auto-sends or surfaces a triggered outreach for advisor approval. Vertical-tuning happens through `niche_overlays`, not code: a real-estate agent gets "listing-window" triggers; an insurance broker gets "renewal-window" triggers; a dentist gets "recall-due" triggers — same engine. The MGA business line ([§5](#5-crystallux-mga--a-separate-vertical-specific-business-line)) ships Behavioral Intelligence bundled into every sub-agent contract — it's *one* expression of the same universal feature.
+
 ---
 
 ## 5. Crystallux MGA — A Separate, Vertical-Specific Business Line

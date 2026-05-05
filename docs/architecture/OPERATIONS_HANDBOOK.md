@@ -2503,3 +2503,456 @@ Both dormant.
 - Library rollback: suggestions still logged historically; the
   learning loop can be deactivated independently to freeze
   conversion_rate updates.
+
+
+## 35. Behavioral Intelligence (Phase B.13)
+
+**Status:** designed, not yet built. Schema + workflows pending. UI
+slot reserved on every advisor / lead-detail panel for the trigger feed.
+
+### 35.1 What is Behavioral Intelligence?
+
+A continuous-monitoring layer that watches **person-level life and
+business signals** for every lead in a client's book and, when a
+high-relevance signal fires, generates a personalised outreach
+suggestion the seller can send with one click. Where Section 27
+(Market Intelligence) operates at the **vertical level** (interest
+rates, weather, regulatory shifts → scales outreach *volume*),
+Behavioral Intelligence operates at the **individual lead level**
+(life event, business event, social cue → scales outreach *relevance*).
+
+**This is a universal feature, not an insurance feature.** It works
+identically across every Crystallux vertical (insurance, real estate,
+mortgage, dental, consulting, construction, legal, agencies, financial
+advisors, more). The 10 signal categories are universal; what
+differs per vertical is which categories are enabled by default and
+which trigger archetypes are seeded into `behavioral_triggers` for
+that `niche_name`. A real-estate agent's "neighbourhood comp sold above
+asking" trigger uses the same engine as an insurance broker's "60-day
+renewal" trigger — same scanner, same classifier, same compose
+pipeline, different archetype row.
+
+The thesis: most cold outreach fails because it hits at random.
+**Most warm conversations open because the seller knew something
+specific about the prospect's life that day.** Behavioral Intelligence
+gives every seller — insurance broker, real estate agent, dentist,
+consultant, broker, contractor, lawyer — even one with a 1,000-person
+book — the context window of a top-tier relationship operator with a
+30-person book.
+
+This is the moat versus generic AI sales tools. Apollo + ChatGPT can
+write a personalised email. They cannot tell you that a real-estate
+prospect's neighbour just sold $80K over asking AND her LinkedIn shows
+she's expecting twins; or that an insurance prospect's commercial
+property renews in 72 days AND his Leafs lost last night AND he hired
+three people this quarter; or that a dental prospect's recall is
+overdue AND her benefits-year-end is 30 days out — and that the right
+move in each case is one specific outreach, today.
+
+### 35.2 The 10 categories of signals monitored
+
+Signals are typed (`signal_category`), scored for relevance per
+lead (`relevance_score 0-100`), and gated by consent + advisor
+opt-in. Not every category is appropriate for every vertical;
+defaults are tuned per `niche_overlays` row.
+
+| # | Category | Examples | Default sources |
+|---|---|---|---|
+| 1 | **Personal life events** | Birthday, anniversary, new baby, child graduation, marriage, retirement, bereavement | Public records, Facebook (opt-in via lead consent), LinkedIn life events, scraped obituary feeds |
+| 2 | **Business events** | New hire, promotion, headcount expansion, office move, funding round, new product launch, leadership change | LinkedIn company changes, Apollo, news APIs, Crunchbase, OpenCorporates |
+| 3 | **Industry events** | Regulatory ruling affecting prospect's business, competitor news, vertical-wide price moves, supply-chain disruption | Sectoral news APIs, regulatory feeds (FSRA, OSC, CSA), trade publications |
+| 4 | **Sports + cultural** | Local team win/loss, prospect's college football team result, marathon completed, fan-club affiliation cues | ESPN API, sports-RSS aggregators, local sports outlets |
+| 5 | **News mentions** | Prospect's name or company in news (positive or negative), award received, lawsuit, press release | Google News API, NewsAPI, Bing News, mention.com-style scrapers |
+| 6 | **Social media activity** | Major LinkedIn post, viral tweet, public Instagram milestone, podcast appearance | LinkedIn (via Unipile), X/Twitter API, public Instagram, podcast index APIs |
+| 7 | **Vertical-specific events** | Per-vertical, the most predictable buying-window signal. **Insurance:** policy renewal (60/30/7d), policy lapsed, claim filed, coverage gap from disclosed life event. **Real estate:** anniversary in current home, neighbourhood comp sold, MLS price change in lead's block. **Mortgage:** mortgage renewal window, BoC rate move + lead's renewal date. **Dental:** 6-month recall due, treatment plan idle, insurance year-end + plan unused. **Construction:** building permit filed in lead's neighbourhood, home reaching 25-yr mark, post-storm restoration window. **Consulting:** target company press release, competitor named in lead's market, exec hire at target. | Internal vertical-specific tables; per-vertical public registries (MLS, OpenCorporates, building permits, recall calendars). For insurance: `policies` table once Bucket 2 §2.4 ships; carrier feeds for licensed advisors. |
+| 8 | **Financial** | Mortgage refi window opening (rate-driven), tax filing deadline approaching, RRSP/TFSA contribution deadline, business fiscal year-end | Bank of Canada Valet API, CRA filing-season calendar, prospect's fiscal year from corporate registry |
+| 9 | **Geographic** | Prospect moves city / postal code change, business opens new location, weather event in their region (storm, fire, flood) | Address-monitor RPC, Environment Canada feeds (already wired into §27), Google Places change-feed |
+| 10 | **Calendar** | Prospect's industry conference next month, advisor's last-touch was >X days ago, reply-pending past SLA, no-show last week | Internal — derived from `appointment_log` + `outreach_log` + `agent_calendar_prefs` |
+
+A lead can match multiple categories simultaneously; the trigger
+engine compounds them (e.g., "birthday + 60-day-renewal + Maple Leafs
+won = three-signal stack, fire one consolidated outreach").
+
+### 35.3 Data sources
+
+Three tiers, ordered by privacy + cost.
+
+**Tier 1 — Public + free:**
+- Bank of Canada Valet API (financial signals, already integrated per §27)
+- Environment Canada (geographic / weather, already integrated)
+- NewsAPI free tier (10K requests/month — covers 50-100 prospects)
+- ESPN public RSS (sports)
+- LinkedIn public profile scrape (rate-limited, must respect ToS)
+- OpenCorporates (business filings)
+- CRA public dataset (filing-season calendar)
+
+**Tier 2 — Paid + low-friction:**
+- Google News API ($0.005/query at scale)
+- Apollo signal feed (already paid for in Pipeline)
+- Crunchbase ($49/mo Starter — covers 1,000 prospect-monitor scans)
+- LinkedIn via Unipile (already integrated for outreach — extend to signal monitoring)
+
+**Tier 3 — Consent-gated personal:**
+- Lead-supplied life events (via the optional "tell us about yourself"
+  intake form on the prospect's response landing page — opt-in)
+- Carrier policy feeds (advisor-licensed; access-token per advisor)
+
+The Tier 3 sources are the highest-value — a lead who *tells you* their
+daughter graduates next month is a different ICP than one whose data
+you scraped — and the schema must distinguish source provenance
+(`signal_source IN public / paid / lead_supplied / advisor_supplied`)
+so the outreach can frame it appropriately ("congrats on the
+graduation — you mentioned it on our last call" vs. silently
+deploying scraped data).
+
+### 35.4 Schema (proposed)
+
+Migration: `docs/architecture/migrations/2026-XX-XX-behavioral-intelligence.sql` (not yet authored).
+
+Net-new tables:
+
+```sql
+-- Per-lead, per-event signal feed
+CREATE TABLE behavioral_signals (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id             uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  client_id           uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  signal_category     text NOT NULL,    -- one of the 10 above
+  signal_type         text NOT NULL,    -- e.g., 'birthday', 'new_hire', 'team_win'
+  signal_payload      jsonb NOT NULL,   -- raw event details
+  signal_source       text NOT NULL,    -- public / paid / lead_supplied / advisor_supplied
+  source_url          text,             -- back-link for advisor verification
+  detected_at         timestamptz DEFAULT now(),
+  expires_at          timestamptz,      -- after which the signal stops triggering
+  relevance_score     integer,          -- 0-100, vertical-tuned
+  sensitivity         text DEFAULT 'low',  -- low / medium / high (gates outreach tone)
+  consent_status      text DEFAULT 'inferred', -- inferred / explicit / withdrawn
+  acted_on_at         timestamptz,      -- advisor sent outreach in response
+  acted_by_agent_id   uuid,
+  outreach_log_id     uuid,             -- link to the outreach row that fired
+  archived            boolean DEFAULT false,
+  CHECK (signal_category IN ('personal','business','industry','sports','news','social','insurance','financial','geographic','calendar'))
+);
+CREATE INDEX idx_bs_lead_active   ON behavioral_signals(lead_id, detected_at DESC) WHERE archived = false;
+CREATE INDEX idx_bs_client_unread ON behavioral_signals(client_id, detected_at DESC) WHERE acted_on_at IS NULL AND archived = false;
+
+-- Per-client opt-in matrix (which categories are monitored)
+CREATE TABLE client_behavioral_prefs (
+  client_id                   uuid PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+  enabled                     boolean DEFAULT false,
+  enabled_at                  timestamptz,
+  categories_enabled          jsonb DEFAULT '[]'::jsonb,   -- subset of the 10
+  sensitivity_ceiling         text DEFAULT 'medium',       -- low / medium / high
+  daily_signal_cap_per_lead   integer DEFAULT 3,           -- prevents spam-stacking
+  consent_disclosure_version  text,
+  monthly_price_cad           numeric(10,2)                -- tier add-on price
+);
+
+-- Compounded trigger archetypes (signal stacks that fire together)
+CREATE TABLE behavioral_triggers (
+  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  niche_name               text NOT NULL,
+  trigger_name             text NOT NULL,
+  required_signals         jsonb NOT NULL,    -- array of signal_type
+  optional_signals         jsonb DEFAULT '[]'::jsonb,
+  outreach_template_id     uuid,              -- FK to closing_scripts (§28)
+  recommended_channel      text,              -- email / sms / call / video
+  cool_down_days           integer DEFAULT 30,
+  conversion_rate          numeric(5,2),      -- learning loop, like §34
+  active                   boolean DEFAULT true
+);
+```
+
+RPCs (all SECURITY DEFINER, service_role-only EXECUTE):
+
+- `record_behavioral_signal(lead_id, category, type, payload, source, relevance, sensitivity, expires_at)`
+  — consent-gated: returns NULL without writing if
+  `client_behavioral_prefs.enabled = false` or category not in
+  `categories_enabled`.
+- `match_signal_to_trigger(lead_id, signal_id)` — returns ranked
+  trigger archetypes that this lead's accumulated signals satisfy.
+- `mark_signal_acted_on(signal_id, agent_id, outreach_log_id)` — records
+  the close-loop event (advisor sent outreach because of this signal).
+- `enable_behavioral_intelligence(client_id, monthly_price)` — flip
+  the per-client tier on, write `enabled_at`, default categories
+  to a vertical-appropriate subset.
+
+### 35.5 Workflows (proposed)
+
+Five dormant workflows, mirroring the §27 / §32 architecture:
+
+1. **`clx-behavioral-scanner-v1`** — Schedule Trigger every 6 hours.
+   Fans out across `client_behavioral_prefs.enabled = true`, fetches
+   each lead's monitorable handles (LinkedIn URL, email, name,
+   company), invokes Tier 1 + Tier 2 sources for each enabled
+   category, calls `record_behavioral_signal` for hits.
+   Cost-bounded — caps at N scans/day per client per category to
+   keep API spend predictable.
+2. **`clx-behavioral-classifier-v1`** — webhook + 6h Schedule. Picks
+   `record_behavioral_signal` rows whose `relevance_score IS NULL`,
+   batches 20 to Claude Haiku to score relevance + sensitivity per
+   the niche overlay's tone profile, PATCHes back.
+3. **`clx-behavioral-trigger-v1`** — webhook on every classified
+   signal. Calls `match_signal_to_trigger`. If a trigger fires,
+   composes outreach via the existing closing-intelligence script
+   library (§28) using the trigger's `outreach_template_id`, and
+   either: (a) auto-sends if `client_behavioral_prefs.auto_send = true`,
+   or (b) drops it into the dashboard's "Suggested outreach today"
+   feed for advisor approval.
+4. **`clx-behavioral-learning-loop-v1`** — 02:00 Schedule. Uses
+   `acted_on_at` + downstream lead-status changes to recompute
+   `behavioral_triggers.conversion_rate` over a 90-day window.
+   Mirrors the §34 script-learning loop.
+5. **`clx-behavioral-consent-collector-v1`** — webhook fired by the
+   prospect's response landing page when they fill out the optional
+   "anything we should know about you?" intake. Writes signals as
+   `signal_source = 'lead_supplied'` and flips `consent_status = 'explicit'`.
+
+### 35.6 Technical flow
+
+```
+                  ┌── public APIs (BoC, NewsAPI, Env Canada)
+Scanner ──────────┤── paid feeds (Google News, Apollo, Crunchbase)
+(6h schedule)     └── lead-supplied intake (consent-gated)
+       │
+       ▼
+record_behavioral_signal RPC  ──→  behavioral_signals table
+                                    (relevance_score = NULL)
+       │
+       ▼
+Classifier ──→ Claude Haiku ──→ score relevance (0-100) + sensitivity
+(6h schedule)                       │
+                                    ▼
+                          PATCH behavioral_signals
+                                    │
+                                    ▼
+Trigger workflow ──→ match_signal_to_trigger RPC
+                          │
+                          ├── trigger fires (compound match) ──→ generate outreach via §28 library
+                          │                                         │
+                          │                                         ├── auto_send=true? → send via §14 multi-channel
+                          │                                         │
+                          │                                         └── auto_send=false → enqueue in advisor "Suggested outreach today" panel
+                          │
+                          └── no trigger fires ──→ signal stays visible in lead-detail "What's happening" feed
+                                                    (advisor can manually compose if they want)
+                                    │
+                                    ▼
+                          Advisor sends → mark_signal_acted_on RPC ──→ feeds learning loop
+                                                                          │
+                                                                          ▼
+                                                              (02:00 Schedule)
+                                                              clx-behavioral-learning-loop-v1
+                                                              recomputes conversion_rate
+```
+
+### 35.7 Four example use cases
+
+> The four below are insurance-flavoured for concreteness — insurance is
+> Mary's home vertical. Equivalent archetypes exist for every Crystallux
+> vertical: real-estate "anniversary + neighbourhood comp sold above
+> asking → CMA outreach", dental "recall due + insurance year-end →
+> use-it-or-lose-it nudge", consulting "target company press release +
+> exec hire → exec onboarding pitch", construction "permit filed in
+> neighbourhood + home reaching 25-yr mark → reno conversation". Same
+> engine, different `niche_overlays.<niche_name>` archetype seed set.
+
+#### Use case 1 — Birthday + commercial-renewal (insurance broker)
+
+- Signals stacked: `personal.birthday` (today, fired by lead-supplied DoB) + `insurance.policy_renewal_60d` (commercial GL policy renews in 58 days).
+- Trigger archetype: `insurance_broker.birthday_with_pending_renewal`.
+- Auto-composed outreach (Claude Haiku, RIBO-safe):
+  > Happy birthday, [Name]. Hope it is a good one. Quick note since I am in your file — I see your commercial GL renews in early March. Want to grab 15 minutes next week to walk through what is in your current package and whether there is room to tighten coverage for what your business looks like now? — [Advisor]
+- Channel: email (auto-detect on file). Sensitivity: low. Conversion rate (target): 18%.
+
+#### Use case 2 — Business expansion + group benefits (insurance broker)
+
+- Signals stacked: `business.headcount_expansion` (LinkedIn shows 3 new hires this month, total ≥10) + `business.new_office` (Crunchbase: opened second location).
+- Trigger archetype: `insurance_broker.expansion_signals_group_benefits`.
+- Outreach:
+  > [Name] — saw the team expansion this quarter. Once you cross 10 employees, group health/dental + LTD becomes meaningfully cheaper per person than individual coverage, and Ontario gives you a small-business CPP/EI rebate when you offer it. Worth a 20-min look at the math? I will bring two carrier quotes — no obligation. — [Advisor]
+- Channel: LinkedIn DM (matches signal source). Sensitivity: low. Conversion rate (target): 24%.
+
+#### Use case 3 — Sports rapport (any vertical)
+
+- Signal: `sports.local_team_win` (Toronto Maple Leafs won last night, lead has marked Toronto on profile).
+- Trigger archetype: `any.team_win_rapport_warmer`.
+- This one **does NOT auto-fire outreach**. It surfaces in the advisor's
+  "Today's icebreakers" panel as a *prepend* the advisor can drop into
+  another otherwise-scheduled email or call:
+  > (Saw the Leafs game — what a finish. Auston Matthews looks back to form.)
+- Sensitivity: low. Use: rapport-building only, never the headline of an outreach.
+
+#### Use case 4 — New baby + life insurance (insurance broker, sensitive)
+
+- Signal: `personal.new_baby` (LinkedIn life event OR lead-supplied during onboarding intake).
+- Trigger archetype: `insurance_broker.new_parent_term_life`.
+- **High sensitivity.** Outreach must NOT be auto-sent. Surfaces as
+  a draft with a banner: "Sensitive trigger — review before sending."
+- Suggested copy:
+  > [Name] — congratulations on the new arrival. I will not take more than a sentence. When the dust settles in a few weeks and you are thinking about the practical side, I help families in your situation think through term life coverage that gets your spouse + the new little one to age 21 without breaking the monthly budget. Reply when you are ready — no rush. — [Advisor]
+- Channel: email. Sensitivity: high. Cooldown: 90 days minimum
+  before any other behavioral trigger fires for this lead.
+
+### 35.8 Compliance rules
+
+**CASL alignment** (Canadian Anti-Spam Legislation):
+- Every behavioral-triggered email retains the standard CASL footer
+  (sender ID, mailing address, one-click unsubscribe).
+- Signals derived from lead-supplied sources (Tier 3) require the
+  consent bundle covering subsequent outreach — collected once at
+  intake, version-stamped on `client_behavioral_prefs.consent_disclosure_version`.
+- Signals from public sources DO NOT establish CASL consent on their
+  own — the advisor must already have an existing-business-relationship
+  basis for the lead, exactly as today.
+
+**Sensitivity gating:**
+- Signals with `sensitivity = 'high'` (bereavement, illness, divorce,
+  job loss, new baby) are NEVER auto-sent. Mandatory advisor review.
+- Signals with `sensitivity = 'medium'` (recent move, kid milestone,
+  health-adjacent business changes) auto-send only if
+  `client_behavioral_prefs.auto_send = true` AND the trigger archetype
+  `sensitivity_floor ≤ medium`.
+- A `BEHAVIORAL_HIGH_SENSITIVITY_AUTO_SEND_BLOCKED` monitoring threshold
+  fires at critical severity if the workflow detects an attempt to
+  auto-send a high-sensitivity outreach (defence-in-depth).
+
+**Opt-out:**
+- Per-lead opt-out: `leads.behavioral_monitoring = 'off'` short-circuits
+  the scanner before any signal write.
+- Per-client opt-out: `client_behavioral_prefs.enabled = false` disables
+  monitoring entirely; existing rows stay for audit, no new ones land.
+- Per-category opt-out: remove the category from
+  `categories_enabled` jsonb. Effective on next scanner pass (within 6h).
+- Per-signal opt-out: clicking "ignore" in the dashboard archives the
+  signal and feeds the rejection back into the learning loop so the
+  archetype confidence drops.
+
+**PIPEDA + sensitivity disclosure:**
+- The dashboard displays a per-signal source attribution
+  ("From your LinkedIn profile" / "From your last conversation with
+  Mary on 2026-04-12" / "From a public news mention"). No silent data.
+- A lead can request the full export of every signal recorded against
+  them via `support@crystallux.org`. The schema's `source_url` +
+  `signal_payload` columns make this a 1-query export.
+- Retention: 18 months active, then archived (rows kept for audit,
+  removed from scanner consideration). Annual review per niche
+  overlay's `compliance_notes`.
+
+### 35.9 Integration points with other Crystallux features
+
+| Existing feature | How Behavioral Intelligence integrates |
+|---|---|
+| **§27 Market Intelligence** | Vertical-level signals scale outreach *volume*; behavioral signals scale outreach *relevance*. Both feed Campaign Router v2 prioritisation. A lead with both an active vertical signal AND a personal trigger gets the strongest priority weight. |
+| **§28 Closing Intelligence** | Behavioral triggers reference `outreach_template_id → closing_scripts.id`. The script library is the canonical source of outreach copy; behavioral triggers select the right template. |
+| **§29 Calendar Restructuring** | A `calendar.no_show_last_week` behavioral signal compounds with the §29 SMS-recovery flow — instead of a generic "want to rebook?" SMS, the no-show recovery template gets enriched with whatever else is happening in the lead life ("Saw your son hockey tournament results — congrats. Want me to slot a quick call next week?"). |
+| **§30 Today's Plan** | A high-relevance behavioral signal (`relevance_score ≥ 80`) auto-promotes the lead into "Today Plan" with category `hot_signal_outreach`, ahead of stale follow-ups. |
+| **§32 Productivity Tier** | An advisor `acted_on_at` rate (signals fired vs. acted on within 24h) becomes a tracked productivity dimension on `agent_daily_summary`. |
+| **§33 Listening Intelligence** | A live call where the advisor mentions a behavioral fact ("I saw your team won last night") is detected by the transcript classifier as `intent: rapport_warmer` and compounds with the trigger that fired the call. |
+| **§34 Real-time Script Pop-Ups** | When a behavioral-triggered call is in progress, the script suggester biases toward objection handlers tuned for the signal context (e.g., new-parent objection patterns differ from business-expansion objection patterns). |
+| **Closing Intelligence script-usage logging** | Every behavioral-trigger outreach writes through `record_script_usage` → the existing learning loop already understands it. |
+
+### 35.10 User configuration options
+
+Per client, surfaced on `admin-dashboard/pages/settings.html` (admin
+view) and `client-dashboard/pages/settings.html` (client / advisor view):
+
+- **Master enable** — `client_behavioral_prefs.enabled` (boolean,
+  default false).
+- **Categories enabled** — multi-select across the 10 categories.
+  Vertical-default presets (e.g., insurance defaults to all 10 except
+  sports; consulting defaults to business + industry + news + social).
+- **Sensitivity ceiling** — `low / medium / high`. Caps the highest-
+  sensitivity signals that can auto-send. Default `medium`.
+- **Auto-send vs. review queue** — global default + per-category override.
+- **Daily signal cap per lead** — prevents stack-spamming. Default 3.
+- **Cool-down between triggers per lead** — default 30 days.
+- **Per-lead opt-out toggle** — exposed on the lead-detail page.
+- **Notification preferences** — daily digest of new signals
+  (already-existing email channel via §32 daily summary generator),
+  immediate push for `relevance_score ≥ 90`, etc.
+
+### 35.11 KPIs tracked
+
+Two tiers — operational (per-workflow health) and business (per-tier value).
+
+**Operational (visible on `admin-dashboard/pages/workflows.html`):**
+- Scanner success rate (signals captured / lead-monitor attempts)
+- Classifier latency p50 / p99 (Claude Haiku call time)
+- Classifier accuracy (manual-spot-check sample, monthly)
+- API spend per client per month (Tier 2 paid sources)
+
+**Business (per-client, visible on `client-dashboard/pages/overview.html`):**
+- Signals detected (today / 7d / 30d)
+- Signals acted on (advisor sent outreach within 24h of detection) — both absolute count and percentage
+- Trigger archetype performance — `acted_on → reply_received → meeting_booked` funnel per archetype
+- Behavioral-driven booking rate vs. cold outreach booking rate (the headline ROI number)
+- Per-category contribution to bookings — which signal types are pulling weight, which are noise
+- Sensitivity-blocked auto-send count (governance metric — should stay > 0; zero means the gate is not being tested)
+
+### 35.12 Pricing + tier positioning
+
+Behavioral Intelligence is the **highest-value pipeline tier add-on,
+sold across every vertical**. Pricing tracks the existing Phase B
+add-on ladder:
+
+- Tier B (§32 Productivity): $1,000/mo
+- Tier C (§33 Listening Intelligence): $2,500/mo
+- **Tier D (§35 Behavioral Intelligence): $1,500-$3,500/mo**
+  depending on number of monitored leads + Tier 2 paid feeds enabled
+
+Bundled into Crystallux Operator Enterprise ($9,997/mo per
+[BUSINESS_PLAN.md §4.5](BUSINESS_PLAN.md)) regardless of vertical.
+
+For the **MGA business line** ([BUSINESS_PLAN.md §5](BUSINESS_PLAN.md)),
+Behavioral Intelligence is *one* expression of the universal feature
+applied to insurance brokerage: it's a strong sub-agent recruitment
+lever for advisors switching to Crystallux MGA. The same feature
+also powers a real-estate team's recruitment pitch and a dental
+clinic's hygienist retention pitch — Crystallux is the universal
+engine, the MGA is one customer.
+
+### 35.13 Activation roadmap
+
+Sequenced gates, each independently shippable per the dormant-by-default
+pattern. **The engine is built once and deployed across every vertical
+simultaneously**; only the seed archetype library is per-vertical:
+
+1. **Vertical-specific pre-reqs (parallel, per vertical):** the `policies` table for insurance ([Bucket 2 §2.4](../audit/insurance-features-extracted.md)), MLS-comp ingestion for real estate, recall-calendar table for dental, building-permit scraper for construction, etc. Without these, category 7 (vertical-specific events) is hollow for that vertical — but the other 9 categories still work.
+2. **MVP (universal, applies to every vertical):** Categories 1 (personal — birthday only), 2 (business — LinkedIn hires only), 7 (vertical-specific — whichever vertical's pre-req is ready first), 10 (calendar — internal-derived). 4 of 10 categories. Tier 1 sources only.
+3. **Tier 2 sources (universal):** Add Google News + Crunchbase. Categories 5 (news), 6 (social).
+4. **Sensitive categories (universal):** Add 1 (full personal — new baby, marriage, bereavement) with high-sensitivity gating fully tested. Default OFF; admin opt-in per client.
+5. **Full 10 categories (universal):** Add 3 (industry feeds), 4 (sports), 8 (financial), 9 (geographic moves).
+6. **Per-vertical archetype seeding:** Build `behavioral_triggers` archetype libraries per `niche_name`. Initial seed targets: `insurance_broker` (10-15 archetypes), `real_estate` (10-15), `mortgage_broker` (8-10), `dental` (6-8), `consulting` (6-8), `construction` (6-8). Vertical activation flips on as each archetype library reaches MVP density.
+7. **Learning loop:** Activate the conversion-rate recompute job once trigger archetypes have ≥ 50 acted-on rows each.
+
+### 35.14 Decommission
+
+- **Per client:** `UPDATE client_behavioral_prefs SET enabled = false`.
+  Scanner short-circuits with `BEHAVIORAL_DISABLED` info log on next pass.
+- **Per category:** remove from `categories_enabled` jsonb.
+- **Per lead:** `UPDATE leads SET behavioral_monitoring = 'off'`.
+- **Globally:** deactivate the 5 workflows. Existing rows stay for
+  audit unless a PIPEDA deletion request lands, in which case the
+  per-lead DELETE on `behavioral_signals` fulfills it.
+
+### 35.15 Cost ceiling
+
+At 30 clients × 100 monitored leads each (3,000 prospects):
+
+- Tier 1 sources: free
+- Tier 2 (Google News + Crunchbase): ~$200/mo across all clients
+- Claude Haiku classifier: ~3,000 leads × 6h scan × ~5 signals/scan/lead × $0.0001 per classification ≈ $90/mo
+- Trigger compose (Claude Sonnet on fired triggers only): ~50 fires/day × 30 clients × $0.005 ≈ $225/mo
+- **Total platform cost: ~$515/mo to deliver $30K-$60K of monthly revenue at
+  the proposed pricing.** Margin is the headline number.
+
+### 35.16 Cross-references
+
+- [BUSINESS_PLAN.md §4.5 — Crystallux Operator Enterprise bundle](BUSINESS_PLAN.md)
+- [PRODUCT_VISION.md — differentiation thesis](PRODUCT_VISION.md)
+- [docs/audit/insurance-features-extracted.md — Bucket 2 §2.13 (this feature, per-vertical scoping)](../audit/insurance-features-extracted.md)
+- §27 Market Intelligence (the vertical-level companion)
+- §28 Closing Intelligence (script library, the outreach-template source)
+- §32 Productivity Tier (acted-on-rate becomes a tracked dimension)
+- §34 Real-time Script Pop-Ups (in-call adaptation feeds back into archetype tuning)

@@ -191,6 +191,43 @@ Three buckets. Every line links back to the canonical source so the spec/code-of
 - **Built today (close to it):** `clx-daily-summary-generator-v1` (§32) emits per-agent emails — an *adjacent* workflow.
 - **Missing:** a single morning email to the principal aggregating all agents (rollup, ranked leaderboard, at-risk callouts, anomaly summary). Plus the dashboard rollup panel referenced in §2.1.
 
+### 2.13 Behavioral Intelligence (Phase B.13)
+- **Source:** [OPERATIONS_HANDBOOK §35](../architecture/OPERATIONS_HANDBOOK.md) (full spec, 16 subsections).
+- **Status:** designed, schema + 5 workflows + dashboard panels not yet built. Pre-req for the vertical-specific signal category (#7) is Bucket 2 §2.4 (`policies` table) for insurance; equivalent vertical pre-reqs apply for other verticals (MLS-comp for real estate, recall calendar for dental, etc.). The behavioral feature can ship without any vertical-specific pre-req — the other 9 categories work universally.
+- **Universal framing:** Behavioral Intelligence is a **universal feature**, not insurance-specific. It deploys across every Crystallux vertical (real estate, mortgage, dental, consulting, construction, agencies, financial advisors, more). This file documents it under "insurance-features-extracted" because Mary is scoping the *insurance* slice of the Advisor Dashboard right now, but the same engine and the same 10 categories serve every vertical — what changes per vertical is the seed archetype library.
+- **What it is:** a continuous-monitoring layer that watches per-lead life + business + industry + sports + news + social + vertical-specific + financial + geographic + calendar signals, scores each for relevance + sensitivity, compounds them into trigger archetypes, and either auto-sends or surfaces a personalised outreach. Person-level companion to §27 Market Intelligence (which is vertical-level).
+- **Insurance-specific signal types (subset of the 10 categories):**
+  - `insurance.policy_renewal_60d` / `_30d` / `_7d` — pre-renewal windows
+  - `insurance.policy_lapsed`
+  - `insurance.beneficiary_change_request`
+  - `insurance.claim_filed`
+  - `insurance.coverage_gap_detected_from_life_event` — e.g., new baby + no life policy on file
+- **Insurance-specific trigger archetypes (seed for `niche_overlays.insurance_broker`):**
+  - `birthday_with_pending_renewal` — birthday + 60d-renewal → low-sensitivity congrats + renewal walkthrough ask
+  - `expansion_signals_group_benefits` — headcount+10 + new office → group benefits intro
+  - `new_parent_term_life` — new baby (HIGH sensitivity, mandatory advisor review) → term life copy at 90-day cooldown
+  - `bereavement_pause` — high-sensitivity, NO outreach for 90 days, archive other triggers (compliance + decency)
+  - `business_anniversary_renewal_walkthrough` — corp anniversary + renewal window
+  - `industry_regulatory_change_review` — FSRA ruling affecting prospect's vertical → pro-active reach
+- **Pricing:** **$1,500-$3,500/mo per client** as Tier D add-on (after Tier C Listening Intelligence). Bundled into Crystallux Operator Enterprise + every Crystallux MGA sub-agent contract.
+- **Schema sketch:** `behavioral_signals` (per-lead per-event feed), `client_behavioral_prefs` (opt-in matrix), `behavioral_triggers` (compound archetype library, FK to `closing_scripts`). Plus 4 SECURITY DEFINER RPCs.
+- **Workflows (5, all dormant per pattern):** `clx-behavioral-scanner-v1` (6h schedule, multi-source ingestion), `clx-behavioral-classifier-v1` (Claude Haiku score relevance + sensitivity), `clx-behavioral-trigger-v1` (compound match + outreach compose), `clx-behavioral-learning-loop-v1` (02:00 schedule, recompute conversion_rate), `clx-behavioral-consent-collector-v1` (lead-supplied intake).
+- **Compliance load-bearing items (don't ship without these):**
+  - `sensitivity_ceiling` per client (low / medium / high) caps auto-send
+  - High-sensitivity signals (bereavement, illness, divorce, job loss, new baby) NEVER auto-send — mandatory advisor review with a "Sensitive trigger" banner
+  - `BEHAVIORAL_HIGH_SENSITIVITY_AUTO_SEND_BLOCKED` monitoring threshold at critical severity (defence-in-depth against schema drift)
+  - PIPEDA per-signal source attribution displayed to the lead on request
+  - 18-month active retention then archived; full export available via `support@crystallux.org`
+- **Why this is the headline differentiator:** see [PRODUCT_VISION.md](../architecture/PRODUCT_VISION.md). Apollo + ChatGPT can write a personalised email; only Crystallux can tell you *when* to send it.
+- **Activation roadmap (sequenced, each gate independently shippable):**
+  1. Pre-req: Bucket 2 §2.4 (`policies` table) for the insurance signal category.
+  2. MVP: 4 of 10 categories (personal birthday, business hires, insurance renewal, internal calendar) on Tier 1 sources only.
+  3. Tier 2 sources (Google News + Crunchbase) → news + social categories.
+  4. Sensitive personal category (new baby, marriage, bereavement) with high-sensitivity gating fully tested.
+  5. Full 10 categories; seed insurance-broker archetype library (10-15 archetypes).
+  6. Activate the conversion-rate learning loop once each archetype has ≥ 50 acted-on rows.
+- **Cost ceiling at scale:** ~$515/mo platform cost to deliver $30K-$60K MRR at 30 clients. Margin is the headline.
+
 ---
 
 ## Bucket 3 — Mentioned but not specced (one-line aspirations)
@@ -256,6 +293,7 @@ A consolidated checklist for scoping. Tags: 🟢 backend done — needs panel, �
 | **Cross-sell engine** | 🔴 | Bucket 2 §2.5 (depends on §2.4) |
 | **Lead recycling workflow** | 🔴 | Bucket 2 §2.6 |
 | **Smart renewal reminders to existing book** | 🔴 | Bucket 3 §3.1 (depends on §2.4) |
+| **Behavioral Intelligence (per-lead signal feed + triggered outreach)** | 🔴 | Bucket 2 §2.13 — full spec in OPERATIONS_HANDBOOK §35 |
 
 The 🟡 items are 80% of the perceived "Advisor Dashboard" surface area and most of the time saved by reusing existing backend. The 🔴 schema items (`policies`, `carriers`, `compliance_documents`, `sub_agent_ce_log`, `advisor_action_log`) are where genuinely new product work lives.
 
