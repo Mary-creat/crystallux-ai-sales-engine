@@ -111,7 +111,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Admin').item.json.client_id) + '&select=company,lead_status,date_created&order=date_created.desc&limit=10' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,company,lead_status,date_created&order=date_created.desc&limit=10' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
@@ -130,7 +130,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($('Check Admin').item.json.client_id) + '&select=lead_status' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=lead_status,reply_detected,meeting_scheduled,date_created&limit=10000' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
@@ -148,7 +148,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Defensive read of each parallel branch — any single Supabase call failing\n// (transient 5xx, RLS hiccup, schema mismatch) used to crash this whole node\n// with 'Node X hasn't been executed'. safeNode() degrades the bad branch to\n// null/[]; the rest of the panel still renders.\nconst safeNode = (name) => { try { return $(name).first().json; } catch (e) { return null; } };\nconst toArr = (raw) => {\n  if (Array.isArray(raw)) return raw;\n  if (raw && typeof raw === 'object' && Object.keys(raw).length) return [raw];\n  return [];\n};\nconst clientArr = toArr(safeNode('Query Client'));\nconst client = clientArr[0] || null;\nif (!client) return { json: { ok: true, client: null } };\nconst statsArr = toArr(safeNode('Query Lead Stats'));\nconst recentArr = toArr(safeNode('Query Recent Leads'));\nconst counts = {};\nstatsArr.forEach(r => { const s = r.lead_status || 'New Lead'; counts[s] = (counts[s] || 0) + 1; });\nconst stats = {\n  total_leads: statsArr.length,\n  contacted: counts['Contacted'] || 0,\n  replied:   counts['Replied']   || 0,\n  booked_mtd: counts['Booked']   || 0\n};\nreturn { json: { ok: true, client, stats, recent_leads: recentArr } };",
+        "jsCode": "// Defensive read of each parallel branch — any single Supabase call failing\n// (transient 5xx, RLS hiccup, schema mismatch) used to crash this whole node\n// with 'Node X hasn't been executed'. safeNode() degrades the bad branch to\n// null/[]; the rest of the panel still renders.\nconst safeNode = (name) => { try { return $(name).first().json; } catch (e) { return null; } };\nconst toArr = (raw) => {\n  if (Array.isArray(raw)) return raw;\n  if (raw && typeof raw === 'object' && Object.keys(raw).length) return [raw];\n  return [];\n};\nconst clientArr = toArr(safeNode('Query Client'));\nconst client = clientArr[0] || null;\nif (!client) return { json: { ok: true, client: null } };\nconst statsArr = toArr(safeNode('Query Lead Stats'));\nconst recentArr = toArr(safeNode('Query Recent Leads'));\n// Stats: total = all leads for the client; contacted = lead_status outside the\n// New buckets; replied = reply_detected true; booked_mtd = meeting_scheduled\n// true AND created since start of current month.\nconst monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);\nconst monthStartTs = monthStart.getTime();\nlet contacted = 0, replied = 0, booked_mtd = 0;\nstatsArr.forEach(r => {\n  const s = r.lead_status || '';\n  if (s !== 'New Lead' && s !== 'New' && s !== '') contacted += 1;\n  if (r.reply_detected === true) replied += 1;\n  if (r.meeting_scheduled === true && r.date_created && new Date(r.date_created).getTime() >= monthStartTs) booked_mtd += 1;\n});\nconst stats = {\n  total_leads: statsArr.length,\n  contacted,\n  replied,\n  booked_mtd\n};\nreturn { json: { ok: true, client, stats, recent_leads: recentArr } };",
         "mode": "runOnceForAllItems"
       },
       "id": "adm-cd-0010",
