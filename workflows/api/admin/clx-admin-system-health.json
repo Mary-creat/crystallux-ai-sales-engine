@@ -76,14 +76,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id&limit=1",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=count",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" },
-            { "name": "Prefer", "value": "count=exact" }
+            { "name": "Accept", "value": "application/json" }
           ]
         },
         "options": {}
@@ -93,7 +92,9 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 200],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -110,19 +111,20 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 360],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Booked&date_created=gte.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=id&limit=1' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Booked&date_created=gte.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=count' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" },
-            { "name": "Prefer", "value": "count=exact" }
+            { "name": "Accept", "value": "application/json" }
           ]
         },
         "options": {}
@@ -132,7 +134,9 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1340, 520],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -155,7 +159,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pull counts and shape the response.\nconst leadCountHeader = $('Count Leads').first().binary || $('Count Leads').first().json;\nconst leadHeaders = $('Count Leads').first().headers || {};\nconst leadRange = leadHeaders['content-range'] || '';\nconst totalLeads = parseInt(String(leadRange).split('/')[1], 10);\nconst PLAN_PRICES = { founding_1997:1997, standard_2497:2497, construction_1497:1497, moving_997:997, cleaning_997:997, salon_997:997, intelligence_3997:3997 };\nconst clients = $('Active Clients').first().json || [];\nlet mrr = 0; let activeCount = 0;\n(Array.isArray(clients) ? clients : []).forEach(c => {\n  if (c.subscription_status === 'active' || c.subscription_status === 'trialing') {\n    activeCount += 1;\n    mrr += PLAN_PRICES[c.subscription_plan] || (c.monthly_retainer || 0);\n  }\n});\nconst bookHeaders = $('Count Booked Week').first().headers || {};\nconst bookRange = bookHeaders['content-range'] || '';\nconst bookedWeek = parseInt(String(bookRange).split('/')[1], 10);\nconst errorRows = $('Errors 24h').first().json;\nlet errors24h = 0;\nif (Array.isArray(errorRows)) errorRows.forEach(r => { errors24h += (r.errors || 0); });\nreturn { json: {\n  ok: true,\n  total_leads: isNaN(totalLeads) ? null : totalLeads,\n  active_clients: activeCount,\n  booked_this_week: isNaN(bookedWeek) ? null : bookedWeek,\n  errors_24h: errors24h,\n  mrr_cad: mrr\n} };",
+        "jsCode": "// Pull counts from PostgREST aggregate (?select=count -> [{count: N}]) and\n// shape the dashboard KPI response. Each upstream branch is wrapped in\n// safeNode() so a single failed/missing branch doesn't crash the whole\n// response — partial data is better than none for a status page.\nconst safeNode = function (name) {\n  try { return $(name).first().json; } catch (e) { return null; }\n};\nconst readCount = function (raw) {\n  if (Array.isArray(raw) && raw[0] && raw[0].count != null) return Number(raw[0].count);\n  if (raw && typeof raw === 'object' && raw.count != null)  return Number(raw.count);\n  return null;\n};\n\nconst totalLeads = readCount(safeNode('Count Leads'));\nconst bookedWeek = readCount(safeNode('Count Booked Week'));\n\nconst PLAN_PRICES = { founding_1997:1997, standard_2497:2497, construction_1497:1497, moving_997:997, cleaning_997:997, salon_997:997, intelligence_3997:3997 };\nconst clientsRaw = safeNode('Active Clients');\nconst clients = Array.isArray(clientsRaw) ? clientsRaw : (clientsRaw && (clientsRaw.id || clientsRaw.subscription_status) ? [clientsRaw] : []);\nlet mrr = 0; let activeCount = 0;\nclients.forEach(c => {\n  if (c.subscription_status === 'active' || c.subscription_status === 'trialing') {\n    activeCount += 1;\n    mrr += PLAN_PRICES[c.subscription_plan] || (c.monthly_retainer || 0);\n  }\n});\n\nconst errorRaw = safeNode('Errors 24h');\nconst errorRows = Array.isArray(errorRaw) ? errorRaw : (errorRaw && errorRaw.errors != null ? [errorRaw] : []);\nlet errors24h = 0;\nerrorRows.forEach(r => { errors24h += (Number(r.errors) || 0); });\n\nreturn { json: {\n  ok: true,\n  total_leads: totalLeads,\n  active_clients: activeCount,\n  booked_this_week: bookedWeek,\n  errors_24h: errors24h,\n  mrr_cad: mrr\n} };",
         "mode": "runOnceForAllItems"
       },
       "id": "adm-sh-0010",
