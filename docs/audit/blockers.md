@@ -85,3 +85,36 @@ Then read:
 - `docs/audit/audit-summary.md`
 - `docs/audit/post-fix-report.md` (after I get to do a second pass on
   whatever the audit surfaces)
+
+---
+
+## 6. Activate the Admin Copilot ✦ (commit `29be2c4`)
+
+The FAB is now wired on every admin page. Backend already exists
+(4 dormant copilot workflows + `clx-mcp-tool-gateway`). To turn it on:
+
+- Confirm `MARY_MASTER_TOKEN` is set in n8n env.
+- Activate `clx-copilot-query-v1`, `clx-copilot-troubleshoot-v1`,
+  `clx-copilot-platform-v1`, `clx-copilot-whisper-v1`, and
+  `clx-mcp-tool-gateway` in the n8n UI.
+- Bind the Anthropic API + OpenAI credentials to the Claude/Whisper
+  HTTP nodes per OPERATIONS_HANDBOOK §22.4.
+- After Cloudflare deploys, open admin → click ✦ → paste the master
+  token once into the first-open prompt. Token caches in localStorage.
+
+---
+
+## 7. Build the Client Assistant workflow (commit pending)
+
+The client-side ✦ FAB now ships on every client page (`commit
+this-pass`). Until the backend workflows land, the FAB shows a
+"not yet activated" message. To activate:
+
+- Build `workflows/api/client/clx-client-copilot-ask.json` and
+  `clx-client-copilot-transcribe.json` per the spec in
+  [`docs/architecture/CLIENT_COPILOT_SPEC.md`](../architecture/CLIENT_COPILOT_SPEC.md).
+- Both use **session-token auth** (Bearer header), not
+  `MARY_MASTER_TOKEN`. Tenant scoping is enforced in the workflow's
+  `Check Client` node — `client_id` comes from the validated session row,
+  never from the request body.
+- Re-import + activate per usual. Cloudflare cache purge if needed.
