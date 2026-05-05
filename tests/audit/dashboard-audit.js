@@ -169,6 +169,9 @@ async function auditPage(page, base, slug, pagePath, role) {
   // Interactive elements (clickable cards + clickable rows)
   result.interactiveCount = await page.locator('.clx-stat-card[data-href], tbody tr[data-href], .clx-list-row.linkish').count();
 
+  // Copilot ✦ FAB (admin pages only — not present on client side)
+  result.elements.copilotFab = await page.locator('#clxCopilotFab').count();
+
   result.consoleErrors = consoleErrors;
   result.networkFailures = networkFailures;
 
