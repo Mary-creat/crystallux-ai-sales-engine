@@ -67,12 +67,60 @@ plus `runOnceForEachItem` mode. Switched to the established
 - `db/migrations/test-client-account.sql` — `testclient@crystallux.org`
   bound to Crystallux Insurance Network for QA + audit. Idempotent.
 
-## Post-fix verification (what works without Mary's hands)
+## Post-fix verification — admin re-audit (after `de446f5` + `1d7f7dd` deployed)
 
-The frontend CSP cleanup auto-deploys via Cloudflare Pages on git push.
-After 2-5 min cache warm-up, the per-page console errors should drop
-from 2 to 0 on every dashboard page. (Re-run `node tests/audit/dashboard-audit.js admin`
-to confirm.)
+Re-ran `node tests/audit/dashboard-audit.js admin` against the live
+admin.crystallux.org. **10 / 10 pages pass.** The 2 console errors
+per page that the pre-fix audit captured are gone.
+
+| Page | HTTP | Load (ms) | Sidebar | Stat cards | Charts | Tables | Console errs | Net errs | Pass |
+|------|------|-----------|---------|------------|--------|--------|--------------|----------|------|
+| overview            | 200 | 2685 | ✓ | 5 ✓ | 2 ✓ |  1 | 0 | 0 | ✓ |
+| clients             | 200 | 2273 | ✓ | 4 ✓ | 0    |  1 | 0 | 0 | ✓ |
+| client-detail       | 200 | 2668 | ✓ | 4 ✓ | 2 ✓ | 10 | 0 | 0 | ✓ |
+| leads               | 200 | 2195 | ✓ | 4 ✓ | 0    |  1 | 0 | 0 | ✓ |
+| workflows           | 200 | 2702 | ✓ | 4 ✓ | 0    |  0 | 0 | 0 | ✓ |
+| billing             | 200 | 2611 | ✓ | 5 ✓ | 0    |  0 | 0 | 0 | ✓ |
+| onboarding          | 200 | 2372 | ✓ | 0    | 0    |  0 | 0 | 0 | ✓ |
+| market-intelligence | 200 | 3111 | ✓ | 5 ✓ | 1 ✓ |  1 | 0 | 0 | ✓ |
+| audit-log           | 200 | 2761 | ✓ | 0    | 0    | 50 | 0 | 0 | ✓ |
+| settings            | 200 | 1954 | ✓ | 0    | 0    |  0 | 0 | 0 | ✓ |
+
+> Onboarding/audit-log/settings showing `0` stat-cards is correct —
+> those pages don't use the `.clx-stat-card` widget (onboarding has a
+> 5-stage `.clx-pipeline-stage` strip, audit-log has two tables, and
+> settings is section-head + form). The audit harness checks for the
+> *clx-stat-card* class specifically.
+
+> The data on stat cards still reflects pre-fix backend (`active_clients=0`,
+> `mrr=$0`, single-row leads/billing/workflows). Those flip once Mary
+> re-imports the workflow JSONs on the VPS — the JSON fixes are in
+> the repo but n8n does not auto-pick-up.
+
+## Post-fix verification — client audit (expected blocker)
+
+Re-ran `node tests/audit/dashboard-audit.js client`. **0 / 7 pages
+pass — as expected.** The login redirect lands back at
+`https://crystallux.org/login` because the test-client account does
+not exist in `auth_users` yet. Every subsequent page check therefore
+hits a logged-out app and sees `Sidebar: MISSING` (the page renders
+the redirect-to-login flow, not the dashboard).
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Login as `testclient@crystallux.org` | ✗ | Account does not exist; redirected to `/login`. Apply `db/migrations/test-client-account.sql` to fix. |
+| Pages render with sidebar (×7) | ✗ | Cascade from login failure |
+| Console errors | **0 across all 7 pages** | CSP cleanup landed for `app.crystallux.org` too |
+| Tenant isolation: admin-page-blocked | ✓ | Logged-out client correctly redirected away from admin |
+| Tenant isolation: session-token-readable | ✗ | Cascade from login failure |
+| Tenant isolation: admin-webhook-rejects-client | n/a | Skipped (no session token) |
+| Tenant isolation: client-id-body-ignored | n/a | Skipped (no session token) |
+
+After Mary applies the test-client SQL and the workflow JSONs are
+re-imported, re-running the harness should produce a 7/7 + 3/3
+isolation green report.
+
+## Workflow JSON changes — still gated
 
 The workflow JSON changes do **not** auto-deploy. n8n on the VPS
 serves whatever was last imported. Until Mary applies the deployment

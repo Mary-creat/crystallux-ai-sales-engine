@@ -14,7 +14,7 @@ Mary still has to do to flip the box from `gated` to `verified ✓`.
 | Brand purple consistent across all pages | ✓ | Verified via screenshots in `docs/audit/screenshots/admin/`. Sidebar nav uses `--color-brand-100/600/700` for active state; stat-card variants use the brand ramp. |
 | Lucide icons present in sidebar | ✓ | Confirmed in audit run — sidebar contains `<svg>` markup, no text-glyphs. |
 | Charts rendering on overview and detail pages | ✓ | Audit captured 2 SVG paths on admin overview (sparkline + donut) and 2 on client-detail. Donut on market-intelligence rendered ✓. |
-| No JS console errors anywhere | gated | Pre-fix had 2/page (CSP `frame-ancestors` warning + CF Insights blocked). Both fixed in this commit. Re-audit after CF Pages picks up the new `_headers` to confirm. |
+| No JS console errors anywhere | ✓ | Post-deploy re-audit confirms 0 console errs per page on all 10 admin pages and all 7 client pages. CSP fix landed (commits `de446f5` + `1d7f7dd`). |
 | Mobile responsive (375px width) | ✓ | Audit captured `mobile-overview.png` at 375×812; burger button visible, sidebar collapses. |
 | Login flow works for admin | ✓ | Audit successfully logged in as `info@crystallux.org` and arrived at `admin.crystallux.org/pages/overview`. |
 | Login flow works for client | gated | Requires `testclient@crystallux.org` SQL applied. Migration in `db/migrations/test-client-account.sql`. |
