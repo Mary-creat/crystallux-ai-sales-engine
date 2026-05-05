@@ -139,6 +139,18 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "position": [1820, 380]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "id": "adm-al-0011",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
       "position": [1620, 380]
     },
     {
@@ -179,10 +191,11 @@
                                    ],
                                    [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
                                  ] },
-    "Active Sessions":  { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
-    "All Users":        { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
-    "Admin Actions":    { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
-    "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+    "Active Sessions":  { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "All Users":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Admin Actions":    { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Merge Branches":   { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false

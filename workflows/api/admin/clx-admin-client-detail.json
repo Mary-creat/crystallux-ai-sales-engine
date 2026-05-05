@@ -155,7 +155,19 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1820, 460]
+      "position": [1980, 460]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "id": "adm-cd-0013",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1760, 460]
     },
     {
       "parameters": {
@@ -199,10 +211,11 @@
                                      ],
                                      [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ]
                                    ] },
-    "Query Client":       { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
-    "Query Recent Leads": { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
-    "Query Lead Stats":   { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
-    "Shape Response":     { "main": [[ { "node": "Respond OK",         "type": "main", "index": 0 } ]] }
+    "Query Client":       { "main": [[ { "node": "Merge Branches",    "type": "main", "index": 0 } ]] },
+    "Query Recent Leads": { "main": [[ { "node": "Merge Branches",    "type": "main", "index": 1 } ]] },
+    "Query Lead Stats":   { "main": [[ { "node": "Merge Branches",    "type": "main", "index": 2 } ]] },
+    "Merge Branches":     { "main": [[ { "node": "Shape Response",    "type": "main", "index": 0 } ]] },
+    "Shape Response":     { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false
