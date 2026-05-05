@@ -24,15 +24,15 @@
   <main class="clx-main"><div class="clx-content">
     <div class="clx-page-head"><div>
       <h1 class="clx-page-title">Audit Log</h1>
-      <div class="clx-page-sub">Recent sessions and admin actions. Sourced from <code>auth_sessions</code> + <code>admin_action_log</code> (Phase 4).</div>
+      <div class="clx-page-sub">Recent sessions and admin actions.</div>
     </div></div>
     <div class="clx-card" style="padding:0;margin-bottom:16px">
       <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Active sessions</div></div>
-      <div id="sessionsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="sessionsTable"></div>
     </div>
     <div class="clx-card" style="padding:0">
       <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Admin actions</div></div>
-      <div id="actionsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="actionsTable"></div>
     </div>
   </div></main>
 </div>
@@ -40,9 +40,21 @@
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var ACTION_ICONS = {
+  'login': 'log-in',
+  'logout': 'log-out',
+  'create': 'plus-circle',
+  'update': 'edit',
+  'delete': 'trash',
+  'view': 'eye'
+};
+var ROLE_ICONS = { admin: 'shield', client: 'user', team_member: 'users' };
+
 clxAuth.require('admin').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('sessionsTable').innerHTML = clxComp.skeleton(5, 5);
+  document.getElementById('actionsTable').innerHTML = clxComp.skeleton(6, 5);
   load();
 });
 async function load() {
@@ -53,12 +65,19 @@ async function load() {
   var d = res.data || {};
 
   var sessions = d.sessions || [];
-  if (!sessions.length) clxApi.renderEmpty(sEl, 'No active sessions.', '◔');
+  if (!sessions.length) clxComp.renderEmpty(sEl, 'No active sessions.', 'shield');
   else clxComp.renderTable(sEl, sessions, [
-    { key: 'email',           label: 'User' },
-    { key: 'user_role',       label: 'Role', format: function(r){
-        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.user_role) + '">' + clxComp.escapeHtml(r.user_role || '—') + '</span>';
-      }, html: true },
+    { key: 'email',           label: 'User', html: true, format: function(r){
+        return '<span style="display:inline-flex;align-items:center;gap:8px">' +
+          clxComp.avatar(r.email, 'sm') +
+          clxComp.escapeHtml(r.email || '—') + '</span>';
+      } },
+    { key: 'user_role',       label: 'Role', html: true, format: function(r){
+        var ic = ROLE_ICONS[r.user_role] || 'user';
+        return '<span style="display:inline-flex;align-items:center;gap:6px">' +
+          clxComp.icon(ic, 'sm') +
+          '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.user_role) + '">' + clxComp.escapeHtml(r.user_role || '—') + '</span></span>';
+      } },
     { key: 'ip_address',      label: 'IP' },
     { key: 'created_at',      label: 'Started',  format: function(r){ return clxComp.formatDateTime(r.created_at); } },
     { key: 'last_activity_at',label: 'Last seen', format: function(r){ return clxComp.relativeTime(r.last_activity_at); } },
@@ -66,10 +85,20 @@ async function load() {
   ]);
 
   var actions = d.actions || [];
-  if (!actions.length) clxApi.renderEmpty(aEl, 'No admin actions logged yet. (admin_action_log lands in Phase 4.)', '∅');
+  if (!actions.length) clxComp.renderEmpty(aEl, 'No admin actions logged yet.', 'shield');
   else clxComp.renderTable(aEl, actions, [
-    { key: 'actor_email',  label: 'Actor' },
-    { key: 'action',       label: 'Action' },
+    { key: 'actor_email',  label: 'Actor', html: true, format: function(r){
+        return '<span style="display:inline-flex;align-items:center;gap:8px">' +
+          clxComp.avatar(r.actor_email, 'sm') +
+          clxComp.escapeHtml(r.actor_email || '—') + '</span>';
+      } },
+    { key: 'action',       label: 'Action', html: true, format: function(r){
+        var key = (r.action || '').toLowerCase().split('.')[0].split('_')[0];
+        var ic = ACTION_ICONS[key] || 'activity';
+        return '<span style="display:inline-flex;align-items:center;gap:6px">' +
+          clxComp.icon(ic, 'sm') +
+          clxComp.escapeHtml(r.action || '—') + '</span>';
+      } },
     { key: 'target_type',  label: 'Target type' },
     { key: 'target_id',    label: 'Target id' },
     { key: 'occurred_at',  label: 'When', format: function(r){ return clxComp.relativeTime(r.occurred_at); } }

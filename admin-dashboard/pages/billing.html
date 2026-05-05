@@ -27,9 +27,10 @@
       <div class="clx-page-sub">MRR, plan mix, past-due accounts.</div>
     </div></div>
     <div class="clx-stat-grid" id="billStats"></div>
+
     <div class="clx-card" style="padding:0">
       <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Per-client billing</div></div>
-      <div id="billTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="billTable"></div>
     </div>
   </div></main>
 </div>
@@ -40,6 +41,14 @@
 clxAuth.require('admin').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  var stats = document.getElementById('billStats');
+  for (var i = 0; i < 5; i++) {
+    stats.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('billTable').innerHTML = clxComp.skeleton(8, 6);
+
   load();
 });
 async function load() {
@@ -48,20 +57,31 @@ async function load() {
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var d = res.data || {};
   clxComp.renderStatGrid(document.getElementById('billStats'), [
-    { label: 'MRR',           value: clxComp.formatMoney(d.mrr_cad) },
-    { label: 'Active subs',   value: d.active_count    != null ? d.active_count    : '—' },
-    { label: 'Trialing',      value: d.trialing_count  != null ? d.trialing_count  : '—' },
-    { label: 'Past due',      value: d.past_due_count  != null ? d.past_due_count  : '—' },
-    { label: 'Canceled',      value: d.canceled_count  != null ? d.canceled_count  : '—' }
+    { label: 'MRR',         value: clxComp.formatMoney(d.mrr_cad),
+      icon: 'dollar-sign',  variant: 'revenue' },
+    { label: 'Active subs', value: d.active_count    != null ? d.active_count    : '—',
+      icon: 'check-circle', variant: 'activity' },
+    { label: 'Trialing',    value: d.trialing_count  != null ? d.trialing_count  : '—',
+      icon: 'clock',        variant: 'leads' },
+    { label: 'Past due',    value: d.past_due_count  != null ? d.past_due_count  : '—',
+      icon: 'alert-triangle', variant: 'errors' },
+    { label: 'Canceled',    value: d.canceled_count  != null ? d.canceled_count  : '—',
+      icon: 'x-circle',     variant: 'neutral' }
   ]);
   var rows = d.clients || [];
-  if (!rows.length) { clxApi.renderEmpty(el, 'No billing rows yet.', '$'); return; }
+  if (!rows.length) { clxComp.renderEmpty(el, 'No billing rows yet.', 'dollar-sign'); return; }
   rows.forEach(function (r) { r._href = '/pages/client-detail.html?id=' + encodeURIComponent(r.id); });
   clxComp.renderTable(el, rows, [
-    { key: 'client_name',         label: 'Client' },
-    { key: 'subscription_status', label: 'Status', format: function(r){
-        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.subscription_status) + '">' + clxComp.escapeHtml(r.subscription_status || '—') + '</span>';
-      }, html: true },
+    { key: 'client_name',         label: 'Client', html: true, format: function(r){
+        return '<span style="display:inline-flex;align-items:center;gap:10px">' +
+          clxComp.avatar(r.client_name) +
+          clxComp.escapeHtml(r.client_name || '—') + '</span>';
+      } },
+    { key: 'subscription_status', label: 'Status', html: true, format: function(r){
+        var s = (r.subscription_status||'').toLowerCase();
+        var pulse = s === 'past_due' ? ' --pulse' : '';
+        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.subscription_status) + pulse + '">' + clxComp.escapeHtml(r.subscription_status || '—') + '</span>';
+      } },
     { key: 'subscription_plan',   label: 'Plan' },
     { key: 'monthly_retainer',    label: 'Retainer', format: function(r){ return clxComp.formatMoney(r.monthly_retainer); } },
     { key: 'last_payment_amount', label: 'Last payment', format: function(r){ return clxComp.formatMoney(r.last_payment_amount); } },

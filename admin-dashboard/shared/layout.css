@@ -285,6 +285,10 @@ button { font-family: inherit; }
   background: transparent; color: var(--text-secondary);
 }
 .clx-btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-btn-danger {
+  background: #FEE2E2; color: #991B1B; border-color: #FCA5A5;
+}
+.clx-btn-danger:hover { background: #FECACA; }
 .clx-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Spinner / skeleton */

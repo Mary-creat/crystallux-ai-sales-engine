@@ -28,8 +28,11 @@
         <h1 class="clx-page-title">Clients</h1>
         <div class="clx-page-sub">All clients across the platform.</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <input class="clx-input" id="searchInput" placeholder="Search by name or industry…" style="min-width:240px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="clx-input-wrap">
+          <span class="clx-icon-prefix" id="searchIcon"></span>
+          <input class="clx-input" id="searchInput" placeholder="Search by name or industry…" style="min-width:240px;padding-left:34px">
+        </span>
         <select class="clx-select" id="filterActive" style="width:140px">
           <option value="all">All</option>
           <option value="active" selected>Active</option>
@@ -37,7 +40,9 @@
         </select>
       </div>
     </div>
-    <div id="clientsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading clients…</div></div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="clientsTable"></div>
   </div></main>
 </div>
 <script src="/shared/auth.js"></script>
@@ -48,6 +53,19 @@ var __all = [];
 clxAuth.require('admin').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('searchIcon').innerHTML = clxComp.icon('search', 'sm');
+
+  // Skeleton state
+  var kpi = document.getElementById('kpiGrid');
+  for (var i = 0; i < 4; i++) {
+    kpi.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card">' +
+      '<span class="clx-skeleton" style="width:50%;height:10px"></span>' +
+      '<div style="height:10px"></div>' +
+      '<span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('clientsTable').innerHTML = clxComp.skeleton(8, 5);
+
   load();
   document.getElementById('searchInput').addEventListener('input', render);
   document.getElementById('filterActive').addEventListener('change', render);
@@ -55,10 +73,27 @@ clxAuth.require('admin').then(function () {
 
 async function load() {
   var res = await clxApi.adminGet('list-clients', {});
-  var el = document.getElementById('clientsTable');
-  if (!res.ok) { clxApi.renderError(el, res); return; }
+  if (!res.ok) {
+    clxApi.renderError(document.getElementById('clientsTable'), res);
+    document.getElementById('kpiGrid').innerHTML = '';
+    return;
+  }
   __all = (res.data && res.data.clients) || [];
+  renderKpis();
   render();
+}
+
+function renderKpis() {
+  var total = __all.length;
+  var active = __all.filter(function(c){ return c.active !== false; }).length;
+  var trialing = __all.filter(function(c){ return (c.subscription_status||'').toLowerCase() === 'trialing'; }).length;
+  var pastDue = __all.filter(function(c){ return (c.subscription_status||'').toLowerCase() === 'past_due'; }).length;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'Total clients', value: total,      icon: 'building',     variant: 'neutral'  },
+    { label: 'Active',        value: active,     icon: 'check-circle', variant: 'activity' },
+    { label: 'Trialing',      value: trialing,   icon: 'clock',        variant: 'leads'    },
+    { label: 'Past due',      value: pastDue,    icon: 'alert-triangle', variant: 'errors' }
+  ]);
 }
 
 function render() {
@@ -70,20 +105,31 @@ function render() {
     if (!q) return true;
     return [c.client_name, c.industry, c.city].some(function (v) { return (v || '').toLowerCase().indexOf(q) !== -1; });
   });
+  var el = document.getElementById('clientsTable');
+  if (!rows.length) {
+    clxComp.renderEmpty(el, q ? 'No clients match your filters.' : 'No clients yet.', 'building');
+    return;
+  }
   rows.forEach(function (r) { r._href = '/pages/client-detail.html?id=' + encodeURIComponent(r.id); });
-  clxComp.renderTable(document.getElementById('clientsTable'), rows, [
-    { key: 'client_name', label: 'Client' },
+  clxComp.renderTable(el, rows, [
+    { key: 'client_name', label: 'Client', html: true, format: function(r){
+        return '<span style="display:inline-flex;align-items:center;gap:10px">' +
+          clxComp.avatar(r.client_name) +
+          '<strong>' + clxComp.escapeHtml(r.client_name || '—') + '</strong></span>';
+      } },
     { key: 'industry',    label: 'Industry' },
     { key: 'city',        label: 'City' },
-    { key: 'active', label: 'Status', format: function (r) {
+    { key: 'active', label: 'Status', html: true, format: function (r) {
         var s = r.active === false ? 'inactive' : 'active';
         return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(s) + '">' + s + '</span>';
-      }, html: true },
-    { key: 'subscription_status', label: 'Billing', format: function (r) {
-        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.subscription_status) + '">' + clxComp.escapeHtml(r.subscription_status || '—') + '</span>';
-      }, html: true },
+      } },
+    { key: 'subscription_status', label: 'Billing', html: true, format: function (r) {
+        var s = (r.subscription_status||'').toLowerCase();
+        var pulse = s === 'past_due' ? ' --pulse' : '';
+        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.subscription_status) + pulse + '">' + clxComp.escapeHtml(r.subscription_status || '—') + '</span>';
+      } },
     { key: 'monthly_retainer', label: 'Retainer', format: function (r) { return clxComp.formatMoney(r.monthly_retainer); } }
-  ], { empty: 'No clients match your filters.' });
+  ]);
 }
 </script>
 </body>

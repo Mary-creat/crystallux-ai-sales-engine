@@ -28,7 +28,11 @@
         <h1 class="clx-page-title">Leads</h1>
         <div class="clx-page-sub">All leads across all clients.</div>
       </div>
-      <div style="display:flex;gap:10px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <span class="clx-input-wrap">
+          <span class="clx-icon-prefix" id="searchIcon"></span>
+          <input id="searchInput" class="clx-input" placeholder="Search company…" style="min-width:200px;padding-left:34px">
+        </span>
         <select id="statusFilter" class="clx-select" style="width:160px">
           <option value="all">All statuses</option>
           <option>New Lead</option><option>Researched</option><option>Scored</option>
@@ -42,41 +46,106 @@
         </select>
       </div>
     </div>
-    <div id="leadsTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="leadsTable"></div>
   </div></main>
 </div>
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var __rows = [];
+
 clxAuth.require('admin').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  document.getElementById('searchIcon').innerHTML = clxComp.icon('search', 'sm');
+
+  // Pre-populate filters from URL: ?status=Booked or ?client_id=...
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('status')) {
+    var sel = document.getElementById('statusFilter');
+    var v = params.get('status');
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === v) { sel.selectedIndex = i; break; }
+    }
+  }
+
+  // Skeleton state
+  var kpi = document.getElementById('kpiGrid');
+  for (var i = 0; i < 4; i++) {
+    kpi.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card">' +
+      '<span class="clx-skeleton" style="width:50%;height:10px"></span>' +
+      '<div style="height:10px"></div>' +
+      '<span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('leadsTable').innerHTML = clxComp.skeleton(8, 6);
+
   load();
   document.getElementById('statusFilter').addEventListener('change', load);
   document.getElementById('limitFilter').addEventListener('change', load);
+  document.getElementById('searchInput').addEventListener('input', renderTable);
 });
 
 async function load() {
   var status = document.getElementById('statusFilter').value;
   var limit  = parseInt(document.getElementById('limitFilter').value, 10) || 50;
-  clxApi.renderLoading(document.getElementById('leadsTable'));
+  var clientId = new URLSearchParams(window.location.search).get('client_id');
+
   var filters = { limit: limit };
   if (status && status !== 'all') filters.status = status;
+  if (clientId) filters.client_id = clientId;
+
   var res = await clxApi.adminGet('list-leads', filters);
   var el = document.getElementById('leadsTable');
   if (!res.ok) { clxApi.renderError(el, res); return; }
-  var rows = (res.data && res.data.leads) || [];
-  if (!rows.length) { clxApi.renderEmpty(el, 'No leads match these filters.', '◍'); return; }
+  __rows = (res.data && res.data.leads) || [];
+  renderKpis();
+  renderTable();
+}
+
+function renderKpis() {
+  var total = __rows.length;
+  var contacted = __rows.filter(function(r){ return ['contacted','replied','booking sent','booked'].indexOf((r.lead_status||'').toLowerCase()) !== -1; }).length;
+  var replied   = __rows.filter(function(r){ return ['replied','booking sent','booked'].indexOf((r.lead_status||'').toLowerCase()) !== -1; }).length;
+  var booked    = __rows.filter(function(r){ return (r.lead_status||'').toLowerCase() === 'booked'; }).length;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'In view',    value: total,    icon: 'target',         variant: 'leads'    },
+    { label: 'Contacted',  value: contacted,icon: 'mail',           variant: 'activity' },
+    { label: 'Replied',    value: replied,  icon: 'message-square', variant: 'bookings' },
+    { label: 'Booked',     value: booked,   icon: 'calendar',       variant: 'revenue'  }
+  ]);
+}
+
+function renderTable() {
+  var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  var rows = __rows.filter(function(r){
+    if (!q) return true;
+    return [r.company, r.client_name, r.industry, r.city].some(function(v){
+      return (v || '').toLowerCase().indexOf(q) !== -1;
+    });
+  });
+  rows.forEach(function(r){ if (r.client_id) r._href = '/pages/client-detail.html?id=' + r.client_id; });
+  var el = document.getElementById('leadsTable');
+  if (!rows.length) {
+    clxComp.renderEmpty(el, 'No leads match these filters.', 'inbox');
+    return;
+  }
   clxComp.renderTable(el, rows, [
     { key: 'company',      label: 'Company' },
     { key: 'client_name',  label: 'Client' },
     { key: 'industry',     label: 'Industry' },
-    { key: 'city',         label: 'City' },
-    { key: 'lead_status',  label: 'Status', format: function(r){
-      return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
-    }, html: true },
-    { key: 'lead_score',   label: 'Score' },
+    { key: 'lead_score',   label: 'Score', html: true, format: function(r){
+        if (r.lead_score == null) return '—';
+        return '<span style="display:inline-flex;align-items:center;gap:8px;min-width:80px">' +
+          clxComp.scoreBar(r.lead_score) +
+          '<span style="font-size:12px;color:var(--text-muted)">' + r.lead_score + '</span></span>';
+      } },
+    { key: 'lead_status',  label: 'Status', html: true, format: function(r){
+        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+      } },
     { key: 'updated_at',   label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
   ]);
 }

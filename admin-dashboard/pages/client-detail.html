@@ -24,13 +24,19 @@
   <div class="clx-backdrop" id="clxBackdrop"></div>
   <main class="clx-main"><div class="clx-content">
     <div class="clx-page-head">
-      <div>
-        <a href="/pages/clients.html" style="color:var(--text-muted);font-size:13px">← All clients</a>
-        <h1 class="clx-page-title" id="clientName" style="margin-top:4px">Loading…</h1>
-        <div class="clx-page-sub" id="clientSub">—</div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <span id="clientAvatar"></span>
+        <div>
+          <a href="/pages/clients.html" style="color:var(--text-muted);font-size:13px;display:inline-flex;align-items:center;gap:4px">
+            <span class="clx-icon --sm" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></span>
+            All clients
+          </a>
+          <h1 class="clx-page-title" id="clientName" style="margin-top:4px">Loading…</h1>
+          <div class="clx-page-sub" id="clientSub">—</div>
+        </div>
       </div>
     </div>
-    <div id="clientBody"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading client…</div></div>
+    <div id="clientBody"></div>
   </div></main>
 </div>
 <script src="/shared/auth.js"></script>
@@ -42,6 +48,19 @@ clxAuth.require('admin').then(function () {
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
   var id = new URLSearchParams(window.location.search).get('id');
   if (!id) { document.getElementById('clientBody').innerHTML = '<div class="clx-empty">No client id supplied.</div>'; return; }
+
+  // Skeleton state
+  var body = document.getElementById('clientBody');
+  body.innerHTML =
+    '<div class="clx-stat-grid">' +
+      Array(4).fill('<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>').join('') +
+    '</div>' +
+    '<div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">' +
+      '<div class="clx-card"><span class="clx-skeleton" style="width:40%;height:14px;display:block;margin-bottom:14px"></span><span class="clx-skeleton" style="height:80px;display:block"></span></div>' +
+      '<div class="clx-card"><span class="clx-skeleton" style="width:40%;height:14px;display:block;margin-bottom:14px"></span><span class="clx-skeleton" style="height:80px;display:block"></span></div>' +
+    '</div>' +
+    '<div class="clx-card">' + clxComp.skeleton(5, 4) + '</div>';
+
   load(id);
 });
 
@@ -50,53 +69,134 @@ async function load(id) {
   var el = document.getElementById('clientBody');
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var c = res.data && res.data.client;
-  if (!c) { clxApi.renderEmpty(el, 'Client not found.', '∅'); return; }
+  if (!c) { clxComp.renderEmpty(el, 'Client not found.', 'building'); return; }
 
   document.getElementById('clientName').textContent = c.client_name || '—';
   document.getElementById('clientSub').textContent = (c.industry || '—') + ' · ' + (c.city || '—');
+  document.getElementById('clientAvatar').innerHTML = clxComp.avatar(c.client_name || '?', 'lg');
 
   var stats = res.data.stats || {};
   var leads = res.data.recent_leads || [];
+  var totalLeads = stats.total_leads || 0;
 
   el.innerHTML =
     '<div class="clx-stat-grid" id="cdStats"></div>' +
-    '<div class="clx-card" style="padding:0;margin-top:8px">' +
-      '<div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Profile</div></div>' +
-      '<div style="padding:14px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;font-size:13px">' +
-        kv('Calendly',   c.calendly_link, true) +
-        kv('Notify email', c.notification_email) +
-        kv('CRM',        (c.crm_type || '—') + (c.crm_sync_enabled ? ' (sync on)' : '')) +
-        kv('Retainer',    clxComp.formatMoney(c.monthly_retainer)) +
-        kv('Per booking', clxComp.formatMoney(c.fee_per_booking)) +
-        kv('Stripe sub',  c.subscription_status || '—') +
-        kv('Plan',        c.subscription_plan || '—') +
-        kv('Active',      c.active === false ? 'No' : 'Yes') +
+
+    '<div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">' +
+      '<div class="clx-card">' +
+        '<div class="clx-card-head"><div class="clx-card-title">Lead activity · last 30 days</div></div>' +
+        '<div id="cdSpark" style="min-height:90px"></div>' +
+      '</div>' +
+      '<div class="clx-card">' +
+        '<div class="clx-card-head"><div class="clx-card-title">Lead status mix</div></div>' +
+        '<div id="cdDonut" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;min-height:140px"></div>' +
       '</div>' +
     '</div>' +
-    '<div class="clx-card" style="padding:0;margin-top:14px">' +
-      '<div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Recent leads</div></div>' +
+
+    '<div class="clx-card" style="padding:0;margin-bottom:14px">' +
+      '<div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Profile</div></div>' +
+      '<div style="padding:14px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;font-size:13px">' +
+        kv('Calendly',     c.calendly_link, true) +
+        kv('Notify email', c.notification_email) +
+        kv('CRM',          (c.crm_type || '—') + (c.crm_sync_enabled ? ' (sync on)' : '')) +
+        kv('Retainer',     clxComp.formatMoney(c.monthly_retainer)) +
+        kv('Per booking',  clxComp.formatMoney(c.fee_per_booking)) +
+        kv('Stripe sub',   c.subscription_status || '—') +
+        kv('Plan',         c.subscription_plan || '—') +
+        kv('Active',       c.active === false ? 'No' : 'Yes') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="clx-card" style="padding:0">' +
+      '<div class="clx-card-head" style="padding:16px 18px 0">' +
+        '<div class="clx-card-title">Recent leads</div>' +
+        '<a class="clx-btn clx-btn-ghost" href="/pages/leads.html?client_id=' + clxComp.escapeHtml(c.id || '') + '" style="padding:5px 8px;font-size:12px">All →</a>' +
+      '</div>' +
       '<div id="cdLeads"></div>' +
     '</div>';
 
   clxComp.renderStatGrid(document.getElementById('cdStats'), [
-    { label: 'Total leads',   value: (stats.total_leads || 0).toLocaleString() },
-    { label: 'Contacted',     value: stats.contacted || 0 },
-    { label: 'Replied',       value: stats.replied   || 0 },
-    { label: 'Booked (mtd)',  value: stats.booked_mtd || 0 }
+    { label: 'Total leads',  value: totalLeads.toLocaleString(),
+      icon: 'target', variant: 'leads', href: '/pages/leads.html?client_id=' + (c.id || '') },
+    { label: 'Contacted',    value: stats.contacted || 0,
+      icon: 'mail', variant: 'activity' },
+    { label: 'Replied',      value: stats.replied || 0,
+      icon: 'message-square', variant: 'bookings' },
+    { label: 'Booked (mtd)', value: stats.booked_mtd || 0,
+      icon: 'calendar', variant: 'revenue' }
   ]);
-  clxComp.renderTable(document.getElementById('cdLeads'), leads, [
-    { key: 'company',     label: 'Company' },
-    { key: 'lead_status', label: 'Status', format: function (r) {
-      return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
-    }, html: true },
-    { key: 'updated_at',  label: 'Updated', format: function (r) { return clxComp.relativeTime(r.updated_at); } }
-  ], { empty: 'No leads for this client yet.' });
+
+  // Sparkline from recent leads' date_created
+  var spark = document.getElementById('cdSpark');
+  if (leads.length) {
+    var buckets = bucketByDay(leads, 30);
+    var sum = buckets.reduce(function(a,b){return a+b;}, 0);
+    spark.innerHTML = '<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">' + sum + ' lead' + (sum===1?'':'s') + ' added in shown window</div>' +
+      clxComp.sparkline(buckets, { width: 380, height: 70 });
+  } else {
+    clxComp.renderEmpty(spark, 'No leads in window', 'inbox');
+  }
+
+  // Donut from recent leads status mix
+  var donutEl = document.getElementById('cdDonut');
+  if (leads.length) {
+    var mix = {};
+    leads.forEach(function(l){
+      var s = (l.lead_status || 'unknown').toLowerCase();
+      mix[s] = (mix[s]||0) + 1;
+    });
+    var slices = Object.keys(mix).map(function(k){ return { label: k, value: mix[k] }; })
+      .sort(function(a,b){ return b.value - a.value; });
+    donutEl.innerHTML = clxComp.donut(slices, { centerLabel: leads.length, centerSub: 'recent' }) +
+      '<div style="flex:1;min-width:140px">' + clxComp.donutLegend(slices) + '</div>';
+  } else {
+    clxComp.renderEmpty(donutEl, 'No status data', 'pie-chart');
+  }
+
+  // Recent leads table
+  leads.forEach(function(r){ if (r.id) r._href = '/pages/leads.html?lead_id=' + r.id; });
+  var leEl = document.getElementById('cdLeads');
+  if (!leads.length) {
+    clxComp.renderEmpty(leEl, 'No leads for this client yet.', 'inbox');
+  } else {
+    clxComp.renderTable(leEl, leads, [
+      { key: 'company',     label: 'Company' },
+      { key: 'lead_score',  label: 'Score', html: true, format: function(r){
+          if (r.lead_score == null) return '—';
+          return '<span style="display:inline-flex;align-items:center;gap:8px">' +
+            clxComp.scoreBar(r.lead_score) +
+            '<span style="font-size:12px;color:var(--text-muted)">' + r.lead_score + '</span></span>';
+        } },
+      { key: 'lead_status', label: 'Status', html: true, format: function (r) {
+          return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+        } },
+      { key: 'updated_at',  label: 'Updated', format: function (r) { return clxComp.relativeTime(r.updated_at); } }
+    ]);
+  }
 }
 
 function kv(k, v, isLink) {
   var safe = clxComp.escapeHtml(v == null || v === '' ? '—' : v);
   if (isLink && v) safe = '<a href="' + safe + '" target="_blank" rel="noopener" style="color:var(--color-brand-600)">' + safe + '</a>';
   return '<div><div class="clx-stat-label">' + k + '</div><div style="margin-top:3px">' + safe + '</div></div>';
+}
+
+function bucketByDay(leads, days) {
+  var now = new Date();
+  var todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  var msPerDay = 86400000;
+  var buckets = new Array(days).fill(0);
+  leads.forEach(function (l) {
+    var raw = l.date_created || l.created_at || l.updated_at;
+    if (!raw) return;
+    var t = new Date(raw).getTime();
+    if (isNaN(t)) return;
+    var d = new Date(t);
+    var dayUTC = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    var idx = days - 1 - Math.floor((todayUTC - dayUTC) / msPerDay);
+    if (idx >= 0 && idx < days) buckets[idx]++;
+  });
+  return buckets;
 }
 </script>
 </body>

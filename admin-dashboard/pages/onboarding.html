@@ -26,16 +26,34 @@
       <h1 class="clx-page-title">Onboarding</h1>
       <div class="clx-page-sub">Clients moving through onboarding stages.</div>
     </div></div>
-    <div id="obContent"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+
+    <div id="stagePipeline"></div>
+    <div id="obContent"></div>
   </div></main>
 </div>
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
 <script>
+var STAGES = [
+  { key: 'intake',        label: 'Intake',        icon: 'inbox' },
+  { key: 'provisioning',  label: 'Provisioning',  icon: 'settings' },
+  { key: 'content_setup', label: 'Content setup', icon: 'edit' },
+  { key: 'first_send',    label: 'First send',    icon: 'mail' },
+  { key: 'active',        label: 'Active',        icon: 'check-circle' }
+];
+
 clxAuth.require('admin').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  // Skeleton state
+  var pipe = document.getElementById('stagePipeline');
+  pipe.innerHTML = '<div class="clx-pipeline">' +
+    STAGES.map(function(){ return '<div class="clx-pipeline-stage"><span class="clx-skeleton" style="height:60px"></span></div>'; }).join('') +
+    '</div>';
+  document.getElementById('obContent').innerHTML = clxComp.skeleton(8, 5);
+
   load();
 });
 async function load() {
@@ -44,20 +62,51 @@ async function load() {
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var d = res.data || {};
   var rows = d.clients || [];
+  var counts = d.stage_counts || {};
+  var total = Object.keys(counts).reduce(function(s,k){ return s + (counts[k]||0); }, 0) || rows.length;
+
+  // Stage pipeline
+  var pipe = document.getElementById('stagePipeline');
+  pipe.innerHTML = '<div class="clx-pipeline">' + STAGES.map(function(s){
+    var n = counts[s.key] || rows.filter(function(r){ return (r.onboarding_stage||'') === s.key; }).length;
+    var pct = total > 0 ? (n/total*100) : 0;
+    return '<div class="clx-pipeline-stage">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+      clxComp.icon(s.icon, 'md') +
+      '<div class="clx-stat-label" style="margin:0">' + s.label + '</div></div>' +
+      '<div class="clx-stat-value" style="font-size:22px">' + n + '</div>' +
+      clxComp.progressBar(pct, 100) +
+      '</div>';
+  }).join('') + '</div>';
+
   if (!rows.length) {
-    clxApi.renderEmpty(el, 'No clients in onboarding right now.', '◐');
+    clxComp.renderEmpty(el, 'No clients in onboarding right now.', 'briefcase');
     return;
   }
   rows.forEach(function (r) { r._href = '/pages/client-detail.html?id=' + encodeURIComponent(r.id); });
-  el.innerHTML = '<div class="clx-card" style="padding:0"><div id="obTable"></div></div>';
+  el.innerHTML = '<div class="clx-card" style="padding:0"><div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Active onboarding</div></div><div id="obTable"></div></div>';
   clxComp.renderTable(document.getElementById('obTable'), rows, [
-    { key: 'client_name',     label: 'Client' },
+    { key: 'client_name',     label: 'Client', html: true, format: function(r){
+        return '<span style="display:inline-flex;align-items:center;gap:10px">' +
+          clxComp.avatar(r.client_name) +
+          clxComp.escapeHtml(r.client_name || '—') + '</span>';
+      } },
     { key: 'industry',        label: 'Industry' },
-    { key: 'onboarding_stage',label: 'Stage', format: function(r){
+    { key: 'onboarding_stage',label: 'Stage', html: true, format: function(r){
         return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.onboarding_stage) + '">' + clxComp.escapeHtml(r.onboarding_stage || '—') + '</span>';
-      }, html: true },
-    { key: 'started_at',      label: 'Started',  format: function(r){ return clxComp.formatDate(r.started_at); } },
-    { key: 'days_in_stage',   label: 'Days in stage' },
+      } },
+    { key: 'progress',        label: 'Progress', html: true, format: function(r){
+        var idx = STAGES.findIndex(function(s){ return s.key === r.onboarding_stage; });
+        var pct = idx < 0 ? 0 : ((idx + 1) / STAGES.length * 100);
+        return '<span style="display:inline-flex;align-items:center;gap:8px;min-width:120px">' +
+          '<span style="flex:1;min-width:60px">' + clxComp.progressBar(pct, 100) + '</span>' +
+          '<span style="font-size:12px;color:var(--text-muted)">' + (idx + 1) + '/' + STAGES.length + '</span></span>';
+      } },
+    { key: 'days_in_stage',   label: 'Days in stage', html: true, format: function(r){
+        var d = r.days_in_stage || 0;
+        var color = d > 14 ? 'var(--danger)' : d > 7 ? 'var(--warning)' : 'var(--text-muted)';
+        return '<span style="color:' + color + ';font-weight:' + (d > 7 ? '600' : '400') + '">' + d + 'd</span>';
+      } },
     { key: 'next_action',     label: 'Next action' }
   ]);
 }

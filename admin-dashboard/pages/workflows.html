@@ -24,12 +24,12 @@
   <main class="clx-main"><div class="clx-content">
     <div class="clx-page-head"><div>
       <h1 class="clx-page-title">Workflows</h1>
-      <div class="clx-page-sub">n8n workflow status &amp; recent errors. Sourced from <code>scan_log</code> + n8n execution stats.</div>
+      <div class="clx-page-sub">n8n workflow status &amp; recent errors.</div>
     </div></div>
     <div class="clx-stat-grid" id="wfStats"></div>
     <div class="clx-card" style="padding:0">
       <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Workflows</div></div>
-      <div id="wfTable"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+      <div id="wfTable"></div>
     </div>
   </div></main>
 </div>
@@ -40,6 +40,14 @@
 clxAuth.require('admin').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  var stats = document.getElementById('wfStats');
+  for (var i = 0; i < 4; i++) {
+    stats.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('wfTable').innerHTML = clxComp.skeleton(8, 5);
+
   load();
 });
 async function load() {
@@ -48,20 +56,36 @@ async function load() {
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var d = res.data || {};
   clxComp.renderStatGrid(document.getElementById('wfStats'), [
-    { label: 'Total runs (24h)', value: d.runs_24h    != null ? d.runs_24h    : '—' },
-    { label: 'Errors (24h)',      value: d.errors_24h  != null ? d.errors_24h  : '—' },
-    { label: 'Avg duration',     value: d.avg_ms      != null ? d.avg_ms + ' ms' : '—' },
-    { label: 'Active workflows', value: d.active_count!= null ? d.active_count : '—' }
+    { label: 'Total runs (24h)', value: d.runs_24h     != null ? d.runs_24h     : '—',
+      icon: 'activity', variant: 'leads' },
+    { label: 'Errors (24h)',     value: d.errors_24h   != null ? d.errors_24h   : '—',
+      icon: 'alert-triangle', variant: 'errors' },
+    { label: 'Avg duration',     value: d.avg_ms       != null ? d.avg_ms + ' ms' : '—',
+      icon: 'clock', variant: 'bookings' },
+    { label: 'Active workflows', value: d.active_count != null ? d.active_count : '—',
+      icon: 'zap', variant: 'activity' }
   ]);
   var rows = d.workflows || [];
-  if (!rows.length) { clxApi.renderEmpty(el, 'No workflow data yet.', '⚙'); return; }
+  if (!rows.length) { clxComp.renderEmpty(el, 'No workflow data yet.', 'zap'); return; }
   clxComp.renderTable(el, rows, [
     { key: 'name',        label: 'Workflow' },
-    { key: 'last_status', label: 'Last status', format: function(r){
-        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.last_status) + '">' + clxComp.escapeHtml(r.last_status || '—') + '</span>';
-      }, html: true },
+    { key: 'last_status', label: 'Last status', html: true, format: function(r){
+        var s = (r.last_status || '').toLowerCase();
+        var ic = s === 'success' ? 'check-circle' : (s === 'error' || s === 'failed') ? 'x-circle' : 'clock';
+        var pulse = s === 'running' ? ' --pulse' : '';
+        return '<span style="display:inline-flex;align-items:center;gap:6px">' +
+          clxComp.icon(ic, 'sm') +
+          '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.last_status) + pulse + '">' +
+          clxComp.escapeHtml(r.last_status || '—') + '</span></span>';
+      } },
     { key: 'runs_24h',    label: 'Runs (24h)' },
-    { key: 'errors_24h',  label: 'Errors (24h)' },
+    { key: 'errors_24h',  label: 'Errors (24h)', html: true, format: function(r){
+        var n = r.errors_24h || 0, total = r.runs_24h || 0;
+        var pct = total > 0 ? (n/total*100) : 0;
+        return '<span style="display:inline-flex;align-items:center;gap:8px;min-width:90px">' +
+          '<span style="width:50px">' + clxComp.progressBar(pct, 100) + '</span>' +
+          '<span style="font-size:12px;color:' + (n > 0 ? 'var(--danger)' : 'var(--text-muted)') + '">' + n + '</span></span>';
+      } },
     { key: 'last_run_at', label: 'Last run', format: function(r){ return clxComp.relativeTime(r.last_run_at); } }
   ]);
 }

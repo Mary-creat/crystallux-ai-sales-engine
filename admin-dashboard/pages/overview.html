@@ -13,7 +13,6 @@
 </head>
 <body>
 
-<!-- Topbar -->
 <header class="clx-topbar">
   <div class="clx-topbar-left">
     <button class="clx-icon-btn clx-burger" id="clxBurger" aria-label="Open navigation">☰</button>
@@ -39,43 +38,54 @@
         </div>
       </div>
 
-      <!-- KPI cards -->
-      <div id="kpiGrid" class="clx-stat-grid">
-        <div class="clx-stat-card"><div class="clx-stat-label">Loading…</div><div class="clx-stat-value"><span class="clx-spinner"></span></div></div>
+      <div id="kpiGrid" class="clx-stat-grid"></div>
+
+      <div class="clx-two-col" id="chartRow">
+        <div class="clx-card">
+          <div class="clx-card-head">
+            <div class="clx-card-title">Leads created · last 30 days</div>
+          </div>
+          <div id="leadTrend" style="min-height:120px"></div>
+        </div>
+        <div class="clx-card">
+          <div class="clx-card-head">
+            <div class="clx-card-title">Leads by status</div>
+          </div>
+          <div id="leadDonut" style="min-height:120px;display:flex;align-items:center;gap:18px;flex-wrap:wrap"></div>
+        </div>
       </div>
 
-      <!-- Side-by-side: workflow status + recent leads -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px" id="twoCol">
+      <div class="clx-two-col" id="twoCol">
         <div class="clx-card" style="padding:0">
           <div class="clx-card-head" style="padding:16px 18px 0">
             <div class="clx-card-title">Workflow status</div>
             <a class="clx-btn clx-btn-ghost" href="/pages/workflows.html" style="padding:5px 8px;font-size:12px">All →</a>
           </div>
-          <div id="workflowList"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+          <div id="workflowList"></div>
         </div>
         <div class="clx-card" style="padding:0">
           <div class="clx-card-head" style="padding:16px 18px 0">
             <div class="clx-card-title">Recent leads</div>
             <a class="clx-btn clx-btn-ghost" href="/pages/leads.html" style="padding:5px 8px;font-size:12px">All →</a>
           </div>
-          <div id="recentLeads"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+          <div id="recentLeads"></div>
         </div>
       </div>
 
-      <!-- Onboarding pipeline strip -->
       <div class="clx-card" style="margin-bottom:18px">
         <div class="clx-card-head">
           <div class="clx-card-title">Onboarding pipeline</div>
           <a class="clx-btn clx-btn-ghost" href="/pages/onboarding.html" style="padding:5px 8px;font-size:12px">Manage →</a>
         </div>
-        <div id="onboardingStrip"><div class="clx-loading-row"><span class="clx-spinner"></span> Loading…</div></div>
+        <div id="onboardingStrip"></div>
       </div>
     </div>
   </main>
 </div>
 
 <style>
-  @media (max-width:900px){ #twoCol{grid-template-columns:1fr !important} }
+  .clx-two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+  @media (max-width:900px){ .clx-two-col{grid-template-columns:1fr} }
 </style>
 
 <script src="/shared/auth.js"></script>
@@ -85,85 +95,173 @@
 clxAuth.require('admin').then(function (user) {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  // Show skeletons immediately so the page never shows em-dashes.
+  var kpiGrid = document.getElementById('kpiGrid');
+  kpiGrid.innerHTML = '';
+  for (var i = 0; i < 5; i++) {
+    kpiGrid.insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card">' +
+      '<span class="clx-skeleton" style="width:50%;height:10px"></span>' +
+      '<div style="height:10px"></div>' +
+      '<span class="clx-skeleton" style="width:40%;height:24px"></span>' +
+      '</div>');
+  }
+  document.getElementById('leadTrend').innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center"><span class="clx-skeleton" style="width:90%;height:60px"></span></div>';
+  document.getElementById('leadDonut').innerHTML = '<span class="clx-skeleton" style="width:120px;height:120px;border-radius:50%"></span><div style="flex:1"><span class="clx-skeleton" style="width:60%;height:12px;display:block;margin-bottom:8px"></span><span class="clx-skeleton" style="width:50%;height:12px;display:block;margin-bottom:8px"></span><span class="clx-skeleton" style="width:40%;height:12px;display:block"></span></div>';
+  document.getElementById('workflowList').innerHTML = clxComp.skeleton(5, 3);
+  document.getElementById('recentLeads').innerHTML = clxComp.skeleton(5, 3);
+  document.getElementById('onboardingStrip').innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+    Array(5).fill(0).map(function(){ return '<div style="flex:1;min-width:120px"><span class="clx-skeleton" style="height:80px"></span></div>'; }).join('') + '</div>';
+
   loadOverview();
 });
 
 async function loadOverview() {
-  // Run the four panel calls in parallel — they're independent.
-  var [health, workflows, leads, onboarding] = await Promise.all([
+  var [health, workflows, leads, leads30, onboarding] = await Promise.all([
     clxApi.adminGet('system-health'),
     clxApi.adminGet('workflow-status'),
     clxApi.adminGet('list-leads', { limit: 8 }),
+    clxApi.adminGet('list-leads', { limit: 200 }),
     clxApi.adminGet('onboarding-pipeline')
   ]);
 
-  // KPI grid
   var grid = document.getElementById('kpiGrid');
   if (health.ok && health.data) {
     var d = health.data;
     clxComp.renderStatGrid(grid, [
-      { label: 'Total leads',      value: d.total_leads      != null ? d.total_leads.toLocaleString() : '—' },
-      { label: 'Active clients',   value: d.active_clients   != null ? d.active_clients               : '—' },
-      { label: 'Booked this week', value: d.booked_this_week != null ? d.booked_this_week             : '—' },
-      { label: 'Errors (24h)',     value: d.errors_24h       != null ? d.errors_24h                   : '—' },
-      { label: 'MRR',              value: d.mrr_cad          != null ? clxComp.formatMoney(d.mrr_cad) : '—' }
+      { label: 'Total leads',      value: d.total_leads != null ? d.total_leads.toLocaleString() : '—',
+        icon: 'target', variant: 'leads', href: '/pages/leads.html' },
+      { label: 'Active clients',   value: d.active_clients != null ? d.active_clients : '—',
+        icon: 'users', variant: 'activity', href: '/pages/clients.html' },
+      { label: 'Booked this week', value: d.booked_this_week != null ? d.booked_this_week : '—',
+        icon: 'calendar', variant: 'bookings', href: '/pages/leads.html?status=Booked' },
+      { label: 'Errors (24h)',     value: d.errors_24h != null ? d.errors_24h : '—',
+        icon: 'alert-triangle', variant: 'errors', href: '/pages/audit-log.html' },
+      { label: 'MRR',              value: d.mrr_cad != null ? clxComp.formatMoney(d.mrr_cad) : '—',
+        icon: 'dollar-sign', variant: 'revenue', href: '/pages/billing.html' }
     ]);
   } else {
     clxApi.renderError(grid, health);
   }
 
-  // Workflow status (last 10)
+  var trendEl = document.getElementById('leadTrend');
+  var donutEl = document.getElementById('leadDonut');
+  if (leads30.ok && Array.isArray(leads30.data && leads30.data.leads)) {
+    var leadList = leads30.data.leads;
+    var buckets = bucketByDay(leadList, 30);
+    var totalNew = buckets.reduce(function(a,b){ return a+b; }, 0);
+    trendEl.innerHTML = '<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">' + totalNew + ' lead' + (totalNew===1?'':'s') + ' added in last 30 days</div>' +
+      clxComp.sparkline(buckets, { width: 600, height: 80 });
+
+    var statusCounts = {};
+    leadList.forEach(function(l){
+      var s = (l.lead_status || 'unknown').toLowerCase();
+      statusCounts[s] = (statusCounts[s]||0) + 1;
+    });
+    var slices = Object.keys(statusCounts).map(function(k){
+      return { label: k, value: statusCounts[k] };
+    }).sort(function(a,b){ return b.value - a.value; });
+    if (slices.length) {
+      donutEl.innerHTML = clxComp.donut(slices, { centerLabel: leadList.length, centerSub: 'leads' }) +
+        '<div style="flex:1;min-width:160px">' + clxComp.donutLegend(slices) + '</div>';
+    } else {
+      clxComp.renderEmpty(donutEl, 'No leads yet', 'inbox');
+    }
+  } else {
+    clxApi.renderError(trendEl, leads30);
+    donutEl.innerHTML = '';
+  }
+
   var wfEl = document.getElementById('workflowList');
   if (workflows.ok && Array.isArray(workflows.data && workflows.data.workflows)) {
     var rows = workflows.data.workflows.slice(0, 8);
-    if (!rows.length) clxApi.renderEmpty(wfEl, 'No workflow runs yet.', '⚙');
+    if (!rows.length) clxComp.renderEmpty(wfEl, 'No workflow runs yet.', 'zap');
     else clxComp.renderTable(wfEl, rows, [
-      { key: 'name',        label: 'Workflow' },
-      { key: 'last_status', label: 'Status', format: function(r){
-          return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.last_status) + '">' + clxComp.escapeHtml(r.last_status || '—') + '</span>';
-        }, html: true },
+      { key: 'name', label: 'Workflow' },
+      { key: 'last_status', label: 'Status', html: true, format: function(r){
+          var s = (r.last_status || '').toLowerCase();
+          var ic = s === 'success' ? 'check-circle' : (s === 'error' || s === 'failed') ? 'x-circle' : 'clock';
+          var pulse = s === 'running' ? ' --pulse' : '';
+          return '<span style="display:inline-flex;align-items:center;gap:6px">' +
+            clxComp.icon(ic, 'sm') +
+            '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.last_status) + pulse + '">' +
+            clxComp.escapeHtml(r.last_status || '—') + '</span></span>';
+        } },
       { key: 'last_run_at', label: 'Last run', format: function(r){ return clxComp.relativeTime(r.last_run_at); } }
     ]);
   } else {
     clxApi.renderError(wfEl, workflows);
   }
 
-  // Recent leads
   var leEl = document.getElementById('recentLeads');
   if (leads.ok && Array.isArray(leads.data && leads.data.leads)) {
     var lr = leads.data.leads;
-    if (!lr.length) clxApi.renderEmpty(leEl, 'No leads ingested yet.', '◍');
-    else clxComp.renderTable(leEl, lr, [
-      { key: 'company',    label: 'Company' },
-      { key: 'lead_status',label: 'Status', format: function(r){
-          return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
-        }, html: true },
-      { key: 'updated_at', label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
-    ]);
+    if (!lr.length) clxComp.renderEmpty(leEl, 'No leads ingested yet.', 'inbox');
+    else {
+      lr.forEach(function(r){
+        if (r.client_id) r._href = '/pages/client-detail.html?id=' + r.client_id;
+      });
+      clxComp.renderTable(leEl, lr, [
+        { key: 'company', label: 'Company' },
+        { key: 'lead_status', label: 'Status', html: true, format: function(r){
+            return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+          } },
+        { key: 'updated_at', label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
+      ]);
+    }
   } else {
     clxApi.renderError(leEl, leads);
   }
 
-  // Onboarding strip
   var obEl = document.getElementById('onboardingStrip');
   if (onboarding.ok && onboarding.data) {
     var counts = onboarding.data.stage_counts || {};
     var total = Object.keys(counts).reduce(function(s,k){ return s + (counts[k] || 0); }, 0);
     if (!total) {
-      clxApi.renderEmpty(obEl, 'No clients in onboarding right now.', '◐');
+      clxComp.renderEmpty(obEl, 'No clients in onboarding right now.', 'briefcase');
     } else {
-      var stages = ['intake','provisioning','content_setup','first_send','active'];
-      obEl.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap">' + stages.map(function(s){
-        var n = counts[s] || 0;
-        return '<div style="flex:1;min-width:120px;padding:14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-card)">' +
-          '<div class="clx-stat-label">' + s.replace('_',' ') + '</div>' +
+      var stages = [
+        { key: 'intake',        label: 'Intake',        icon: 'inbox' },
+        { key: 'provisioning',  label: 'Provisioning',  icon: 'settings' },
+        { key: 'content_setup', label: 'Content setup', icon: 'edit' },
+        { key: 'first_send',    label: 'First send',    icon: 'mail' },
+        { key: 'active',        label: 'Active',        icon: 'check-circle' }
+      ];
+      obEl.innerHTML = '<div class="clx-pipeline">' + stages.map(function(s, i){
+        var n = counts[s.key] || 0;
+        var pct = total > 0 ? (n/total*100) : 0;
+        return '<div class="clx-pipeline-stage">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          clxComp.icon(s.icon, 'md') +
+          '<div class="clx-stat-label" style="margin:0">' + s.label + '</div>' +
+          '</div>' +
           '<div class="clx-stat-value" style="font-size:22px">' + n + '</div>' +
-        '</div>';
+          clxComp.progressBar(pct, 100) +
+          '</div>';
       }).join('') + '</div>';
     }
   } else {
     clxApi.renderError(obEl, onboarding);
   }
+}
+
+function bucketByDay(leads, days) {
+  var now = new Date();
+  var todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  var msPerDay = 86400000;
+  var buckets = new Array(days).fill(0);
+  leads.forEach(function (l) {
+    var raw = l.date_created || l.created_at || l.updated_at;
+    if (!raw) return;
+    var t = new Date(raw).getTime();
+    if (isNaN(t)) return;
+    var d = new Date(t);
+    var dayUTC = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    var idx = days - 1 - Math.floor((todayUTC - dayUTC) / msPerDay);
+    if (idx >= 0 && idx < days) buckets[idx]++;
+  });
+  return buckets;
 }
 </script>
 </body>
