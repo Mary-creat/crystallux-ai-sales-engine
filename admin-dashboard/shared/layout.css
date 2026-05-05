@@ -369,3 +369,303 @@ button { font-family: inherit; }
   .clx-topbar, .clx-sidebar, .clx-burger { display: none !important; }
   .clx-content { max-width: none; padding: 0; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Polish layer — additive enhancements. All prior classes still work.
+   Adds: shadows, hover lifts, color-coded stat-card variants,
+   inline SVG icon slots, sparkline/donut/bar wrappers, progress bars,
+   skeleton loaders, illustrated empty states, section heads, pulse
+   badges, avatar circles, score bars, pipeline stages.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --shadow-card:        0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-card-hover:  0 8px 24px rgba(76, 29, 149, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-pop:         0 12px 32px rgba(15, 23, 42, 0.12);
+  --ring-brand:         0 0 0 3px var(--color-brand-100);
+
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+  --icon-xl: 28px;
+}
+
+/* Cards get a subtle base shadow + smooth hover transition */
+.clx-card { box-shadow: var(--shadow-card); transition: box-shadow .15s, border-color .15s; }
+.clx-card.--interactive { cursor: pointer; }
+.clx-card.--interactive:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--color-brand-300);
+}
+
+/* Stat-card hover + clickable variants */
+.clx-stat-card { box-shadow: var(--shadow-card); transition: box-shadow .15s, transform .15s, border-color .15s; }
+.clx-stat-card[data-href] { cursor: pointer; }
+.clx-stat-card[data-href]:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+  border-color: var(--color-brand-300);
+}
+
+/* Color-coded stat-card variants — gradient backgrounds + accent value color */
+.clx-stat-card.--leads {
+  background: linear-gradient(160deg, var(--color-brand-50), #fff 70%);
+  border-color: var(--color-brand-100);
+}
+.clx-stat-card.--leads .clx-stat-value { color: var(--color-brand-700); }
+
+.clx-stat-card.--revenue {
+  background: linear-gradient(160deg, #ECFDF5, #fff 70%);
+  border-color: #A7F3D0;
+}
+.clx-stat-card.--revenue .clx-stat-value { color: #047857; }
+
+.clx-stat-card.--activity {
+  background: linear-gradient(160deg, #EFF6FF, #fff 70%);
+  border-color: #BFDBFE;
+}
+.clx-stat-card.--activity .clx-stat-value { color: #1D4ED8; }
+
+.clx-stat-card.--errors {
+  background: linear-gradient(160deg, #FEF2F2, #fff 70%);
+  border-color: #FECACA;
+}
+.clx-stat-card.--errors .clx-stat-value { color: #B91C1C; }
+
+.clx-stat-card.--bookings {
+  background: linear-gradient(160deg, #FFFBEB, #fff 70%);
+  border-color: #FDE68A;
+}
+.clx-stat-card.--bookings .clx-stat-value { color: #B45309; }
+
+.clx-stat-card.--neutral { background: var(--bg-card); border-color: var(--border); }
+
+/* Stat-card inline icon (top-left, square tinted background) */
+.clx-stat-icon {
+  width: 36px; height: 36px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(124, 58, 237, 0.10); color: var(--color-brand-600);
+  margin-bottom: 10px;
+}
+.clx-stat-card.--revenue .clx-stat-icon  { background: rgba(16, 185, 129, 0.12); color: #047857; }
+.clx-stat-card.--activity .clx-stat-icon { background: rgba(59, 130, 246, 0.12); color: #1D4ED8; }
+.clx-stat-card.--errors   .clx-stat-icon { background: rgba(239, 68, 68, 0.12);  color: #B91C1C; }
+.clx-stat-card.--bookings .clx-stat-icon { background: rgba(245, 158, 11, 0.14); color: #B45309; }
+
+/* Inline SVG icon wrapper — sized via CSS, color via currentColor */
+.clx-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--icon-md); height: var(--icon-md);
+  vertical-align: middle; flex-shrink: 0;
+}
+.clx-icon.--sm { width: var(--icon-sm); height: var(--icon-sm); }
+.clx-icon.--lg { width: var(--icon-lg); height: var(--icon-lg); }
+.clx-icon.--xl { width: var(--icon-xl); height: var(--icon-xl); }
+.clx-icon svg {
+  display: block; width: 100%; height: 100%;
+  stroke: currentColor; fill: none; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Sidebar nav icon — replaces the old text-glyph slot */
+.clx-nav-item .clx-icon { color: var(--text-muted); }
+.clx-nav-item:hover .clx-icon { color: var(--text-primary); }
+.clx-nav-item.active .clx-icon { color: var(--color-brand-600); }
+
+/* Section header with brand-accent left bar */
+.clx-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 6px 0 12px; padding-left: 10px;
+  border-left: 3px solid var(--color-brand-500);
+}
+.clx-section-head .clx-section-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.clx-section-head .clx-section-action { font-size: 12.5px; color: var(--text-secondary); }
+
+/* Pulse badge — leading dot with breathe animation for live/active states */
+.clx-badge.--pulse::before {
+  content: ""; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: currentColor; margin-right: 5px;
+  animation: clx-pulse 1.5s ease-in-out infinite;
+  vertical-align: 0px;
+}
+@keyframes clx-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.4); }
+}
+
+/* Skeleton loaders */
+@keyframes clx-skeleton-pulse {
+  0%, 100% { background-color: var(--gray-100); }
+  50% { background-color: var(--gray-200); }
+}
+.clx-skeleton {
+  display: inline-block; height: 14px; border-radius: 4px; min-width: 30px;
+  background: var(--gray-100); animation: clx-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.clx-skeleton-line { display: block; height: 12px; margin: 8px 0; }
+.clx-skeleton-card {
+  padding: 18px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--bg-card); box-shadow: var(--shadow-card);
+}
+.clx-skeleton-table { padding: 14px 16px; }
+.clx-skeleton-table .clx-skeleton-row {
+  display: flex; gap: 14px; padding: 11px 0;
+  border-bottom: 1px dashed var(--gray-100);
+}
+.clx-skeleton-table .clx-skeleton-row:last-child { border-bottom: none; }
+.clx-skeleton-table .clx-skeleton-row .clx-skeleton { flex: 1; height: 14px; }
+
+/* Progress bar */
+.clx-progress {
+  display: block; width: 100%; height: 6px; background: var(--gray-100);
+  border-radius: 999px; overflow: hidden;
+}
+.clx-progress-fill {
+  display: block; height: 100%; background: var(--color-brand-500);
+  border-radius: 999px; transition: width .35s ease;
+}
+.clx-progress.--success .clx-progress-fill { background: var(--success); }
+.clx-progress.--warning .clx-progress-fill { background: var(--warning); }
+.clx-progress.--error   .clx-progress-fill { background: var(--error);   }
+
+/* Charts (inline SVG containers) */
+.clx-sparkline { display: block; width: 100%; height: 48px; }
+.clx-sparkline svg { width: 100%; height: 100%; overflow: visible; }
+.clx-sparkline .stroke {
+  stroke: var(--color-brand-500); stroke-width: 2; fill: none;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.clx-sparkline .fill { opacity: 0.35; }
+.clx-sparkline .dot  { fill: var(--color-brand-600); }
+
+.clx-donut { display: inline-block; width: 160px; height: 160px; vertical-align: middle; }
+.clx-donut svg { width: 100%; height: 100%; }
+.clx-donut .center-label { font-size: 22px; font-weight: 700; fill: var(--text-primary); }
+.clx-donut .center-sub {
+  font-size: 9px; fill: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+.clx-bar-chart { display: block; width: 100%; height: 80px; }
+.clx-bar-chart svg { width: 100%; height: 100%; }
+.clx-bar-chart .bar { fill: var(--color-brand-300); transition: fill .15s; }
+.clx-bar-chart .bar:hover { fill: var(--color-brand-500); }
+
+.clx-chart-legend {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font-size: 12px; color: var(--text-secondary); margin-top: 10px;
+}
+.clx-chart-legend > span {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.clx-chart-legend .swatch {
+  display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+}
+
+/* Illustrated empty state */
+.clx-empty-illustrated { padding: 40px 24px; text-align: center; }
+.clx-empty-illustrated .clx-empty-icon-wrap {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 14px;
+  background: var(--color-brand-50); color: var(--color-brand-500);
+  margin-bottom: 14px;
+}
+.clx-empty-illustrated .clx-empty-icon-wrap .clx-icon { width: 28px; height: 28px; }
+.clx-empty-illustrated h4 {
+  font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;
+}
+.clx-empty-illustrated p {
+  font-size: 13px; color: var(--text-muted); max-width: 320px; margin: 0 auto 16px;
+}
+
+/* Avatar circle */
+.clx-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+  color: #fff; font-weight: 700; font-size: 11px; letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.clx-avatar.--lg { width: 40px; height: 40px; font-size: 14px; }
+.clx-avatar.--sm { width: 22px; height: 22px; font-size: 10px; }
+
+/* Score bar (inline 70px progress, used in lead lists) */
+.clx-score-bar {
+  display: inline-block; width: 70px; height: 6px; border-radius: 999px;
+  background: var(--gray-100); position: relative; overflow: hidden;
+  vertical-align: middle;
+}
+.clx-score-bar > i {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: var(--color-brand-500); border-radius: 999px;
+}
+.clx-score-bar.--low > i      { background: var(--gray-400); }
+.clx-score-bar.--medium > i   { background: var(--info); }
+.clx-score-bar.--high > i     { background: var(--color-brand-500); }
+.clx-score-bar.--critical > i { background: var(--success); }
+
+/* Clickable table rows — extends existing _href pattern with hover styling */
+.clx-table tbody tr[data-href] { cursor: pointer; transition: background .12s, box-shadow .12s; }
+.clx-table tbody tr[data-href]:hover td { background: var(--color-brand-50); }
+.clx-table tbody tr[data-href]:hover td:first-child { box-shadow: inset 3px 0 0 var(--color-brand-500); }
+
+/* Search input with leading icon */
+.clx-input-wrap { position: relative; display: block; }
+.clx-input-wrap .clx-icon-prefix {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); pointer-events: none;
+}
+.clx-input-wrap .clx-input { padding-left: 36px; }
+
+/* Pipeline stage strip (used on /pages/onboarding) */
+.clx-pipeline {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  margin-bottom: 18px;
+}
+.clx-pipeline-stage {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 14px;
+  border-top: 3px solid var(--color-brand-300);
+  box-shadow: var(--shadow-card);
+}
+.clx-pipeline-stage.--active     { border-top-color: var(--success); }
+.clx-pipeline-stage.--first-send { border-top-color: var(--info); }
+.clx-pipeline-stage .stage-name {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.clx-pipeline-stage .stage-count {
+  font-size: 22px; font-weight: 700; color: var(--text-primary); margin-top: 4px;
+}
+
+/* Activity timeline (used on activity pages) */
+.clx-timeline { position: relative; padding-left: 22px; }
+.clx-timeline::before {
+  content: ""; position: absolute; left: 8px; top: 6px; bottom: 6px;
+  width: 2px; background: var(--gray-200);
+}
+.clx-timeline-item {
+  position: relative; padding: 12px 0 14px 12px;
+}
+.clx-timeline-item::before {
+  content: ""; position: absolute; left: -19px; top: 16px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--color-brand-500); border: 2px solid var(--bg-page);
+}
+.clx-timeline-item .ti-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.clx-timeline-item .ti-time { font-size: 12px; color: var(--text-muted); }
+.clx-timeline-item .ti-detail { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+/* Responsive tweaks for new components */
+@media (max-width: 900px) {
+  .clx-pipeline { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .clx-donut { width: 130px; height: 130px; }
+  .clx-pipeline { grid-template-columns: 1fr; }
+}
