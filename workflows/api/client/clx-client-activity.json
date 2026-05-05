@@ -92,8 +92,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// Map lead-update rows into a generic activity shape so the UI is stable\n// even after we add other event sources (bookings, billing) later.\nconst activity = rows.map(r => ({\n  event: r.lead_status,\n  event_type: r.lead_status,\n  company: r.company,\n  detail: 'Lead status: ' + (r.lead_status || '—'),\n  lead_status: r.lead_status,\n  occurred_at: r.date_created\n}));\nreturn { json: { ok: true, activity } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Activity');\n// Map lead-update rows into a generic activity shape so the UI is stable\n// even after we add other event sources (bookings, billing) later.\nconst activity = rows.map(r => ({\n  event: r.lead_status,\n  event_type: r.lead_status,\n  company: r.company,\n  detail: 'Lead status: ' + (r.lead_status || '—'),\n  lead_status: r.lead_status,\n  occurred_at: r.date_created\n}));\nreturn { json: { ok: true, activity } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "cli-ac-0007",
       "name": "Shape Response",

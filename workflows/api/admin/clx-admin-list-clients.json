@@ -108,15 +108,26 @@
     },
     {
       "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nreturn { json: { ok: true, clients: allOf('Query Clients') } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "adm-lc-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1700, 320]
+    },
+    {
+      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, clients: Array.isArray($json) ? $json : ($json && Object.keys($json).length ? [$json] : []) }) }}",
+        "responseBody": "={{ JSON.stringify($json) }}",
         "options": { "responseCode": 200 }
       },
       "id": "adm-lc-0008",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1800, 320]
+      "position": [1880, 320]
     },
     {
       "parameters": {
@@ -144,7 +155,8 @@
                                    [ { "node": "Query Clients",   "type": "main", "index": 0 } ],
                                    [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
                                  ] },
-    "Query Clients":    { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+    "Query Clients":    { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":   { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false

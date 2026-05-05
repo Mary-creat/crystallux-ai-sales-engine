@@ -94,8 +94,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst stage_counts = {};\nrows.forEach(r => {\n  const s = r.onboarding_stage || 'intake';\n  stage_counts[s] = (stage_counts[s] || 0) + 1;\n});\n// Compute days_in_stage from onboarding_started_at\nrows.forEach(r => {\n  if (r.onboarding_started_at) {\n    const days = Math.floor((Date.now() - new Date(r.onboarding_started_at).getTime()) / (1000*60*60*24));\n    r.days_in_stage = days;\n    r.started_at = r.onboarding_started_at;\n  } else {\n    r.days_in_stage = null;\n    r.started_at = null;\n  }\n  r.next_action = r.onboarding_next_action;\n});\nreturn { json: { ok: true, stage_counts, clients: rows } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Onboarding');\nconst stage_counts = {};\nrows.forEach(r => {\n  const s = r.onboarding_stage || 'intake';\n  stage_counts[s] = (stage_counts[s] || 0) + 1;\n});\n// Compute days_in_stage from onboarding_started_at\nrows.forEach(r => {\n  if (r.onboarding_started_at) {\n    const days = Math.floor((Date.now() - new Date(r.onboarding_started_at).getTime()) / (1000*60*60*24));\n    r.days_in_stage = days;\n    r.started_at = r.onboarding_started_at;\n  } else {\n    r.days_in_stage = null;\n    r.started_at = null;\n  }\n  r.next_action = r.onboarding_next_action;\n});\nreturn { json: { ok: true, stage_counts, clients: rows } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "adm-op-0007",
       "name": "Shape Response",

@@ -92,8 +92,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// Map date_created to replied_at so the UI can show a stable column.\nrows.forEach(r => { r.replied_at = r.date_created; });\nreturn { json: { ok: true, replies: rows } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Replies');\n// Map date_created to replied_at so the UI can show a stable column.\nrows.forEach(r => { r.replied_at = r.date_created; });\nreturn { json: { ok: true, replies: rows } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "cli-rp-0007",
       "name": "Shape Response",

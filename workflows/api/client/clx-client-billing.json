@@ -92,8 +92,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst billing = rows[0] || {};\n// portal_url is a placeholder until the Stripe customer portal is\n// configured. Once configured, this can become a real per-customer\n// portal session URL minted via the Stripe API in this same node.\nconst portal_url = 'https://billing.stripe.com/p/login/PLACEHOLDER_PORTAL_URL';\nreturn { json: { ok: true, billing, portal_url } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Billing');\nconst billing = rows[0] || {};\n// portal_url is a placeholder until the Stripe customer portal is\n// configured. Once configured, this can become a real per-customer\n// portal session URL minted via the Stripe API in this same node.\nconst portal_url = 'https://billing.stripe.com/p/login/PLACEHOLDER_PORTAL_URL';\nreturn { json: { ok: true, billing, portal_url } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "cli-bl-0007",
       "name": "Shape Response",

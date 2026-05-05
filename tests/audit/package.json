@@ -1,0 +1,14 @@
+{
+  "name": "crystallux-dashboard-audit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright-based dashboard audit harness",
+  "scripts": {
+    "audit:admin":  "node dashboard-audit.js admin",
+    "audit:client": "node dashboard-audit.js client",
+    "audit:all":    "node dashboard-audit.js all"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
