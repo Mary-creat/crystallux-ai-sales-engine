@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nconst client_id = String(body.client_id || '').trim();\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nif (!client_id) return { json: { ok: false, status: 400, error: 'client_id required' } };\nreturn { json: { token, client_id } };",
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst filters = body.filters || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\n// Accept client_id from body.filters.client_id (clxApi.adminGet wraps args in filters,\n// matching every other admin webhook's convention) OR from body.client_id\n// (direct callers / curl tests). filters wins if both present.\nconst client_id = String(filters.client_id || body.client_id || '').trim();\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nif (!client_id) return { json: { ok: false, status: 400, error: 'client_id required' } };\nreturn { json: { token, client_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "adm-cd-0002",
