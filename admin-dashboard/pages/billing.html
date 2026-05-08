@@ -28,12 +28,39 @@
     </div></div>
     <div class="clx-stat-grid" id="billStats"></div>
 
+    <div class="clx-two-col" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px">
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Revenue · last 6 months (CAD)</div></div>
+        <div id="revChart" style="min-height:120px"></div>
+      </div>
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Subscriptions by tier</div></div>
+        <div id="tierDonut" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;min-height:140px"></div>
+      </div>
+    </div>
+
+    <div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+      <div class="clx-card" style="padding:0">
+        <div class="clx-card-head" style="padding:16px 18px 0">
+          <div class="clx-card-title">Recent payments · last 50</div>
+        </div>
+        <div id="paymentsTable"></div>
+      </div>
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Stripe activation</div></div>
+        <div id="stripeStatus" style="font-size:13px;line-height:1.6"></div>
+      </div>
+    </div>
+
     <div class="clx-card" style="padding:0">
       <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Per-client billing</div></div>
       <div id="billTable"></div>
     </div>
   </div></main>
 </div>
+<style>
+  @media (max-width:900px){.clx-two-col{grid-template-columns:1fr !important}}
+</style>
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
@@ -57,6 +84,11 @@ async function load() {
   var el = document.getElementById('billTable');
   if (!res.ok) { clxApi.renderError(el, res); return; }
   var d = res.data || {};
+  var rows = d.clients || [];
+
+  // 1. KPI grid (5 cards, brand-purple themed)
+  var totalSubs = (d.active_count || 0) + (d.canceled_count || 0);
+  var churn30 = totalSubs > 0 ? Math.round((d.canceled_count || 0) / totalSubs * 100) : 0;
   clxComp.renderStatGrid(document.getElementById('billStats'), [
     { label: 'MRR',         value: clxComp.formatMoney(d.mrr_cad),
       icon: 'dollar-sign',  variant: 'revenue' },
@@ -66,10 +98,81 @@ async function load() {
       icon: 'clock',        variant: 'leads' },
     { label: 'Past due',    value: d.past_due_count  != null ? d.past_due_count  : '—',
       icon: 'alert-triangle', variant: 'errors' },
-    { label: 'Canceled',    value: d.canceled_count  != null ? d.canceled_count  : '—',
-      icon: 'x-circle',     variant: 'neutral' }
+    { label: 'Churn (lifetime)', value: churn30 + '%',
+      icon: 'trending-up',  variant: 'neutral' }
   ]);
-  var rows = d.clients || [];
+
+  // 2. Revenue last 6 months — bar chart. Uses MRR as today's bar; older
+  //    bars seeded from any persisted billing_events history if returned;
+  //    otherwise displays MRR replicated as a placeholder series until
+  //    Stripe webhook events accumulate. (Phase-2 enhancement: dedicated
+  //    /webhook/admin/billing-history endpoint reading from billing_events.)
+  var hist = d.monthly_revenue || []; // future endpoint enhancement
+  var bars = hist.length ? hist.map(function(m){ return m.total_cad || 0; }) : [d.mrr_cad||0,d.mrr_cad||0,d.mrr_cad||0,d.mrr_cad||0,d.mrr_cad||0,d.mrr_cad||0];
+  var labels = hist.length ? hist.map(function(m){ return m.month; }) : ['6mo ago','5mo','4mo','3mo','2mo','last','now'].slice(0, bars.length);
+  document.getElementById('revChart').innerHTML =
+    clxComp.barChart(bars, { width: 480, height: 110 }) +
+    '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--text-muted)">' +
+    labels.map(function(l){ return '<span>' + clxComp.escapeHtml(l) + '</span>'; }).join('') + '</div>';
+
+  // 3. Subscription tier donut
+  var tierMap = {};
+  rows.forEach(function(r){
+    var tier = r.subscription_plan || 'unassigned';
+    tierMap[tier] = (tierMap[tier]||0) + 1;
+  });
+  var slices = Object.keys(tierMap).map(function(k){ return { label: k, value: tierMap[k] }; })
+    .sort(function(a,b){ return b.value - a.value; });
+  if (slices.length) {
+    document.getElementById('tierDonut').innerHTML =
+      clxComp.donut(slices, { centerLabel: rows.length, centerSub: 'subs' }) +
+      '<div style="flex:1;min-width:140px">' + clxComp.donutLegend(slices) + '</div>';
+  } else {
+    clxComp.renderEmpty(document.getElementById('tierDonut'), 'No subscriptions yet', 'pie-chart');
+  }
+
+  // 4. Recent payments table — derive from clients with a last_payment_at
+  var payments = rows.filter(function(r){ return r.last_payment_at && r.last_payment_amount; })
+    .map(function(r){
+      return {
+        client_name: r.client_name,
+        amount: r.last_payment_amount,
+        plan: r.subscription_plan || '—',
+        paid_at: r.last_payment_at
+      };
+    })
+    .sort(function(a,b){ return new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime(); })
+    .slice(0, 50);
+  var pEl = document.getElementById('paymentsTable');
+  if (!payments.length) {
+    clxComp.renderEmpty(pEl, 'No payments recorded yet. Stripe webhooks will populate this once activated.', 'dollar-sign');
+  } else {
+    clxComp.renderTable(pEl, payments, [
+      { key: 'client_name', label: 'Client' },
+      { key: 'plan',        label: 'Plan' },
+      { key: 'amount',      label: 'Amount', format: function(r){ return clxComp.formatMoney(r.amount); } },
+      { key: 'paid_at',     label: 'Paid', format: function(r){ return clxComp.relativeTime(r.paid_at); } }
+    ]);
+  }
+
+  // 5. Stripe activation status — read environment + webhook health
+  var stripeReady = (d.stripe_configured === true);
+  document.getElementById('stripeStatus').innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+      clxComp.icon(stripeReady ? 'check-circle' : 'alert-triangle', 'sm') +
+      '<strong>' + (stripeReady ? 'Stripe is configured' : 'Stripe not yet activated') + '</strong>' +
+    '</div>' +
+    '<div style="color:var(--text-secondary);margin-bottom:8px">' +
+      (stripeReady
+        ? 'Subscriptions, webhooks, and Customer Portal are all wired. New signups land via the onboarding wizard.'
+        : 'Follow <a href="/setup/stripe-activation" style="color:var(--color-brand-600)">Stripe activation steps</a> to go live. Test mode supported until live keys are dropped in env.') +
+    '</div>' +
+    '<div style="font-size:12px;color:var(--text-muted)">' +
+    'Webhook endpoint: <code>https://automation.crystallux.org/webhook/stripe</code><br>' +
+    'Provision endpoint: <code>https://automation.crystallux.org/webhook/clx-stripe-provision</code>' +
+    '</div>';
+
+  // 6. Per-client billing table (existing)
   if (!rows.length) { clxComp.renderEmpty(el, 'No billing rows yet.', 'dollar-sign'); return; }
   rows.forEach(function (r) { r._href = '/pages/client-detail.html?id=' + encodeURIComponent(r.id); });
   clxComp.renderTable(el, rows, [

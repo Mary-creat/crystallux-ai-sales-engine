@@ -1,0 +1,20 @@
+<!--
+  Postmark template alias: subscription-active
+  Subject: Your Crystallux subscription is active
+  Vars: {{first_name}}, {{plan_name}}, {{amount_formatted}}, {{next_billing_date}}, {{billing_portal_url}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 12px;font-size:22px;font-weight:700;letter-spacing:-0.01em">You're subscribed, {{first_name}}.</h1>
+  <p style="margin:0 0 18px;color:#52525B;font-size:15px">Your <strong>{{plan_name}}</strong> plan is active. Welcome to Crystallux.</p>
+
+  <table role="presentation" width="100%" style="background:#F8F7FF;border:1px solid #DDD6FE;border-radius:10px;margin:0 0 24px"><tr><td style="padding:18px 22px">
+    <p style="margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#7C3AED;font-weight:700">Billing</p>
+    <p style="margin:0 0 4px;font-size:15px"><strong>{{amount_formatted}}</strong> / month</p>
+    <p style="margin:0;font-size:13px;color:#52525B">Next charge: <strong>{{next_billing_date}}</strong></p>
+  </td></tr></table>
+
+  <p style="margin:0 0 22px;font-size:14px;color:#52525B">Update your card, change plans, or download invoices anytime via the billing portal.</p>
+  <p style="margin:0 0 24px"><a href="{{billing_portal_url}}" style="display:inline-block;padding:11px 22px;background:#FFFFFF;color:#7C3AED;text-decoration:none;border:1px solid #DDD6FE;border-radius:8px;font-weight:600;font-size:14px">Manage billing</a></p>
+
+  <p style="margin:0;font-size:13px;color:#71717A">The AI engine is already working in the background. Open your dashboard to watch your pipeline fill.</p>
+</td></tr></table>

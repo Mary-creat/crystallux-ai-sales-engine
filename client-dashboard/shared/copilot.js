@@ -52,19 +52,49 @@
     chunks: [],
 
     mount: function () {
+      if (document.getElementById('clxCopilotFab')) {
+        global.__clxCopilotState = 'already-mounted';
+        return;
+      }
+      // Inline critical positioning — same belt-and-suspenders pattern as
+      // admin: the FAB renders correctly even if the stylesheet's
+      // cascade is shadowed somewhere. Mobile breakpoint (<640px) bumps
+      // the bottom offset above the bottom-nav via the CSS rule; inline
+      // styles guarantee the desktop default.
       var fab = document.createElement('button');
       fab.className = 'clx-copilot-fab show';
       fab.id = 'clxCopilotFab';
+      fab.type = 'button';
       fab.setAttribute('aria-label', 'Open Crystallux Assistant');
       fab.title = 'Crystallux Assistant';
       fab.textContent = '✦';
+      var fabBottom = (window.innerWidth <= 640) ? '78px' : '24px';
+      fab.style.cssText = [
+        'position:fixed','bottom:' + fabBottom,'right:24px','z-index:120',
+        'width:56px','height:56px','border-radius:50%','cursor:pointer',
+        'background:linear-gradient(135deg,#7C3AED,#5B21B6)',
+        'border:none','color:#fff','font-size:22px',
+        'box-shadow:0 6px 20px rgba(124,58,237,0.45)',
+        'display:flex','align-items:center','justify-content:center',
+        'transition:transform .15s ease','line-height:1','font-family:inherit'
+      ].join(';');
       fab.addEventListener('click', function () { copilot.toggle(); });
+      fab.addEventListener('mouseenter', function () { fab.style.transform = 'scale(1.06)'; });
+      fab.addEventListener('mouseleave', function () { fab.style.transform = ''; });
       document.body.appendChild(fab);
 
       var panel = document.createElement('aside');
       panel.className = 'clx-copilot-panel';
       panel.id = 'clxCopilotPanel';
       panel.setAttribute('aria-label', 'Crystallux Assistant');
+      panel.style.cssText = [
+        'position:fixed','top:0','right:0','height:100vh',
+        'width:420px','max-width:100vw','z-index:130',
+        'background:#fff','border-left:1px solid #E4E4E7',
+        'box-shadow:-8px 0 30px rgba(0,0,0,0.10)',
+        'transform:translateX(100%)','transition:transform .25s ease',
+        'display:flex','flex-direction:column'
+      ].join(';');
       panel.innerHTML =
         '<div class="clx-copilot-header">' +
           '<div class="clx-copilot-title"><span class="star">✦</span> Crystallux Assistant</div>' +
@@ -96,9 +126,15 @@
     toggle: function (forceOpen) {
       var panel = document.getElementById('clxCopilotPanel');
       if (!panel) return;
-      if (forceOpen === true) panel.classList.add('open');
-      else panel.classList.toggle('open');
-      if (panel.classList.contains('open')) {
+      var isOpen;
+      if (forceOpen === true) {
+        panel.classList.add('open');
+        isOpen = true;
+      } else {
+        isOpen = panel.classList.toggle('open');
+      }
+      panel.style.transform = isOpen ? 'translateX(0)' : 'translateX(100%)';
+      if (isOpen) {
         setTimeout(function () {
           var inp = document.getElementById('clxCopilotInput');
           if (inp) inp.focus();
@@ -276,14 +312,46 @@
     }
   };
 
+  global.__clxCopilotState = 'pre-boot';
+
   function boot() {
-    if (!global.clxAuth || typeof global.clxAuth.require !== 'function') return;
-    global.clxAuth.require('client').then(function (user) {
-      if (!user) return;
-      // Allow both 'client' and 'team_member' roles to use the assistant
-      if (user.role !== 'client' && user.role !== 'team_member') return;
-      copilot.mount();
-    }).catch(function () { /* not authenticated */ });
+    global.__clxCopilotState = 'booting';
+    if (!global.clxAuth || typeof global.clxAuth.require !== 'function') {
+      global.__clxCopilotState = 'no-clxAuth';
+      return;
+    }
+    var resolved = false;
+    var ALLOWED = ['client', 'team_member', 'advisor', 'supervisor', 'mga_principal'];
+    var onAuthReady = function (e) {
+      if (resolved) return;
+      resolved = true;
+      var user = e && e.detail;
+      if (user && ALLOWED.indexOf(user.role) !== -1) {
+        global.__clxCopilotState = 'mounting-via-event';
+        try { copilot.mount(); global.__clxCopilotState = 'mounted'; }
+        catch (err) { global.__clxCopilotState = 'mount-error: ' + err.message; }
+      } else {
+        global.__clxCopilotState = 'event-non-tenant';
+      }
+    };
+    window.addEventListener('clx:auth:ready', onAuthReady);
+
+    setTimeout(function () {
+      if (resolved) return;
+      global.clxAuth.require('client').then(function (user) {
+        if (resolved) return;
+        resolved = true;
+        if (!user || ALLOWED.indexOf(user.role) === -1) {
+          global.__clxCopilotState = 'require-non-tenant';
+          return;
+        }
+        global.__clxCopilotState = 'mounting-via-require';
+        try { copilot.mount(); global.__clxCopilotState = 'mounted'; }
+        catch (err) { global.__clxCopilotState = 'mount-error: ' + err.message; }
+      }).catch(function (err) {
+        global.__clxCopilotState = 'require-rejected: ' + (err && err.message || err);
+      });
+    }, 200);
   }
 
   if (document.readyState === 'loading') {

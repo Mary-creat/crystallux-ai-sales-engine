@@ -80,9 +80,22 @@ async function load() {
         kv('Last paid on',  clxComp.formatDate(b.last_payment_at)) +
         kv('Trial ends',    clxComp.formatDate(b.trial_ends_at)) +
       '</div>' +
-      (portalUrl ? '<div style="margin-top:18px">' +
-        '<a href="' + clxComp.escapeHtml(portalUrl) + '" class="clx-btn clx-btn-primary" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px">' +
-          clxComp.icon('arrow-right', 'sm') + 'Manage billing</a></div>' : '') +
+      '<div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">' +
+        (portalUrl ? '<a href="' + clxComp.escapeHtml(portalUrl) + '" class="clx-btn clx-btn-primary" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px">' +
+          clxComp.icon('settings', 'sm') + 'Manage subscription</a>' : '') +
+        '<a href="/onboarding/" class="clx-btn clx-btn-secondary" style="display:inline-flex;align-items:center;gap:8px">' +
+          clxComp.icon('trending-up', 'sm') + 'Upgrade plan</a>' +
+        (status !== 'canceled' ? '<button type="button" class="clx-btn clx-btn-danger" id="cancelBtn" style="display:inline-flex;align-items:center;gap:8px">' +
+          clxComp.icon('x-circle', 'sm') + 'Cancel</button>' : '') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="clx-card" style="margin-top:14px;padding:0">' +
+      '<div class="clx-card-head" style="padding:16px 18px 0">' +
+        '<div class="clx-card-title" style="display:inline-flex;align-items:center;gap:8px">' +
+        clxComp.icon('inbox', 'sm') + 'Invoice history · last 12</div>' +
+      '</div>' +
+      '<div id="invoicesTable" style="padding:8px 0 8px 0"></div>' +
     '</div>';
 
   clxComp.renderStatGrid(document.getElementById('bStats'), [
@@ -96,6 +109,43 @@ async function load() {
     { label: 'Next billing', value: clxComp.formatDate(b.next_billing_date),
       icon: 'calendar', variant: 'bookings' }
   ]);
+
+  // Invoice history — use array passed by the billing endpoint if present,
+  // otherwise show a synthesized "current period" row from the client row.
+  var invoices = (d.invoices || (b.last_payment_at ? [{
+    paid_at: b.last_payment_at,
+    amount: b.last_payment_amount,
+    plan: b.subscription_plan,
+    status: 'paid'
+  }] : []));
+  var invEl = document.getElementById('invoicesTable');
+  if (!invoices.length) {
+    clxComp.renderEmpty(invEl, 'No invoices yet. Your first invoice will appear here once your trial converts.', 'inbox');
+  } else {
+    clxComp.renderList(invEl, invoices, function(inv){
+      return {
+        leftIcon: 'dollar-sign',
+        leftIconVariant: inv.status === 'paid' ? 'emerald' : 'amber',
+        primary: clxComp.formatMoney(inv.amount) + ' · ' + (inv.plan || 'subscription'),
+        secondary: clxComp.formatDate(inv.paid_at),
+        badge: inv.status,
+        right: inv.invoice_pdf_url ? '<a href="' + clxComp.escapeHtml(inv.invoice_pdf_url) + '" target="_blank">View PDF</a>' : ''
+      };
+    });
+  }
+
+  // Cancel button — opens confirmation flow (calls Stripe cancel endpoint)
+  var cancelBtn = document.getElementById('cancelBtn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function () {
+      if (!confirm('Cancel your subscription? You\'ll keep access until the end of the current billing period. You can re-subscribe anytime.')) return;
+      cancelBtn.disabled = true; cancelBtn.textContent = 'Cancelling…';
+      clxApi.clientPost('billing/cancel', {}).then(function (r) {
+        if (r.ok) { alert('Subscription cancelled. Access continues until ' + clxComp.formatDate(b.next_billing_date) + '.'); load(); }
+        else { alert('Could not cancel: ' + (r.error || 'unknown error') + '. Use Manage subscription to retry.'); cancelBtn.disabled = false; cancelBtn.textContent = 'Cancel'; }
+      });
+    });
+  }
 }
 function kv(k, v, isHtml) {
   return '<div><div class="clx-stat-label">' + k + '</div><div style="margin-top:3px">' + (isHtml ? v : clxComp.escapeHtml(v == null || v === '' ? '—' : v)) + '</div></div>';

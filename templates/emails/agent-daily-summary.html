@@ -1,0 +1,52 @@
+<!--
+  Postmark template alias: agent-daily-summary
+  Subject: Your Crystallux daily summary — {{date}}
+  Vars: {{first_name}}, {{date}}, {{messages_sent}}, {{replies_received}}, {{meetings_booked}},
+        {{leads_added}}, {{escalations_pending}}, {{coaching_flag}}, {{leads_attention_html}},
+        {{dashboard_url}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 6px;font-size:22px;font-weight:700;letter-spacing:-0.01em">Your daily summary, {{first_name}}.</h1>
+  <p style="margin:0 0 22px;color:#71717A;font-size:13px">{{date}}</p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">
+    <tr>
+      <td style="padding:14px 16px;background:#F8F7FF;border-radius:8px;border:1px solid #DDD6FE;width:25%;text-align:center" valign="top">
+        <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#7C3AED;font-weight:700">Sent</p>
+        <p style="margin:0;font-size:22px;font-weight:800;color:#18181B">{{messages_sent}}</p>
+      </td>
+      <td style="width:8px"></td>
+      <td style="padding:14px 16px;background:#F8F7FF;border-radius:8px;border:1px solid #DDD6FE;width:25%;text-align:center" valign="top">
+        <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#7C3AED;font-weight:700">Replies</p>
+        <p style="margin:0;font-size:22px;font-weight:800;color:#18181B">{{replies_received}}</p>
+      </td>
+      <td style="width:8px"></td>
+      <td style="padding:14px 16px;background:#F8F7FF;border-radius:8px;border:1px solid #DDD6FE;width:25%;text-align:center" valign="top">
+        <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#7C3AED;font-weight:700">Booked</p>
+        <p style="margin:0;font-size:22px;font-weight:800;color:#18181B">{{meetings_booked}}</p>
+      </td>
+      <td style="width:8px"></td>
+      <td style="padding:14px 16px;background:#F8F7FF;border-radius:8px;border:1px solid #DDD6FE;width:25%;text-align:center" valign="top">
+        <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#7C3AED;font-weight:700">New leads</p>
+        <p style="margin:0;font-size:22px;font-weight:800;color:#18181B">{{leads_added}}</p>
+      </td>
+    </tr>
+  </table>
+
+  {{#coaching_flag}}
+  <table role="presentation" width="100%" style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;margin:0 0 18px"><tr><td style="padding:12px 16px;font-size:13px;color:#92400E">
+    <strong>Heads up:</strong> {{coaching_flag}}
+  </td></tr></table>
+  {{/coaching_flag}}
+
+  {{#escalations_pending}}
+  <h2 style="margin:0 0 8px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Pending your attention ({{escalations_pending}})</h2>
+  <div style="margin:0 0 22px;font-size:14px;color:#52525B">
+    {{{leads_attention_html}}}
+  </div>
+  {{/escalations_pending}}
+
+  <p style="margin:0 0 22px"><a href="{{dashboard_url}}" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Open dashboard →</a></p>
+
+  <p style="margin:0;font-size:12px;color:#71717A">The AI engine ran continuously while you were offline. Adjust quiet hours, channels, or escalation rules in <a href="{{dashboard_url}}/pages/settings.html" style="color:#7C3AED">Settings</a>.</p>
+</td></tr></table>

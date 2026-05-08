@@ -1,0 +1,46 @@
+<!--
+  Crystallux email base template — copy/paste into Postmark.
+  Postmark uses Mustache for templating ({{var}}), and supports HTML + plain
+  text variants per template. Each template file in this folder has both
+  inline. Universal multi-vertical brand language. No vertical-specific copy
+  in shared shell.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{subject}}</title>
+</head>
+<body style="margin:0;padding:0;background:#FAFAFA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',sans-serif;color:#18181B;line-height:1.5">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAFA">
+  <tr><td style="padding:36px 16px 0">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:560px;margin:0 auto;background:#FFFFFF;border-radius:14px;border:1px solid #E4E4E7;overflow:hidden">
+      <!-- Brand strip -->
+      <tr><td style="padding:28px 32px 12px;background:linear-gradient(135deg,#F8F7FF 0%,#FFFFFF 100%)">
+        <a href="https://crystallux.org" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px;color:#18181B;font-weight:800;font-size:18px;letter-spacing:-0.01em">
+          <span style="display:inline-block;width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#FFFFFF;font-weight:800;font-size:15px;line-height:30px;text-align:center">C</span>
+          Crystallux
+        </a>
+      </td></tr>
+
+      <!-- ▼ TEMPLATE BODY GOES HERE — copy this base then paste body -->
+
+      <!-- Footer -->
+      <tr><td style="padding:24px 32px 28px;border-top:1px solid #E4E4E7;background:#FAFAFA">
+        <p style="margin:0 0 8px;font-size:12px;color:#52525B;line-height:1.5">
+          Crystallux — your AI sales engine across every service vertical.
+        </p>
+        <p style="margin:0 0 4px;font-size:12px;color:#71717A">
+          Need help? <a href="mailto:{{support_email}}" style="color:#7C3AED;text-decoration:none">{{support_email}}</a>
+        </p>
+        <p style="margin:0;font-size:11px;color:#A1A1AA">
+          Sent by Crystallux · {{company_address}}<br>
+          To unsubscribe from non-transactional emails, <a href="{{unsubscribe_url}}" style="color:#71717A">manage preferences</a>.
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

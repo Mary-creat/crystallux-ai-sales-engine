@@ -1,0 +1,25 @@
+<!--
+  Postmark template alias: welcome
+  Subject: Welcome to Crystallux
+  Vars: {{first_name}}, {{dashboard_url}}, {{trial_days}}, {{support_email}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 12px;font-size:24px;font-weight:800;letter-spacing:-0.01em">Welcome to Crystallux, {{first_name}}.</h1>
+  <p style="margin:0 0 16px;color:#52525B;font-size:15px">
+    Your AI sales engine is live. Whether you serve <strong>insurance clients, mortgage applicants, real estate prospects, dental practices, construction firms, consulting clients, agencies, financial advisors</strong>, or any other service vertical, the engine works for you.
+  </p>
+  <p style="margin:0 0 22px;color:#52525B;font-size:15px">
+    Your {{trial_days}}-day trial is running. The engine is already finding your first leads in the background.
+  </p>
+  <p style="margin:0 0 26px"><a href="{{dashboard_url}}" style="display:inline-block;padding:13px 26px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">Go to my dashboard →</a></p>
+
+  <h2 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#18181B;text-transform:uppercase;letter-spacing:0.05em">Quick start</h2>
+  <ol style="margin:0 0 18px;padding-left:18px;color:#52525B;font-size:14px;line-height:1.7">
+    <li>Open <a href="{{dashboard_url}}/pages/settings.html" style="color:#7C3AED">Settings</a> and tune your ICP + outreach voice.</li>
+    <li>Click the <strong>✦ Assistant</strong> bottom-right anytime to ask a plain-English question about your pipeline.</li>
+    <li>Watch <a href="{{dashboard_url}}/pages/leads.html" style="color:#7C3AED">My leads</a> — your first batch of researched prospects lands within 24 hours.</li>
+    <li>Reply to any lead, book a meeting — Crystallux handles the rest.</li>
+  </ol>
+
+  <p style="margin:0;font-size:13px;color:#71717A">Need a hand getting started? Reply to this email or message <a href="mailto:{{support_email}}" style="color:#7C3AED">{{support_email}}</a>.</p>
+</td></tr></table>

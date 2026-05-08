@@ -1,0 +1,12 @@
+<!--
+  Postmark template alias: magic-link
+  Subject: Sign in to Crystallux
+  Vars: {{magic_url}}, {{expires_minutes}}, {{support_email}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 12px;font-size:22px;font-weight:700;letter-spacing:-0.01em;color:#18181B">Sign in to Crystallux</h1>
+  <p style="margin:0 0 18px;color:#52525B;font-size:15px">Click the button below to sign in. The link expires in {{expires_minutes}} minutes and can only be used once.</p>
+  <p style="margin:0 0 28px"><a href="{{magic_url}}" style="display:inline-block;padding:13px 26px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">Sign in →</a></p>
+  <p style="margin:0 0 6px;font-size:13px;color:#71717A">Didn't request this? Ignore this email — no one can sign in without the link.</p>
+  <p style="margin:0;font-size:12px;color:#A1A1AA;word-break:break-all">If the button doesn't work, paste this into your browser: {{magic_url}}</p>
+</td></tr></table>

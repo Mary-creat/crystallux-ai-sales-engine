@@ -1,0 +1,15 @@
+<!--
+  Postmark template alias: subscription-canceled
+  Subject: Your Crystallux subscription has been canceled
+  Vars: {{first_name}}, {{access_until_date}}, {{reactivate_url}}, {{support_email}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 12px;font-size:22px;font-weight:700;letter-spacing:-0.01em">Your subscription is canceled, {{first_name}}.</h1>
+  <p style="margin:0 0 18px;color:#52525B;font-size:15px">No further charges. You'll keep full access until <strong>{{access_until_date}}</strong> — no rush to wind down.</p>
+
+  <p style="margin:0 0 18px;color:#52525B;font-size:15px">If something didn't work, we'd love to know — every cancellation note shapes what we build next. Reply to this email or reach out at <a href="mailto:{{support_email}}" style="color:#7C3AED">{{support_email}}</a>.</p>
+
+  <p style="margin:0 0 24px"><a href="{{reactivate_url}}" style="display:inline-block;padding:11px 22px;background:#FFFFFF;color:#7C3AED;text-decoration:none;border:1px solid #DDD6FE;border-radius:8px;font-weight:600;font-size:14px">Reactivate anytime</a></p>
+
+  <p style="margin:0;font-size:12px;color:#A1A1AA">Your data stays available for 30 days post-cancellation. After that we anonymize per privacy policy.</p>
+</td></tr></table>

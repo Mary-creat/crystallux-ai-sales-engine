@@ -1,0 +1,239 @@
+{
+  "name": "CLX - Client Copilot Ask",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "client/copilot/ask",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cli-ck-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-client-copilot-ask-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst question = body.question || '';\nif (!question || String(question).trim().length === 0) {\n  return { json: { ok: false, status: 400, error: 'question required' } };\n}\nreturn { json: { token: token, question: String(question).trim().slice(0, 1000) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-ck-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "cli-ck-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tenant gate. client_id MUST come from the validated session row,\n// never from the request body — that's the cross-tenant isolation\n// anchor. The session row also tells us the role; we allow client,\n// team_member, advisor, supervisor, mga_principal.\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowedRoles = ['client', 'team_member', 'advisor', 'supervisor', 'mga_principal'];\nif (allowedRoles.indexOf(row.user_role) === -1) {\n  return { json: { ok: false, status: 403, error: 'Tenant access required' } };\n}\nif (!row.client_id) {\n  return { json: { ok: false, status: 403, error: 'No client mapped to session' } };\n}\nconst question = $('Extract Inputs').item.json.question;\nreturn { json: { ok: true, client_id: row.client_id, user_role: row.user_role, question: question } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-ck-0004",
+      "name": "Check Tenant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cli-ck-0005",
+      "name": "IF Tenant OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,company,industry,city,lead_status,lead_score,date_created,outreach_sent_at,reply_detected,meeting_scheduled&limit=1000&order=date_created.desc' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-ck-0006",
+      "name": "Query Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 180],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/appointment_log?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=scheduled_start,scheduled_end,outcome,no_show_flag&order=scheduled_start.desc&limit=200' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-ck-0007",
+      "name": "Query Bookings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($json.client_id) + '&select=client_name,industry,vertical,city&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cli-ck-0008",
+      "name": "Query Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 460],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 3
+      },
+      "id": "cli-ck-0009",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1560, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Converge parallel queries; build pre-baked tenant facts so Claude\n// answers from grounded data instead of hallucinating. The system\n// prompt tells Claude: read-only, scoped to this tenant, no SQL,\n// no admin tools.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst leads = allOf('Query Leads');\nconst bookings = allOf('Query Bookings');\nconst clientArr = allOf('Query Client');\nconst client = clientArr[0] || {};\n\n// Compute tenant facts\nconst now = Date.now();\nconst d7  = now - 7  * 24*60*60*1000;\nconst d30 = now - 30 * 24*60*60*1000;\nconst statusBuckets = { 'New Lead': 0, 'Contacted': 0, 'Replied': 0, 'Booked': 0, 'Closed Lost': 0 };\nlet new7 = 0, repl30 = 0, book30 = 0, contacted30 = 0;\nleads.forEach(function (l) {\n  const s = l.lead_status || 'New Lead';\n  if (statusBuckets.hasOwnProperty(s)) statusBuckets[s] += 1;\n  const created = l.date_created ? new Date(l.date_created).getTime() : 0;\n  const sent    = l.outreach_sent_at ? new Date(l.outreach_sent_at).getTime() : 0;\n  if (created >= d7) new7 += 1;\n  if (sent >= d30) contacted30 += 1;\n  if (s === 'Replied' && created >= d30) repl30 += 1;\n  if (s === 'Booked'  && created >= d30) book30 += 1;\n});\nconst upcoming = bookings.filter(function (b) {\n  return b.scheduled_start && new Date(b.scheduled_start).getTime() > now;\n}).slice(0, 5);\n\nconst question = $('Check Tenant').item.json.question;\n\nconst systemPrompt = [\n  'You are the Crystallux Assistant for ' + (client.client_name || 'this customer') + '.',\n  'You answer questions ABOUT THEIR PIPELINE ONLY. You do NOT have access to other clients data.',\n  'Be concise: 1-3 sentences for direct questions, a short list for list questions (max 5 items).',\n  'If the question is outside their pipeline (e.g. \"what is Mary revenue?\"), politely decline.',\n  'Never produce SQL. Never invent numbers — use only the facts below.',\n  '',\n  'TENANT: ' + (client.client_name || '?'),\n  'Industry: ' + (client.industry || client.vertical || '?'),\n  'City: ' + (client.city || '?'),\n  '',\n  'PIPELINE FACTS (today):',\n  '- Total leads: ' + leads.length,\n  '- New in last 7 days: ' + new7,\n  '- Contacted (last 30d): ' + contacted30,\n  '- Replies (last 30d): ' + repl30,\n  '- Booked (last 30d): ' + book30,\n  '- Lead status mix: ' + JSON.stringify(statusBuckets),\n  '- Upcoming bookings: ' + upcoming.length,\n  upcoming.length ? '  Next: ' + upcoming.map(function(b){ return new Date(b.scheduled_start).toISOString().slice(0,16).replace('T',' '); }).join(', ') : ''\n].filter(Boolean).join('\\n');\n\nreturn { json: {\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 350,\n    temperature: 0.2,\n    system: systemPrompt,\n    messages: [\n      { role: 'user', content: question }\n    ]\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cli-ck-0010",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 12000 }
+      },
+      "id": "cli-ck-0011",
+      "name": "Claude Sonnet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2020, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const claude = $input.item.json;\nlet answer = 'I could not generate an answer right now. Please try again in a moment.';\nif (claude && Array.isArray(claude.content) && claude.content.length) {\n  const first = claude.content.find(function (c) { return c.type === 'text'; });\n  if (first && first.text) answer = String(first.text).trim();\n} else if (claude && claude.error && claude.error.message) {\n  answer = 'Assistant error: ' + claude.error.message + '. The platform admin can check Anthropic credentials.';\n}\nreturn { json: { ok: true, answer: answer } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cli-ck-0012",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2240, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "cli-ck-0013",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2460, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "cli-ck-0014",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 60]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract Inputs",   "type": "main", "index": 0 } ]] },
+    "Extract Inputs":     { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":   { "main": [[ { "node": "Check Tenant",     "type": "main", "index": 0 } ]] },
+    "Check Tenant":       { "main": [[ { "node": "IF Tenant OK",     "type": "main", "index": 0 } ]] },
+    "IF Tenant OK":       { "main": [
+                                     [
+                                       { "node": "Query Leads",    "type": "main", "index": 0 },
+                                       { "node": "Query Bookings", "type": "main", "index": 0 },
+                                       { "node": "Query Client",   "type": "main", "index": 0 }
+                                     ],
+                                     [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
+                                   ] },
+    "Query Leads":        { "main": [[ { "node": "Merge Branches",     "type": "main", "index": 0 } ]] },
+    "Query Bookings":     { "main": [[ { "node": "Merge Branches",     "type": "main", "index": 1 } ]] },
+    "Query Client":       { "main": [[ { "node": "Merge Branches",     "type": "main", "index": 2 } ]] },
+    "Merge Branches":     { "main": [[ { "node": "Build Claude Prompt","type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":{ "main": [[ { "node": "Claude Sonnet",     "type": "main", "index": 0 } ]] },
+    "Claude Sonnet":      { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":     { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,190 @@
+{
+  "name": "CLX - Auth Welcome",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auth/welcome",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ath-wel-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-auth-welcome-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fired by Stripe webhook when checkout.session.completed (first paid\n// signup) OR by clx-auth-login on first successful login (whichever\n// comes first). Idempotent — checks clients.welcome_email_sent_at\n// before sending. Safe to call multiple times.\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) {\n  return { json: { _unauthorized: true, error: 'internal secret required' } };\n}\nconst clientId = body.client_id;\nconst email = body.email;\nconst firstName = body.first_name || (email ? email.split('@')[0] : 'there');\nconst trialDays = body.trial_days || 14;\nif (!clientId || !email) {\n  return { json: { _empty: true, error: 'client_id and email required' } };\n}\nreturn { json: { client_id: clientId, email: email, first_name: firstName, trial_days: trialDays, _authorized: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ath-wel-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ath-wel-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($json.client_id) + '&select=id,client_name,welcome_email_sent_at&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ath-wel-0004",
+      "name": "Check Already Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nif (!row) return { json: { _skip: true, error: 'client not found' } };\nif (row.welcome_email_sent_at) return { json: { _skip: true, reason: 'already_sent' } };\nconst v = $('Validate').item.json;\nreturn { json: {\n  client_id: v.client_id,\n  to: v.email,\n  first_name: v.first_name,\n  trial_days: v.trial_days,\n  _ready: true\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ath-wel-0005",
+      "name": "Decide Send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._ready }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ath-wel-0006",
+      "name": "IF Ready",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'welcome', to: $json.to, vars: { first_name: $json.first_name, trial_days: $json.trial_days, dashboard_url: 'https://app.crystallux.org', support_email: 'support@crystallux.org' } }) }}",
+        "options": {}
+      },
+      "id": "ath-wel-0007",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 140],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($('Decide Send').item.json.client_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ welcome_email_sent_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "ath-wel-0008",
+      "name": "Mark Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 140],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, sent: true }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "ath-wel-0009",
+      "name": "Respond Sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2040, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, skipped: true, reason: $json.reason || 'already_sent' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "ath-wel-0010",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "ath-wel-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Validate",            "type": "main", "index": 0 } ]] },
+    "Validate":           { "main": [[ { "node": "IF Authorized",       "type": "main", "index": 0 } ]] },
+    "IF Authorized":      { "main": [
+                                     [ { "node": "Check Already Sent", "type": "main", "index": 0 } ],
+                                     [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ]
+                                   ] },
+    "Check Already Sent": { "main": [[ { "node": "Decide Send",         "type": "main", "index": 0 } ]] },
+    "Decide Send":        { "main": [[ { "node": "IF Ready",            "type": "main", "index": 0 } ]] },
+    "IF Ready":           { "main": [
+                                     [ { "node": "Send Welcome Email", "type": "main", "index": 0 } ],
+                                     [ { "node": "Respond Skipped",    "type": "main", "index": 0 } ]
+                                   ] },
+    "Send Welcome Email": { "main": [[ { "node": "Mark Sent",           "type": "main", "index": 0 } ]] },
+    "Mark Sent":          { "main": [[ { "node": "Respond Sent",        "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

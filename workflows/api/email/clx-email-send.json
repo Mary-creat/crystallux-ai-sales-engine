@@ -1,0 +1,134 @@
+{
+  "name": "CLX - Email Send (Postmark)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email/send",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "eml-snd-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-email-send-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generic transactional email sender. Validates inputs + composes the\n// Postmark API payload. Called by auth flows + Stripe flows + the agent\n// daily summary generator. Authentication is via internal-only secret\n// (req body contains { internal_secret, template, to, vars, reply_to? }) —\n// the secret is set in n8n env as INTERNAL_EMAIL_SECRET. This workflow is\n// not exposed to public callers; only other workflows on the same n8n\n// instance reach it.\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) {\n  return { json: { _unauthorized: true, error: 'internal secret required' } };\n}\nconst tpl = body.template;\nconst to = body.to;\nif (!tpl || !to) {\n  return { json: { _empty: true, error: 'template and to are required' } };\n}\nconst vars = body.vars || {};\nconst replyTo = body.reply_to || 'support@crystallux.org';\n\n// Map our template ids to Postmark TemplateAlias values. Mary creates\n// the templates in Postmark dashboard with the same alias values.\nconst aliasMap = {\n  'magic-link':           'magic-link',\n  'password-reset':       'password-reset',\n  'welcome':              'welcome',\n  'subscription-active':  'subscription-active',\n  'subscription-past-due':'subscription-past-due',\n  'subscription-canceled':'subscription-canceled',\n  'invoice-receipt':      'invoice-receipt',\n  'lead-meeting-booked':  'lead-meeting-booked',\n  'agent-daily-summary':  'agent-daily-summary'\n};\nconst templateAlias = aliasMap[tpl];\nif (!templateAlias) {\n  return { json: { _empty: true, error: 'unknown template: ' + tpl } };\n}\n\n// Universal multi-vertical: merge sensible defaults so every template can\n// reference {{vertical}} / {{brand}} without exploding when caller forgets.\nconst tplVars = Object.assign({\n  brand: 'Crystallux',\n  brand_color: '#7C3AED',\n  brand_url: 'https://crystallux.org',\n  support_email: 'support@crystallux.org',\n  vertical: 'service-industry'\n}, vars);\n\nreturn { json: {\n  _authorized: true,\n  postmark_payload: {\n    From: 'Crystallux <hello@crystallux.org>',\n    To: to,\n    ReplyTo: replyTo,\n    TemplateAlias: templateAlias,\n    TemplateModel: tplVars,\n    MessageStream: 'outbound'\n  },\n  template_alias: templateAlias,\n  to: to\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "eml-snd-0002",
+      "name": "Validate + Compose",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "eml-snd-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email/withTemplate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postmark_payload) }}",
+        "options": {}
+      },
+      "id": "eml-snd-0004",
+      "name": "Postmark Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 220],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ template_alias: $('Validate + Compose').item.json.template_alias, to_email: $('Validate + Compose').item.json.to, postmark_message_id: ($json && $json.MessageID) || null, postmark_error_code: ($json && $json.ErrorCode) || null, sent_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "eml-snd-0005",
+      "name": "Log Email Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message_id: ($('Postmark Send').item.json && $('Postmark Send').item.json.MessageID) || null }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "eml-snd-0006",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "eml-snd-0007",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 420]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Validate + Compose", "type": "main", "index": 0 } ]] },
+    "Validate + Compose": { "main": [[ { "node": "IF Authorized",      "type": "main", "index": 0 } ]] },
+    "IF Authorized":      { "main": [
+                                     [ { "node": "Postmark Send",     "type": "main", "index": 0 } ],
+                                     [ { "node": "Respond 4xx",       "type": "main", "index": 0 } ]
+                                   ] },
+    "Postmark Send":      { "main": [[ { "node": "Log Email Sent",    "type": "main", "index": 0 } ]] },
+    "Log Email Sent":     { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

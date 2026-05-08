@@ -1,0 +1,28 @@
+<!--
+  Postmark template alias: lead-meeting-booked
+  Subject: New meeting on your calendar — {{lead_company}}
+  Vars: {{first_name}}, {{lead_name}}, {{lead_company}}, {{lead_industry}}, {{scheduled_at_local}},
+        {{scheduled_at_iso}}, {{intake_summary}}, {{lead_detail_url}}, {{calendar_join_url}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 12px;font-size:22px;font-weight:700;letter-spacing:-0.01em">New meeting booked, {{first_name}}.</h1>
+  <p style="margin:0 0 18px;color:#52525B;font-size:15px"><strong>{{lead_name}}</strong> from <strong>{{lead_company}}</strong> just booked time with you. The AI engine handled the discovery → outreach → reply → booking.</p>
+
+  <table role="presentation" width="100%" style="background:#F8F7FF;border:1px solid #DDD6FE;border-radius:10px;margin:0 0 22px"><tr><td style="padding:18px 22px">
+    <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#7C3AED;font-weight:700">Meeting</p>
+    <p style="margin:0 0 6px;font-size:16px;font-weight:600">{{scheduled_at_local}}</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#52525B"><strong>{{lead_company}}</strong> · {{lead_industry}}</p>
+    {{#calendar_join_url}}
+    <p style="margin:8px 0 0"><a href="{{calendar_join_url}}" style="color:#7C3AED;font-weight:600;text-decoration:none;font-size:13px">Join meeting →</a></p>
+    {{/calendar_join_url}}
+  </td></tr></table>
+
+  {{#intake_summary}}
+  <h2 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#18181B;text-transform:uppercase;letter-spacing:0.05em">Context from outreach</h2>
+  <p style="margin:0 0 22px;color:#52525B;font-size:14px;white-space:pre-line">{{intake_summary}}</p>
+  {{/intake_summary}}
+
+  <p style="margin:0 0 22px"><a href="{{lead_detail_url}}" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#FFFFFF;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">View lead details →</a></p>
+
+  <p style="margin:0;font-size:13px;color:#71717A">Click the ✦ Assistant in your dashboard for talking points or to ask the AI anything about this lead.</p>
+</td></tr></table>

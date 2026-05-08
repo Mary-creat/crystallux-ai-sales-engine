@@ -1,0 +1,146 @@
+{
+  "name": "CLX - Client Copilot Transcribe",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "client/copilot/transcribe",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true, "binaryData": true }
+      },
+      "id": "cli-ckt-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-client-copilot-transcribe-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst binary = $input.item.binary || {};\nconst audioKey = Object.keys(binary)[0] || null;\nif (!audioKey) return { json: { ok: false, status: 400, error: 'audio file required' } };\nconst audio = binary[audioKey];\nconst mime = (audio.mimeType || '').toLowerCase();\nconst allowed = ['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/mp4','audio/m4a','audio/webm','audio/ogg'];\nif (allowed.indexOf(mime) === -1 && !/^audio\\//.test(mime)) {\n  return { json: { ok: false, status: 400, error: 'unsupported audio format: ' + mime } };\n}\nconst sizeBytes = audio.fileSize || (audio.data ? Math.ceil(audio.data.length * 3 / 4) : 0);\nif (sizeBytes > 25 * 1024 * 1024) {\n  return { json: { ok: false, status: 413, error: 'audio exceeds 25MB Whisper limit' } };\n}\nreturn { json: { token: token, audioKey: audioKey, mime: mime } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-ckt-0002",
+      "name": "Extract Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "cli-ckt-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowedRoles = ['client', 'team_member', 'advisor', 'supervisor', 'mga_principal'];\nif (allowedRoles.indexOf(row.user_role) === -1) {\n  return { json: { ok: false, status: 403, error: 'Tenant access required' } };\n}\nreturn { json: { ok: true, _passthrough: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cli-ckt-0004",
+      "name": "Check Tenant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cli-ckt-0005",
+      "name": "IF Tenant OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "model", "value": "whisper-1" },
+            {
+              "name": "file",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "={{ $('Extract Audio').item.json.audioKey }}"
+            }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "cli-ckt-0006",
+      "name": "Whisper API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, text: ($json && $json.text) || '' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "cli-ckt-0007",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "cli-ckt-0008",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 420]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Audio",   "type": "main", "index": 0 } ]] },
+    "Extract Audio":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Tenant",    "type": "main", "index": 0 } ]] },
+    "Check Tenant":     { "main": [[ { "node": "IF Tenant OK",    "type": "main", "index": 0 } ]] },
+    "IF Tenant OK":     { "main": [
+                                   [ { "node": "Whisper API",  "type": "main", "index": 0 } ],
+                                   [ { "node": "Respond 4xx",  "type": "main", "index": 0 } ]
+                                 ] },
+    "Whisper API":      { "main": [[ { "node": "Respond OK",   "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

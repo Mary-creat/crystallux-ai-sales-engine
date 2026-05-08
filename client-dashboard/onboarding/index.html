@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Welcome to Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  body { background: linear-gradient(180deg, var(--color-brand-50) 0%, var(--bg-page) 280px); }
+  .ob-wrap { max-width: 980px; margin: 0 auto; padding: 40px 20px 80px; }
+  .ob-step-strip { display: flex; gap: 8px; align-items: center; margin-bottom: 32px; }
+  .ob-step { flex: 1; height: 4px; background: var(--gray-200); border-radius: 99px; transition: background .25s; }
+  .ob-step.active { background: var(--color-brand-500); }
+  .ob-step.done   { background: var(--color-brand-700); }
+  .ob-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--r-lg); padding: 36px;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.06);
+  }
+  .ob-card h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .ob-card .sub { font-size: 16px; color: var(--text-secondary); margin-bottom: 28px; }
+  .ob-tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .ob-tier-grid { grid-template-columns: 1fr; } }
+  .ob-tier {
+    background: var(--bg-card); border: 2px solid var(--border);
+    border-radius: var(--r-md); padding: 22px;
+    cursor: pointer; transition: all .15s;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .ob-tier:hover { border-color: var(--color-brand-300); box-shadow: 0 8px 24px rgba(124,58,237,0.10); transform: translateY(-2px); }
+  .ob-tier.featured { border-color: var(--color-brand-500); position: relative; }
+  .ob-tier.featured::before {
+    content: 'POPULAR'; position: absolute; top: -10px; right: 16px;
+    background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+    color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    padding: 3px 10px; border-radius: 99px;
+  }
+  .ob-tier h3 { font-size: 18px; font-weight: 700; }
+  .ob-tier .price { font-size: 28px; font-weight: 800; color: var(--text-primary); }
+  .ob-tier .price small { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+  .ob-tier ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .ob-tier li { font-size: 13px; color: var(--text-secondary); display: flex; gap: 8px; align-items: flex-start; }
+  .ob-tier li::before { content: '✓'; color: var(--color-brand-600); font-weight: 700; flex-shrink: 0; }
+  .ob-cta {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 22px; border-radius: var(--r-sm);
+    background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+    color: #fff; font-weight: 600; font-size: 15px;
+    border: none; cursor: pointer; transition: transform .15s;
+  }
+  .ob-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(124,58,237,0.30); }
+  .ob-cta:disabled { opacity: 0.6; cursor: wait; transform: none; }
+  .ob-link-back { font-size: 13px; color: var(--text-muted); margin-top: 18px; display: inline-block; }
+  .ob-link-back:hover { color: var(--color-brand-600); }
+</style>
+</head>
+<body>
+<div class="ob-wrap">
+  <header style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px">
+    <a href="/" class="clx-logo" style="font-size:18px">
+      <span class="clx-logo-mark">C</span>Crystallux
+    </a>
+    <a href="/pages/overview.html" class="ob-link-back">Skip for now →</a>
+  </header>
+
+  <div class="ob-step-strip" id="stepStrip">
+    <div class="ob-step active" data-step="1"></div>
+    <div class="ob-step" data-step="2"></div>
+    <div class="ob-step" data-step="3"></div>
+    <div class="ob-step" data-step="4"></div>
+  </div>
+
+  <div id="stepContainer"></div>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+var state = { step: 1, plan: null, user: null };
+
+clxAuth.require('client').then(function (user) {
+  state.user = user;
+  // Allow team_member + advisor + supervisor to also onboard their tenant
+  renderStep();
+}).catch(function () {});
+
+function setStep(n) {
+  state.step = n;
+  document.querySelectorAll('.ob-step').forEach(function (el) {
+    var s = parseInt(el.getAttribute('data-step'), 10);
+    el.classList.toggle('done', s < n);
+    el.classList.toggle('active', s === n);
+  });
+  renderStep();
+  window.scrollTo(0, 0);
+}
+
+function renderStep() {
+  var el = document.getElementById('stepContainer');
+  if (state.step === 1) return renderStep1(el);
+  if (state.step === 2) return renderStep2(el);
+  if (state.step === 3) return renderStep3(el);
+  if (state.step === 4) return renderStep4(el);
+}
+
+function renderStep1(el) {
+  el.innerHTML =
+    '<div class="ob-card">' +
+      '<h1>Welcome to Crystallux.</h1>' +
+      '<p class="sub">Your AI sales engine. Whether you serve insurance, mortgage, real estate, dental, construction, consulting, or any other service vertical, the engine works for you.</p>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0">' +
+        kvBig(clxComp.icon('target','lg'), 'Find prospects', 'AI-discovered leads, vertical-tuned ICP, freshly researched.') +
+        kvBig(clxComp.icon('mail','lg'),   'Reach out',     'Personalised email + LinkedIn + voice + WhatsApp + video. Compliant by design.') +
+        kvBig(clxComp.icon('calendar','lg'), 'Book meetings',  'Replies routed, no-show recovery, calendar reshuffle.') +
+      '</div>' +
+      '<button class="ob-cta" id="continueBtn" style="margin-top:8px">Choose your plan →</button>' +
+    '</div>';
+  document.getElementById('continueBtn').addEventListener('click', function(){ setStep(2); });
+}
+
+function kvBig(icon, title, body) {
+  return '<div style="padding:16px;background:var(--color-brand-50);border:1px solid var(--color-brand-100);border-radius:var(--r-md)">' +
+    '<div style="margin-bottom:8px;color:var(--color-brand-600)">' + icon + '</div>' +
+    '<div style="font-weight:700;margin-bottom:4px">' + clxComp.escapeHtml(title) + '</div>' +
+    '<div style="font-size:13px;color:var(--text-secondary)">' + clxComp.escapeHtml(body) + '</div>' +
+  '</div>';
+}
+
+function renderStep2(el) {
+  // Tiers — universal language. Crystallux Pipeline service from BUSINESS_PLAN §4.1.
+  var tiers = [
+    {
+      key: 'starter_1497', name: 'Starter', price: 1497, blurb: '10-15 booked meetings/mo',
+      bullets: [
+        'AI lead discovery + research',
+        'Email + LinkedIn outreach',
+        'Reply detection + booking',
+        'Single vertical, single geography',
+        '60-day commit'
+      ]
+    },
+    {
+      key: 'growth_2997', name: 'Growth', price: 2997, blurb: '20-30 booked meetings/mo',
+      featured: true,
+      bullets: [
+        'Everything in Starter',
+        'WhatsApp + voice + video outreach',
+        'Up to 3 cities or sub-verticals',
+        'Dedicated Slack support',
+        '90-day commit'
+      ]
+    },
+    {
+      key: 'scale_5997', name: 'Scale', price: 5997, blurb: '50+ booked meetings/mo',
+      bullets: [
+        'Everything in Growth',
+        'Multi-vertical or national',
+        'Behavioral Intelligence add-on',
+        'Weekly strategy calls',
+        '6-month commit'
+      ]
+    }
+  ];
+  el.innerHTML =
+    '<div class="ob-card">' +
+      '<h1>Choose your plan.</h1>' +
+      '<p class="sub">Every tier includes a 14-day free trial. You can change tiers anytime.</p>' +
+      '<div class="ob-tier-grid">' +
+        tiers.map(function(t){
+          return '<div class="ob-tier' + (t.featured ? ' featured' : '') + '" data-key="' + t.key + '">' +
+            '<h3>' + t.name + '</h3>' +
+            '<div class="price">$' + t.price.toLocaleString() + '<small> / mo CAD</small></div>' +
+            '<div style="font-size:13px;color:var(--text-muted)">' + clxComp.escapeHtml(t.blurb) + '</div>' +
+            '<ul>' + t.bullets.map(function(b){ return '<li>' + clxComp.escapeHtml(b) + '</li>'; }).join('') + '</ul>' +
+            '<button class="ob-cta" data-key="' + t.key + '" style="margin-top:auto">Start 14-day trial</button>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<a class="ob-link-back" id="back1">← Back</a>' +
+    '</div>';
+  document.querySelectorAll('.ob-cta[data-key]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.plan = b.getAttribute('data-key');
+      setStep(3);
+    });
+  });
+  document.getElementById('back1').addEventListener('click', function(){ setStep(1); });
+}
+
+function renderStep3(el) {
+  el.innerHTML =
+    '<div class="ob-card" style="text-align:center">' +
+      '<div style="margin:0 auto 18px;width:64px;height:64px;border-radius:50%;background:var(--color-brand-100);display:flex;align-items:center;justify-content:center;color:var(--color-brand-600)">' +
+        clxComp.icon('credit-card','xl') +
+      '</div>' +
+      '<h1>Redirecting to checkout…</h1>' +
+      '<p class="sub">Stripe handles the payment securely. You\'ll be back on your dashboard the moment your card is approved.</p>' +
+      '<div id="checkoutErr" style="display:none;margin-top:18px"></div>' +
+    '</div>';
+
+  // Hand off to clx-stripe-provision-v1 → returns Stripe Checkout URL → redirect
+  fetch('https://automation.crystallux.org/webhook/clx-stripe-provision', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (clxAuth.getToken() || '')
+    },
+    body: JSON.stringify({
+      client_id: state.user && state.user.client_id,
+      client_email: state.user && state.user.email,
+      selected_plan: state.plan
+    })
+  }).then(function(r){ return r.json(); }).then(function(data){
+    if (data && data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else if (data && data.session_url) {
+      window.location.href = data.session_url;
+    } else if (data && data.ok) {
+      // Already provisioned (no checkout needed), proceed to step 4
+      setStep(4);
+    } else {
+      var errDiv = document.getElementById('checkoutErr');
+      errDiv.style.display = 'block';
+      errDiv.innerHTML = '<div class="clx-error-banner" style="text-align:left">' +
+        '<strong>We couldn\'t start checkout.</strong> ' +
+        clxComp.escapeHtml((data && data.error) || 'Stripe may not be activated yet — check with support.') +
+        '<br><a href="/onboarding/" class="ob-link-back">← Try a different plan</a>' +
+        ' · <a href="mailto:support@crystallux.org" class="ob-link-back">Contact support</a></div>';
+    }
+  }).catch(function(e){
+    var errDiv = document.getElementById('checkoutErr');
+    errDiv.style.display = 'block';
+    errDiv.innerHTML = '<div class="clx-error-banner" style="text-align:left">' +
+      '<strong>Network error.</strong> ' + clxComp.escapeHtml(e.message || String(e)) +
+      ' <a href="/onboarding/" class="ob-link-back">← Retry</a></div>';
+  });
+}
+
+function renderStep4(el) {
+  el.innerHTML =
+    '<div class="ob-card" style="text-align:center">' +
+      '<div style="margin:0 auto 18px;width:64px;height:64px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;color:#047857">' +
+        clxComp.icon('check-circle','xl') +
+      '</div>' +
+      '<h1>You\'re all set.</h1>' +
+      '<p class="sub">Your trial is live. The engine is already finding your first leads in the background.</p>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0;text-align:left">' +
+        kvBig(clxComp.icon('target','lg'),    'First leads',  'Your first batch lands in Leads within 24 hours.') +
+        kvBig(clxComp.icon('settings','lg'),  'Personalize',  'Tune your ICP + outreach voice in Settings.') +
+        kvBig(clxComp.icon('message-square','lg'), 'Ask the Assistant', 'Click the ✦ at any time to ask anything about your pipeline.') +
+      '</div>' +
+      '<a href="/pages/overview.html" class="ob-cta">Go to my dashboard →</a>' +
+    '</div>';
+}
+</script>
+</body>
+</html>

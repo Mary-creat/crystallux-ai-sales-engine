@@ -1,0 +1,20 @@
+<!--
+  Postmark template alias: invoice-receipt
+  Subject: Your Crystallux invoice — {{invoice_number}}
+  Vars: {{first_name}}, {{invoice_number}}, {{plan_name}}, {{amount_formatted}}, {{paid_at}}, {{invoice_pdf_url}}, {{period_start}}, {{period_end}}
+-->
+<table role="presentation" width="100%"><tr><td style="padding:0 32px 32px">
+  <h1 style="margin:18px 0 6px;font-size:22px;font-weight:700;letter-spacing:-0.01em">Receipt — {{invoice_number}}</h1>
+  <p style="margin:0 0 22px;color:#52525B;font-size:14px">Thanks for your payment, {{first_name}}.</p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E4E4E7;border-radius:10px;margin:0 0 22px">
+    <tr><td style="padding:14px 18px;border-bottom:1px solid #E4E4E7"><strong>Plan:</strong> <span style="color:#52525B">{{plan_name}}</span></td></tr>
+    <tr><td style="padding:14px 18px;border-bottom:1px solid #E4E4E7"><strong>Period:</strong> <span style="color:#52525B">{{period_start}} – {{period_end}}</span></td></tr>
+    <tr><td style="padding:14px 18px;border-bottom:1px solid #E4E4E7"><strong>Paid on:</strong> <span style="color:#52525B">{{paid_at}}</span></td></tr>
+    <tr><td style="padding:14px 18px;background:#F8F7FF"><strong>Amount paid:</strong> <span style="color:#7C3AED;font-weight:700;font-size:17px;float:right">{{amount_formatted}}</span></td></tr>
+  </table>
+
+  <p style="margin:0 0 22px"><a href="{{invoice_pdf_url}}" style="display:inline-block;padding:11px 22px;background:#FFFFFF;color:#7C3AED;text-decoration:none;border:1px solid #DDD6FE;border-radius:8px;font-weight:600;font-size:14px">Download PDF</a></p>
+
+  <p style="margin:0;font-size:12px;color:#A1A1AA">GST/HST is included where applicable per Stripe Tax. Tax registration: BN {{tax_registration_number}}.</p>
+</td></tr></table>
