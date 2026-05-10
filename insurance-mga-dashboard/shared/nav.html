@@ -1,0 +1,36 @@
+<!-- Insurance MGA sidebar nav. Inserted into <nav class="clx-sidebar"> on each page. -->
+<div class="clx-sidebar-section">Advisor</div>
+<a href="/advisor/overview.html" data-nav="overview">Overview</a>
+<a href="/advisor/reviews.html" data-nav="reviews">Reviews</a>
+<a href="/advisor/leads.html" data-nav="leads">Leads</a>
+<a href="/advisor/applications.html" data-nav="applications">Applications</a>
+<a href="/advisor/commissions.html" data-nav="commissions">Commissions</a>
+
+<div class="clx-sidebar-section" data-principal-only>MGA Principal</div>
+<a href="/principal/overview.html" data-nav="principal-overview" data-principal-only>Overview</a>
+<a href="/principal/advisors.html" data-nav="principal-advisors" data-principal-only>Advisors</a>
+<a href="/principal/compliance.html" data-nav="principal-compliance" data-principal-only>Compliance Queue</a>
+
+<div class="clx-sidebar-section">Account</div>
+<a href="#" data-nav="logout" id="navLogout">Sign out</a>
+
+<script>
+  (function () {
+    // Hide principal-only items if user is not mga_principal/admin/compliance_officer.
+    document.addEventListener('DOMContentLoaded', function () {
+      var role = (window.clxAuth && clxAuth.getRole && clxAuth.getRole()) || '';
+      if (role !== 'mga_principal' && role !== 'admin' && role !== 'compliance_officer') {
+        document.querySelectorAll('[data-principal-only]').forEach(function (el) { el.style.display = 'none'; });
+      }
+      var current = window.location.pathname.split('/').pop().replace('.html', '');
+      document.querySelectorAll('[data-nav]').forEach(function (el) {
+        var key = el.getAttribute('data-nav');
+        if (key === current || (current === 'overview' && el.getAttribute('href').indexOf(window.location.pathname.indexOf('principal') >= 0 ? 'principal' : 'advisor') >= 0 && key.indexOf(current) >= 0)) {
+          el.classList.add('active');
+        }
+      });
+      var logout = document.getElementById('navLogout');
+      if (logout) logout.addEventListener('click', function (e) { e.preventDefault(); window.clxAuth.clearSession(); window.location.href = '/login.html'; });
+    });
+  })();
+</script>

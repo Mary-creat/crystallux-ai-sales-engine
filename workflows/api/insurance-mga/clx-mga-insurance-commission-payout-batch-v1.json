@@ -1,0 +1,89 @@
+{
+  "name": "CLX - MGA Insurance Commission Payout Batch v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 15 * *" } ] }
+      },
+      "id": "cpb-0001", "name": "Schedule Trigger (DEACTIVATED)", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 400],
+      "notes": "DEACTIVATED. Monthly on 15th at 06:00 UTC. Aggregates all commission_ledger rows WHERE vertical_id='insurance' AND payout_status='pending' from the previous month. Generates per-advisor + per-MGA-principal summary, marks rows payout_status='processing', emits CSV-friendly summary in admin_action_log for Mary to execute the bank transfers manually (Phase 5 MVP). Phase 6 wires to actual payment rail."
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ (() => { const since = new Date(Date.now() - 45*24*3600*1000).toISOString(); return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/commission_ledger?vertical_id=eq.insurance&payout_status=eq.pending&created_at=gte.' + encodeURIComponent(since) + '&order=advisor_id.asc&limit=10000&select=*'; })() }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 30000 }
+      },
+      "id": "cpb-0002", "name": "Fetch Pending", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : [];\nif (rows.length === 0) return [{ json: { _empty: true, count: 0 } }];\n// Aggregate per advisor + per principal.\nconst byAdvisor = {};\nconst byPrincipal = {};\nconst ids = [];\nfor (const r of rows) {\n  ids.push(r.id);\n  const a = r.advisor_id;\n  if (a) {\n    if (!byAdvisor[a]) byAdvisor[a] = { advisor_id: a, total_advisor_cents: 0, count: 0 };\n    byAdvisor[a].total_advisor_cents += parseInt(r.advisor_commission) || 0;\n    byAdvisor[a].count += 1;\n  }\n  const p = r.mga_principal_id;\n  if (p) {\n    if (!byPrincipal[p]) byPrincipal[p] = { mga_principal_id: p, total_mga_cents: 0, count: 0 };\n    byPrincipal[p].total_mga_cents += parseInt(r.mga_commission) || 0;\n    byPrincipal[p].count += 1;\n  }\n}\n// CSV summary for Mary (Phase 5 manual execution).\nconst csv = ['ledger_id,advisor_id,carrier_name,product_type,policy_number,advisor_commission_cents,mga_commission_cents,carrier_commission_cents'].concat(rows.map(function (r) {\n  return [r.id, r.advisor_id, (r.carrier_name||'').replace(/,/g,';'), r.product_type||'', r.policy_number||'', r.advisor_commission||0, r.mga_commission||0, r.carrier_commission||0].join(',');\n})).join('\\n');\nreturn [{ json: { _ready: true, ledger_ids: ids, count: rows.length, by_advisor: Object.values(byAdvisor), by_principal: Object.values(byPrincipal), csv: csv, run_at: new Date().toISOString() } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cpb-0003", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "cpb-0004", "name": "IF Empty", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 50, "options": {} },
+      "id": "cpb-0005", "name": "Batch Mark", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3, "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ids = $('Aggregate').first().json.ledger_ids || [];\nconst page = $('Batch Mark').context.currentRunIndex || 0;\nconst pageSize = 50;\nconst chunk = ids.slice(page * pageSize, (page + 1) * pageSize);\nif (chunk.length === 0) return [{ json: { _done: true } }];\nreturn chunk.map(function (id) { return { json: { ledger_id: id } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cpb-0006", "name": "Fan Chunk", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1380, 500]
+    },
+    {
+      "parameters": {
+        "method": "PATCH", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/commission_ledger?id=eq.' + encodeURIComponent($json.ledger_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ payout_status: 'processing' }) }}",
+        "options": {}
+      },
+      "id": "cpb-0007", "name": "Mark Processing", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "cpb-0008", "name": "Loop Continue", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [1860, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'crystallux-mga-payout-batch', action_type: 'vertical_generated', input_text: 'Insurance MGA monthly commission payout batch — ' + $json.count + ' ledger entries marked processing', panel_context: 'insurance_mga_payouts', generated_content: { count: $json.count, by_advisor: $json.by_advisor, by_principal: $json.by_principal, csv: $json.csv, vertical_id: 'insurance' }, result_summary: 'ok', success: true, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "cpb-0009", "name": "Log Summary", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1140, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true,
+      "notes": "Phase 5 MVP: CSV is placed into admin_action_log.generated_content for Mary to copy out and execute manually. Phase 6 wires to a payment-rail integration (Stripe Connect / Wise / etc.)."
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Pending", "type": "main", "index": 0 } ]] },
+    "Fetch Pending":                  { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":                      { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Batch Mark", "type": "main", "index": 0 }, { "node": "Log Summary", "type": "main", "index": 0 } ]] },
+    "Batch Mark":                     { "main": [[], [ { "node": "Fan Chunk", "type": "main", "index": 0 } ]] },
+    "Fan Chunk":                      { "main": [[ { "node": "Mark Processing", "type": "main", "index": 0 } ]] },
+    "Mark Processing":                { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Batch Mark", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

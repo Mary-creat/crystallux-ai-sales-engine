@@ -1,0 +1,169 @@
+{
+  "name": "CLX - MGA Insurance Review Video Deliver v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/review-video-deliver", "responseMode": "responseNode", "options": {} },
+      "id": "rvd-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-review-video-deliver-001",
+      "notes": "DEACTIVATED. Internal-call. Triggered when video render is ready (called from existing clx-heygen-webhook-v1 enhancement OR by review-video-generator after async wait). Reads policy_reviews.video_render_id, looks up landing_page_url from video_renders, sends via WhatsApp/SMS/email with personalized intro. Updates video_engagement_status='sent'."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nif (!secret || secret !== (process.env.INTERNAL_EMAIL_SECRET || '')) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.policy_review_id) return { json: { _empty: true, error: 'policy_review_id required' } };\nreturn { json: { _authorized: true, policy_review_id: body.policy_review_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rvd-0002", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rvd-0003", "name": "IF Authorized", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?id=eq.' + encodeURIComponent($json.policy_review_id) + '&vertical_id=eq.insurance&select=id,client_id,lead_id,advisor_id,video_render_id,trigger_signal_type&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "rvd-0004", "name": "Fetch Review", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst r = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!r || !r.video_render_id) return { json: { _no_video: true, error: 'review has no video_render_id (still rendering or failed)' } };\nreturn { json: { review: r } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rvd-0005", "name": "Carry Review", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1140, 320]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_video }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rvd-0006", "name": "IF No Video", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1380, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?id=eq.' + encodeURIComponent($json.review.video_render_id) + '&select=id,landing_page_url,status,storage_url&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "rvd-0007", "name": "Fetch Video", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($('Carry Review').item.json.review.lead_id) + '&select=id,first_name,full_name,email,phone&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "rvd-0008", "name": "Fetch Lead", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": { "mode": "append", "numberInputs": 2 },
+      "id": "rvd-0009", "name": "Merge", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1860, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst videos = allOf('Fetch Video');\nconst leads = allOf('Fetch Lead');\nconst v = videos[0] || {};\nconst lead = leads[0] || {};\nif (v.status !== 'ready') return { json: { _not_ready: true, status: v.status || 'unknown' } };\nif (!lead.email && !lead.phone) return { json: { _no_contact: true } };\nconst firstName = lead.first_name || (lead.full_name || '').split(' ')[0] || 'there';\nconst landingUrl = v.landing_page_url || v.storage_url || 'https://crystallux.org';\nconst content = 'Hi ' + firstName + ', made you a personal video about your policy review. Watch here: ' + landingUrl;\n// Channel preference: WhatsApp first if phone, then SMS, then email.\nconst channel = lead.phone ? 'whatsapp' : 'email';\nreturn { json: { channel: channel, content: content, lead_id: lead.id, lead_email: lead.email, client_id: $('Carry Review').item.json.review.client_id, video_render_id: v.id, landing_url: landingUrl, policy_review_id: $('Carry Review').item.json.review.id } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "rvd-0010", "name": "Compose Message", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2100, 320]
+    },
+    {
+      "parameters": {
+        "rules": { "values": [
+          { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.channel }}", "rightValue": "whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "wa" },
+          { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.channel }}", "rightValue": "email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" }
+        ] }, "options": { "fallbackOutput": "extra" }
+      },
+      "id": "rvd-0011", "name": "Switch Channel", "type": "n8n-nodes-base.switch", "typeVersion": 3, "position": [2340, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: $json.content, video_render_id: $json.video_render_id }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "rvd-0012", "name": "Send WhatsApp", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2580, 220],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: $json.lead_email, vars: { first_name: 'there', message: $json.content, landing_url: $json.landing_url } }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "rvd-0013", "name": "Send Email", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2580, 420],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?id=eq.' + encodeURIComponent($('Compose Message').item.json.policy_review_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ video_engagement_status: 'sent' }) }}",
+        "options": {}
+      },
+      "id": "rvd-0014", "name": "Mark Sent", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2820, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'review_video_delivered', client_id: $('Compose Message').item.json.client_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { policy_review_id: $('Compose Message').item.json.policy_review_id, channel: $('Compose Message').item.json.channel, video_render_id: $('Compose Message').item.json.video_render_id }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "rvd-0015", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [3060, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', policy_review_id: $('Compose Message').item.json.policy_review_id, channel: $('Compose Message').item.json.channel }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "rvd-0016", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [3300, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : ($json._no_video ? 404 : ($json._not_ready ? 425 : 400)) }}" }
+      },
+      "id": "rvd-0017", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":        { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":   { "main": [[ { "node": "Fetch Review", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Review":    { "main": [[ { "node": "Carry Review", "type": "main", "index": 0 } ]] },
+    "Carry Review":    { "main": [[ { "node": "IF No Video", "type": "main", "index": 0 } ]] },
+    "IF No Video":     { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Fetch Video", "type": "main", "index": 0 }, { "node": "Fetch Lead", "type": "main", "index": 0 } ]] },
+    "Fetch Video":     { "main": [[ { "node": "Merge", "type": "main", "index": 0 } ]] },
+    "Fetch Lead":      { "main": [[ { "node": "Merge", "type": "main", "index": 1 } ]] },
+    "Merge":           { "main": [[ { "node": "Compose Message", "type": "main", "index": 0 } ]] },
+    "Compose Message": { "main": [[ { "node": "Switch Channel", "type": "main", "index": 0 } ]] },
+    "Switch Channel":  { "main": [[ { "node": "Send WhatsApp", "type": "main", "index": 0 } ], [ { "node": "Send Email", "type": "main", "index": 0 } ], [ { "node": "Mark Sent", "type": "main", "index": 0 } ]] },
+    "Send WhatsApp":   { "main": [[ { "node": "Mark Sent", "type": "main", "index": 0 } ]] },
+    "Send Email":      { "main": [[ { "node": "Mark Sent", "type": "main", "index": 0 } ]] },
+    "Mark Sent":       { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":       { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,151 @@
+{
+  "name": "CLX - MGA Insurance Review Triggered Event v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/review-triggered-event", "responseMode": "responseNode", "options": {} },
+      "id": "rte-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-review-triggered-event-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Triggered by behavioral_signals processing (BI pipeline) when a high-relevance signal lands on a lead with an in-force insurance policy. Maps signal_type → review_type + trigger_signal_type, creates policy_reviews row with priority=high + due_date=NOW+7d, fires B7.1 video generator immediately, notifies advisor."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nif (!secret || secret !== (process.env.INTERNAL_EMAIL_SECRET || '')) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.signal_type) return { json: { _empty: true, error: 'lead_id and signal_type required' } };\n// Map BI signal_type → review trigger metadata.\nconst map = {\n  baby_born: { trigger: 'baby', priority: 'high' },\n  marriage: { trigger: 'marriage', priority: 'high' },\n  job_change: { trigger: 'new_job', priority: 'high' },\n  job_loss: { trigger: 'job_loss', priority: 'urgent' },\n  home_purchase: { trigger: 'home_purchase', priority: 'high' },\n  business_expansion: { trigger: 'business_expansion', priority: 'high' },\n  birthday_window_7d: { trigger: 'birthday', priority: 'medium' },\n  birthday: { trigger: 'birthday', priority: 'medium' },\n  retirement_planning_age: { trigger: 'retirement_planning_age', priority: 'high' },\n  child_milestone: { trigger: 'child_milestone', priority: 'medium' }\n};\nconst spec = map[body.signal_type] || { trigger: body.signal_type, priority: 'medium' };\n// Birthday is annual touchpoint, others are triggered_event reviews.\nconst reviewType = (spec.trigger === 'birthday') ? 'annual' : 'triggered_event';\nreturn { json: { _authorized: true, lead_id: body.lead_id, signal_id: body.signal_id || null, signal_type: body.signal_type, trigger_signal_type: spec.trigger, review_type: reviewType, priority: spec.priority, signal_data: body.signal_data || {} } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rte-0002", "name": "Validate + Map Signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rte-0003", "name": "IF Authorized", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?vertical_id=eq.insurance&in_force_status=eq.in_force&select=id,client_id,advisor_id,carrier_name,product_type,policy_number&order=created_at.desc&limit=5&id=in.(' + 'placeholder' + ')' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {},
+        "_note": "We don't have direct lead_id->policy_applications mapping; instead query by client_id derived from lead. Doing two-step lookup via leads table next node."
+      },
+      "id": "rte-0004", "name": "Lookup Lead Then Policies", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.lead_id) + '&select=id,client_id,assigned_advisor_id,first_name,full_name,email,phone&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "rte-0005", "name": "Fetch Lead", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 440],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Validate + Map Signal').item.json;\nconst rows = $input.item.json;\nconst lead = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!lead || !lead.id) return { json: { _no_lead: true, error: 'lead not found' } };\nreturn { json: { lead: lead, ctx: ctx } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rte-0006", "name": "Carry Lead", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1140, 440]
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?client_id=eq.' + encodeURIComponent($json.lead.client_id) + '&vertical_id=eq.insurance&in_force_status=eq.in_force&select=id,advisor_id,carrier_name,product_type,policy_number&order=issued_at.desc&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "rte-0007", "name": "Fetch In-Force Policy", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 440],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const carry = $('Carry Lead').item.json;\nconst rows = $input.item.json;\nconst pol = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!pol || !pol.id) return { json: { _no_policy: true, error: 'no in-force policy for client — skipping triggered review (signal will still be processed by BI pipeline)' } };\nreturn { json: {\n  insert_row: {\n    vertical_id: 'insurance',\n    policy_application_id: pol.id,\n    client_id: carry.lead.client_id,\n    lead_id: carry.lead.id,\n    advisor_id: pol.advisor_id || carry.lead.assigned_advisor_id,\n    review_type: carry.ctx.review_type,\n    trigger_source: 'behavioral_signal',\n    trigger_signal_id: carry.ctx.signal_id,\n    trigger_signal_type: carry.ctx.trigger_signal_type,\n    scheduled_date: new Date().toISOString().slice(0,10),\n    due_date: new Date(Date.now() + 7*86400000).toISOString().slice(0,10),\n    priority: carry.ctx.priority,\n    status: 'scheduled',\n    video_engagement_status: 'not_sent'\n  },\n  advisor_id: pol.advisor_id || carry.lead.assigned_advisor_id,\n  client_id: carry.lead.client_id,\n  lead_id: carry.lead.id,\n  policy_application_id: pol.id\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rte-0008", "name": "Build Review Row", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1620, 440]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_policy || $json._no_lead }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rte-0009", "name": "IF Skipped", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1860, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert_row) }}",
+        "options": {}
+      },
+      "id": "rte-0010", "name": "Insert Review", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2100, 360],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/review-video-generate' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $input.item.json; const row = Array.isArray(ins) ? ins[0] : ins; if (!row || !row.id) return JSON.stringify({ skip: true }); return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, policy_review_id: row.id }); })() }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "rte-0011", "name": "Trigger Video Gen", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2340, 360],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $('Insert Review').item.json; const row = Array.isArray(ins) ? ins[0] : ins; const b = $('Build Review Row').item.json; return JSON.stringify({ vertical_id: 'insurance', event_type: 'review_triggered_by_signal', client_id: b.client_id, advisor_id: b.advisor_id, policy_application_id: b.policy_application_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { policy_review_id: row && row.id, trigger_signal_type: b.insert_row.trigger_signal_type, signal_id: b.insert_row.trigger_signal_id, priority: b.insert_row.priority }, occurred_at: new Date().toISOString() }); })() }}",
+        "options": {}
+      },
+      "id": "rte-0012", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2580, 360],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { const ins = $('Insert Review').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ ok: true, vertical_id: 'insurance', policy_review_id: row && row.id, trigger_signal_type: $('Build Review Row').item.json.insert_row.trigger_signal_type }); })() }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "rte-0013", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2820, 360]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, skipped: true, reason: $json.error || 'no_in_force_policy' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "rte-0014", "name": "Respond Skipped", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2100, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "rte-0015", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 660]
+    }
+  ],
+  "connections": {
+    "Webhook":                  { "main": [[ { "node": "Validate + Map Signal", "type": "main", "index": 0 } ]] },
+    "Validate + Map Signal":    { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":            { "main": [[ { "node": "Fetch Lead", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Lead":               { "main": [[ { "node": "Carry Lead", "type": "main", "index": 0 } ]] },
+    "Carry Lead":               { "main": [[ { "node": "Fetch In-Force Policy", "type": "main", "index": 0 } ]] },
+    "Fetch In-Force Policy":    { "main": [[ { "node": "Build Review Row", "type": "main", "index": 0 } ]] },
+    "Build Review Row":         { "main": [[ { "node": "IF Skipped", "type": "main", "index": 0 } ]] },
+    "IF Skipped":               { "main": [[ { "node": "Respond Skipped", "type": "main", "index": 0 } ], [ { "node": "Insert Review", "type": "main", "index": 0 } ]] },
+    "Insert Review":            { "main": [[ { "node": "Trigger Video Gen", "type": "main", "index": 0 } ]] },
+    "Trigger Video Gen":        { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,107 @@
+{
+  "name": "CLX - MGA Insurance Carrier Appointment Create v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/carrier-appointment-create", "responseMode": "responseNode", "options": {} },
+      "id": "cac-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-carrier-appointment-create-001",
+      "notes": "DEACTIVATED. mga_principal session. Records a per-advisor carrier appointment with commission splits (advisor + MGA + carrier %). Validates splits sum to 100. Updates advisor_onboarding.carrier_appointments_initiated."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nconst required = ['advisor_id','carrier_name','effective_date','commission_split_carrier','commission_split_mga','commission_split_advisor'];\nfor (const f of required) { if (body[f] == null) return { json: { _empty: true, status: 400, error: f + ' required' } }; }\nconst sumPct = (parseFloat(body.commission_split_carrier) || 0) + (parseFloat(body.commission_split_mga) || 0) + (parseFloat(body.commission_split_advisor) || 0);\nif (Math.abs(sumPct - 100.0) > 0.01) return { json: { _empty: true, status: 400, error: 'Commission splits must sum to 100 (got ' + sumPct + ')' } };\nreturn { json: { token: token, advisor_id: body.advisor_id, carrier_name: body.carrier_name, carrier_appointment_number: body.carrier_appointment_number || null, product_lines: Array.isArray(body.product_lines) ? body.product_lines : [], effective_date: body.effective_date, expires_date: body.expires_date || null, commission_split_carrier: body.commission_split_carrier, commission_split_mga: body.commission_split_mga, commission_split_advisor: body.commission_split_advisor, documentation_url: body.documentation_url || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cac-0002", "name": "Extract + Validate Splits", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+      },
+      "id": "cac-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nif (row.user_role !== 'mga_principal' && row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'mga_principal role required' } };\nconst i = $('Extract + Validate Splits').item.json;\nreturn { json: { _ok: true, mga_principal_id: row.id || row.user_id, advisor_id: i.advisor_id, carrier_name: i.carrier_name, carrier_appointment_number: i.carrier_appointment_number, product_lines: i.product_lines, effective_date: i.effective_date, expires_date: i.expires_date, commission_split_carrier: i.commission_split_carrier, commission_split_mga: i.commission_split_mga, commission_split_advisor: i.commission_split_advisor, documentation_url: i.documentation_url } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cac-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "cac-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_appointments",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', mga_principal_id: $json.mga_principal_id, advisor_id: $json.advisor_id, carrier_name: $json.carrier_name, carrier_appointment_number: $json.carrier_appointment_number, product_lines: $json.product_lines, effective_date: $json.effective_date, expires_date: $json.expires_date, commission_split_carrier: $json.commission_split_carrier, commission_split_mga: $json.commission_split_mga, commission_split_advisor: $json.commission_split_advisor, status: 'active', documentation_url: $json.documentation_url }) }}",
+        "options": {}
+      },
+      "id": "cac-0006", "name": "Insert Appointment", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/advisor_onboarding?advisor_id=eq.' + encodeURIComponent($('Check Role').item.json.advisor_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ carrier_appointments_initiated: true }) }}",
+        "options": {}
+      },
+      "id": "cac-0007", "name": "Update Onboarding Flag", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'carrier_appointment_created', advisor_id: $('Check Role').item.json.advisor_id, performed_by_user_id: $('Check Role').item.json.mga_principal_id, performed_by_role: 'mga_principal', event_data: { carrier_name: $('Check Role').item.json.carrier_name, splits: { carrier: $('Check Role').item.json.commission_split_carrier, mga: $('Check Role').item.json.commission_split_mga, advisor: $('Check Role').item.json.commission_split_advisor } }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "cac-0008", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { const ins = $('Insert Appointment').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ ok: true, vertical_id: 'insurance', appointment_id: row && row.id, carrier_name: row && row.carrier_name }); })() }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "cac-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2100, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "cac-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":                  { "main": [[ { "node": "Extract + Validate Splits", "type": "main", "index": 0 } ]] },
+    "Extract + Validate Splits":{ "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":         { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role":               { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                    { "main": [[ { "node": "Insert Appointment", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Insert Appointment":       { "main": [[ { "node": "Update Onboarding Flag", "type": "main", "index": 0 } ]] },
+    "Update Onboarding Flag":   { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

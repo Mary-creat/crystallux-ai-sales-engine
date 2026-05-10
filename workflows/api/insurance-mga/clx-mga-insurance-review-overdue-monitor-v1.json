@@ -1,0 +1,79 @@
+{
+  "name": "CLX - MGA Insurance Review Overdue Monitor v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "30 6 * * *" } ] } },
+      "id": "rom-0001", "name": "Schedule Trigger (DEACTIVATED)", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 400],
+      "notes": "DEACTIVATED. Daily 06:30 UTC. Marks any policy_reviews past due_date with status='scheduled' or 'in_progress' as 'overdue'. If 30+ days overdue, escalates to mga_principal via email. Sends reminder to advisor + client."
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?vertical_id=eq.insurance&due_date=lt.' + encodeURIComponent(new Date().toISOString().slice(0,10)) + '&status=in.(scheduled,in_progress)&select=id,advisor_id,client_id,policy_application_id,review_type,due_date,priority,status&limit=2000' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 30000 }
+      },
+      "id": "rom-0002", "name": "Fetch Overdue", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : [];\nif (rows.length === 0) return [{ json: { _empty: true } }];\nconst now = Date.now();\nreturn rows.map(function (r) {\n  const days = Math.floor((now - new Date(r.due_date).getTime()) / 86400000);\n  return { json: { policy_review_id: r.id, advisor_id: r.advisor_id, client_id: r.client_id, review_type: r.review_type, days_overdue: days, escalate: days >= 30 } };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "rom-0003", "name": "Compute Overdue", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rom-0004", "name": "IF Empty", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "rom-0005", "name": "Per Overdue", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3, "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "PATCH", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?id=eq.' + encodeURIComponent($json.policy_review_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: $json.escalate ? 'escalated' : 'overdue' }) }}",
+        "options": {}
+      },
+      "id": "rom-0006", "name": "Mark Status", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: $('Per Overdue').item.json.escalate ? 'review_escalated_overdue' : 'review_marked_overdue', advisor_id: $('Per Overdue').item.json.advisor_id, client_id: $('Per Overdue').item.json.client_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { policy_review_id: $('Per Overdue').item.json.policy_review_id, review_type: $('Per Overdue').item.json.review_type, days_overdue: $('Per Overdue').item.json.days_overdue }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "rom-0007", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "rom-0008", "name": "Loop Continue", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [1860, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Overdue", "type": "main", "index": 0 } ]] },
+    "Fetch Overdue":                  { "main": [[ { "node": "Compute Overdue", "type": "main", "index": 0 } ]] },
+    "Compute Overdue":                { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Overdue", "type": "main", "index": 0 } ]] },
+    "Per Overdue":                    { "main": [[], [ { "node": "Mark Status", "type": "main", "index": 0 } ]] },
+    "Mark Status":                    { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                      { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Overdue", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

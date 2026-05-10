@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Overview · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head">
+        <div>
+          <h1 class="clx-page-title">Advisor Overview</h1>
+          <div class="clx-page-sub">Review-centric dashboard. Nothing falls through the cracks.</div>
+        </div>
+      </div>
+      <div id="content">
+        <div class="clx-empty"><span class="clx-spinner"></span> Loading…</div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      load();
+    });
+    function load() {
+      var c = document.getElementById('content');
+      clxApi.mgaPost('advisor/overview', {}).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed to load.') + '</div>'; return; }
+        var d = resp.data || {};
+        var html = '';
+
+        // Action required
+        var ar = d.action_required || {};
+        html += '<div class="clx-card" style="border-left:4px solid var(--danger)">';
+        html += '<div class="clx-card-head"><div><div class="clx-card-title">🔴 Action required</div><div class="clx-card-sub">' + (ar.urgent_count || 0) + ' urgent · ' + (ar.overdue_count || 0) + ' overdue</div></div></div>';
+        var combined = (ar.urgent || []).concat((ar.overdue || []).slice(0, 10));
+        if (combined.length === 0) html += '<div class="clx-empty">All clear.</div>';
+        else html += clxComp.renderTable(combined, [
+          { label: '', cell: function (r) { return clxComp.priorityIndicator(r.priority); } },
+          { label: 'Type', cell: function (r) { return clxComp.reviewTypeIcon(r.review_type); } },
+          { label: 'Trigger', cell: function (r) { return r.trigger_signal_type ? clxApi.escapeHtml(r.trigger_signal_type) : '—'; } },
+          { label: 'Due', cell: function (r) { return clxApi.formatDate(r.due_date); } },
+          { label: 'Video', cell: function (r) { return clxComp.videoEngagementStatus(r.video_engagement_status); } },
+          { label: '', cell: function (r) { return '<a class="clx-btn clx-btn-ghost" href="/advisor/reviews.html#' + clxApi.escapeHtml(r.id) + '">Open</a>'; } }
+        ]);
+        html += '</div>';
+
+        // Due this week
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">🟡 Due this week (' + (d.due_this_week && d.due_this_week.count || 0) + ')</div></div>';
+        var weekRows = (d.due_this_week && d.due_this_week.list) || [];
+        if (weekRows.length === 0) html += '<div class="clx-empty">Nothing due this week.</div>';
+        else html += clxComp.renderTable(weekRows, [
+          { label: '', cell: function (r) { return clxComp.priorityIndicator(r.priority); } },
+          { label: 'Type', cell: function (r) { return clxComp.reviewTypeIcon(r.review_type); } },
+          { label: 'Due', cell: function (r) { return clxApi.formatDate(r.due_date); } },
+          { label: 'Video', cell: function (r) { return clxComp.videoEngagementStatus(r.video_engagement_status); } }
+        ]);
+        html += '</div>';
+
+        // Pipeline + 30d metrics
+        var pipeline = d.pipeline || {};
+        var metrics = d.metrics_30d || {};
+        var ve = d.video_engagement || {};
+        html += '<div class="clx-stat-grid">';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Active leads</div><div class="clx-stat-value">' + (pipeline.leads || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Applications</div><div class="clx-stat-value">' + (pipeline.applications || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Policies issued · 30d</div><div class="clx-stat-value">' + (metrics.policies_issued || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Reviews completed · 30d</div><div class="clx-stat-value">' + (metrics.reviews_completed || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Videos sent</div><div class="clx-stat-value">' + (ve.sent || 0) + '</div><div class="clx-stat-sub">' + (ve.viewed_or_replied || 0) + ' engaged</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Meetings booked</div><div class="clx-stat-value">' + (ve.meetings_booked || 0) + '</div><div class="clx-stat-sub">' + (ve.conversion_rate || 0) + '% conversion</div></div>';
+        html += '</div>';
+
+        // License alerts
+        var licAlerts = d.license_alerts || [];
+        if (licAlerts.length > 0) {
+          html += '<div class="clx-card" style="border-left:4px solid var(--warning)"><div class="clx-card-head"><div class="clx-card-title">⚠️ License + E&O alerts</div></div>';
+          html += clxComp.renderTable(licAlerts, [
+            { label: 'Type', cell: function (l) { return clxApi.escapeHtml(l.license_type) + ' (' + clxApi.escapeHtml(l.jurisdiction) + ')'; } },
+            { label: 'Status', cell: function (l) { return clxComp.licenseStatusIndicator(l); } },
+            { label: 'Expires', cell: function (l) { return clxApi.formatDate(l.expires_date); } },
+            { label: 'CE hours', cell: function (l) { return (l.ce_hours_completed || 0) + ' / ' + (l.ce_hours_required || 0); } }
+          ]);
+          html += '</div>';
+        }
+
+        c.innerHTML = html;
+      });
+    }
+  })();
+</script>
+</body>
+</html>

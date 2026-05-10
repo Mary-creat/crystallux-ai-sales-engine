@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign in · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+</header>
+
+<main style="padding:60px 20px">
+  <div class="clx-card" style="max-width:420px;margin:0 auto;padding:32px">
+    <h1 class="clx-page-title" style="font-size:22px;margin-bottom:18px">Sign in</h1>
+    <div id="errBox"></div>
+    <form id="loginForm" class="clx-form" style="margin:0">
+      <div>
+        <label for="email">Email</label>
+        <input type="email" id="email" required autocomplete="email" />
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="clx-btn" id="submitBtn" style="width:100%">Sign in</button>
+    </form>
+    <p style="font-size:12px;color:var(--text-dim);margin-top:14px;text-align:center">For licensed advisors and MGA principal access only.</p>
+  </div>
+</main>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var url = new URL(window.location.href);
+    var error = url.searchParams.get('error');
+    if (error === 'role_not_permitted') {
+      document.getElementById('errBox').innerHTML = '<div class="clx-error-box">Your account does not have access to the Insurance MGA dashboard.</div>';
+    }
+    document.getElementById('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('submitBtn');
+      var box = document.getElementById('errBox');
+      btn.disabled = true; btn.textContent = 'Signing in…'; box.innerHTML = '';
+      var email = document.getElementById('email').value.trim().toLowerCase();
+      var password = document.getElementById('password').value;
+      fetch('https://automation.crystallux.org/webhook/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: password })
+      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+        .then(function (resp) {
+          btn.disabled = false; btn.textContent = 'Sign in';
+          if (!resp.ok || !resp.data || !resp.data.ok || !resp.data.session_token) {
+            box.innerHTML = '<div class="clx-error-box">' + ((resp.data && resp.data.error) || 'Sign-in failed.') + '</div>';
+            return;
+          }
+          var allowed = ['advisor','sub_agent','mga_principal','compliance_officer','admin'];
+          var role = resp.data.user && (resp.data.user.user_role || resp.data.user.role) || '';
+          if (allowed.indexOf(role) < 0) { box.innerHTML = '<div class="clx-error-box">Your account does not have access to the Insurance MGA dashboard.</div>'; return; }
+          clxAuth.setSession(resp.data.session_token, resp.data.user);
+          if (role === 'mga_principal' || role === 'admin') window.location.replace('/principal/overview.html');
+          else if (role === 'compliance_officer') window.location.replace('/principal/compliance.html');
+          else window.location.replace('/advisor/overview.html');
+        })
+        .catch(function (err) { btn.disabled = false; btn.textContent = 'Sign in'; box.innerHTML = '<div class="clx-error-box">Network error: ' + (err && err.message || err) + '</div>'; });
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+{
+  "name": "CLX - MGA Insurance Review Scheduler v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 5 * * *" } ] }
+      },
+      "id": "rs-0001", "name": "Schedule Trigger (DEACTIVATED)", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 400],
+      "notes": "DEACTIVATED. Daily 05:00 UTC. For each in-force policy_application: schedules annual review (12 months since last_review_date), renewal review (60 days before renewal_date), and compliance audit (random ~10% per quarter). Inserts policy_reviews rows with type/due_date/priority. Triggers B7.1 video generator for each new annual or renewal review."
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?vertical_id=eq.insurance&in_force_status=eq.in_force&select=id,client_id,advisor_id,carrier_name,product_type,renewal_date,last_review_date,next_annual_review_date,policy_number&limit=2000",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 30000 }
+      },
+      "id": "rs-0002", "name": "Fetch In-Force Policies", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : [];\nif (rows.length === 0) return [{ json: { _empty: true } }];\nconst now = new Date();\nconst todayStr = now.toISOString().slice(0, 10);\nconst out = [];\nfor (const p of rows) {\n  // Annual review check: due if 12 months since last_review_date OR next_annual_review_date <= today + 30d\n  const lastReview = p.last_review_date ? new Date(p.last_review_date) : null;\n  const nextAnn = p.next_annual_review_date ? new Date(p.next_annual_review_date) : null;\n  const annualWindowEnd = new Date(now.getTime() + 30 * 86400000);\n  let annualDue = false;\n  if (nextAnn && nextAnn <= annualWindowEnd) annualDue = true;\n  else if (!lastReview) annualDue = true;\n  else { const monthsSince = (now - lastReview) / (1000*60*60*24*30); if (monthsSince >= 12) annualDue = true; }\n  if (annualDue) {\n    out.push({ json: { policy_application_id: p.id, client_id: p.client_id, advisor_id: p.advisor_id, review_type: 'annual', trigger_source: 'scheduled', trigger_signal_type: 'annual_review_due', due_date: nextAnn ? nextAnn.toISOString().slice(0,10) : todayStr, priority: 'medium', want_video: true } });\n  }\n  // Renewal review check: 60 days before renewal_date\n  if (p.renewal_date) {\n    const renewal = new Date(p.renewal_date);\n    const days = Math.floor((renewal - now) / 86400000);\n    if (days >= 0 && days <= 60) {\n      const priority = days <= 14 ? 'urgent' : (days <= 30 ? 'high' : 'medium');\n      out.push({ json: { policy_application_id: p.id, client_id: p.client_id, advisor_id: p.advisor_id, review_type: 'renewal', trigger_source: 'scheduled', trigger_signal_type: 'renewal_due', due_date: p.renewal_date, priority: priority, want_video: true } });\n    }\n  }\n  // Compliance audit: ~10% per quarter (deterministic via id hash for stability)\n  try {\n    const idStr = String(p.id);\n    let h = 0; for (let i = 0; i < idStr.length; i++) h = (h * 31 + idStr.charCodeAt(i)) >>> 0;\n    const quarterBucket = (h + Math.floor((now.getMonth()) / 3)) % 40; // ~1/40 = 2.5% of policies per day = ~10% per quarter spread\n    if (quarterBucket === 0) {\n      out.push({ json: { policy_application_id: p.id, client_id: p.client_id, advisor_id: p.advisor_id, review_type: 'compliance_audit', trigger_source: 'scheduled', trigger_signal_type: null, due_date: new Date(now.getTime() + 14*86400000).toISOString().slice(0,10), priority: 'low', want_video: false } });\n    }\n  } catch (e) {}\n}\nif (out.length === 0) return [{ json: { _empty: true, reason: 'no_reviews_due' } }];\nreturn out;",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "rs-0003", "name": "Decide Reviews", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rs-0004", "name": "IF Empty", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "rs-0005", "name": "Per Review", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3, "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', policy_application_id: $json.policy_application_id, client_id: $json.client_id, advisor_id: $json.advisor_id, review_type: $json.review_type, trigger_source: $json.trigger_source, trigger_signal_type: $json.trigger_signal_type, scheduled_date: new Date().toISOString().slice(0,10), due_date: $json.due_date, priority: $json.priority, status: 'scheduled', video_engagement_status: 'not_sent' }) }}",
+        "options": {}
+      },
+      "id": "rs-0006", "name": "Insert Review", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/review-video-generate' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $input.item.json; const row = Array.isArray(ins) ? ins[0] : ins; const want = $('Per Review').item.json.want_video; if (!want || !row || !row.id) return JSON.stringify({ skip: true }); return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, policy_review_id: row.id }); })() }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "rs-0007", "name": "Trigger Video Gen", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 500],
+      "continueOnFail": true, "alwaysOutputData": true,
+      "notes": "Fires B7.1 video generator if review type wants a video (annual + renewal). compliance_audit reviews skip video. The downstream workflow no-ops on { skip: true } body."
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $('Insert Review').item.json; const row = Array.isArray(ins) ? ins[0] : ins; const ctx = $('Per Review').item.json; return JSON.stringify({ vertical_id: 'insurance', event_type: 'review_scheduled', client_id: ctx.client_id, advisor_id: ctx.advisor_id, policy_application_id: ctx.policy_application_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { policy_review_id: row && row.id, review_type: ctx.review_type, due_date: ctx.due_date, priority: ctx.priority, trigger_signal_type: ctx.trigger_signal_type }, occurred_at: new Date().toISOString() }); })() }}",
+        "options": {}
+      },
+      "id": "rs-0008", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "rs-0009", "name": "Loop Continue", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [2100, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch In-Force Policies", "type": "main", "index": 0 } ]] },
+    "Fetch In-Force Policies":        { "main": [[ { "node": "Decide Reviews", "type": "main", "index": 0 } ]] },
+    "Decide Reviews":                 { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Review", "type": "main", "index": 0 } ]] },
+    "Per Review":                     { "main": [[], [ { "node": "Insert Review", "type": "main", "index": 0 } ]] },
+    "Insert Review":                  { "main": [[ { "node": "Trigger Video Gen", "type": "main", "index": 0 } ]] },
+    "Trigger Video Gen":              { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                      { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Review", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

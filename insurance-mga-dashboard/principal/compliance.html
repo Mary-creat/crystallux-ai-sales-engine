@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Compliance Queue · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left"><a href="/principal/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">Compliance + Complaint Queue</h1><div class="clx-page-sub">AI-flagged reviews + complaints + audits requiring human attention.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['mga_principal','compliance_officer','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      var c = document.getElementById('content');
+      clxApi.mgaPost('principal/advisors-and-compliance', {}).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed.') + '</div>'; return; }
+        var compliance = (resp.data && resp.data.compliance_queue) || [];
+        var complaints = (resp.data && resp.data.complaint_audit_queue) || [];
+        var html = '';
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">AI compliance reviews — pending human</div><div class="clx-page-sub">' + compliance.length + ' items</div></div>';
+        if (compliance.length === 0) html += '<div class="clx-empty">No pending reviews.</div>';
+        else html += clxComp.renderTable(compliance, [
+          { label: 'Type', cell: function (r) { return '<span class="clx-badge clx-badge-info">' + clxApi.escapeHtml(r.review_type) + '</span>'; } },
+          { label: 'AI decision', cell: function (r) { var cls = r.ai_decision === 'approved' ? 'clx-badge-success' : (r.ai_decision === 'rejected' ? 'clx-badge-danger' : 'clx-badge-warning'); return '<span class="clx-badge ' + cls + '">' + clxApi.escapeHtml(r.ai_decision || '—') + '</span>'; } },
+          { label: 'AI score', cell: function (r) { return clxComp.complianceScoreBadge(r); } },
+          { label: 'Reasoning', cell: function (r) { return '<span style="font-size:12px;color:var(--text-muted)">' + clxApi.escapeHtml((r.ai_reasoning || '').slice(0, 200)) + '</span>'; } },
+          { label: 'Created', cell: function (r) { return clxApi.relativeTime(r.created_at); } }
+        ]);
+        html += '</div>';
+
+        html += '<div class="clx-card" style="border-left:4px solid var(--warning)"><div class="clx-card-head"><div class="clx-card-title">Complaints + audits — open</div><div class="clx-page-sub">' + complaints.length + ' items</div></div>';
+        if (complaints.length === 0) html += '<div class="clx-empty">No open complaints or audits.</div>';
+        else html += clxComp.renderTable(complaints, [
+          { label: '', cell: function (r) { return clxComp.priorityIndicator(r.priority); } },
+          { label: 'Type', cell: function (r) { return clxComp.reviewTypeIcon(r.review_type); } },
+          { label: 'Status', cell: function (r) { return '<span class="clx-badge clx-badge-warning">' + clxApi.escapeHtml(r.status) + '</span>'; } },
+          { label: 'Due', cell: function (r) { return clxApi.formatDate(r.due_date); } },
+          { label: 'Detail', cell: function (r) { var d = r.client_situation_changes || {}; return '<span style="font-size:12px;color:var(--text-muted)">' + clxApi.escapeHtml(JSON.stringify(d).slice(0, 160)) + '</span>'; } },
+          { label: 'Created', cell: function (r) { return clxApi.relativeTime(r.created_at); } }
+        ]);
+        html += '</div>';
+        c.innerHTML = html;
+      });
+    });
+  })();
+</script>
+</body>
+</html>

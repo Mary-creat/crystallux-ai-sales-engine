@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MGA Principal · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left"><a href="/principal/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">MGA Principal Overview</h1><div class="clx-page-sub">Business + compliance + AI effectiveness at a glance.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      var c = document.getElementById('content');
+      clxApi.mgaPost('principal/overview', {}).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed.') + '</div>'; return; }
+        var d = resp.data || {};
+        var advisors = d.advisors || {}, policies = d.policies || {}, com = d.commissions || {}, rev = d.reviews || {}, bi = d.behavioral_intelligence || {};
+        var html = '<div class="clx-stat-grid">';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Active advisors</div><div class="clx-stat-value">' + (advisors.active_count || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">In-force policies</div><div class="clx-stat-value">' + (policies.in_force_count || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">MGA commission · MTD</div><div class="clx-stat-value">' + clxApi.formatMoney(com.mtd_mga_cents) + '</div><div class="clx-stat-sub">YTD ' + clxApi.formatMoney(com.ytd_mga_cents) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Advisor commission · MTD</div><div class="clx-stat-value">' + clxApi.formatMoney(com.mtd_advisor_cents) + '</div><div class="clx-stat-sub">YTD ' + clxApi.formatMoney(com.ytd_advisor_cents) + '</div></div>';
+        html += '</div>';
+        html += '<div class="clx-two-col">';
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Review system performance</div></div>';
+        html += '<div class="clx-stat-grid" style="margin-bottom:0">';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Total reviews</div><div class="clx-stat-value">' + (rev.total || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Completed on time</div><div class="clx-stat-value">' + (rev.on_time_pct || 0) + '%</div><div class="clx-stat-sub">' + (rev.completed || 0) + ' done</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Overdue</div><div class="clx-stat-value">' + (rev.overdue_pct || 0) + '%</div><div class="clx-stat-sub">' + (rev.overdue || 0) + ' need attention</div></div>';
+        html += '</div></div>';
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Behavioral signal effectiveness</div></div>';
+        html += '<div class="clx-stat-grid" style="margin-bottom:0">';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Triggered reviews</div><div class="clx-stat-value">' + (bi.triggered_reviews || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Engaged</div><div class="clx-stat-value">' + (bi.engaged || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Effectiveness</div><div class="clx-stat-value">' + (bi.effectiveness_pct || 0) + '%</div></div>';
+        html += '</div></div>';
+        html += '</div>';
+        c.innerHTML = html;
+      });
+    });
+  })();
+</script>
+</body>
+</html>

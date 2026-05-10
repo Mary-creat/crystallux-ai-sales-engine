@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reviews · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left"><a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head">
+        <div>
+          <h1 class="clx-page-title">Reviews</h1>
+          <div class="clx-page-sub">Every review type. Behavioral signals, scheduled, claims, complaints — all in one place.</div>
+        </div>
+      </div>
+      <div class="clx-card">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="typeTabs"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--text-muted)">
+          <label>Status: <select id="statusFilter" style="background:var(--bg-soft);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:4px"><option value="">all</option><option value="overdue">overdue</option><option value="scheduled">scheduled</option><option value="in_progress">in_progress</option><option value="completed">completed</option></select></label>
+          <label>Priority: <select id="priorityFilter" style="background:var(--bg-soft);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:4px"><option value="">all</option><option value="urgent">urgent</option><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select></label>
+        </div>
+        <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    var TYPES = ['', 'annual', 'triggered_event', 'renewal', 'claim', 'complaint', 'compliance_audit', 'pre_issuance'];
+    var TYPE_LABELS = { '': 'All', annual: 'Annual', triggered_event: 'Triggered', renewal: 'Renewal', claim: 'Claim', complaint: 'Complaint', compliance_audit: 'Audit', pre_issuance: 'Pre-issue' };
+    var current = { review_type: null, status: null, priority: null };
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      renderTabs();
+      load();
+      document.getElementById('statusFilter').addEventListener('change', function (e) { current.status = e.target.value || null; load(); });
+      document.getElementById('priorityFilter').addEventListener('change', function (e) { current.priority = e.target.value || null; load(); });
+    });
+    function renderTabs() {
+      var tabs = document.getElementById('typeTabs');
+      tabs.innerHTML = TYPES.map(function (t) {
+        var active = (current.review_type === (t || null)) ? 'clx-btn' : 'clx-btn clx-btn-ghost';
+        return '<button class="' + active + '" data-type="' + t + '">' + TYPE_LABELS[t] + '</button>';
+      }).join(' ');
+      tabs.querySelectorAll('button').forEach(function (b) { b.addEventListener('click', function () { current.review_type = b.getAttribute('data-type') || null; renderTabs(); load(); }); });
+    }
+    function load() {
+      var c = document.getElementById('content');
+      c.innerHTML = '<div class="clx-empty"><span class="clx-spinner"></span> Loading…</div>';
+      var filters = {};
+      if (current.review_type) filters.review_type = current.review_type;
+      if (current.status) filters.status = current.status;
+      if (current.priority) filters.priority = current.priority;
+      clxApi.mgaPost('advisor/reviews', { filters: filters }).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed.') + '</div>'; return; }
+        var rows = (resp.data && resp.data.reviews) || [];
+        if (rows.length === 0) { c.innerHTML = clxComp.renderState('empty', 'No reviews match these filters.'); return; }
+        c.innerHTML = clxComp.renderTable(rows, [
+          { label: '', cell: function (r) { return clxComp.priorityIndicator(r.priority); } },
+          { label: 'Type', cell: function (r) { return clxComp.reviewTypeIcon(r.review_type); } },
+          { label: 'Trigger', cell: function (r) { return r.trigger_signal_type ? clxApi.escapeHtml(r.trigger_signal_type) : clxComp.triggerSourceBadge(r.trigger_source || 'scheduled'); } },
+          { label: 'Due', cell: function (r) { return clxApi.formatDate(r.due_date); } },
+          { label: 'Status', cell: function (r) { var cls = r.status === 'overdue' ? 'clx-badge-danger' : (r.status === 'completed' ? 'clx-badge-success' : 'clx-badge-info'); return '<span class="clx-badge ' + cls + '">' + clxApi.escapeHtml(r.status) + '</span>'; } },
+          { label: 'Video', cell: function (r) { return clxComp.videoEngagementStatus(r.video_engagement_status); } },
+          { label: 'AI questions', cell: function (r) { var q = (r.ai_suggested_questions && r.ai_suggested_questions.length) || 0; return q > 0 ? q + ' suggested' : '—'; } }
+        ]);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

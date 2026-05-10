@@ -1,0 +1,125 @@
+{
+  "name": "CLX - MGA Insurance Advisor Overview v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/advisor/overview", "responseMode": "responseNode", "options": {} },
+      "id": "ao-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-advisor-overview-001",
+      "notes": "DEACTIVATED. advisor/sub_agent/mga_principal session. Returns the review-centric advisor dashboard: overdue + due-this-week + upcoming reviews, in-progress work, pipeline counts, license alerts, video engagement summary. Filters reviews by advisor_id=session_user (or mga_principal sees all under their hierarchy)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nreturn { json: { token: token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ao-0002", "name": "Extract Token", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+      },
+      "id": "ao-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nreturn { json: { _ok: true, advisor_id: row.id || row.user_id, user_role: row.user_role } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ao-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "ao-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?vertical_id=eq.insurance&advisor_id=eq.' + encodeURIComponent($json.advisor_id) + '&order=due_date.asc&limit=200&select=id,review_type,trigger_signal_type,priority,status,due_date,client_id,policy_application_id,video_engagement_status,trigger_source' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ao-0006", "name": "Fetch Reviews", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?assigned_advisor_id=eq.' + encodeURIComponent($('Check Role').item.json.advisor_id) + '&select=id,lead_status,first_name,company,date_created&order=date_created.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ao-0007", "name": "Fetch Leads", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?vertical_id=eq.insurance&advisor_id=eq.' + encodeURIComponent($('Check Role').item.json.advisor_id) + '&select=id,submission_status,advisor_review_status,carrier_name,issued_at&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ao-0008", "name": "Fetch Applications", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 520],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/advisor_licenses?vertical_id=eq.insurance&advisor_id=eq.' + encodeURIComponent($('Check Role').item.json.advisor_id) + '&select=id,license_type,jurisdiction,renewal_status,expires_date,ce_hours_required,ce_hours_completed&limit=20' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ao-0009", "name": "Fetch Licenses", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 640],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": { "mode": "append", "numberInputs": 4 },
+      "id": "ao-0010", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1620, 460]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst reviews = allOf('Fetch Reviews');\nconst leads = allOf('Fetch Leads');\nconst apps = allOf('Fetch Applications');\nconst licenses = allOf('Fetch Licenses');\nconst now = Date.now();\nconst todayStr = new Date(now).toISOString().slice(0,10);\nconst weekEnd = new Date(now + 7*86400000).toISOString().slice(0,10);\nconst monthEnd = new Date(now + 30*86400000).toISOString().slice(0,10);\n\nconst overdue = reviews.filter(function (r) { return r.due_date < todayStr && (r.status === 'scheduled' || r.status === 'in_progress' || r.status === 'overdue'); });\nconst dueThisWeek = reviews.filter(function (r) { return r.due_date >= todayStr && r.due_date <= weekEnd && (r.status === 'scheduled'); });\nconst upcoming30 = reviews.filter(function (r) { return r.due_date > weekEnd && r.due_date <= monthEnd && (r.status === 'scheduled'); });\nconst inProgress = reviews.filter(function (r) { return r.status === 'in_progress'; });\nconst urgent = reviews.filter(function (r) { return r.priority === 'urgent' && r.status !== 'completed' && r.status !== 'cancelled'; });\nconst videoSent = reviews.filter(function (r) { return r.video_engagement_status === 'sent'; }).length;\nconst videoViewed = reviews.filter(function (r) { return r.video_engagement_status === 'viewed' || r.video_engagement_status === 'replied' || r.video_engagement_status === 'meeting_booked'; }).length;\nconst videoBooked = reviews.filter(function (r) { return r.video_engagement_status === 'meeting_booked'; }).length;\n\nconst leadByStatus = {};\nfor (const l of leads) { const s = l.lead_status || 'unknown'; leadByStatus[s] = (leadByStatus[s] || 0) + 1; }\nconst appsByStatus = {};\nfor (const a of apps) { const s = a.submission_status || 'unknown'; appsByStatus[s] = (appsByStatus[s] || 0) + 1; }\nconst licenseAlerts = licenses.filter(function (lc) { return lc.renewal_status !== 'current'; });\n\n// Last 30 days metrics\nconst since30 = new Date(now - 30*86400000).toISOString();\nconst issuedRecent = apps.filter(function (a) { return a.issued_at && a.issued_at >= since30; }).length;\nconst reviewsCompletedRecent = reviews.filter(function (r) { return r.status === 'completed'; }).length;\n\nreturn { json: { ok: true, vertical_id: 'insurance', advisor_id: $('Check Role').item.json.advisor_id, action_required: { urgent_count: urgent.length, urgent: urgent.slice(0, 10), overdue_count: overdue.length, overdue: overdue.slice(0, 20) }, due_this_week: { count: dueThisWeek.length, list: dueThisWeek.slice(0, 20) }, upcoming_30d: { count: upcoming30.length }, in_progress: { count: inProgress.length, list: inProgress.slice(0, 10) }, pipeline: { leads: leads.length, leads_by_status: leadByStatus, applications: apps.length, applications_by_status: appsByStatus }, license_alerts: licenseAlerts, metrics_30d: { policies_issued: issuedRecent, reviews_completed: reviewsCompletedRecent, total_reviews: reviews.length }, video_engagement: { sent: videoSent, viewed_or_replied: videoViewed, meetings_booked: videoBooked, conversion_rate: videoSent > 0 ? Math.round(videoBooked / videoSent * 100) : 0 } } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ao-0011", "name": "Build Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1860, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "ao-0012", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2100, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "ao-0013", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 760]
+    }
+  ],
+  "connections": {
+    "Webhook":           { "main": [[ { "node": "Extract Token", "type": "main", "index": 0 } ]] },
+    "Extract Token":     { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":  { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role":        { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":             { "main": [[ { "node": "Fetch Reviews", "type": "main", "index": 0 }, { "node": "Fetch Leads", "type": "main", "index": 0 }, { "node": "Fetch Applications", "type": "main", "index": 0 }, { "node": "Fetch Licenses", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Reviews":     { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Leads":       { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Applications":{ "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch Licenses":    { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Merge Branches":    { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
+    "Build Response":    { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

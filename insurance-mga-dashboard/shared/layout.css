@@ -1,0 +1,100 @@
+/* ═══ Crystallux Insurance MGA Dashboard — layout.css ════════════════
+   Mirrors admin-dashboard/shared/layout.css design tokens. Brand
+   purple #5B21B6, Inter font, mobile-first. Vertical-tagged via
+   .clx-vertical-badge in topbar.
+   =================================================================== */
+:root {
+  --brand: #5B21B6;
+  --brand-light: #7C3AED;
+  --brand-dark: #4C1D95;
+  --bg: #0F0A1F;
+  --bg-card: #1F1338;
+  --bg-soft: #2A1B4A;
+  --border: #3D2B5F;
+  --text: #F5F3FF;
+  --text-muted: #A78BFA;
+  --text-dim: #6B5B8B;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #DC2626;
+  --info: #3B82F6;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+a { color: var(--text-muted); text-decoration: none; }
+a:hover { color: var(--brand-light); }
+
+.clx-topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; background: var(--bg-card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+.clx-topbar-left { display: flex; align-items: center; gap: 12px; }
+.clx-logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+.clx-logo-mark { width: 28px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, var(--brand-light), var(--brand-dark)); display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.clx-vertical-badge { padding: 3px 9px; background: rgba(124,58,237,0.18); border: 1px solid var(--brand); color: var(--text-muted); font-size: 11px; font-weight: 600; border-radius: 4px; letter-spacing: 0.3px; text-transform: uppercase; }
+.clx-role-pill { padding: 3px 9px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 600; border-radius: 4px; }
+
+.clx-topbar-right { display: flex; align-items: center; gap: 12px; }
+.clx-user-chip { padding: 6px 12px; background: var(--bg-soft); border-radius: 20px; font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+
+.clx-shell { display: flex; min-height: calc(100vh - 53px); }
+.clx-sidebar { width: 220px; background: var(--bg-card); border-right: 1px solid var(--border); padding: 24px 0; flex-shrink: 0; }
+.clx-sidebar a { display: block; padding: 10px 20px; color: var(--text-muted); font-size: 14px; border-left: 3px solid transparent; }
+.clx-sidebar a:hover { background: var(--bg-soft); color: var(--text); }
+.clx-sidebar a.active { color: var(--text); border-left-color: var(--brand-light); background: var(--bg-soft); }
+.clx-sidebar-section { padding: 12px 20px 6px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.clx-main { flex: 1; padding: 24px; overflow-x: hidden; }
+.clx-content { max-width: 1280px; margin: 0 auto; }
+.clx-page-head { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.clx-page-title { font-size: 26px; font-weight: 700; color: var(--text); margin: 0; }
+.clx-page-sub { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+
+.clx-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
+.clx-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.clx-card-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.clx-card-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+.clx-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.clx-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.clx-stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.clx-stat-value { font-size: 24px; font-weight: 700; color: var(--text); margin-top: 4px; }
+.clx-stat-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+.clx-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+@media (max-width: 800px) { .clx-two-col { grid-template-columns: 1fr; } .clx-sidebar { display: none; } }
+
+.clx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.clx-table th { text-align: left; padding: 10px 12px; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+.clx-table td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+.clx-table tr:hover td { background: var(--bg-soft); }
+
+.clx-btn { display: inline-block; padding: 8px 14px; background: var(--brand); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
+.clx-btn:hover { background: var(--brand-dark); color: #fff; }
+.clx-btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+.clx-btn-ghost:hover { color: var(--text); border-color: var(--brand-light); }
+.clx-btn-danger { background: var(--danger); }
+.clx-btn-success { background: var(--success); }
+
+.clx-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.clx-badge-success { background: rgba(16,185,129,0.15); color: #34D399; }
+.clx-badge-warning { background: rgba(245,158,11,0.15); color: #FBBF24; }
+.clx-badge-danger  { background: rgba(220,38,38,0.18); color: #F87171; }
+.clx-badge-info    { background: rgba(59,130,246,0.15); color: #60A5FA; }
+.clx-badge-neutral { background: var(--bg-soft); color: var(--text-muted); }
+
+.clx-spinner { display: inline-block; border: 2px solid var(--bg-soft); border-top-color: var(--brand-light); border-radius: 50%; width: 14px; height: 14px; animation: clx-spin 0.7s linear infinite; vertical-align: middle; }
+@keyframes clx-spin { to { transform: rotate(360deg); } }
+.clx-empty { padding: 32px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
+.clx-error-box { padding: 14px 18px; background: rgba(220,38,38,0.12); border: 1px solid var(--danger); border-radius: 8px; color: #F87171; font-size: 13px; margin-bottom: 16px; }
+
+.clx-form { display: flex; flex-direction: column; gap: 14px; max-width: 420px; margin: 0 auto; }
+.clx-form label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+.clx-form input, .clx-form select, .clx-form textarea { width: 100%; padding: 10px 12px; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; font-family: inherit; }
+.clx-form input:focus, .clx-form select:focus, .clx-form textarea:focus { outline: none; border-color: var(--brand-light); }
+
+/* MGA-specific component helpers */
+.clx-priority-bar { display: inline-block; width: 4px; height: 24px; vertical-align: middle; border-radius: 2px; margin-right: 6px; }
+.clx-priority-urgent { background: var(--danger); }
+.clx-priority-high { background: var(--warning); }
+.clx-priority-medium { background: var(--info); }
+.clx-priority-low { background: var(--text-dim); }
+
+.clx-section-divider { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }

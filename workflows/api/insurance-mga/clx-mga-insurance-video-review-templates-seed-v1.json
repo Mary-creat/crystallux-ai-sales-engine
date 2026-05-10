@@ -1,0 +1,76 @@
+{
+  "name": "CLX - MGA Insurance Video Review Templates Seed v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/seed-video-templates", "responseMode": "responseNode", "options": {} },
+      "id": "vts-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-video-review-templates-seed-001",
+      "notes": "DEACTIVATED. One-time admin trigger via INTERNAL_EMAIL_SECRET. Seeds 12 video review templates into video_review_templates (vertical_id='insurance'). Idempotent via UNIQUE(vertical_id, trigger_event) + ON CONFLICT DO NOTHING. Mary POSTs once after deploy."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nif (!secret || secret !== (process.env.INTERNAL_EMAIL_SECRET || '')) return { json: { _unauthorized: true, error: 'internal secret required' } };\nreturn { json: { _authorized: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vts-0002", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "vts-0003", "name": "IF Authorized", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 12 insurance video review templates. {{variables}} are personalized\n// at render time by the script-generator (B7.1).\nconst templates = [\n  { trigger_event: 'birthday', tone: 'celebratory', cta_text: 'Reply or book a quick chat', recommended_persona_id: 'sarah', recommended_look_id: 'blazer', duration_seconds: 60, script_template: 'Hi {{first_name}}, happy birthday! As your insurance advisor at {{advisor_company}}, I want you to know we are thinking of you on your special day. Your {{policy_count}} policies are still working hard to protect you. Quick question: has anything changed in your life this year that we should review? New family member, new home, new job? Reply to this video or book a quick 15-minute review call.' },\n  { trigger_event: 'new_job', tone: 'congratulatory', cta_text: 'Let me review your new benefits with you', recommended_persona_id: 'james', recommended_look_id: 'suit', duration_seconds: 70, script_template: 'Hi {{first_name}}, congratulations on your new role at {{new_company}}. As your insurance advisor I wanted to flag something important — new jobs often come with changes to your benefits package. Your current policies were designed for your previous situation. Lets take 15 minutes to make sure your coverage still fits. Want to compare what your new employer offers vs your current policies? Reply with what changed or book a call.' },\n  { trigger_event: 'marriage', tone: 'celebratory', cta_text: 'Let me help you protect what matters most', recommended_persona_id: 'sarah', recommended_look_id: 'blazer', duration_seconds: 70, script_template: 'Hi {{first_name}}, congratulations on your marriage. As your insurance advisor I want to make sure your coverage matches your new chapter. Specifically: your beneficiaries probably need updating, you might want joint coverage, and tax implications change for married couples. Small adjustments now can save thousands later. Want to chat for 20 minutes about what makes sense?' },\n  { trigger_event: 'baby', tone: 'celebratory', cta_text: 'Let me make sure your family is fully protected', recommended_persona_id: 'maria', recommended_look_id: 'warm', duration_seconds: 75, script_template: 'Hi {{first_name}}, congratulations on the new addition to your family. As your insurance advisor I want to share something important — having a child is the moment most families realize they need to update their coverage. Beneficiary designations, coverage amounts, guardianship considerations — all of these need attention now. Usually takes 20 minutes to make sure your family is fully protected. When works for a quick chat?' },\n  { trigger_event: 'home_purchase', tone: 'congratulatory', cta_text: 'Let me review your complete coverage situation', recommended_persona_id: 'james', recommended_look_id: 'suit', duration_seconds: 70, script_template: 'Hi {{first_name}}, congratulations on the new home. Quick reminder from your insurance advisor: your new home means you need home insurance (different from a previous renters or homeowners policy), your life insurance might need adjustment to match your mortgage, and you might qualify for multi-policy bundling discounts. Let me put together a comprehensive review of your situation. Reply or book a 20-minute call.' },\n  { trigger_event: 'business_expansion', tone: 'congratulatory', cta_text: 'Let me protect your growing business', recommended_persona_id: 'james', recommended_look_id: 'suit', duration_seconds: 75, script_template: 'Hi {{first_name}}, exciting to see {{business_name}} growing. As your insurance advisor I wanted to reach out. Business expansion often means new coverage needs — commercial liability, key person insurance, employee benefits, business interruption. Your current policies might not cover your new scale. Lets spend 30 minutes mapping what you have vs what you need.' },\n  { trigger_event: 'job_loss', tone: 'supportive', cta_text: 'I am here to support you through this', recommended_persona_id: 'maria', recommended_look_id: 'warm', duration_seconds: 70, script_template: 'Hi {{first_name}}, I heard you are going through a transition. As your insurance advisor I want you to know I am here to help, not sell. Three things to know: your current policies have grace periods if cash flow gets tight, you may qualify for premium reductions, and there are ways to maintain coverage while you are between roles. Lets have a no-pressure call to figure out the best path. Reply with any questions.' },\n  { trigger_event: 'annual_review_due', tone: 'informative', cta_text: 'Book your annual review', recommended_persona_id: 'sarah', recommended_look_id: 'blazer', duration_seconds: 60, script_template: 'Hi {{first_name}}, this is your friendly reminder that we are due for our annual policy review. It has been about a year since we last looked together. The world changes, your life changes, and I want to make sure your coverage still fits. We will cover any life changes, premium optimization, beneficiary updates, and emerging needs. Should take 20-30 minutes. Pick a time that works for you below.' },\n  { trigger_event: 'renewal_due', tone: 'informative', cta_text: 'See your renewal options', recommended_persona_id: 'james', recommended_look_id: 'suit', duration_seconds: 65, script_template: 'Hi {{first_name}}, your {{product_type}} policy is up for renewal in {{days_until_renewal}} days. Before you auto-renew, let me show you something I have been working on. I reviewed comparable products from {{carrier_count}} other carriers. There may be better options now, or your current policy may still be best. Either way you should know your options. Want a quick comparison? Free and takes 15 minutes.' },\n  { trigger_event: 'claim_filed', tone: 'supportive', cta_text: 'I am here to support you through your claim', recommended_persona_id: 'maria', recommended_look_id: 'warm', duration_seconds: 70, script_template: 'Hi {{first_name}}, I saw you filed a claim. As your advisor I am here to help you through this process. Claims can be stressful, but I will be your advocate. Three things to know: I will coordinate directly with the carrier on your behalf, here is what to expect timeline-wise, and dont sign anything without checking with me first. Call or message me anytime — I am here for you.' },\n  { trigger_event: 'retirement_planning_age', tone: 'informative', cta_text: 'Plan your retirement coverage', recommended_persona_id: 'james', recommended_look_id: 'suit', duration_seconds: 70, script_template: 'Hi {{first_name}}, you are entering an exciting life phase. As you approach retirement your insurance needs evolve. Some policies become more valuable, others might be adjusted. Tax-efficient strategies become important. Lets spend 30 minutes mapping out your insurance for retirement and beyond. I will bring options, you bring questions.' },\n  { trigger_event: 'child_milestone', tone: 'celebratory', cta_text: 'Lets talk about smart adjustments', recommended_persona_id: 'maria', recommended_look_id: 'warm', duration_seconds: 70, script_template: 'Hi {{first_name}}, your {{child_name}} reached an important milestone. Children milestones (graduation, marriage, first home) are great moments to revisit your insurance. Education funding, estate planning, generational wealth — small adjustments can have huge impact. Want to chat about what is smart at this stage? Free, no-pressure conversation.' }\n];\nreturn templates.map(function (t) { return { json: Object.assign({ vertical_id: 'insurance', active: true }, t) }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "vts-0004", "name": "Build Templates", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_review_templates",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: $json.vertical_id, trigger_event: $json.trigger_event, script_template: $json.script_template, tone: $json.tone, cta_text: $json.cta_text, recommended_persona_id: $json.recommended_persona_id, recommended_look_id: $json.recommended_look_id, duration_seconds: $json.duration_seconds, active: $json.active }) }}",
+        "options": {}
+      },
+      "id": "vts-0005", "name": "Insert Template", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1140, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true,
+      "notes": "Idempotent via UNIQUE(vertical_id, trigger_event) + Prefer resolution=ignore-duplicates."
+    },
+    {
+      "parameters": {
+        "jsCode": "const inserted = $('Build Templates').all().length;\nreturn { json: { ok: true, vertical_id: 'insurance', templates_seeded: inserted, message: 'Insurance video review template seed complete. ' + inserted + ' templates upserted (idempotent).' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "vts-0006", "name": "Build Summary", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1380, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "vts-0007", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "vts-0008", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":         { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":    { "main": [[ { "node": "Build Templates", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Build Templates":  { "main": [[ { "node": "Insert Template", "type": "main", "index": 0 } ]] },
+    "Insert Template":  { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ]] },
+    "Build Summary":    { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

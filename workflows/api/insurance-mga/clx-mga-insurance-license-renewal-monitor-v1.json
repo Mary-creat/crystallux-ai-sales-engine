@@ -1,0 +1,105 @@
+{
+  "name": "CLX - MGA Insurance License Renewal Monitor v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 * * *" } ] }
+      },
+      "id": "lrm-0001", "name": "Schedule Trigger (DEACTIVATED)", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 400],
+      "notes": "DEACTIVATED. Daily 06:00 UTC. Updates advisor_licenses.renewal_status based on days-until-expires. Sends escalating reminders at 60/30/14/7/1 days. Same pattern for advisor_eo_insurance.expires_date."
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/advisor_licenses?vertical_id=eq.insurance&renewal_status=neq.expired&select=id,advisor_id,license_type,jurisdiction,expires_date,renewal_status&limit=2000",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 30000 }
+      },
+      "id": "lrm-0002", "name": "Fetch Active Licenses", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : [];\nif (rows.length === 0) return [{ json: { _empty: true } }];\nconst now = Date.now();\nconst out = [];\nfor (const r of rows) {\n  if (!r.expires_date) continue;\n  const days = Math.floor((new Date(r.expires_date).getTime() - now) / 86400000);\n  let next = 'current';\n  let notify = false;\n  if (days < 0) { next = 'expired'; notify = true; }\n  else if (days <= 1) { next = 'expiring_7d'; notify = (r.renewal_status !== 'expiring_7d' || days === 1); }\n  else if (days <= 7) { next = 'expiring_7d'; notify = (r.renewal_status !== 'expiring_7d'); }\n  else if (days <= 14) { next = 'expiring_14d'; notify = (r.renewal_status !== 'expiring_14d'); }\n  else if (days <= 30) { next = 'expiring_30d'; notify = (r.renewal_status !== 'expiring_30d'); }\n  else if (days <= 60) { next = 'expiring_60d'; notify = (r.renewal_status !== 'expiring_60d'); }\n  if (next !== r.renewal_status) {\n    out.push({ json: { license_id: r.id, advisor_id: r.advisor_id, license_type: r.license_type, jurisdiction: r.jurisdiction, expires_date: r.expires_date, days_to_expiry: days, new_status: next, notify: notify } });\n  }\n}\nif (out.length === 0) return [{ json: { _empty: true, reason: 'no transitions' } }];\nreturn out;",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "lrm-0003", "name": "Compute Transitions", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "lrm-0004", "name": "IF Empty", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "lrm-0005", "name": "Per Transition", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3, "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "PATCH", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/advisor_licenses?id=eq.' + encodeURIComponent($json.license_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ renewal_status: $json.new_status, updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "lrm-0006", "name": "Update Status", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?id=eq.' + encodeURIComponent($('Per Transition').item.json.advisor_id) + '&select=email,full_name&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "lrm-0007", "name": "Fetch Advisor", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const trans = $('Per Transition').item.json; const advRows = $input.item.json; const adv = (Array.isArray(advRows) ? advRows[0] : advRows) || {}; const days = trans.days_to_expiry; const urgency = days < 0 ? 'EXPIRED' : (days <= 7 ? 'URGENT — expires in ' + days + ' days' : 'expires in ' + days + ' days'); return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: adv.email || 'support@crystallux.org', vars: { first_name: (adv.full_name || 'Advisor').split(' ')[0], message: 'Insurance license renewal alert: ' + urgency + '. License type: ' + trans.license_type + ' (' + trans.jurisdiction + '). Action required to maintain authorization to bind business through Crystallux MGA.', landing_url: 'https://app.crystallux.org/insurance-mga/advisor/overview' } }); })() }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "lrm-0008", "name": "Send Reminder", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 500],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'license_renewal_status_change', advisor_id: $('Per Transition').item.json.advisor_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { license_id: $('Per Transition').item.json.license_id, new_status: $('Per Transition').item.json.new_status, days_to_expiry: $('Per Transition').item.json.days_to_expiry }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "lrm-0009", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2100, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "lrm-0010", "name": "Loop Continue", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [2340, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Active Licenses", "type": "main", "index": 0 } ]] },
+    "Fetch Active Licenses":          { "main": [[ { "node": "Compute Transitions", "type": "main", "index": 0 } ]] },
+    "Compute Transitions":            { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Transition", "type": "main", "index": 0 } ]] },
+    "Per Transition":                 { "main": [[], [ { "node": "Update Status", "type": "main", "index": 0 } ]] },
+    "Update Status":                  { "main": [[ { "node": "Fetch Advisor", "type": "main", "index": 0 } ]] },
+    "Fetch Advisor":                  { "main": [[ { "node": "Send Reminder", "type": "main", "index": 0 } ]] },
+    "Send Reminder":                  { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                      { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Transition", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

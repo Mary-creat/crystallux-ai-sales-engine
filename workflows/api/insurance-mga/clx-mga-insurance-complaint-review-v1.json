@@ -1,0 +1,116 @@
+{
+  "name": "CLX - MGA Insurance Complaint Review v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/complaint-review", "responseMode": "responseNode", "options": {} },
+      "id": "cmp-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-complaint-review-001",
+      "notes": "DEACTIVATED. Any authenticated session (advisor/client/admin/compliance_officer). Logs a complaint as a high/urgent priority policy_reviews row, routes to mga_principal + compliance_officer immediately. If material=true, also flags for FSRA notification (manual Phase 5; Phase 6 auto-files notice)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nif (!body.complaint_text) return { json: { _empty: true, status: 400, error: 'complaint_text required' } };\nreturn { json: { token: token, policy_application_id: body.policy_application_id || null, client_id: body.client_id || null, advisor_id_subject: body.advisor_id_subject || null, complaint_text: String(body.complaint_text).slice(0, 4000), material: !!body.material, complaint_source: body.complaint_source || 'client_request' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cmp-0002", "name": "Extract Inputs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+      },
+      "id": "cmp-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: { _ok: true, reporter_user_id: row.id || row.user_id, reporter_role: row.user_role, policy_application_id: i.policy_application_id, client_id: i.client_id || row.client_id, advisor_id_subject: i.advisor_id_subject, complaint_text: i.complaint_text, material: i.material, complaint_source: i.complaint_source } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cmp-0004", "name": "Carry", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "cmp-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', policy_application_id: $json.policy_application_id, client_id: $json.client_id, advisor_id: $json.advisor_id_subject, review_type: 'complaint', trigger_source: $json.complaint_source, scheduled_date: new Date().toISOString().slice(0,10), due_date: new Date(Date.now() + 1*86400000).toISOString().slice(0,10), priority: $json.material ? 'urgent' : 'high', status: 'scheduled', client_situation_changes: { complaint_text: $json.complaint_text, material: $json.material, source: $json.complaint_source }, video_engagement_status: 'not_sent' }) }}",
+        "options": {}
+      },
+      "id": "cmp-0006", "name": "Create Complaint Review", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?user_role=in.(mga_principal,compliance_officer)&select=email,user_role&limit=10",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cmp-0007", "name": "Fetch Notification Recipients", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const rows = $input.item.json; const arr = Array.isArray(rows) ? rows : (rows && rows.email ? [rows] : []); const to = (arr[0] && arr[0].email) || 'support@crystallux.org'; const ctx = $('Carry').item.json; return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: to, vars: { first_name: 'MGA Principal / Compliance', message: 'INSURANCE COMPLAINT FILED. Material=' + (ctx.material ? 'YES (FSRA notification may be required)' : 'no') + '. Source=' + ctx.complaint_source + '. Subject advisor=' + (ctx.advisor_id_subject || 'unspecified') + '. Text: ' + ctx.complaint_text, landing_url: 'https://app.crystallux.org/insurance-mga/principal/compliance' } }); })() }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "cmp-0008", "name": "Notify Principal + Compliance", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 320],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'complaint_filed', client_id: $('Carry').item.json.client_id, advisor_id: $('Carry').item.json.advisor_id_subject, policy_application_id: $('Carry').item.json.policy_application_id, performed_by_user_id: $('Carry').item.json.reporter_user_id, performed_by_role: $('Carry').item.json.reporter_role, event_data: { material: $('Carry').item.json.material, source: $('Carry').item.json.complaint_source, fsra_notification_required: $('Carry').item.json.material }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "cmp-0009", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2100, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { const ins = $('Create Complaint Review').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ ok: true, vertical_id: 'insurance', policy_review_id: row && row.id, priority: $('Carry').item.json.material ? 'urgent' : 'high', material: $('Carry').item.json.material, fsra_notification_pending: $('Carry').item.json.material }); })() }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "cmp-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2340, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "cmp-0011", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":                       { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs":                { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":              { "main": [[ { "node": "Carry", "type": "main", "index": 0 } ]] },
+    "Carry":                         { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                         { "main": [[ { "node": "Create Complaint Review", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Create Complaint Review":       { "main": [[ { "node": "Fetch Notification Recipients", "type": "main", "index": 0 } ]] },
+    "Fetch Notification Recipients": { "main": [[ { "node": "Notify Principal + Compliance", "type": "main", "index": 0 } ]] },
+    "Notify Principal + Compliance": { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                     { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

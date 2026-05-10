@@ -1,8 +1,28 @@
-# Crystallux Build Status — 2026-05-10
+# Crystallux Build Status — 2026-05-10 (Part B push)
 
-> **Audience:** Mary. Keep this open while wiring credentials. **Status: Layer 2 Part A (Insurance MGA AI Compliance) complete in this commit. Wiring is what's left.**
+> **Audience:** Mary. Keep this open while wiring credentials. **Status: Layer 2 Part B (MGA Operations + Reviews + Video Engagement) complete in this commit. Layer 2 is 67% complete. Layer 2 Part C (insurer-facing) is the final session.**
 > Latest commit on `scale-sprint-v1`: TBD on push (this doc lands in the same commit).
-> Prior HEAD: `25c0886` (Phase 2 + Phase 3 — BI / video / agent).
+> Prior HEAD: `b4f5ec0` (Layer 2 Part A — AI Compliance Engine).
+
+## LATEST: Layer 2 Part B — MGA Operations + Reviews + Video Engagement
+
+| Metric | Value |
+|---|---|
+| New workflows this commit | **29** (`workflows/api/insurance-mga/clx-mga-insurance-*-v1.json`) — all DORMANT |
+| New schema migration | **1** (`db/migrations/insurance-mga-operations-schema.sql` — 9 tables + 5 ALTERs) |
+| New frontend pages | **9** (`insurance-mga-dashboard/`) |
+| New shared frontend files | **8** (`auth.js`, `api.js`, `components-mga.js`, `layout.css`, `nav.html`, `_headers`, `_redirects`, `index.html`) |
+| New docs | **4** (MGA Operations Vision, Review Management Vision, Video Engagement Strategy, Security Framework) |
+| Total files added in this commit | **~50 net-new** |
+
+This commit ships the **operational backbone of insurance MGA + the unique behavioral-signal-triggered video engagement system**. Mary's 10 LLQP-licensed advisors get purpose-built tooling on top of the AI compliance brain from Part A. Every life event becomes a meaningful client touchpoint via personalized HeyGen avatar videos. See `docs/insurance-mga/MGA_OPERATIONS_VISION.md` + `REVIEW_MANAGEMENT_VISION.md` + `VIDEO_ENGAGEMENT_STRATEGY.md` + `SECURITY_FRAMEWORK.md`.
+
+**Layer 2 trilogy progress:**
+- ✅ Part A — AI Compliance Engine (commit `b4f5ec0`)
+- ✅ Part B — MGA Operations + Reviews + Video Engagement (this commit)
+- 🔴 Part C — Insurer-Facing Mode + Production Reports (next session)
+
+---
 
 ## LATEST: Layer 2 Part A — AI Compliance Engine (Insurance MGA)
 

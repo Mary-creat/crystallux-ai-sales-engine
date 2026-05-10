@@ -1,0 +1,128 @@
+{
+  "name": "CLX - MGA Insurance Advisor Onboarding Start v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/advisor-onboarding-start", "responseMode": "responseNode", "options": {} },
+      "id": "aos-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-advisor-onboarding-start-001",
+      "notes": "DEACTIVATED. mga_principal session required. Creates auth_users + advisor_onboarding row, sends welcome email with onboarding portal link. vertical_id='insurance'."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nif (!body.email || !body.full_name) return { json: { _empty: true, status: 400, error: 'email and full_name required' } };\nreturn { json: { token: token, email: String(body.email).toLowerCase().trim(), full_name: String(body.full_name).slice(0, 200), phone: body.phone || null, jurisdiction: body.jurisdiction || 'ON' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aos-0002", "name": "Extract Inputs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+      },
+      "id": "aos-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nif (row.user_role !== 'mga_principal' && row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'mga_principal role required' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: { _ok: true, mga_principal_id: row.id || row.user_id, email: i.email, full_name: i.full_name, phone: i.phone, jurisdiction: i.jurisdiction, client_id: row.client_id || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aos-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "aos-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation,resolution=merge-duplicates" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, full_name: $json.full_name, phone: $json.phone, user_role: 'advisor', client_id: $json.client_id, status: 'pending_onboarding', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "aos-0006", "name": "Create Advisor User", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true,
+      "notes": "Insert with merge-duplicates so re-running with same email returns existing row instead of erroring. UNIQUE(email) on auth_users assumed."
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Check Role').item.json;\nconst ins = $input.item.json;\nconst user = Array.isArray(ins) ? ins[0] : ins;\nif (!user || !user.id) return { json: { _failed: true, error: 'failed to create or find auth_users row' } };\nreturn { json: { advisor_id: user.id, advisor_email: user.email, mga_principal_id: ctx.mga_principal_id, jurisdiction: ctx.jurisdiction, full_name: user.full_name } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aos-0007", "name": "Carry IDs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/advisor_onboarding",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', advisor_id: $json.advisor_id, mga_principal_id: $json.mga_principal_id, status: 'in_progress', steps_completed: { account_created: true, license_uploaded: false, eo_uploaded: false, background_check: false, training: false, contract_signed: false }, application_data: { jurisdiction: $json.jurisdiction, full_name: $json.full_name }, started_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "aos-0008", "name": "Insert Onboarding", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'welcome', to: $('Carry IDs').item.json.advisor_email, vars: { first_name: ($('Carry IDs').item.json.full_name || 'there').split(' ')[0], message: 'Welcome to Crystallux Insurance MGA. Your onboarding portal is ready. Complete the steps: license upload, E&O proof, background check authorization, training, and MGA contract signature.', landing_url: 'https://app.crystallux.org/insurance-mga/onboarding/' + $('Carry IDs').item.json.advisor_id } }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "aos-0009", "name": "Send Welcome Email", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2100, 320],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'advisor_onboarding_started', advisor_id: $('Carry IDs').item.json.advisor_id, performed_by_user_id: $('Carry IDs').item.json.mga_principal_id, performed_by_role: 'mga_principal', event_data: { advisor_email: $('Carry IDs').item.json.advisor_email, jurisdiction: $('Carry IDs').item.json.jurisdiction }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "aos-0010", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { const ins = $('Insert Onboarding').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ ok: true, vertical_id: 'insurance', advisor_id: $('Carry IDs').item.json.advisor_id, onboarding_id: row && row.id }); })() }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "aos-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2580, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "aos-0012", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs":       { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":     { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role":           { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                { "main": [[ { "node": "Create Advisor User", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Create Advisor User":  { "main": [[ { "node": "Carry IDs", "type": "main", "index": 0 } ]] },
+    "Carry IDs":            { "main": [[ { "node": "Insert Onboarding", "type": "main", "index": 0 } ]] },
+    "Insert Onboarding":    { "main": [[ { "node": "Send Welcome Email", "type": "main", "index": 0 } ]] },
+    "Send Welcome Email":   { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":            { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

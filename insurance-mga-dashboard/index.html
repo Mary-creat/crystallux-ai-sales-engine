@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<div style="text-align:center;padding:80px 20px">
+  <div class="clx-spinner" style="width:28px;height:28px"></div>
+  <div style="color:var(--text-muted);font-size:13px;margin-top:14px">Signing you in…</div>
+</div>
+<script>
+  // Cross-origin token handoff: site/login.html (crystallux.org) writes
+  // the token via URL hash fragment which doesn't appear in HTTP logs.
+  (function () {
+    var hash = window.location.hash || '';
+    var match = hash.match(/[#&]token=([^&]+)/);
+    if (match && match[1]) {
+      try { localStorage.setItem('clx_session_token', decodeURIComponent(match[1])); } catch (e) {}
+      try { history.replaceState({}, document.title, window.location.pathname + window.location.search); } catch (e) {}
+    }
+  })();
+</script>
+<script src="/shared/auth.js"></script>
+<script>
+  (function () {
+    var token = clxAuth.getToken();
+    if (!token) { window.location.replace('/login.html'); return; }
+    clxAuth.validate().then(function (user) {
+      if (!user) { window.location.replace('/login.html'); return; }
+      var role = user.user_role || user.role || '';
+      if (role === 'mga_principal' || role === 'admin') window.location.replace('/principal/overview.html');
+      else if (role === 'compliance_officer') window.location.replace('/principal/compliance.html');
+      else if (role === 'advisor' || role === 'sub_agent') window.location.replace('/advisor/overview.html');
+      else window.location.replace('/login.html?error=role_not_permitted');
+    });
+  })();
+</script>
+</body>
+</html>

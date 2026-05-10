@@ -1,0 +1,83 @@
+{
+  "name": "CLX - MGA Insurance Advisor Commissions v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/advisor/commissions", "responseMode": "responseNode", "options": {} },
+      "id": "ac-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-advisor-commissions-001",
+      "notes": "DEACTIVATED. advisor session. Returns commission_ledger entries WHERE advisor_id = session_user with monthly bucket aggregation."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nreturn { json: { token: token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ac-0002", "name": "Extract Token", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+      },
+      "id": "ac-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nreturn { json: { _ok: true, advisor_id: row.id || row.user_id, user_role: row.user_role } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ac-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "ac-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ (() => { const ctx = $json; let url = 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/commission_ledger?vertical_id=eq.insurance&select=id,policy_number,carrier_name,product_type,premium_amount,total_commission,advisor_commission,mga_commission,payout_status,payout_date,created_at'; if (ctx.user_role === 'advisor' || ctx.user_role === 'sub_agent') { url += '&advisor_id=eq.' + encodeURIComponent(ctx.advisor_id); } else if (ctx.user_role === 'mga_principal') { url += '&mga_principal_id=eq.' + encodeURIComponent(ctx.advisor_id); } url += '&order=created_at.desc&limit=500'; return url; })() }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "ac-0006", "name": "Fetch Commissions", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.item.json;\nconst rows = Array.isArray(raw) ? raw : (raw && raw.id ? [raw] : []);\nconst userRole = $('Check Role').item.json.user_role;\nconst pickField = (userRole === 'mga_principal') ? 'mga_commission' : 'advisor_commission';\n// Monthly aggregation for chart.\nconst byMonth = {};\nlet totalEarnedCents = 0;\nlet totalPendingCents = 0;\nlet totalPaidCents = 0;\nfor (const r of rows) {\n  const cents = parseInt(r[pickField]) || 0;\n  totalEarnedCents += cents;\n  if (r.payout_status === 'paid') totalPaidCents += cents;\n  else if (r.payout_status === 'pending' || r.payout_status === 'processing' || r.payout_status === 'held') totalPendingCents += cents;\n  if (r.created_at) {\n    const month = String(r.created_at).slice(0, 7);\n    byMonth[month] = (byMonth[month] || 0) + cents;\n  }\n}\nconst monthly = Object.keys(byMonth).sort().map(function (m) { return { month: m, cents: byMonth[m] }; });\nreturn { json: { ok: true, vertical_id: 'insurance', commissions: rows, count: rows.length, totals: { earned_cents: totalEarnedCents, pending_cents: totalPendingCents, paid_cents: totalPaidCents }, monthly: monthly } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ac-0007", "name": "Build Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "ac-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1860, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "ac-0009", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract Token", "type": "main", "index": 0 } ]] },
+    "Extract Token":      { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":   { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role":         { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":              { "main": [[ { "node": "Fetch Commissions", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Commissions":  { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
+    "Build Response":     { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,124 @@
+{
+  "name": "CLX - MGA Insurance Review Follow-up v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 13 * * *" } ] } },
+      "id": "rfu-0001", "name": "Schedule Trigger (DEACTIVATED)", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 400],
+      "notes": "DEACTIVATED. Daily 09:00 ET (=13:00 UTC). For each policy_review with stale engagement, dispatches the right follow-up: 'sent' >3d no engagement → AI WhatsApp nudge; 'viewed' >7d no reply → AI personal follow-up; 'replied' >7d no booking → notify advisor for personal outreach."
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ (() => { const sent3d = new Date(Date.now() - 3*86400000).toISOString(); const ago7 = new Date(Date.now() - 7*86400000).toISOString(); return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?vertical_id=eq.insurance&video_engagement_status=in.(sent,viewed,replied)&status=neq.completed&created_at=gte.' + encodeURIComponent(new Date(Date.now() - 60*86400000).toISOString()) + '&select=id,client_id,lead_id,advisor_id,video_engagement_status,trigger_signal_type,created_at&limit=500'; })() }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 30000 }
+      },
+      "id": "rfu-0002", "name": "Fetch Stale Reviews", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : [];\nif (rows.length === 0) return [{ json: { _empty: true } }];\nconst now = Date.now();\nconst out = [];\nfor (const r of rows) {\n  const ageMs = now - new Date(r.created_at).getTime();\n  const ageDays = ageMs / 86400000;\n  if (r.video_engagement_status === 'sent' && ageDays >= 3) out.push({ json: Object.assign({ followup_kind: 'ai_whatsapp_nudge' }, r) });\n  else if (r.video_engagement_status === 'viewed' && ageDays >= 7) out.push({ json: Object.assign({ followup_kind: 'ai_personal_followup' }, r) });\n  else if (r.video_engagement_status === 'replied' && ageDays >= 7) out.push({ json: Object.assign({ followup_kind: 'notify_advisor' }, r) });\n}\nif (out.length === 0) return [{ json: { _empty: true, reason: 'no stale reviews crossed thresholds' } }];\nreturn out;",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "rfu-0003", "name": "Compute Followups", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "rfu-0004", "name": "IF Empty", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "rfu-0005", "name": "Per Followup", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3, "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "rules": { "values": [
+          { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.followup_kind }}", "rightValue": "ai_whatsapp_nudge", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "wa_nudge" },
+          { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.followup_kind }}", "rightValue": "ai_personal_followup", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "personal" },
+          { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.followup_kind }}", "rightValue": "notify_advisor", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "advisor" }
+        ] }
+      },
+      "id": "rfu-0006", "name": "Switch Kind", "type": "n8n-nodes-base.switch", "typeVersion": 3, "position": [1380, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: 'Hi — quick nudge: did you have a chance to watch the personal video I sent? Happy to chat anytime if questions come up.' }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "rfu-0007", "name": "AI WhatsApp Nudge", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 360],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: 'Hi — saw you watched the video. Any questions I can help with directly? I have 15 minutes today and tomorrow if a quick call would help.' }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "rfu-0008", "name": "AI Personal Followup", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 500],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?id=eq.' + encodeURIComponent($json.advisor_id) + '&select=email,full_name&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "rfu-0009", "name": "Find Advisor", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 640],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ (() => { const rows = $input.item.json; const adv = (Array.isArray(rows) ? rows[0] : rows) || {}; const ctx = $('Per Followup').item.json; return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: adv.email || 'support@crystallux.org', vars: { first_name: (adv.full_name || 'Advisor').split(' ')[0], message: 'Heads up: client replied to a triggered video review (' + (ctx.trigger_signal_type || 'review') + ') 7+ days ago but has not booked. Personal outreach recommended.', landing_url: 'https://app.crystallux.org/insurance-mga/advisor/reviews' } }); })() }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "rfu-0010", "name": "Notify Advisor", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 640],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'review_followup_dispatched', client_id: $('Per Followup').item.json.client_id, advisor_id: $('Per Followup').item.json.advisor_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { policy_review_id: $('Per Followup').item.json.id, followup_kind: $('Per Followup').item.json.followup_kind }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "rfu-0011", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2100, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "rfu-0012", "name": "Loop Continue", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [2340, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Stale Reviews", "type": "main", "index": 0 } ]] },
+    "Fetch Stale Reviews":            { "main": [[ { "node": "Compute Followups", "type": "main", "index": 0 } ]] },
+    "Compute Followups":              { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Followup", "type": "main", "index": 0 } ]] },
+    "Per Followup":                   { "main": [[], [ { "node": "Switch Kind", "type": "main", "index": 0 } ]] },
+    "Switch Kind":                    { "main": [[ { "node": "AI WhatsApp Nudge", "type": "main", "index": 0 } ], [ { "node": "AI Personal Followup", "type": "main", "index": 0 } ], [ { "node": "Find Advisor", "type": "main", "index": 0 } ]] },
+    "AI WhatsApp Nudge":              { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "AI Personal Followup":           { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Find Advisor":                   { "main": [[ { "node": "Notify Advisor", "type": "main", "index": 0 } ]] },
+    "Notify Advisor":                 { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                      { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Followup", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
