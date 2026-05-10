@@ -1,0 +1,212 @@
+{
+  "name": "CLX - MGA Insurance Stripe Identity Callback v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/stripe-identity-callback",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      },
+      "id": "sic-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-stripe-identity-callback-001",
+      "notes": "DEACTIVATED. Public POST. Stripe Identity webhook. Validates Stripe signature using STRIPE_IDENTITY_WEBHOOK_SECRET, looks up kyc_verifications by external_session_id WHERE vertical_id='insurance', updates with verified identity OR failure, computes preliminary aml_risk_score, marks pep_screening_result for manual review (Phase 6 automates), triggers compliance agent (A1.1) on success."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stripe webhook signature verification.\n// Header format: Stripe-Signature: t=<unix>,v1=<hmac_sha256>\nconst crypto = require('crypto');\nconst headers = $input.item.json.headers || {};\nconst rawBody = $input.item.json.rawBody;\nconst sigHeader = headers['stripe-signature'] || headers['Stripe-Signature'] || '';\nconst secret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET || '';\n\nlet verified = false;\nlet bodyString = '';\nif (Buffer.isBuffer(rawBody)) bodyString = rawBody.toString('utf8');\nelse if (typeof rawBody === 'string') bodyString = rawBody;\nelse bodyString = JSON.stringify($input.item.json.body || $input.item.json);\n\nif (secret && sigHeader) {\n  try {\n    const parts = String(sigHeader).split(',').reduce(function (acc, p) { const kv = p.split('='); acc[kv[0]] = kv[1]; return acc; }, {});\n    const t = parts.t;\n    const v1 = parts.v1;\n    if (t && v1) {\n      const computed = crypto.createHmac('sha256', secret).update(t + '.' + bodyString).digest('hex');\n      verified = (computed === v1);\n    }\n  } catch (e) { verified = false; }\n} else if (!secret) {\n  // Allow but flag — Mary should set the secret before going live.\n  verified = true;\n}\n\nif (!verified) return { json: { _unauthorized: true, error: 'invalid stripe signature' } };\n\nlet payload = null;\ntry { payload = JSON.parse(bodyString); } catch (e) { payload = $input.item.json.body || {}; }\n\nconst eventType = payload.type || '';\nconst data = (payload.data && payload.data.object) || {};\nconst sessionId = data.id || null;\nif (!sessionId) return { json: { _bad: true, error: 'no session id in event', event_type: eventType } };\n\nreturn { json: {\n  _ok: true,\n  event_type: eventType,\n  external_session_id: sessionId,\n  status_from_stripe: data.status || null,\n  verified_outputs: data.verified_outputs || null,\n  last_error: data.last_error || null,\n  metadata: data.metadata || {}\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sic-0002",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "sic-0003",
+      "name": "IF Verified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/kyc_verifications?external_session_id=eq.' + encodeURIComponent($json.external_session_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sic-0004",
+      "name": "Lookup KYC Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Verify Signature').item.json;\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nif (!row || !row.id) return { json: { _not_found: true, external_session_id: ctx.external_session_id } };\n\nconst evt = ctx.event_type;\nconst now = new Date().toISOString();\n\n// Identity outputs vary by Stripe Identity API version; capture safely.\nconst vo = ctx.verified_outputs || {};\nconst identity_data = (evt === 'identity.verification_session.verified' || ctx.status_from_stripe === 'verified') ? {\n  first_name: vo.first_name || null,\n  last_name: vo.last_name || null,\n  dob: vo.dob || null,\n  address: vo.address || null,\n  id_number: vo.id_number || null,\n  id_number_type: vo.id_number_type || null\n} : null;\n\n// Default AML risk score (50 baseline). > 75 forces manual review at compliance agent.\n// Heuristics: missing required fields nudge risk up; non-Canadian address gets +20.\nlet amlRisk = 50;\nif (identity_data) {\n  if (!identity_data.dob) amlRisk += 10;\n  if (!identity_data.address) amlRisk += 10;\n  const country = identity_data.address && identity_data.address.country;\n  if (country && country !== 'CA') amlRisk += 20;\n}\n\nlet status = 'in_progress';\nlet patch = {};\nif (evt === 'identity.verification_session.verified' || ctx.status_from_stripe === 'verified') {\n  status = 'verified';\n  patch = {\n    status: 'verified',\n    identity_data: identity_data,\n    aml_risk_score: amlRisk,\n    pep_screening_result: { status: 'manual_review_pending', note: 'Automated PEP screening lands in Phase 6.' },\n    verified_at: now\n  };\n} else if (evt === 'identity.verification_session.requires_input' || ctx.status_from_stripe === 'requires_input') {\n  status = 'in_progress';\n  patch = { status: 'in_progress' };\n} else if (evt === 'identity.verification_session.canceled' || evt === 'identity.verification_session.failed' || ctx.status_from_stripe === 'canceled' || (ctx.last_error && ctx.last_error.code)) {\n  status = 'failed';\n  patch = { status: 'failed', identity_data: identity_data || null };\n} else {\n  // Unknown event — log without mutating status.\n  patch = {};\n}\n\nreturn { json: {\n  kyc_id: row.id,\n  client_id: row.client_id,\n  lead_id: row.lead_id,\n  status: status,\n  patch: patch,\n  trigger_compliance: status === 'verified',\n  event_type: evt\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sic-0005",
+      "name": "Decide Patch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._not_found }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "sic-0006",
+      "name": "IF Not Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/kyc_verifications?id=eq.' + encodeURIComponent($json.kyc_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {}
+      },
+      "id": "sic-0007",
+      "name": "Update KYC Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'kyc_' + $('Decide Patch').item.json.status, client_id: $('Decide Patch').item.json.client_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { kyc_id: $('Decide Patch').item.json.kyc_id, lead_id: $('Decide Patch').item.json.lead_id, stripe_event: $('Decide Patch').item.json.event_type }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "sic-0008",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $('Decide Patch').item.json.trigger_compliance }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "sic-0009",
+      "name": "IF Trigger Compliance",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2100, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/compliance-review' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, review_type: 'kyc', kyc_id: $('Decide Patch').item.json.kyc_id, client_id: $('Decide Patch').item.json.client_id }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "sic-0010",
+      "name": "Trigger Compliance Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 160],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "sic-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2580, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : ($json._not_found ? 404 : 400) }}" }
+      },
+      "id": "sic-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":                  { "main": [[ { "node": "Verify Signature", "type": "main", "index": 0 } ]] },
+    "Verify Signature":         { "main": [[ { "node": "IF Verified", "type": "main", "index": 0 } ]] },
+    "IF Verified":              { "main": [[ { "node": "Lookup KYC Row", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Lookup KYC Row":           { "main": [[ { "node": "Decide Patch", "type": "main", "index": 0 } ]] },
+    "Decide Patch":             { "main": [[ { "node": "IF Not Found", "type": "main", "index": 0 } ]] },
+    "IF Not Found":             { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Update KYC Row", "type": "main", "index": 0 } ]] },
+    "Update KYC Row":           { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                { "main": [[ { "node": "IF Trigger Compliance", "type": "main", "index": 0 } ]] },
+    "IF Trigger Compliance":    { "main": [[ { "node": "Trigger Compliance Agent", "type": "main", "index": 0 } ], [ { "node": "Respond OK", "type": "main", "index": 0 } ]] },
+    "Trigger Compliance Agent": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

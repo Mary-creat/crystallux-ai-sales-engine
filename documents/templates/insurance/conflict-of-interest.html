@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Advisor Compensation + Conflict of Interest Disclosure</title>
+  <style>
+    body { font-family: Inter, -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.5; }
+    h1 { color: #5B21B6; font-size: 22px; margin-bottom: 16px; }
+    h2 { font-size: 16px; margin-top: 24px; }
+    .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+    .important { background: #FFF7ED; border-left: 4px solid #EA580C; padding: 12px 18px; margin: 16px 0; }
+    .signature { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ccc; }
+    .signature-line { display: inline-block; width: 280px; border-bottom: 1px solid #333; height: 24px; }
+  </style>
+</head>
+<body>
+  <h1>Advisor Compensation + Conflict of Interest Disclosure</h1>
+  <p class="meta">Vertical: Insurance &middot; Required by FSRA Ontario &middot; Date: {{date}}</p>
+
+  <p>Under FSRA Ontario regulations, your advisor must disclose how they are compensated and any conflicts of interest before recommending an insurance product.</p>
+
+  <h2>How {{advisor_name}} is compensated</h2>
+  <p>{{advisor_name}}, acting on behalf of {{advisor_company}}, is compensated by insurance carriers via commissions on policies sold. Specific commission structure for the recommended product:</p>
+  <p><strong>{{commission_disclosure}}</strong></p>
+
+  <h2>Commission structure varies by carrier</h2>
+  <p>Different carriers pay different commission rates for the same product type. {{advisor_company}} maintains carrier relationships with multiple insurers; commission differentials between carriers can be material.</p>
+
+  <h2>Conflicts of interest disclosed</h2>
+  <p>{{conflicts_array}}</p>
+
+  <div class="important">
+    <strong>Best-interest obligation.</strong> Despite commission differentials, {{advisor_name}} is required by FSRA Ontario regulation to recommend products in <em>your</em> best interest — not the highest-commission product. The AI Crystallux suitability engine ranks products by client-fit score independent of commission structure; advisor-overrides are logged for compliance review.
+  </div>
+
+  <h2>Your rights</h2>
+  <ul>
+    <li>You may ask {{advisor_name}} for the commission rate on any specific product before purchase.</li>
+    <li>You may request a second opinion from another licensed advisor.</li>
+    <li>You may file a complaint with FSRA Ontario at <a href="https://www.fsrao.ca">fsrao.ca</a> if you believe a recommendation was not in your best interest.</li>
+  </ul>
+
+  <div class="signature">
+    <p>Acknowledged by: <strong>{{client_name}}</strong></p>
+    <p>Signature: <span class="signature-line"></span></p>
+    <p>Date: <strong>{{date}}</strong></p>
+  </div>
+
+  <p class="meta" style="margin-top: 40px;">{{advisor_company}} &middot; FSRA-licensed &middot; Crystallux compliance reference: COI-{{date}}</p>
+</body>
+</html>

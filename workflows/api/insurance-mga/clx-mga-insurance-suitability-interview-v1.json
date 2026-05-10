@@ -1,0 +1,309 @@
+{
+  "name": "CLX - MGA Insurance Suitability Interview v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/suitability-start",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "sui-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-suitability-interview-001",
+      "notes": "DEACTIVATED. Session-token auth (advisor / mga_principal / supervisor / admin). Starts a conversational suitability interview for the INSURANCE vertical. Generates the first question via Claude tuned to product_type, sends it to the lead via specified channel (whatsapp/sms/email/web), creates the suitability_assessments row (vertical_id='insurance'), returns assessment_id for the conversation handler to track."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nconst validProducts = ['term_life','whole_life','critical_illness','disability','auto','home','commercial'];\nconst validChannels = ['whatsapp','sms','email','web'];\nif (!body.lead_id || !body.product_type) return { json: { _empty: true, status: 400, error: 'lead_id and product_type required' } };\nif (validProducts.indexOf(body.product_type) < 0) return { json: { _empty: true, status: 400, error: 'product_type must be one of ' + validProducts.join(',') } };\nconst channel = body.channel || 'whatsapp';\nif (validChannels.indexOf(channel) < 0) return { json: { _empty: true, status: 400, error: 'channel must be one of ' + validChannels.join(',') } };\nreturn { json: {\n  token: token,\n  lead_id: body.lead_id,\n  client_id: body.client_id || null,\n  product_type: body.product_type,\n  channel: channel\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sui-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "sui-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid or expired session' } };\nconst allowed = ['advisor','mga_principal','supervisor','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: {\n  _ok: true,\n  advisor_id: row.id || row.user_id,\n  user_role: row.user_role,\n  client_id: i.client_id || row.client_id || null,\n  lead_id: i.lead_id,\n  product_type: i.product_type,\n  channel: i.channel\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sui-0004",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "sui-0005",
+      "name": "IF OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.lead_id) + '&select=id,first_name,full_name,company,city,industry,phone,email&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sui-0006",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Check Role').item.json;\nconst rows = $input.item.json;\nconst lead = (Array.isArray(rows) ? rows[0] : rows) || {};\nconst firstName = lead.first_name || (lead.full_name || '').split(' ')[0] || 'there';\n\nconst systemPrompt = [\n  'You are the Crystallux AI Suitability Interviewer for the INSURANCE vertical (vertical_id=insurance).',\n  'Product under consideration: ' + ctx.product_type,\n  'You are starting a conversational suitability assessment over ' + ctx.channel + '.',\n  'Lead context: ' + firstName + (lead.company ? ' at ' + lead.company : '') + (lead.city ? ' in ' + lead.city : ''),\n  '',\n  'Output strictly JSON. Schema:',\n  '{',\n  '  \"question\":              \"<one short question, conversational, friendly tone>\",',\n  '  \"expected_answer_type\":  \"text\" | \"number\" | \"choice\" | \"yes_no\",',\n  '  \"choices\":               [ \"<option>\" ]   // only if expected_answer_type=choice',\n  '}',\n  '',\n  'Rules:',\n  '- Single question. ONE thing at a time.',\n  '- Open with a warm acknowledgement (1 short sentence) BEFORE the question.',\n  '- For ' + ctx.product_type + ', start with the highest-leverage question for needs determination (e.g. dependents/income for term_life; existing coverage for whole_life; occupation/income for disability; vehicle details for auto; mortgage status for home; revenue/employee count for commercial).',\n  '- For SMS/WhatsApp keep total reply under 320 characters.'\n].join('\\n');\n\nreturn { json: {\n  ctx: ctx,\n  lead: lead,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 400,\n    temperature: 0.4,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: 'Generate the opening question now. JSON only.' } ]\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sui-0007",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "sui-0008",
+      "name": "Claude First Question",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build Claude Prompt').item.json.ctx;\nconst lead = $('Build Claude Prompt').item.json.lead;\nconst resp = $input.item.json || {};\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\nif (!parsed || !parsed.question) {\n  parsed = { question: 'To get started, can you tell me a bit about your current situation?', expected_answer_type: 'text', choices: [] };\n}\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\n\nconst initialSituation = {\n  qa_history: [ { q: parsed.question, a: null, asked_at: new Date().toISOString() } ],\n  expected_next: { type: parsed.expected_answer_type, choices: parsed.choices || [] }\n};\n\nreturn { json: {\n  insert_row: {\n    vertical_id: 'insurance',\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    advisor_id: ctx.advisor_id,\n    product_type: ctx.product_type,\n    channel: ctx.channel,\n    client_situation: initialSituation,\n    status: 'in_progress'\n  },\n  question: parsed.question,\n  channel: ctx.channel,\n  lead_email: lead.email,\n  lead_phone: lead.phone,\n  client_id: ctx.client_id,\n  advisor_id: ctx.advisor_id,\n  lead_id: ctx.lead_id,\n  tokens: tokens\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sui-0009",
+      "name": "Build Insert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/suitability_assessments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert_row) }}",
+        "options": {}
+      },
+      "id": "sui-0010",
+      "name": "Insert Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $('Build Insert').item.json.channel }}", "rightValue": "whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "wa" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $('Build Insert').item.json.channel }}", "rightValue": "sms", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "sms" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $('Build Insert').item.json.channel }}", "rightValue": "email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "sui-0011",
+      "name": "Switch Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2580, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $('Build Insert').item.json.lead_id, client_id: $('Build Insert').item.json.client_id, content: $('Build Insert').item.json.question }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "sui-0012",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 200],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/sms-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $('Build Insert').item.json.lead_id, client_id: $('Build Insert').item.json.client_id, content: $('Build Insert').item.json.question }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "sui-0013",
+      "name": "Send SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: $('Build Insert').item.json.lead_email, vars: { first_name: 'there', message: $('Build Insert').item.json.question, landing_url: 'https://app.crystallux.org' } }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "sui-0014",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 440],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $('Insert Assessment').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ vertical_id: 'insurance', event_type: 'suitability_started', client_id: $('Build Insert').item.json.client_id, advisor_id: $('Build Insert').item.json.advisor_id, performed_by_user_id: $('Build Insert').item.json.advisor_id, performed_by_role: 'advisor', event_data: { suitability_id: row && row.id, lead_id: $('Build Insert').item.json.lead_id, product_type: row && row.product_type, channel: row && row.channel }, occurred_at: new Date().toISOString() }); })() }}",
+        "options": {}
+      },
+      "id": "sui-0015",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3060, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { const ins = $('Insert Assessment').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ ok: true, vertical_id: 'insurance', suitability_id: row && row.id, first_question: $('Build Insert').item.json.question, channel: $('Build Insert').item.json.channel }); })() }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "sui-0016",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [3300, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "sui-0017",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1380, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs":       { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":     { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role":           { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                { "main": [[ { "node": "Fetch Lead", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Lead":           { "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":  { "main": [[ { "node": "Claude First Question", "type": "main", "index": 0 } ]] },
+    "Claude First Question":{ "main": [[ { "node": "Build Insert", "type": "main", "index": 0 } ]] },
+    "Build Insert":         { "main": [[ { "node": "Insert Assessment", "type": "main", "index": 0 } ]] },
+    "Insert Assessment":    { "main": [[ { "node": "Switch Channel", "type": "main", "index": 0 } ]] },
+    "Switch Channel":       { "main": [[ { "node": "Send WhatsApp", "type": "main", "index": 0 } ], [ { "node": "Send SMS", "type": "main", "index": 0 } ], [ { "node": "Send Email", "type": "main", "index": 0 } ]] },
+    "Send WhatsApp":        { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Send SMS":             { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Send Email":           { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":            { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

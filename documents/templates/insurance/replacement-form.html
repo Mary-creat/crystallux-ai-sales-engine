@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Life Insurance Replacement Disclosure</title>
+  <style>
+    body { font-family: Inter, -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.5; }
+    h1 { color: #5B21B6; font-size: 22px; margin-bottom: 16px; }
+    h2 { font-size: 16px; margin-top: 24px; }
+    .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+    .warning { background: #FEF2F2; border-left: 4px solid #DC2626; padding: 12px 18px; margin: 16px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; vertical-align: top; }
+    th { background: #FAF7FF; text-align: left; }
+    .signature { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ccc; }
+    .signature-line { display: inline-block; width: 280px; border-bottom: 1px solid #333; height: 24px; }
+  </style>
+</head>
+<body>
+  <h1>Life Insurance Replacement Disclosure</h1>
+  <p class="meta">Vertical: Insurance &middot; Required by FSRA Ontario &middot; Date: {{date}}</p>
+
+  <p>You are replacing existing life insurance coverage. FSRA requires that you receive this disclosure <strong>before</strong> any replacement is finalized. Please read carefully.</p>
+
+  <h2>Existing policy</h2>
+  <p>{{existing_policy_details}}</p>
+
+  <h2>Proposed new policy</h2>
+  <p>{{new_policy_details}}</p>
+
+  <h2>Side-by-side comparison</h2>
+  {{comparison_table}}
+
+  <div class="warning">
+    <strong>Critical notice — do NOT cancel existing coverage</strong> until the new policy has been issued <em>and</em> is in force. Cancelling early can leave you uninsured and may forfeit accumulated cash value, contestability protection, or preferred underwriting class earned over time.
+  </div>
+
+  <h2>Considerations before replacement</h2>
+  <ul>
+    <li><strong>Underwriting reset.</strong> The new policy starts a new 2-year contestability period and a new suicide-clause period.</li>
+    <li><strong>Health status.</strong> If your health has changed since the existing policy was issued, the new policy may have higher premiums or be declined entirely.</li>
+    <li><strong>Cash value.</strong> Whole-life replacement may forfeit accumulated cash value or trigger taxable disposition.</li>
+    <li><strong>Surrender charges.</strong> Some existing policies impose charges if cancelled before a defined period.</li>
+  </ul>
+
+  <h2>Acknowledgment</h2>
+  <p>I, <strong>{{client_name}}</strong>, confirm that {{advisor_name}} has explained the considerations above and that I understand the implications of replacing my existing coverage.</p>
+
+  <div class="signature">
+    <p>Signature: <span class="signature-line"></span></p>
+    <p>Printed name: <strong>{{client_name}}</strong></p>
+    <p>Date: <strong>{{date}}</strong></p>
+  </div>
+
+  <p class="meta" style="margin-top: 40px;">{{advisor_company}} &middot; FSRA Ontario &middot; Crystallux compliance reference: REPL-{{date}}</p>
+</body>
+</html>

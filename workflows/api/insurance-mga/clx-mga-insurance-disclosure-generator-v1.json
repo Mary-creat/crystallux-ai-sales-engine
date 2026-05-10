@@ -1,0 +1,209 @@
+{
+  "name": "CLX - MGA Insurance Disclosure Generator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/disclosure-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dgn-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-disclosure-generator-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Generates required INSURANCE disclosure HTML documents from documents/templates/insurance/<type>.html, substitutes {{variables}}, uploads to Cloudflare R2 at /disclosures/insurance/{client_id}/{type}.html, creates one compliance_disclosures row per type (vertical_id='insurance'). Returns array of disclosure_ids + secure URLs for the e-signature orchestrator (A3.2)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.client_id || !Array.isArray(body.disclosure_types) || body.disclosure_types.length === 0) return { json: { _empty: true, error: 'client_id and disclosure_types[] required' } };\nconst valid = ['casl_consent','pipeda_privacy','conflict_of_interest','replacement_form','general'];\nconst types = body.disclosure_types.filter(function (t) { return valid.indexOf(t) >= 0; });\nif (types.length === 0) return { json: { _empty: true, error: 'no valid disclosure types in input' } };\nreturn { json: {\n  _authorized: true,\n  client_id: body.client_id,\n  advisor_id: body.advisor_id || null,\n  variables: body.variables || {},\n  disclosure_types: types\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "dgn-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "dgn-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fan out one item per disclosure_type. Each downstream iteration will\n// load the template (committed alongside this workflow), substitute\n// variables, upload to R2, and insert a compliance_disclosures row.\nconst ctx = $json;\nreturn ctx.disclosure_types.map(function (t) {\n  return { json: {\n    disclosure_type: t,\n    template_id: t.replace(/_/g, '-'),  // file name pattern: documents/templates/insurance/<template_id>.html\n    client_id: ctx.client_id,\n    advisor_id: ctx.advisor_id,\n    variables: ctx.variables\n  } };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "dgn-0004",
+      "name": "Fan Out Types",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 320]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "dgn-0005",
+      "name": "Per Type",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MVP: inline template bodies. Phase 5b polish — read from R2 instead\n// (reduces n8n bundle size + allows non-engineer compliance officer to\n// edit templates without redeploy). Templates committed to repo at\n// documents/templates/insurance/<template_id>.html for source-of-truth\n// and version control; the inline copies here mirror their structure\n// and will be regenerated from those files in a follow-up sync workflow.\nconst ctx = $json;\nconst tpl = ctx.template_id;\nconst v = ctx.variables || {};\n\nconst escapeHtml = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };\n\nconst inlineTemplates = {\n  'casl-consent':         '<!doctype html><html><head><meta charset=\"utf-8\"><title>CASL Consent</title></head><body><h1>Express Consent — Canadian Anti-Spam Legislation (CASL)</h1><p>I, {{client_name}}, expressly consent to receive commercial electronic messages from {{advisor_company}} (via {{advisor_name}}) regarding insurance products, market intelligence, and related services. I understand I can withdraw consent at any time by replying STOP or emailing {{support_email}}.</p><p>Date: {{date}}</p><p>Signature: ________________________</p></body></html>',\n  'pipeda-privacy':       '<!doctype html><html><head><meta charset=\"utf-8\"><title>PIPEDA Privacy Notice</title></head><body><h1>Privacy Notice — PIPEDA Compliance</h1><p>{{advisor_company}} collects personal information from {{client_name}} for the purposes of: assessing insurance suitability, completing applications with carriers, fulfilling regulatory KYC/AML requirements, and ongoing service. Information is shared with carriers ONLY for application processing. You may access or correct your information by contacting {{support_email}}.</p><p>Date: {{date}}</p></body></html>',\n  'conflict-of-interest': '<!doctype html><html><head><meta charset=\"utf-8\"><title>Conflict of Interest Disclosure</title></head><body><h1>Advisor Compensation Disclosure</h1><p>{{advisor_name}} is compensated by carriers via commissions on policies sold. Commission structures vary by carrier and product. Specific commission disclosure: {{commission_disclosure}}. Conflicts (if any): {{conflicts_array}}. {{advisor_name}} is required by FSRA to recommend products in your best interest regardless of commission differentials.</p><p>Acknowledged by: {{client_name}}</p><p>Date: {{date}}</p></body></html>',\n  'replacement-form':     '<!doctype html><html><head><meta charset=\"utf-8\"><title>Life Insurance Replacement Disclosure</title></head><body><h1>Replacement Disclosure (Life Insurance)</h1><p>You are replacing existing coverage. Existing policy: {{existing_policy_details}}. New policy proposed: {{new_policy_details}}.</p><p>Comparison: {{comparison_table}}</p><p>You should NOT cancel existing coverage until new coverage is issued and in force. Acknowledged by {{client_name}} on {{date}}.</p></body></html>',\n  'needs-analysis-record':'<!doctype html><html><head><meta charset=\"utf-8\"><title>Suitability Record</title></head><body><h1>Suitability Documentation</h1><h2>Client Situation</h2><pre>{{client_situation}}</pre><h2>Needs Analysis</h2><pre>{{needs_analysis}}</pre><h2>Recommendations</h2><pre>{{recommendations}}</pre><h2>Advisor Reasoning</h2><p>{{advisor_reasoning}}</p></body></html>',\n  'application-summary':  '<!doctype html><html><head><meta charset=\"utf-8\"><title>Application Summary</title></head><body><h1>Application Summary for Review</h1><h2>Application Data</h2><pre>{{application_data}}</pre><h2>Premium</h2><p>{{premium_summary}}</p><h2>Coverage</h2><p>{{coverage_summary}}</p></body></html>',\n  'coverage-comparison':  '<!doctype html><html><head><meta charset=\"utf-8\"><title>Coverage Comparison</title></head><body><h1>Side-by-Side Comparison</h1><pre>{{products_array}}</pre><h2>Your Needs</h2><pre>{{client_needs}}</pre></body></html>'\n};\n\nlet html = inlineTemplates[tpl];\nif (!html) return { json: { _missing_template: true, template_id: tpl } };\n\n// Substitute {{variables}}. Unknown vars stay as empty string.\nhtml = html.replace(/\\{\\{(\\w+)\\}\\}/g, function (_, name) {\n  return escapeHtml(v[name] != null ? v[name] : '');\n});\n\nconst storageKey = 'disclosures/insurance/' + ctx.client_id + '/' + tpl + '-' + Date.now() + '.html';\n\nreturn { json: {\n  storage_key: storageKey,\n  html_body: html,\n  template_id: tpl,\n  client_id: ctx.client_id,\n  advisor_id: ctx.advisor_id,\n  disclosure_type: ctx.disclosure_type\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "dgn-0006",
+      "name": "Render Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 320]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $env.R2_BUCKET || 'crystallux-videos' }}",
+        "fileName": "={{ $json.storage_key }}",
+        "fileContent": "={{ $json.html_body }}",
+        "additionalFields": {
+          "acl": "publicRead",
+          "storageClass": "standard",
+          "tagsUi": { "tagsValues": [ { "key": "vertical_id", "value": "insurance" }, { "key": "kind", "value": "disclosure" } ] }
+        }
+      },
+      "id": "dgn-0007",
+      "name": "Upload to R2",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [1620, 320],
+      "credentials": { "aws": { "name": "Cloudflare R2" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Reuses the existing 'Cloudflare R2' AWS-type credential configured in commit 25c0886 (heygen-webhook + storage-cleanup). Bucket = R2_BUCKET. ACL=publicRead so e-signature service can fetch the doc by URL during signing flow."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_disclosures",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', client_id: $('Render Template').item.json.client_id, disclosure_type: $('Render Template').item.json.disclosure_type, disclosure_content_template_id: $('Render Template').item.json.template_id, presented_at: new Date().toISOString(), document_url: ($env.R2_PUBLIC_URL || 'https://videos.crystallux.org') + '/' + $('Render Template').item.json.storage_key }) }}",
+        "options": {}
+      },
+      "id": "dgn-0008",
+      "name": "Insert Disclosure Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $input.item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ vertical_id: 'insurance', event_type: 'disclosure_generated', client_id: $('Render Template').item.json.client_id, advisor_id: $('Render Template').item.json.advisor_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { disclosure_id: row && row.id, disclosure_type: $('Render Template').item.json.disclosure_type, document_url: row && row.document_url }, occurred_at: new Date().toISOString() }); })() }}",
+        "options": {}
+      },
+      "id": "dgn-0009",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "dgn-0010",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2340, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inserts = $('Insert Disclosure Row').all().map(function (i) { const row = Array.isArray(i.json) ? i.json[0] : i.json; return { id: row && row.id, disclosure_type: row && row.disclosure_type, document_url: row && row.document_url }; });\nreturn { json: { ok: true, vertical_id: 'insurance', disclosures: inserts, count: inserts.length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "dgn-0011",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "dgn-0012",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "dgn-0013",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 720]
+    }
+  ],
+  "connections": {
+    "Webhook":               { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":              { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":         { "main": [[ { "node": "Fan Out Types", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fan Out Types":         { "main": [[ { "node": "Per Type", "type": "main", "index": 0 } ]] },
+    "Per Type":              { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ], [ { "node": "Render Template", "type": "main", "index": 0 } ]] },
+    "Render Template":       { "main": [[ { "node": "Upload to R2", "type": "main", "index": 0 } ]] },
+    "Upload to R2":          { "main": [[ { "node": "Insert Disclosure Row", "type": "main", "index": 0 } ]] },
+    "Insert Disclosure Row": { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":             { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":         { "main": [[ { "node": "Per Type", "type": "main", "index": 0 } ]] },
+    "Build Summary":         { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

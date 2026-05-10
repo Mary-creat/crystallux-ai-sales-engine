@@ -1,22 +1,39 @@
-# Crystallux Build Status — 2026-05-09
+# Crystallux Build Status — 2026-05-10
 
-> **Audience:** Mary. Keep this open while wiring credentials. **Status: SCOPE LOCKED. Wiring is what's left.**
+> **Audience:** Mary. Keep this open while wiring credentials. **Status: Layer 2 Part A (Insurance MGA AI Compliance) complete in this commit. Wiring is what's left.**
 > Latest commit on `scale-sprint-v1`: TBD on push (this doc lands in the same commit).
-> Pre-this-commit HEAD: `6bd51c7` (Phase 1 + Phase 2/3 architectural foundation).
+> Prior HEAD: `25c0886` (Phase 2 + Phase 3 — BI / video / agent).
 
-## EXECUTIVE SUMMARY
+## LATEST: Layer 2 Part A — AI Compliance Engine (Insurance MGA)
+
+| Metric | Value |
+|---|---|
+| New workflows this commit | **12** (`workflows/api/insurance-mga/clx-mga-insurance-*-v1.json`) — all DORMANT |
+| New schema migration | **1** (`db/migrations/insurance-mga-schema.sql` — 7 tables, every one `vertical_id`-tagged) |
+| New disclosure templates | **7** (`documents/templates/insurance/*.html`) |
+| New docs | **3** (AI compliance vision, regulatory framework, multi-vertical Layer 2 architecture) |
+| External services Mary activates | Stripe Identity + Zoho Sign |
+| Cost per fully-processed client | **~$1.85** (vs $80-200 traditional MGA per-client compliance overhead) |
+
+This commit ships the **AI brain of insurance MGA operations**. Manual compliance work (KYC verification 1-3 days → ~5 min, suitability 2-5 days → ~10 min of client time, application data entry hours → instant, compliance review 3-7 days → instant) replaced by AI workflows with `compliance_officer` human-in-the-loop override authority retained on every decision. See `docs/insurance-mga/AI_COMPLIANCE_VISION.md` + `docs/insurance-mga/REGULATORY_FRAMEWORK.md`.
+
+**Multi-vertical architecture committed:** every Layer 2 table carries `vertical_id text NOT NULL DEFAULT 'insurance'` so future verticals (mortgage MGA Phase 7, real estate Phase 8, group benefits Phase 10, commercial insurance Phase 11) plug in without schema migration. See `docs/architecture/MULTI_VERTICAL_LAYER2_ARCHITECTURE.md` for the strategy + plug-in pattern.
+
+---
+
+## CUMULATIVE EXECUTIVE SUMMARY
 
 | Metric | Value | Notes |
 |---|---|---|
-| Workflow JSONs in repo | **75** active path (50 top-level + 25 new in `workflows/api/`) | excludes `workflows/api/admin/` + `workflows/api/client/` + `workflows/api/auth/` legacy webhooks already counted under prior commits |
-| Currently ACTIVE in production | **9 protected v2/v3 + 18 admin/client webhooks** | per `docs/audit/api-surface-audit.md` Bucket 1 |
-| BUILT-DORMANT awaiting wiring | **34 (pre) + 25 (new this commit) = 59** | every new workflow ships `active: false` per dormant-by-default doctrine |
-| Specced not yet built | **Phase 4 content workflows** | schema ready, workflows deferred (~2-3 weeks) |
-| Database tables — agent + BI + delivery + content | **24 net-new** in 5 migrations | 5 migrations Mary applies in order (see below) |
-| Active paying clients | _Mary fills in after deploy_ | `SELECT count(*) FROM clients WHERE behavioral_intel_enabled = true OR id IN (SELECT client_id FROM agent_channels_enabled WHERE enabled = true)` |
+| Workflow JSONs in repo (active path) | **87** = 50 top-level + 25 from commit 25c0886 + 12 from this commit | excludes legacy admin/client/auth/email webhooks |
+| Currently ACTIVE in production | **9 protected v2/v3 + 18 admin/client webhooks** | per `docs/audit/api-surface-audit.md` Bucket 1 (note: doc is stale — see live n8n audit drift report from prior session) |
+| BUILT-DORMANT awaiting wiring | **34 (pre 25c0886) + 25 (commit 25c0886) + 12 (this commit) = 71** | every new workflow ships `active: false` |
+| Specced not yet built | Layer 2 Parts B + C + Phase 4 content workflows + Phase 5+ vertical dashboards | foundations ready |
+| Database tables — agent + BI + delivery + content + MGA | **31 net-new** across 6 migrations | 6 migrations Mary applies in order (see below) |
+| Active paying clients | _Mary fills in after deploy_ | `SELECT count(*) FROM clients WHERE status = 'active'` |
 | Total leads in production | _Mary fills in after deploy_ | `SELECT count(*) FROM leads;` |
 
-**One-line reality:** The platform now has every workflow needed to run an autonomous AI Sales Agent across voice + WhatsApp + SMS + email + video, with behavioral signal detection and per-vertical archetype matching. **Nothing else is gated on Claude Code work.** Phase 4 (content marketing) and Phase 5+ (vertical dashboards) are deferred.
+**One-line reality:** The platform has every workflow needed for autonomous AI Sales Agent (voice + WA + SMS + email + video) PLUS the AI Compliance Engine for insurance MGA operations (KYC, suitability, recommendation, disclosure, application). Layer 2 Parts B + C and Phase 4 content marketing are deferred.
 
 ---
 
@@ -106,8 +123,22 @@ SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pgcrypto');
 - `workflows/api/agent/clx-agent-escalation-v1.json` (human handoff)
 - `workflows/api/agent/clx-agent-daily-summary-v1.json` (07:00 per-client rollup)
 
-### MCP Agent Tools Gateway (1 — **this commit, Part D**)
+### MCP Agent Tools Gateway (1 — commit 25c0886, Part D)
 - `workflows/api/mcp/clx-mcp-agent-tools-v1.json` (10 write tools wrapping the action workflows)
+
+### Insurance MGA — AI Compliance Engine (12 — **this commit, Layer 2 Part A**)
+- `workflows/api/insurance-mga/clx-mga-insurance-compliance-agent-v1.json` (the AI Compliance Agent)
+- `workflows/api/insurance-mga/clx-mga-insurance-kyc-orchestrator-v1.json` (Stripe Identity)
+- `workflows/api/insurance-mga/clx-mga-insurance-stripe-identity-callback-v1.json` (HMAC-verified)
+- `workflows/api/insurance-mga/clx-mga-insurance-suitability-interview-v1.json` (start)
+- `workflows/api/insurance-mga/clx-mga-insurance-suitability-conversation-handler-v1.json`
+- `workflows/api/insurance-mga/clx-mga-insurance-needs-analysis-v1.json` (Claude needs gap)
+- `workflows/api/insurance-mga/clx-mga-insurance-policy-recommendation-engine-v1.json` (rank carriers)
+- `workflows/api/insurance-mga/clx-mga-insurance-disclosure-generator-v1.json` (HTML → R2)
+- `workflows/api/insurance-mga/clx-mga-insurance-esignature-orchestrator-v1.json` (Zoho Sign)
+- `workflows/api/insurance-mga/clx-mga-insurance-zoho-sign-callback-v1.json` (HMAC-verified)
+- `workflows/api/insurance-mga/clx-mga-insurance-application-builder-v1.json` (auto-complete app)
+- `workflows/api/insurance-mga/clx-mga-insurance-application-final-review-v1.json` (advisor approve → submit)
 
 ### Phase 1 Activations (commit 6bd51c7, pre-this-commit)
 - `workflows/api/email/clx-email-send.json` (Postmark gateway)

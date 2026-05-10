@@ -1,0 +1,381 @@
+{
+  "name": "CLX - MGA Insurance Compliance Agent v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/compliance-review",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "mca-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-compliance-agent-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). The AI Compliance Agent — orchestrates a single compliance review per call. Caller passes review_type + the relevant entity id (kyc_id / suitability_id / disclosure_id / policy_application_id). Aggregates source data, asks Claude for a regulated-decision JSON, persists to compliance_reviews (vertical_id='insurance'), routes to compliance_officer queue if requires_human_review. All operations vertical-scoped. Compliance officer always retains override authority — see human_decision column."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\n\nconst validTypes = ['kyc','suitability','disclosure','final_compliance'];\nconst reviewType = body.review_type;\nif (validTypes.indexOf(reviewType) < 0) return { json: { _empty: true, error: 'review_type must be one of ' + validTypes.join(',') } };\n\n// Caller passes the entity id appropriate for review_type.\nconst entityId =\n  reviewType === 'kyc'              ? body.kyc_id :\n  reviewType === 'suitability'      ? body.suitability_id :\n  reviewType === 'disclosure'       ? body.disclosure_id :\n  /* final_compliance */              body.policy_application_id;\n\nif (!entityId) return { json: { _empty: true, error: 'entity id required for review_type=' + reviewType } };\n\nreturn { json: {\n  _authorized: true,\n  review_type: reviewType,\n  entity_id: entityId,\n  policy_application_id: body.policy_application_id || null,\n  client_id: body.client_id || null,\n  advisor_id: body.advisor_id || null,\n  vertical_id: 'insurance'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mca-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "mca-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.review_type }}", "rightValue": "kyc", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "kyc" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.review_type }}", "rightValue": "suitability", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "suit" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.review_type }}", "rightValue": "disclosure", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "disc" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.review_type }}", "rightValue": "final_compliance", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "final" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mca-0004",
+      "name": "Switch Review Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/kyc_verifications?id=eq.' + encodeURIComponent($json.entity_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "mca-0005",
+      "name": "Fetch KYC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/suitability_assessments?id=eq.' + encodeURIComponent($json.entity_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "mca-0006",
+      "name": "Fetch Suitability",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 360],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_disclosures?id=eq.' + encodeURIComponent($json.entity_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "mca-0007",
+      "name": "Fetch Disclosure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 520],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?id=eq.' + encodeURIComponent($json.entity_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "mca-0008",
+      "name": "Fetch Application",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 680],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": { "mode": "append", "numberInputs": 4 },
+      "id": "mca-0009",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1380, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the per-review-type Claude prompt. Claude returns a structured\n// regulated-decision JSON. Universal multi-vertical at platform level —\n// this module is INSURANCE-vertical specific via vertical_id='insurance'.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst kycRows = allOf('Fetch KYC');\nconst suitRows = allOf('Fetch Suitability');\nconst discRows = allOf('Fetch Disclosure');\nconst appRows = allOf('Fetch Application');\nconst kyc = kycRows[0] || null;\nconst suit = suitRows[0] || null;\nconst disc = discRows[0] || null;\nconst app = appRows[0] || null;\nconst ctx = $('Validate').item.json;\n\nconst commonHeader = [\n  'You are the Crystallux AI Compliance Agent for the INSURANCE vertical (vertical_id=insurance).',\n  'Regulatory framework: FSRA Ontario insurance regulation, PIPEDA (federal privacy), CASL (Canadian anti-spam), consumer-protection rules for replacement / suitability.',\n  'You DO NOT have authority to bind the MGA. Your decision feeds a human compliance officer who can override.',\n  '',\n  'Output strictly JSON. Schema:',\n  '{',\n  '  \"ai_decision\":  \"approved\" | \"flagged\" | \"rejected\" | \"requires_human_review\",',\n  '  \"ai_score\":     <integer 0-100, your confidence>,',\n  '  \"ai_reasoning\": \"<2-4 sentences explaining the decision>\",',\n  '  \"flags\":        [ \"<short label per concrete issue>\" ]',\n  '}',\n  '',\n  'Decision rules:',\n  '- approved: clean, all checks pass, no concerns.',\n  '- flagged: minor issues — proceed with attention; flags array names them.',\n  '- requires_human_review: any high-sensitivity case (PEP/AML signal, replacement, large coverage > $1M, vulnerable client indicators, missing required disclosure).',\n  '- rejected: the application/document violates a hard regulatory requirement.',\n  '- ALWAYS choose requires_human_review when uncertain. Never auto-approve at low confidence.'\n].join('\\n');\n\nlet typeBlock = '';\nlet sourceData = {};\n\nif (ctx.review_type === 'kyc' && kyc) {\n  typeBlock = [\n    'Review type: KYC verification.',\n    'Required checks: identity match, document validity, expiry, AML risk, PEP screening, jurisdiction (Canadian residency for FSRA-regulated business).',\n    'Selfie match below 0.85 = flag. AML risk > 75 = requires_human_review. PEP positive = requires_human_review.'\n  ].join('\\n');\n  sourceData = {\n    status: kyc.status,\n    selfie_match_score: kyc.selfie_match_score,\n    aml_risk_score: kyc.aml_risk_score,\n    pep_screening_result: kyc.pep_screening_result,\n    has_identity_data: !!kyc.identity_data,\n    verification_provider: kyc.verification_provider\n  };\n} else if (ctx.review_type === 'suitability' && suit) {\n  typeBlock = [\n    'Review type: Suitability assessment.',\n    'Required checks: client_situation captured (income/dependents/existing coverage/health), needs_analysis derived logically, recommended product matches stated needs, recommended coverage proportional to income/dependents, replacement disclosure present if applicable.'\n  ].join('\\n');\n  sourceData = {\n    product_type: suit.product_type,\n    client_situation_keys: Object.keys(suit.client_situation || {}),\n    needs_analysis: suit.needs_analysis,\n    risk_tolerance: suit.risk_tolerance,\n    ai_recommended_coverage_amount_cents: suit.ai_recommended_coverage_amount,\n    ai_recommended_term_years: suit.ai_recommended_term_years,\n    client_acknowledged: suit.client_acknowledged\n  };\n} else if (ctx.review_type === 'disclosure' && disc) {\n  typeBlock = [\n    'Review type: Disclosure acknowledgment.',\n    'Required checks: presented_at recorded, acknowledged_at present (if signed), method matches type, expiry not passed, content_template_id matches an approved template, esignature_id present for esignature method.'\n  ].join('\\n');\n  sourceData = {\n    disclosure_type: disc.disclosure_type,\n    presented_at: disc.presented_at,\n    acknowledged_at: disc.acknowledged_at,\n    acknowledgment_method: disc.acknowledgment_method,\n    has_esignature_id: !!disc.esignature_id,\n    has_signed_doc: !!disc.signed_document_url,\n    expires_at: disc.expires_at\n  };\n} else if (ctx.review_type === 'final_compliance' && app) {\n  typeBlock = [\n    'Review type: FINAL pre-submission compliance review.',\n    'Required checks: KYC verified, suitability completed AND client_acknowledged, all required disclosures signed, no fields_requiring_human_input outstanding, advisor_review_status=approved, application_data structurally complete for the carrier.',\n    'Default to requires_human_review unless you have strong evidence ALL checks pass. This is the last gate before submission.'\n  ].join('\\n');\n  sourceData = {\n    advisor_review_status: app.advisor_review_status,\n    submission_status: app.submission_status,\n    has_application_data: !!(app.application_data && Object.keys(app.application_data).length),\n    fields_requiring_human_input_count: Array.isArray(app.fields_requiring_human_input) ? app.fields_requiring_human_input.length : 0,\n    has_suitability: !!app.suitability_assessment_id,\n    has_recommendation: !!app.policy_recommendation_id,\n    carrier_name: app.carrier_name\n  };\n} else {\n  return { json: { _not_found: true, error: 'entity not found for review_type=' + ctx.review_type, vertical_id: 'insurance' } };\n}\n\nconst userPrompt = JSON.stringify({ review_type: ctx.review_type, vertical_id: 'insurance', source_data: sourceData });\n\nreturn { json: {\n  _ready: true,\n  review_type: ctx.review_type,\n  entity_id: ctx.entity_id,\n  policy_application_id: ctx.policy_application_id || (app && app.id) || null,\n  client_id: ctx.client_id || (kyc && kyc.client_id) || (suit && suit.client_id) || (disc && disc.client_id) || (app && app.client_id) || null,\n  advisor_id: ctx.advisor_id || (suit && suit.advisor_id) || (app && app.advisor_id) || null,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 700,\n    temperature: 0.1,\n    system: commonHeader + '\\n\\n' + typeBlock,\n    messages: [ { role: 'user', content: userPrompt } ]\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "mca-0010",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._not_found }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "mca-0011",
+      "name": "IF Not Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1860, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "mca-0012",
+      "name": "Claude Compliance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 540],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\nlet textOut = '';\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(textOut).replace(/```json|```/g, '').trim()); } catch (e) {}\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\n\nif (!parsed) {\n  // Fail-safe: defer to human if Claude failed.\n  parsed = { ai_decision: 'requires_human_review', ai_score: 0, ai_reasoning: 'AI compliance check failed to produce a parseable decision. Defaulting to human review.', flags: ['ai_parse_failure'] };\n}\nconst validDecisions = ['approved','flagged','rejected','requires_human_review'];\nif (validDecisions.indexOf(parsed.ai_decision) < 0) parsed.ai_decision = 'requires_human_review';\nparsed.ai_score = Math.min(Math.max(parseInt(parsed.ai_score) || 0, 0), 100);\n\nconst status = (parsed.ai_decision === 'approved') ? 'approved' :\n               (parsed.ai_decision === 'rejected') ? 'rejected' :\n               (parsed.ai_decision === 'requires_human_review') ? 'human_review_required' :\n               'ai_reviewed';\n\nreturn { json: {\n  insert_row: {\n    vertical_id: 'insurance',\n    policy_application_id: ctx.policy_application_id,\n    client_id: ctx.client_id,\n    advisor_id: ctx.advisor_id,\n    review_type: ctx.review_type,\n    ai_score: parsed.ai_score,\n    ai_decision: parsed.ai_decision,\n    ai_reasoning: parsed.ai_reasoning || '',\n    ai_flags: parsed.flags || [],\n    status: status\n  },\n  needs_human: status === 'human_review_required',\n  client_id: ctx.client_id,\n  advisor_id: ctx.advisor_id,\n  review_type: ctx.review_type,\n  entity_id: ctx.entity_id,\n  tokens: tokens\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mca-0013",
+      "name": "Parse Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2340, 540]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_reviews",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert_row) }}",
+        "options": {}
+      },
+      "id": "mca-0014",
+      "name": "Insert Compliance Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 540],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'compliance_review_completed', client_id: $('Parse Decision').item.json.client_id, advisor_id: $('Parse Decision').item.json.advisor_id, policy_application_id: $('Parse Decision').item.json.insert_row.policy_application_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { review_type: $('Parse Decision').item.json.review_type, entity_id: $('Parse Decision').item.json.entity_id, ai_decision: $('Parse Decision').item.json.insert_row.ai_decision, ai_score: $('Parse Decision').item.json.insert_row.ai_score, flags_count: ($('Parse Decision').item.json.insert_row.ai_flags || []).length }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "mca-0015",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 540],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_costs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ client_id: $('Parse Decision').item.json.client_id, action_id: null, cost_type: 'claude_token', units: $('Parse Decision').item.json.tokens || 0, unit_cost_cents: 0.0003, vendor: 'anthropic', recorded_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "mca-0016",
+      "name": "Log Cost",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3060, 540],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $('Parse Decision').item.json.needs_human }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "mca-0017",
+      "name": "IF Needs Human",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3300, 540]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?user_role=eq.compliance_officer&select=email&limit=5' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "mca-0018",
+      "name": "Find Compliance Officers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3540, 460],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const officers = $input.item.json; const arr = Array.isArray(officers) ? officers : (officers && officers.email ? [officers] : []); const to = (arr[0] && arr[0].email) || 'support@crystallux.org'; const ctx = $('Parse Decision').item.json; return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: to, vars: { first_name: 'Compliance Officer', message: 'INSURANCE compliance review requires human attention. Type=' + ctx.review_type + ' entity_id=' + ctx.entity_id + ' AI decision=' + ctx.insert_row.ai_decision + ' score=' + ctx.insert_row.ai_score + '. Reasoning: ' + (ctx.insert_row.ai_reasoning || ''), landing_url: 'https://app.crystallux.org/compliance' } }); })() }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "mca-0019",
+      "name": "Notify Compliance Officer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3780, 460],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Reuses lead-meeting-booked template as carrier (Phase 5b polish: dedicated compliance-review-required.html template). All compliance officers in auth_users WHERE user_role='compliance_officer' get notified — top 5 surfaced; if more, dashboard alert is the canonical inbox."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', review_type: $('Parse Decision').item.json.review_type, ai_decision: $('Parse Decision').item.json.insert_row.ai_decision, ai_score: $('Parse Decision').item.json.insert_row.ai_score, status: $('Parse Decision').item.json.insert_row.status, needs_human: $('Parse Decision').item.json.needs_human }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "mca-0020",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [4020, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : ($json._not_found ? 404 : 400) }}" }
+      },
+      "id": "mca-0021",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1140, 860]
+    }
+  ],
+  "connections": {
+    "Webhook":                  { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":                 { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":            { "main": [[ { "node": "Switch Review Type", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Switch Review Type":       { "main": [[ { "node": "Fetch KYC", "type": "main", "index": 0 } ], [ { "node": "Fetch Suitability", "type": "main", "index": 0 } ], [ { "node": "Fetch Disclosure", "type": "main", "index": 0 } ], [ { "node": "Fetch Application", "type": "main", "index": 0 } ]] },
+    "Fetch KYC":                { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Suitability":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Disclosure":         { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch Application":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Merge Branches":           { "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":      { "main": [[ { "node": "IF Not Found", "type": "main", "index": 0 } ]] },
+    "IF Not Found":             { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Claude Compliance", "type": "main", "index": 0 } ]] },
+    "Claude Compliance":        { "main": [[ { "node": "Parse Decision", "type": "main", "index": 0 } ]] },
+    "Parse Decision":           { "main": [[ { "node": "Insert Compliance Review", "type": "main", "index": 0 } ]] },
+    "Insert Compliance Review": { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                { "main": [[ { "node": "Log Cost", "type": "main", "index": 0 } ]] },
+    "Log Cost":                 { "main": [[ { "node": "IF Needs Human", "type": "main", "index": 0 } ]] },
+    "IF Needs Human":           { "main": [[ { "node": "Find Compliance Officers", "type": "main", "index": 0 } ], [ { "node": "Respond OK", "type": "main", "index": 0 } ]] },
+    "Find Compliance Officers": { "main": [[ { "node": "Notify Compliance Officer", "type": "main", "index": 0 } ]] },
+    "Notify Compliance Officer":{ "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

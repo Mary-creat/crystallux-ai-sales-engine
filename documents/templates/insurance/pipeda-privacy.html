@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Privacy Notice — PIPEDA Compliance</title>
+  <style>
+    body { font-family: Inter, -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.5; }
+    h1 { color: #5B21B6; font-size: 22px; margin-bottom: 16px; }
+    h2 { font-size: 16px; margin-top: 24px; }
+    .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; vertical-align: top; }
+    th { background: #FAF7FF; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Notice — PIPEDA Compliance</h1>
+  <p class="meta">Vertical: Insurance &middot; Effective: {{date}}</p>
+
+  <p><strong>{{advisor_company}}</strong> (acting through <strong>{{advisor_name}}</strong>) collects, uses, and discloses personal information from <strong>{{client_name}}</strong> in accordance with the federal Personal Information Protection and Electronic Documents Act (PIPEDA).</p>
+
+  <h2>Information we collect</h2>
+  <ul>
+    <li>Identity: name, date of birth, address, government-issued ID (KYC)</li>
+    <li>Financial: income range, dependents, existing coverage</li>
+    <li>Health: medical history relevant to underwriting (life / disability / critical illness products only)</li>
+    <li>Communications: emails, SMS, WhatsApp, voice call transcripts</li>
+  </ul>
+
+  <h2>Purposes of collection</h2>
+  <table>
+    <tr><th>Purpose</th><th>Required for</th></tr>
+    <tr><td>Insurance suitability assessment</td><td>FSRA Ontario regulation</td></tr>
+    <tr><td>Carrier application completion</td><td>Policy issuance</td></tr>
+    <tr><td>KYC / AML compliance</td><td>FINTRAC + OSFI requirements</td></tr>
+    <tr><td>Ongoing service + renewal management</td><td>Contract performance</td></tr>
+  </table>
+
+  <h2>Disclosure to third parties</h2>
+  <p>Personal information is disclosed only to:</p>
+  <ul>
+    <li><strong>Insurance carriers</strong> — for application underwriting and policy administration (e.g. {{purposes_array}})</li>
+    <li><strong>Regulators</strong> — when required by FSRA, FINTRAC, or court order</li>
+    <li><strong>Service providers</strong> bound by confidentiality (Stripe Identity for KYC, Zoho Sign for e-signature, Cloudflare R2 for document storage)</li>
+  </ul>
+  <p>We do <strong>not</strong> sell personal information to third parties.</p>
+
+  <h2>Retention</h2>
+  <p>Personal information is retained for the duration of the policy plus 7 years (regulatory minimum), then securely destroyed.</p>
+
+  <h2>Your rights</h2>
+  <p>You may access, correct, or request deletion of your personal information by contacting <a href="mailto:{{support_email}}">{{support_email}}</a>. Complaints may be directed to the Office of the Privacy Commissioner of Canada.</p>
+
+  <p class="meta" style="margin-top: 40px;">{{advisor_company}} &middot; PIPEDA + FSRA Ontario &middot; Crystallux compliance reference: PIPEDA-{{date}}</p>
+</body>
+</html>

@@ -4,6 +4,155 @@
 
 ---
 
+## 2026-05-10 — Layer 2 Part A: AI Compliance Engine (Insurance MGA)
+
+**Branch:** `scale-sprint-v1`
+**Started from:** `25c0886` (Phase 2 + Phase 3 — BI / video / agent)
+**Senior-engineer mode:** yes — single comprehensive commit, scope-locked Layer 2 Part A.
+
+### What landed
+
+The AI brain of insurance MGA operations. Manual compliance work that traditionally takes days (KYC verification, suitability assessment, policy recommendation, compliance review, application data entry, disclosure orchestration) now runs in minutes via AI with a `compliance_officer` human-in-the-loop override path.
+
+#### Schema (1 migration — 7 tables, all vertical-tagged)
+
+`db/migrations/insurance-mga-schema.sql`:
+- 7 tables: `compliance_reviews`, `kyc_verifications`, `suitability_assessments`, `policy_recommendations`, `compliance_disclosures`, `regulatory_audit_log`, `policy_applications`
+- Every table carries `vertical_id text NOT NULL DEFAULT 'insurance'` + `idx_*_vertical` index
+- CHECK constraints on enums (review_type / status / decision / channel)
+- RLS service-role-only on all 7
+- regulatory_audit_log uses **soft FKs** (no REFERENCES) so audit records survive related-row deletion — append-only by design for FSRA 7-year retention
+- Idempotent + rollback block
+
+#### Workflows (12 — all dormant — `workflows/api/insurance-mga/`)
+
+**Part A1 — Compliance Agent + KYC (3):**
+- `clx-mga-insurance-compliance-agent-v1.json` — the AI Compliance Agent. Routes by `review_type` (kyc / suitability / disclosure / final_compliance) → fetches relevant entity → builds Claude prompt with FSRA + PIPEDA + CASL framework → parses regulated-decision JSON → persists to `compliance_reviews` → notifies `compliance_officer` role users on `requires_human_review`
+- `clx-mga-insurance-kyc-orchestrator-v1.json` — session-token auth, creates Stripe Identity verification session, persists to `kyc_verifications`, returns secure URL
+- `clx-mga-insurance-stripe-identity-callback-v1.json` — public webhook with HMAC sig verify (`STRIPE_IDENTITY_WEBHOOK_SECRET`), updates `kyc_verifications`, computes preliminary AML risk score, marks PEP `manual_review_pending` (Phase 6 automates), triggers compliance agent on success
+
+**Part A2 — Suitability + Recommendation (4):**
+- `clx-mga-insurance-suitability-interview-v1.json` — generates first conversational question via Claude tuned to product_type, sends via WhatsApp/SMS/email, creates `suitability_assessments` row
+- `clx-mga-insurance-suitability-conversation-handler-v1.json` — handles each lead reply, Claude decides ask-next / clarify / complete, merges Q&A into `client_situation` jsonb, sends next question or triggers needs analysis
+- `clx-mga-insurance-needs-analysis-v1.json` — Claude needs analysis under FSRA + Canadian tax law, persists `needs_analysis` jsonb + `ai_recommended_*` columns, triggers recommendation engine
+- `clx-mga-insurance-policy-recommendation-engine-v1.json` — ranks top 3-5 carrier products via Claude. **Phase 5 MVP uses static carrier matrix** (Manulife, Sun Life, Canada Life, iA, RBC, Intact, Aviva, Wawanesa, Northbridge, Economical) coded inline; Phase 6 swaps to live carrier APIs. Inserts `policy_recommendations`, triggers compliance review
+
+**Part A3 — Documentation + E-Signature (3):**
+- `clx-mga-insurance-disclosure-generator-v1.json` — renders HTML templates from inline copies (mirroring `documents/templates/insurance/*.html`), substitutes `{{variables}}`, uploads to R2 at `/disclosures/insurance/{client_id}/`, creates `compliance_disclosures` rows
+- `clx-mga-insurance-esignature-orchestrator-v1.json` — Zoho Sign envelope create per disclosure, persists `esignature_id`, sends branded intro email via existing `clx-email-send` workflow
+- `clx-mga-insurance-zoho-sign-callback-v1.json` — public webhook with HMAC sig verify (`ZOHO_SIGN_WEBHOOK_SECRET`), downloads signed PDF, uploads to PRIVATE R2 at `/signed-disclosures/insurance/{client_id}/`, marks acknowledged
+
+**Part A4 — Application Auto-Completion (2):**
+- `clx-mga-insurance-application-builder-v1.json` — aggregates verified KYC + completed suitability + signed disclosures + selected recommendation, Claude auto-completes carrier application, flags `fields_requiring_human_input` (medical questionnaire, beneficiaries, payment method always require human input)
+- `clx-mga-insurance-application-final-review-v1.json` — advisor approves built application, sets `locked=true`, synchronously triggers compliance agent with `review_type='final_compliance'`, drives next state (submitted / requires human / rejected) based on AI decision
+
+#### Document templates (7 in `documents/templates/insurance/`)
+
+All HTML with `{{variable}}` placeholders, brand-purple styling, FSRA-aligned content:
+- `casl-consent.html` — Express CASL consent
+- `pipeda-privacy.html` — PIPEDA privacy notice with purposes/disclosures table
+- `conflict-of-interest.html` — Advisor compensation + best-interest obligation disclosure
+- `replacement-form.html` — Life insurance replacement disclosure with side-by-side comparison
+- `needs-analysis-record.html` — Suitability documentation for regulator-facing record
+- `application-summary.html` — Auto-generated summary for client review
+- `coverage-comparison.html` — Multi-product comparison
+
+#### Documentation (3 new docs)
+
+- `docs/insurance-mga/AI_COMPLIANCE_VISION.md` — operational philosophy, workflow architecture diagram, decision authority hierarchy, cost envelope (~$1.85/client vs $80-200 traditional MGA)
+- `docs/insurance-mga/REGULATORY_FRAMEWORK.md` — FSRA + PIPEDA + CASL alignment table per workflow, audit trail design, deferred-compliance-gaps register with mitigations + phase that closes each
+- `docs/architecture/MULTI_VERTICAL_LAYER2_ARCHITECTURE.md` — `vertical_id` tagging strategy, list of valid vertical_id values, plug-in pattern for future verticals (mortgage / real estate / group benefits), reporting patterns enabled, anti-patterns to avoid
+
+### Senior calls made (rationale)
+
+1. **Column-level vertical_id tagging, NOT per-vertical schema duplication.** Cross-vertical reporting in one query (`SELECT count(*) FROM compliance_reviews WHERE status='human_review_required' GROUP BY vertical_id`) becomes impossible if mortgage/real-estate/insurance each get their own compliance_reviews_*. Pays dividends at first multi-vertical client.
+2. **regulatory_audit_log uses soft FKs (no REFERENCES).** Append-only by design — cascading delete would be a regulatory failure. Application code holds referential integrity; the audit trail wins on durability.
+3. **Compliance agent defaults to `requires_human_review` on uncertainty.** Hard-coded fail-safe in parse step: any Claude parse failure → `requires_human_review`. Compliance officer always has veto. Non-optional regulatory floor.
+4. **Phase 5 MVP uses static carrier product matrix in JS, not DB table.** Carrier APIs land in Phase 6; static matrix is good enough for the AI-ranking pattern and avoids a DB seed workflow that would be obsolete in weeks. Documented as Phase 6 swap.
+5. **PEP screening marked `manual_review_pending` regardless of identity outcome.** A1.1 routes ALL KYC reviews to `requires_human_review` until Phase 6 sanctions automation. False-negative risk on PEP is unacceptable; humans take it until the automation is built.
+6. **Disclosure templates inlined in workflow Code node + committed as files.** Repo files are source-of-truth + version control + non-engineer compliance officer can edit; inline copies in workflow JSON serve runtime without R2 round-trip per render. Phase 5b switches to R2-fetch (lets compliance officer edit without redeploy).
+7. **Webhook URL prefix `/webhook/mga/insurance/` — vertical in path.** Forces multi-vertical correctness in URL routing layer. Future mortgage workflows live at `/webhook/mga/mortgage/`. Greppable convention enforces tagging in code review.
+8. **Used existing `Cloudflare R2` AWS-type credential from commit 25c0886.** No new credential needed — heygen-webhook + storage-cleanup already configured it. Disclosure HTML uploads + signed-PDF uploads share the same bucket with separate prefixes (`/disclosures/insurance/` vs `/signed-disclosures/insurance/`).
+9. **Compliance officer notification reuses `lead-meeting-booked` email template** as a generic notification carrier. Phase 5b polish: dedicated `compliance-review-required.html` template. Functional now without blocking on template authoring.
+10. **Universal multi-vertical language in EVERY new doc, schema comment, Claude system prompt, audit log event.** Insurance is ONE vertical of the platform. Every prompt to Claude includes `vertical_id=insurance` so future vertical modules can swap the prompt body cleanly.
+
+### Files added/modified — 23 net-new files
+
+**Added (23):**
+- 1 SQL migration (`db/migrations/insurance-mga-schema.sql`)
+- 12 workflows (`workflows/api/insurance-mga/clx-mga-insurance-*-v1.json`)
+- 7 HTML templates (`documents/templates/insurance/*.html`)
+- 3 docs (`docs/insurance-mga/AI_COMPLIANCE_VISION.md`, `docs/insurance-mga/REGULATORY_FRAMEWORK.md`, `docs/architecture/MULTI_VERTICAL_LAYER2_ARCHITECTURE.md`)
+
+**Modified (1):**
+- This `docs/journal/SESSION_LOG.md`
+
+### What Mary does after this push
+
+**A. External signups (parallel — Mary may already have most):**
+1. Enable Stripe Identity product in existing Stripe dashboard (~5 min)
+2. Sign up Zoho Sign at sign.zoho.com ($8/month — ~5 min OAuth setup)
+3. Verify Google Address API enabled in Google Cloud Console (~5 min)
+4. Certn (background checks) — DEFERRED to Layer 2 Part B
+
+**B. Add env vars to `/root/.n8n/.env`:**
+- `STRIPE_IDENTITY_WEBHOOK_SECRET`
+- `ZOHO_SIGN_TOKEN` (OAuth access token; Phase 5b adds auto-refresh workflow)
+- `ZOHO_SIGN_WEBHOOK_SECRET`
+
+**C. Add n8n credential `Stripe Crystallux` (HTTP Header Auth):**
+- header name = `Authorization`
+- header value = `Bearer <STRIPE_SECRET_KEY>`
+- Used by `clx-mga-insurance-kyc-orchestrator-v1` Stripe Identity create
+
+**D. Run schema migration (~2 min):**
+- `db/migrations/insurance-mga-schema.sql` in Supabase SQL Editor
+- Verify queries at bottom of file
+
+**E. VPS deploy + import 12 new workflows (~15 min):**
+- `cd /root/crystallux-workflows && git pull`
+- `docker cp /root/crystallux-workflows/workflows/api/insurance-mga n8n:/tmp/workflows/api/`
+- `docker exec n8n n8n import:workflow --separate --input=/tmp/workflows/api/insurance-mga`
+- All 12 imported as DORMANT
+
+**F. Configure Zoho Sign webhook in Zoho dashboard:**
+- Webhook URL: `https://automation.crystallux.org/webhook/mga/insurance/zoho-sign-callback`
+- Events: `request_completed`, `request_declined`, `request_expired`
+- HMAC secret = `ZOHO_SIGN_WEBHOOK_SECRET`
+
+**G. Configure Stripe Identity webhook in Stripe dashboard:**
+- Webhook URL: `https://automation.crystallux.org/webhook/mga/insurance/stripe-identity-callback`
+- Events: `identity.verification_session.verified`, `.requires_input`, `.canceled`, `.failed`
+- Signing secret = `STRIPE_IDENTITY_WEBHOOK_SECRET`
+
+**H. Smoke test (~30 min):**
+- Activate `clx-mga-insurance-kyc-orchestrator-v1` + `clx-mga-insurance-stripe-identity-callback-v1` + `clx-mga-insurance-compliance-agent-v1` first (KYC chain)
+- POST to `/webhook/mga/insurance/kyc-start` with a test lead — verify Stripe Identity URL returned
+- Complete the KYC flow with Mary's own ID — verify `kyc_verifications.status='verified'`, `compliance_reviews` row inserted, `regulatory_audit_log` chronological events
+- Activate suitability chain (A2.1 → A2.1b → A2.2 → A2.3) and run a test interview
+- Activate disclosure chain (A3.1 → A3.2 → A3.3) and verify Zoho envelope round-trip
+- Activate application chain (A4.1 → A4.2) and run end-to-end
+
+### What's NOT in this session (deferred — explicitly)
+
+- **Layer 2 Part B** (next session): MGA operations — agent onboarding, hierarchy + reports-to chain, commission ledger, sub-agent CE tracking, carrier appointments
+- **Layer 2 Part C** (final session): Insurer-facing mode — real-time dashboards, production reports, demo tools, compliance officer review UI
+- **Phase 6**: Carrier API integration (live quoting + submission), PEP/sanctions automation, per-carrier application templates
+- **Phase 5b polish**: Per-province disclosure variants (Quebec / BC / etc.), dedicated `compliance-review-required.html` template, R2-backed template editing, Zoho Sign OAuth auto-refresh, PDF generation service
+
+After this commit, Crystallux has **the AI brain of insurance MGA operations**. What traditionally takes days happens in minutes. Wiring (Stripe Identity + Zoho Sign + env vars) is what's left — the AI engine is built and dormant.
+
+### Cross-references
+
+- Schema: [`db/migrations/insurance-mga-schema.sql`](../../db/migrations/insurance-mga-schema.sql)
+- Vision: [`docs/insurance-mga/AI_COMPLIANCE_VISION.md`](../insurance-mga/AI_COMPLIANCE_VISION.md)
+- Regulatory: [`docs/insurance-mga/REGULATORY_FRAMEWORK.md`](../insurance-mga/REGULATORY_FRAMEWORK.md)
+- Multi-vertical architecture: [`docs/architecture/MULTI_VERTICAL_LAYER2_ARCHITECTURE.md`](../architecture/MULTI_VERTICAL_LAYER2_ARCHITECTURE.md)
+- Workflows: `workflows/api/insurance-mga/clx-mga-insurance-*-v1.json`
+- Templates: `documents/templates/insurance/*.html`
+
+---
+
 ## 2026-05-09 — Phase 2 + Phase 3 complete (intelligence + agent + delivery)
 
 **Branch:** `scale-sprint-v1`

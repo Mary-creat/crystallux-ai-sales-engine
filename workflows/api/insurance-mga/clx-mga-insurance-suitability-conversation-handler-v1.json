@@ -1,0 +1,293 @@
+{
+  "name": "CLX - MGA Insurance Suitability Conversation Handler v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/suitability-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "scn-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-suitability-conversation-handler-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Triggered by inbound message handler when a lead with an in-progress suitability assessment replies. Looks up suitability_assessments WHERE vertical_id='insurance' AND status='in_progress' AND lead_id=:lead_id, calls Claude with conversation history, decides ask-next | clarify | complete, persists answer + next state, sends next question OR triggers needs-analysis (A2.2)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.message) return { json: { _empty: true, error: 'lead_id and message required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  channel: body.channel || 'whatsapp',\n  message: String(body.message).slice(0, 2000)\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "scn-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "scn-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/suitability_assessments?lead_id=eq.' + encodeURIComponent($json.lead_id) + '&vertical_id=eq.insurance&status=eq.in_progress&order=created_at.desc&limit=1&select=*' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "scn-0004",
+      "name": "Lookup Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Validate').item.json;\nconst rows = $input.item.json;\nconst assessment = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!assessment || !assessment.id) return { json: { _no_assessment: true, lead_id: ctx.lead_id, message: ctx.message } };\nconst situation = assessment.client_situation || {};\nconst history = Array.isArray(situation.qa_history) ? situation.qa_history : [];\n\nconst systemPrompt = [\n  'You are continuing a conversational suitability interview for the INSURANCE vertical (vertical_id=insurance).',\n  'Product under consideration: ' + assessment.product_type,\n  'Channel: ' + (assessment.channel || ctx.channel),\n  '',\n  'You receive: the latest client answer + the running Q&A history.',\n  'Decide: continue (ask one more question), clarify (re-ask the last question more clearly), or complete (you have enough to derive needs_analysis).',\n  '',\n  'For ' + assessment.product_type + ', you must capture (at minimum):',\n  '  - dependents / household composition',\n  '  - approximate household income (range OK)',\n  '  - existing coverage (if any) including carrier + amount',\n  '  - debts / mortgage status',\n  '  - health considerations relevant to product',\n  '  - risk tolerance signal (low / moderate / high)',\n  'Prefer COMPLETE as soon as the minimum is captured. Do not over-interview.',\n  '',\n  'Output strictly JSON. Schema:',\n  '{',\n  '  \"action\":                  \"ask_next\" | \"clarify\" | \"complete\",',\n  '  \"next_question\":           \"<text>\"        // present unless action=complete',\n  '  \"client_situation_update\": { ... }          // jsonb merge into client_situation',\n  '  \"reasoning\":               \"<1 sentence>\"',\n  '  \"risk_tolerance\":          \"low\" | \"moderate\" | \"high\" | null    // best guess if observable',\n  '}',\n  '',\n  'Rules:',\n  '- Single question. ONE thing at a time.',\n  '- For SMS/WhatsApp: keep next_question under 320 characters.',\n  '- Be empathetic and plain-spoken; no jargon.'\n].join('\\n');\n\nconst userPayload = JSON.stringify({\n  history: history.slice(-12),\n  latest_client_answer: ctx.message,\n  current_situation_keys: Object.keys(situation).filter(function (k) { return k !== 'qa_history' && k !== 'expected_next'; })\n});\n\nreturn { json: {\n  _ready: true,\n  assessment: assessment,\n  channel: assessment.channel || ctx.channel,\n  message: ctx.message,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 600,\n    temperature: 0.3,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPayload } ]\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "scn-0005",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_assessment }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "scn-0006",
+      "name": "IF No Assessment",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "scn-0007",
+      "name": "Claude Continue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 240],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst assessment = ctx.assessment;\nconst resp = $input.item.json || {};\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\nif (!parsed) parsed = { action: 'clarify', next_question: 'Sorry, could you say that again?', client_situation_update: {}, reasoning: 'parse_failed', risk_tolerance: null };\n\nconst valid = ['ask_next','clarify','complete'];\nif (valid.indexOf(parsed.action) < 0) parsed.action = 'clarify';\n\n// Merge situation update + append answer to qa_history.\nconst situation = assessment.client_situation || {};\nconst history = Array.isArray(situation.qa_history) ? situation.qa_history.slice() : [];\nif (history.length > 0) {\n  const last = history[history.length - 1];\n  if (last && !last.a) { last.a = ctx.message; last.answered_at = new Date().toISOString(); }\n}\nif (parsed.action !== 'complete' && parsed.next_question) {\n  history.push({ q: parsed.next_question, a: null, asked_at: new Date().toISOString() });\n}\nconst updatedSituation = Object.assign({}, situation, parsed.client_situation_update || {}, { qa_history: history, expected_next: parsed.action === 'complete' ? null : { type: 'text' } });\n\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\n\nreturn { json: {\n  assessment_id: assessment.id,\n  client_id: assessment.client_id,\n  lead_id: assessment.lead_id,\n  channel: ctx.channel,\n  patch: {\n    client_situation: updatedSituation,\n    risk_tolerance: parsed.risk_tolerance || assessment.risk_tolerance,\n    status: parsed.action === 'complete' ? 'client_review' : 'in_progress',\n    updated_at: new Date().toISOString()\n  },\n  send_question: parsed.action !== 'complete' ? parsed.next_question : null,\n  trigger_needs_analysis: parsed.action === 'complete',\n  tokens: tokens\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "scn-0008",
+      "name": "Parse Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 240]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/suitability_assessments?id=eq.' + encodeURIComponent($json.assessment_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {}
+      },
+      "id": "scn-0009",
+      "name": "Update Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $('Parse Decision').item.json.trigger_needs_analysis }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "complete" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $('Parse Decision').item.json.channel }}", "rightValue": "whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "wa" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $('Parse Decision').item.json.channel }}", "rightValue": "sms", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "sms" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "scn-0010",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2340, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/needs-analysis' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, suitability_assessment_id: $('Parse Decision').item.json.assessment_id }) }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "scn-0011",
+      "name": "Trigger Needs Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 60],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $('Parse Decision').item.json.lead_id, client_id: $('Parse Decision').item.json.client_id, content: $('Parse Decision').item.json.send_question }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "scn-0012",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 200],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/sms-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $('Parse Decision').item.json.lead_id, client_id: $('Parse Decision').item.json.client_id, content: $('Parse Decision').item.json.send_question }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "scn-0013",
+      "name": "Send SMS Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 340],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: $('Parse Decision').item.json.trigger_needs_analysis ? 'suitability_completed' : 'suitability_question_asked', client_id: $('Parse Decision').item.json.client_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { suitability_id: $('Parse Decision').item.json.assessment_id, lead_id: $('Parse Decision').item.json.lead_id, channel: $('Parse Decision').item.json.channel }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "scn-0014",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', action: $('Parse Decision').item.json.trigger_needs_analysis ? 'complete' : 'asked_next' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "scn-0015",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [3060, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'no in-progress assessment for lead' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : ($json._no_assessment ? 404 : 400) }}" }
+      },
+      "id": "scn-0016",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":             { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":        { "main": [[ { "node": "Lookup Assessment", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Lookup Assessment":    { "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":  { "main": [[ { "node": "IF No Assessment", "type": "main", "index": 0 } ]] },
+    "IF No Assessment":     { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Claude Continue", "type": "main", "index": 0 } ]] },
+    "Claude Continue":      { "main": [[ { "node": "Parse Decision", "type": "main", "index": 0 } ]] },
+    "Parse Decision":       { "main": [[ { "node": "Update Assessment", "type": "main", "index": 0 } ]] },
+    "Update Assessment":    { "main": [[ { "node": "Switch Action", "type": "main", "index": 0 } ]] },
+    "Switch Action":        { "main": [[ { "node": "Trigger Needs Analysis", "type": "main", "index": 0 } ], [ { "node": "Send WhatsApp Reply", "type": "main", "index": 0 } ], [ { "node": "Send SMS Reply", "type": "main", "index": 0 } ], [ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Trigger Needs Analysis":{ "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Send WhatsApp Reply":  { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Send SMS Reply":       { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":            { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

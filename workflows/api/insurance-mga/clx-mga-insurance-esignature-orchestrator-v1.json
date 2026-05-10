@@ -1,0 +1,281 @@
+{
+  "name": "CLX - MGA Insurance E-Signature Orchestrator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/esign-send",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "esn-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-esignature-orchestrator-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Sends compliance_disclosures (vertical_id='insurance') for e-signature via Zoho Sign. For each disclosure_id: creates a Zoho Sign request, persists envelope_id back to compliance_disclosures.esignature_id, sends signing link via lead's email (Zoho Sign also emails the recipient by default — we send our own intro for branding). All vertical-scoped."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!Array.isArray(body.disclosure_ids) || body.disclosure_ids.length === 0) return { json: { _empty: true, error: 'disclosure_ids[] required' } };\nif (!body.client_email) return { json: { _empty: true, error: 'client_email required' } };\nreturn { json: {\n  _authorized: true,\n  disclosure_ids: body.disclosure_ids,\n  client_email: body.client_email,\n  client_name: body.client_name || 'Client'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "esn-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "esn-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json;\nreturn ctx.disclosure_ids.map(function (id) { return { json: { disclosure_id: id, client_email: ctx.client_email, client_name: ctx.client_name } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "esn-0004",
+      "name": "Fan Out Disclosures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 320]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "esn-0005",
+      "name": "Per Disclosure",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_disclosures?id=eq.' + encodeURIComponent($json.disclosure_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "esn-0006",
+      "name": "Fetch Disclosure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Per Disclosure').item.json;\nconst rows = $input.item.json;\nconst d = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!d || !d.id) return { json: { _missing: true, disclosure_id: ctx.disclosure_id } };\nif (!d.document_url) return { json: { _missing: true, disclosure_id: ctx.disclosure_id, reason: 'no document_url on disclosure' } };\nreturn { json: {\n  disclosure_id: d.id,\n  client_id: d.client_id,\n  disclosure_type: d.disclosure_type,\n  document_url: d.document_url,\n  client_email: ctx.client_email,\n  client_name: ctx.client_name\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "esn-0007",
+      "name": "Build Zoho Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._missing }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "esn-0008",
+      "name": "IF Missing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1860, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sign.zoho.com/api/v1/requests",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ 'Zoho-oauthtoken ' + $env.ZOHO_SIGN_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "data", "value": "={{ JSON.stringify({ requests: { request_name: 'Crystallux Insurance ' + $json.disclosure_type + ' for ' + $json.client_name, actions: [ { recipient_name: $json.client_name, recipient_email: $json.client_email, action_type: 'SIGN', signing_order: 1, role: 'Recipient', verify_recipient: false } ], notes: 'Crystallux Insurance disclosure - regulatory requirement under FSRA / PIPEDA / CASL.', expiration_days: 30 } }) }}" }
+          ]
+        },
+        "options": { "timeout": 20000 }
+      },
+      "id": "esn-0009",
+      "name": "Zoho Sign Create Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 240],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Zoho Sign v1 API. ZOHO_SIGN_TOKEN is the OAuth access token (Mary refreshes via Zoho's OAuth flow — Phase 5b adds an automated refresh workflow). The request creates an envelope; Mary's account email gets the signing-link broadcast. We persist envelope id back to compliance_disclosures and the callback workflow (A3.3) marks signed when Zoho fires request_completed."
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build Zoho Body').item.json;\nconst resp = $input.item.json || {};\nconst req = (resp.requests && resp.requests[0]) || resp.requests || resp;\nconst envelopeId = (req && (req.request_id || req.id)) || null;\nconst signingUrl = (req && req.actions && req.actions[0] && req.actions[0].action_url) || null;\nif (!envelopeId) return { json: { _failed: true, disclosure_id: ctx.disclosure_id, error: (resp.message || resp.status || 'no envelope id') } };\nreturn { json: {\n  disclosure_id: ctx.disclosure_id,\n  envelope_id: envelopeId,\n  signing_url: signingUrl,\n  client_email: ctx.client_email,\n  client_name: ctx.client_name,\n  disclosure_type: ctx.disclosure_type,\n  client_id: ctx.client_id\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "esn-0010",
+      "name": "Parse Zoho Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2340, 240]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_disclosures?id=eq.' + encodeURIComponent($json.disclosure_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ esignature_id: $json.envelope_id, presented_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "esn-0011",
+      "name": "Update Disclosure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: $('Parse Zoho Response').item.json.client_email, vars: { first_name: $('Parse Zoho Response').item.json.client_name, message: 'Please review and sign your Crystallux Insurance ' + $('Parse Zoho Response').item.json.disclosure_type.replace(/_/g, ' ') + ' document. The signing link from Zoho Sign should arrive in your inbox shortly.', landing_url: $('Parse Zoho Response').item.json.signing_url || 'https://app.crystallux.org' } }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "esn-0012",
+      "name": "Send Branded Intro Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 240],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'disclosure_presented', client_id: $('Parse Zoho Response').item.json.client_id, performed_by_user_id: null, performed_by_role: 'agent', event_data: { disclosure_id: $('Parse Zoho Response').item.json.disclosure_id, disclosure_type: $('Parse Zoho Response').item.json.disclosure_type, esignature_provider: 'zoho_sign', envelope_id: $('Parse Zoho Response').item.json.envelope_id }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "esn-0013",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3060, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "esn-0014",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3300, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sent = $('Parse Zoho Response').all().map(function (i) { return { disclosure_id: i.json.disclosure_id, envelope_id: i.json.envelope_id, signing_url: i.json.signing_url }; });\nreturn { json: { ok: true, vertical_id: 'insurance', sent: sent, count: sent.length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "esn-0015",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "esn-0016",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "esn-0017",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 720]
+    }
+  ],
+  "connections": {
+    "Webhook":                  { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":                 { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":            { "main": [[ { "node": "Fan Out Disclosures", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fan Out Disclosures":      { "main": [[ { "node": "Per Disclosure", "type": "main", "index": 0 } ]] },
+    "Per Disclosure":           { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ], [ { "node": "Fetch Disclosure", "type": "main", "index": 0 } ]] },
+    "Fetch Disclosure":         { "main": [[ { "node": "Build Zoho Body", "type": "main", "index": 0 } ]] },
+    "Build Zoho Body":          { "main": [[ { "node": "IF Missing", "type": "main", "index": 0 } ]] },
+    "IF Missing":               { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ], [ { "node": "Zoho Sign Create Request", "type": "main", "index": 0 } ]] },
+    "Zoho Sign Create Request": { "main": [[ { "node": "Parse Zoho Response", "type": "main", "index": 0 } ]] },
+    "Parse Zoho Response":      { "main": [[ { "node": "Update Disclosure", "type": "main", "index": 0 } ]] },
+    "Update Disclosure":        { "main": [[ { "node": "Send Branded Intro Email", "type": "main", "index": 0 } ]] },
+    "Send Branded Intro Email": { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":                { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":            { "main": [[ { "node": "Per Disclosure", "type": "main", "index": 0 } ]] },
+    "Build Summary":            { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

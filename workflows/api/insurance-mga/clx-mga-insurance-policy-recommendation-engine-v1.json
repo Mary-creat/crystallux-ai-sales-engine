@@ -1,0 +1,222 @@
+{
+  "name": "CLX - MGA Insurance Policy Recommendation Engine v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/policy-recommend",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pre-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-policy-recommendation-engine-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). After needs analysis completes, ranks top 3-5 carrier products by match quality. Phase 5 MVP uses a STATIC product matrix coded inline (top Canadian carriers per product type). Phase 6 will swap to live carrier-API integration. Inserts policy_recommendations rows (vertical_id='insurance') ordered by ai_ranking, then triggers compliance review (A1.1 review_type=suitability)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.suitability_assessment_id) return { json: { _empty: true, error: 'suitability_assessment_id required' } };\nreturn { json: { _authorized: true, suitability_assessment_id: body.suitability_assessment_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pre-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "pre-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/suitability_assessments?id=eq.' + encodeURIComponent($json.suitability_assessment_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "pre-0004",
+      "name": "Fetch Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PHASE 5 MVP — static carrier product matrix.\n// Phase 6 swaps this for live carrier-API integration (Manulife/Sun Life/Canada Life/iA/RBC/etc.).\n// Premium values are illustrative ranges; real quoting requires carrier APIs + medical underwriting.\nconst rows = $input.item.json;\nconst a = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!a || !a.id) return { json: { _not_found: true } };\n\nconst products = {\n  term_life: [\n    { carrier: 'Manulife',     product: 'Family Term',          features: { renewable: true, convertible: true, child_rider_available: true } },\n    { carrier: 'Sun Life',     product: 'SunTerm',              features: { renewable: true, convertible: true, child_rider_available: true } },\n    { carrier: 'Canada Life',  product: 'My Term',              features: { renewable: true, convertible: true, child_rider_available: true } },\n    { carrier: 'iA Financial', product: 'Term Life Pick-A-Term',features: { renewable: true, convertible: true, child_rider_available: false } },\n    { carrier: 'RBC Insurance',product: 'YourTerm',             features: { renewable: true, convertible: true, child_rider_available: true } }\n  ],\n  whole_life: [\n    { carrier: 'Manulife',     product: 'Manulife Par',         features: { participating: true, vanishing_premium: true } },\n    { carrier: 'Sun Life',     product: 'Sun Par Protector II', features: { participating: true, vanishing_premium: true } },\n    { carrier: 'Canada Life',  product: 'Wealth Achiever Plus', features: { participating: true, vanishing_premium: true } }\n  ],\n  critical_illness: [\n    { carrier: 'Manulife',     product: 'Lifecheque',           features: { return_of_premium: true, conditions_covered: 25 } },\n    { carrier: 'Sun Life',     product: 'Sun CII',              features: { return_of_premium: true, conditions_covered: 25 } },\n    { carrier: 'Canada Life',  product: 'LifeAdvance CI',       features: { return_of_premium: true, conditions_covered: 26 } }\n  ],\n  disability: [\n    { carrier: 'Manulife',     product: 'Venture Series',       features: { professional_class: true, own_occupation: true } },\n    { carrier: 'RBC Insurance',product: 'Quantum',              features: { professional_class: true, own_occupation: true } },\n    { carrier: 'Canada Life',  product: 'Lifestyle Protector',  features: { professional_class: true, own_occupation: true } }\n  ],\n  auto: [\n    { carrier: 'Intact',       product: 'Personal Auto',        features: { multi_vehicle_discount: true } },\n    { carrier: 'Aviva',        product: 'Aviva Auto',           features: { multi_vehicle_discount: true } },\n    { carrier: 'Wawanesa',     product: 'Wawanesa Auto',        features: { loyalty_discount: true } }\n  ],\n  home: [\n    { carrier: 'Intact',       product: 'Homeowners',           features: { water_endorsement: true, sewer_backup: true } },\n    { carrier: 'Aviva',        product: 'Ovation Home',         features: { water_endorsement: true, sewer_backup: true } },\n    { carrier: 'Economical',   product: 'Vyne Home',            features: { water_endorsement: true, sewer_backup: true } }\n  ],\n  commercial: [\n    { carrier: 'Northbridge',  product: 'Commercial Package',   features: { cyber_endorsement: true, e_and_o_addon: true } },\n    { carrier: 'Aviva',        product: 'Enterprise',           features: { cyber_endorsement: true, e_and_o_addon: true } },\n    { carrier: 'Intact',       product: 'Business Choice',      features: { cyber_endorsement: true } }\n  ]\n};\n\nconst available = products[a.product_type] || [];\n\nconst systemPrompt = [\n  'You are the Crystallux AI Policy Recommendation Engine for the INSURANCE vertical (vertical_id=insurance).',\n  'Product type: ' + a.product_type,\n  'Rank top 3-5 products by match quality given the client needs.',\n  '',\n  'For EACH product output:',\n  '{',\n  '  \"carrier_name\":     <string from available list>,',\n  '  \"product_name\":     <string from available list>,',\n  '  \"coverage_amount_cents\":   <integer>,',\n  '  \"premium_monthly_cents\":   <integer>,',\n  '  \"premium_annual_cents\":    <integer>,',\n  '  \"term_years\":              <integer, 0 if not term-based>,',\n  '  \"ai_match_score\":          <integer 0-100>,',\n  '  \"ai_ranking\":              <integer 1-N, 1=best>,',\n  '  \"ai_reasoning\":            <2-3 sentences>',\n  '}',\n  '',\n  'Output strictly JSON: { \"recommendations\": [ ... ] }',\n  '',\n  'Rules:',\n  '- Premium estimates are PRELIMINARY (real quoting requires carrier APIs + underwriting). Mark all premiums as illustrative ranges in your reasoning.',\n  '- Use only carriers from the available list.',\n  '- Consider: client needs (coverage gap), affordability (income vs premium), carrier reputation, product features.',\n  '- For term_life: term_years should match recommended_term_years from needs_analysis.',\n  '- coverage_amount_cents must match needs_analysis.recommended_coverage_cents UNLESS you are recommending a step-down for affordability — call that out.'\n].join('\\n');\n\nconst userPayload = JSON.stringify({\n  vertical_id: 'insurance',\n  product_type: a.product_type,\n  needs_analysis: a.needs_analysis,\n  ai_recommended_coverage_amount_cents: a.ai_recommended_coverage_amount,\n  ai_recommended_term_years: a.ai_recommended_term_years,\n  client_situation: a.client_situation,\n  available_products: available\n});\n\nreturn { json: {\n  assessment: a,\n  available_count: available.length,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 1500,\n    temperature: 0.2,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPayload } ]\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pre-0005",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._not_found }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "pre-0006",
+      "name": "IF Not Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "pre-0007",
+      "name": "Claude Rank Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 240],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $('Build Claude Prompt').item.json.assessment;\nconst resp = $input.item.json || {};\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\nconst recs = (parsed && Array.isArray(parsed.recommendations)) ? parsed.recommendations : [];\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\n\nif (recs.length === 0) {\n  return [{ json: { _no_recs: true, suitability_assessment_id: a.id, client_id: a.client_id, advisor_id: a.advisor_id, tokens: tokens } }];\n}\n\nreturn recs.map(function (r, idx) {\n  return { json: {\n    insert_row: {\n      vertical_id: 'insurance',\n      suitability_assessment_id: a.id,\n      carrier_name: r.carrier_name,\n      product_name: r.product_name,\n      product_type: a.product_type,\n      coverage_amount: parseInt(r.coverage_amount_cents) || 0,\n      premium_monthly: parseInt(r.premium_monthly_cents) || 0,\n      premium_annual: parseInt(r.premium_annual_cents) || 0,\n      term_years: parseInt(r.term_years) || 0,\n      features: {},\n      ai_match_score: Math.min(Math.max(parseInt(r.ai_match_score) || 0, 0), 100),\n      ai_ranking: parseInt(r.ai_ranking) || (idx + 1),\n      ai_reasoning: r.ai_reasoning || null,\n      status: 'recommended'\n    },\n    suitability_assessment_id: a.id,\n    client_id: a.client_id,\n    advisor_id: a.advisor_id,\n    tokens: idx === 0 ? tokens : 0\n  } };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pre-0008",
+      "name": "Fan Out Recs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_recs }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "pre-0009",
+      "name": "IF No Recs",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2100, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_recommendations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert_row) }}",
+        "options": {}
+      },
+      "id": "pre-0010",
+      "name": "Insert Recommendation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/compliance-review' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, review_type: 'suitability', suitability_id: $('Fan Out Recs').first().json.suitability_assessment_id, client_id: $('Fan Out Recs').first().json.client_id, advisor_id: $('Fan Out Recs').first().json.advisor_id }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "pre-0011",
+      "name": "Trigger Compliance Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', recommendations_count: $('Fan Out Recs').all().length, suitability_assessment_id: $('Fan Out Recs').first().json.suitability_assessment_id }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "pre-0012",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2820, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'no recommendations produced' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : ($json._not_found ? 404 : 502) }}" }
+      },
+      "id": "pre-0013",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":               { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":              { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":         { "main": [[ { "node": "Fetch Assessment", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Assessment":      { "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":   { "main": [[ { "node": "IF Not Found", "type": "main", "index": 0 } ]] },
+    "IF Not Found":          { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Claude Rank Products", "type": "main", "index": 0 } ]] },
+    "Claude Rank Products":  { "main": [[ { "node": "Fan Out Recs", "type": "main", "index": 0 } ]] },
+    "Fan Out Recs":          { "main": [[ { "node": "IF No Recs", "type": "main", "index": 0 } ]] },
+    "IF No Recs":            { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Insert Recommendation", "type": "main", "index": 0 } ]] },
+    "Insert Recommendation": { "main": [[ { "node": "Trigger Compliance Review", "type": "main", "index": 0 } ]] },
+    "Trigger Compliance Review": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

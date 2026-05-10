@@ -1,0 +1,214 @@
+{
+  "name": "CLX - MGA Insurance KYC Orchestrator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/kyc-start",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "kyc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-kyc-orchestrator-001",
+      "notes": "DEACTIVATED. Session-token auth (advisor / mga_principal / supervisor / compliance_officer / admin). Creates a Stripe Identity verification session, persists to kyc_verifications (vertical_id='insurance'), returns the secure verification_url for the advisor to send to the lead via WhatsApp/email. All operations vertical-scoped."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nif (!body.lead_id) return { json: { _empty: true, status: 400, error: 'lead_id required' } };\nreturn { json: {\n  token: token,\n  lead_id: body.lead_id,\n  client_id: body.client_id || null,\n  return_url: body.return_url || 'https://app.crystallux.org/kyc/callback'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "kyc-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "kyc-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid or expired session' } };\nconst allowed = ['advisor','mga_principal','supervisor','compliance_officer','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted to start KYC' } };\nconst input = $('Extract Inputs').item.json;\nreturn { json: {\n  _ok: true,\n  user_id: row.id || row.user_id,\n  user_role: row.user_role,\n  advisor_id: row.id || row.user_id,\n  client_id: input.client_id || row.client_id || null,\n  lead_id: input.lead_id,\n  return_url: input.return_url\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "kyc-0004",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "kyc-0005",
+      "name": "IF Role OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/identity/verification_sessions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "document" },
+            { "name": "return_url", "value": "={{ $json.return_url }}" },
+            { "name": "metadata[lead_id]", "value": "={{ $json.lead_id }}" },
+            { "name": "metadata[advisor_id]", "value": "={{ $json.advisor_id }}" },
+            { "name": "metadata[client_id]", "value": "={{ $json.client_id || '' }}" },
+            { "name": "metadata[vertical_id]", "value": "insurance" }
+          ]
+        },
+        "options": { "timeout": 15000 }
+      },
+      "id": "kyc-0006",
+      "name": "Stripe Identity Create",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 320],
+      "credentials": { "httpHeaderAuth": { "name": "Stripe Crystallux" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Mary configures n8n credential 'Stripe Crystallux' as type 'HTTP Header Auth' with name=Authorization and value='Bearer ' + STRIPE_SECRET_KEY. Same credential reused by clx-stripe-provision-v1 etc."
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Check Role').item.json;\nconst resp = $input.item.json || {};\nif (resp.error) return { json: { _failed: true, status: 502, error: (resp.error.message || resp.error) } };\nif (!resp.id) return { json: { _failed: true, status: 502, error: 'Stripe response missing session id' } };\nreturn { json: {\n  insert_row: {\n    vertical_id: 'insurance',\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    verification_provider: 'stripe_identity',\n    external_session_id: resp.id,\n    verification_url: resp.url,\n    status: 'in_progress',\n    expires_at: resp.expires_at ? new Date(resp.expires_at * 1000).toISOString() : null\n  },\n  client_id: ctx.client_id,\n  lead_id: ctx.lead_id,\n  advisor_id: ctx.advisor_id,\n  user_id: ctx.user_id\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "kyc-0007",
+      "name": "Build Insert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/kyc_verifications",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert_row) }}",
+        "options": {}
+      },
+      "id": "kyc-0008",
+      "name": "Insert KYC Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'kyc_initiated', client_id: $('Build Insert').item.json.client_id, advisor_id: $('Build Insert').item.json.advisor_id, performed_by_user_id: $('Build Insert').item.json.user_id, performed_by_role: 'advisor', event_data: { lead_id: $('Build Insert').item.json.lead_id, provider: 'stripe_identity', external_session_id: $('Build Insert').item.json.insert_row.external_session_id }, occurred_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "kyc-0009",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { const ins = $('Insert KYC Row').item.json; const row = Array.isArray(ins) ? ins[0] : ins; return JSON.stringify({ ok: true, vertical_id: 'insurance', kyc_id: row && row.id, verification_url: $('Build Insert').item.json.insert_row.verification_url, external_session_id: $('Build Insert').item.json.insert_row.external_session_id, expires_at: $('Build Insert').item.json.insert_row.expires_at }); })() }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "kyc-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2340, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "kyc-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1380, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":                { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs":         { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":       { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role":             { "main": [[ { "node": "IF Role OK", "type": "main", "index": 0 } ]] },
+    "IF Role OK":             { "main": [[ { "node": "Stripe Identity Create", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Stripe Identity Create": { "main": [[ { "node": "Build Insert", "type": "main", "index": 0 } ]] },
+    "Build Insert":           { "main": [[ { "node": "Insert KYC Row", "type": "main", "index": 0 } ]] },
+    "Insert KYC Row":         { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":              { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
