@@ -1,0 +1,369 @@
+{
+  "name": "CLX - MCP Agent Tools v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mcp/agent-tools",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "mat-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 500],
+      "webhookId": "clx-mcp-agent-tools-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET — system-level, not session). Write-tool MCP gateway — extends the existing read-only clx-mcp-tool-gateway with the action tools the AI Agent needs. Each tool wraps an underlying workflow. Logs every invocation to mcp_tool_calls. Claude (in C1 decision engine, future) can call this with { tool_name, tool_input } to take real actions: place_outbound_call, send_whatsapp, send_sms, send_email, generate_video, book_meeting, update_lead_status, log_decision, retrieve_lead_memory, escalate_to_human."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { valid: false, error: 'internal secret required', tool_name: '', tool_input: {} } };\nconst toolName = body.tool_name || '';\nconst toolInput = body.tool_input || {};\nconst valid = ['place_outbound_call','send_whatsapp','send_sms','send_email','generate_video','book_meeting','update_lead_status','log_decision','retrieve_lead_memory','escalate_to_human'];\nif (!toolName) return { json: { valid: false, error: 'tool_name required', tool_name: '', tool_input: {} } };\nif (valid.indexOf(toolName) < 0) return { json: { valid: false, error: 'unknown tool: ' + toolName + '. Available: ' + valid.join(', '), tool_name: toolName, tool_input: toolInput } };\nreturn { json: { valid: true, tool_name: toolName, tool_input: toolInput } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mat-0002",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json.valid }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "mat-0003",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 500]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "place_outbound_call", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "voice" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "send_whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "wa" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "send_sms", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "sms" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "send_email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "generate_video", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "video" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "book_meeting", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "book" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "update_lead_status", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "update" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "log_decision", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "decision" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "retrieve_lead_memory", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "memory" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "escalate_to_human", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "escalate" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mat-0004",
+      "name": "Switch Tool",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [880, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/voice-outbound' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 20000 }
+      },
+      "id": "mat-0005",
+      "name": "Tool: Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 100],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mat-0006",
+      "name": "Tool: WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 220],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/sms-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mat-0007",
+      "name": "Tool: SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 340],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mat-0008",
+      "name": "Tool: Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 460],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/video/script-generate' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "mat-0009",
+      "name": "Tool: Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 580],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/booking/create' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 20000 }
+      },
+      "id": "mat-0010",
+      "name": "Tool: Book",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 700],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.tool_input.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_status: $json.tool_input.lead_status, notes: $json.tool_input.notes || '', updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "mat-0011",
+      "name": "Tool: Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 820],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_decisions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ client_id: $json.tool_input.client_id, lead_id: $json.tool_input.lead_id || null, decision_type: $json.tool_input.decision_type || 'wait', reasoning: $json.tool_input.reasoning, context_used: $json.tool_input.context_used || {}, confidence_score: $json.tool_input.confidence_score || 0, outcome: 'pending', created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "mat-0012",
+      "name": "Tool: Log Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 940],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_memory?lead_id=eq.' + encodeURIComponent($json.tool_input.lead_id) + '&order=importance_score.desc&limit=10&select=memory_type,content,importance_score' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "mat-0013",
+      "name": "Tool: Retrieve Memory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 1060],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "MVP: top-importance retrieval (no vector). For vector similarity search, the tool would need to embed the query first via OpenAI then call the SQL: SELECT * FROM agent_memory ORDER BY embedding <=> '<query_embedding>' LIMIT 10. Phase 4 enhancement."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/escalate' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mat-0014",
+      "name": "Tool: Escalate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 1180],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Parse Request').item.json;\nconst all = $input.all();\nconst data = all.length === 1 ? (all[0].json && (all[0].json.result || all[0].json)) : all.map(function(i){return i.json;});\nreturn { json: { success: true, tool: ctx.tool_name, data: data, timestamp: new Date().toISOString() } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "mat-0015",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/mcp_tool_calls",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tool_name: $('Format Response').item.json.tool, tool_input: $('Parse Request').item.json.tool_input, tool_output: $('Format Response').item.json.data, success: $('Format Response').item.json.success, execution_time_ms: 0 }) }}",
+        "options": {}
+      },
+      "id": "mat-0016",
+      "name": "Log MCP Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 600],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Format Response').item.json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "mat-0017",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error, tool: $json.tool_name }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "mat-0018",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 740]
+    }
+  ],
+  "connections": {
+    "Webhook":             { "main": [[ { "node": "Parse Request", "type": "main", "index": 0 } ]] },
+    "Parse Request":       { "main": [[ { "node": "IF Valid", "type": "main", "index": 0 } ]] },
+    "IF Valid":            { "main": [[ { "node": "Switch Tool", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Switch Tool":         { "main": [
+                              [ { "node": "Tool: Voice", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: WhatsApp", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: SMS", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Email", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Video", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Book", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Update Lead", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Log Decision", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Retrieve Memory", "type": "main", "index": 0 } ],
+                              [ { "node": "Tool: Escalate", "type": "main", "index": 0 } ]
+                            ] },
+    "Tool: Voice":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: WhatsApp":      { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: SMS":           { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Email":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Video":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Book":          { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Update Lead":   { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Log Decision":  { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Retrieve Memory":{ "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Tool: Escalate":      { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
+    "Format Response":     { "main": [[ { "node": "Log MCP Call", "type": "main", "index": 0 } ]] },
+    "Log MCP Call":        { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,209 @@
+{
+  "name": "CLX - HeyGen Webhook v1 (R2 automation)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "heygen-video-ready",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "hwh-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-heygen-webhook-001",
+      "notes": "DEACTIVATED. Public endpoint that HeyGen calls when an avatar render finishes. Validates HeyGen webhook signature (X-Heygen-Signature header) using HEYGEN_WEBHOOK_SECRET. Looks up video_renders by callback_id (we passed video_render_id as callback_id during render request), downloads MP4 from HeyGen URL, uploads to Cloudflare R2 (S3-compatible), generates 16-char landing_page_token, marks status='ready', triggers B4 (delivery router). NOTE: Mary configures R2 credential as n8n 'AWS' credential type with custom endpoint = R2_ENDPOINT, region 'auto'. AWS S3 node handles SigV4 automatically — no manual signing in workflow."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate HeyGen signature (HMAC-SHA256 of body using HEYGEN_WEBHOOK_SECRET).\n// HeyGen signs via X-Heygen-Signature header. If secret is not configured, allow\n// the request but mark _unverified=true (Mary should set the secret before going live).\nconst crypto = require('crypto');\nconst headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || $input.item.json;\nconst rawBodyString = typeof body === 'string' ? body : JSON.stringify(body);\nconst sig = headers['x-heygen-signature'] || headers['X-Heygen-Signature'] || '';\nconst secret = process.env.HEYGEN_WEBHOOK_SECRET || '';\nlet verified = false;\nlet unverified = false;\nif (secret && sig) {\n  const computed = crypto.createHmac('sha256', secret).update(rawBodyString).digest('hex');\n  verified = (computed === sig);\n} else if (!secret) {\n  unverified = true;   // allow but flag\n  verified = true;\n}\nif (!verified) return { json: { _unauthorized: true, error: 'invalid signature' } };\n\n// HeyGen v2 callback shape: { event_type: 'video.success', event_data: { callback_id, video_id, url, duration } }\nconst event = body.event_type || body.event || '';\nconst data = body.event_data || body.data || body;\nconst callbackId = data.callback_id || data.callbackId || null;       // = video_render_id\nconst heygenVideoId = data.video_id || data.videoId || null;\nconst sourceUrl = data.url || data.video_url || data.preview_url || null;\nconst durationSec = Math.round((data.duration || 0) || 0);\nif (!callbackId || !sourceUrl) return { json: { _empty: true, error: 'missing callback_id or url', event: event } };\nreturn { json: {\n  _verified: true,\n  _unverified_warning: unverified,\n  video_render_id: callbackId,\n  heygen_video_id: heygenVideoId,\n  source_video_url: sourceUrl,\n  duration_seconds: durationSec,\n  event_type: event\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "hwh-0002",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._verified }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "hwh-0003",
+      "name": "IF Verified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?id=eq.' + encodeURIComponent($json.video_render_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source_video_url: $json.source_video_url, duration_seconds: $json.duration_seconds }) }}",
+        "options": {}
+      },
+      "id": "hwh-0004",
+      "name": "Save HeyGen URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Verify Signature').item.json.source_video_url }}",
+        "sendHeaders": false,
+        "options": {
+          "response": { "response": { "responseFormat": "file" } },
+          "timeout": 120000
+        }
+      },
+      "id": "hwh-0005",
+      "name": "Download MP4 from HeyGen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Downloads MP4 binary into n8n binary slot 'data'. HeyGen URLs expire ~7 days; we copy to R2 immediately for permanent storage."
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $env.R2_BUCKET || 'crystallux-videos' }}",
+        "fileName": "={{ 'videos/' + $('Verify Signature').item.json.video_render_id + '.mp4' }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "acl": "publicRead",
+          "storageClass": "standard",
+          "tagsUi": { "tagsValues": [ { "key": "content_type", "value": "outreach" } ] }
+        }
+      },
+      "id": "hwh-0006",
+      "name": "Upload to R2",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [1380, 320],
+      "credentials": { "aws": { "name": "Cloudflare R2" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Mary configures n8n credential 'Cloudflare R2' as type 'AWS' with: Region='auto', Custom Endpoints=true, S3 endpoint=R2_ENDPOINT (https://<account>.r2.cloudflarestorage.com), Access Key=R2_ACCESS_KEY_ID, Secret=R2_SECRET_ACCESS_KEY. n8n's awsS3 node handles SigV4 signing — no manual signing required."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate landing_page_token (16+ chars, URL-safe) and assemble final patch.\nconst crypto = require('crypto');\nconst ctx = $('Verify Signature').item.json;\nconst token = crypto.randomBytes(12).toString('base64').replace(/[+/=]/g, '').slice(0, 16);\nconst publicBase = process.env.R2_PUBLIC_URL || 'https://videos.crystallux.org';\nconst landingBase = process.env.LANDING_PAGE_BASE || 'https://crystallux.org/v';\nreturn { json: {\n  video_render_id: ctx.video_render_id,\n  landing_page_token: token,\n  landing_page_url: landingBase + '/' + token,\n  storage_provider: 'cloudflare_r2',\n  storage_key: 'videos/' + ctx.video_render_id + '.mp4',\n  storage_url: publicBase + '/videos/' + ctx.video_render_id + '.mp4',\n  duration_seconds: ctx.duration_seconds,\n  status: 'ready',\n  rendered_at: new Date().toISOString()\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "hwh-0007",
+      "name": "Build Patch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?id=eq.' + encodeURIComponent($json.video_render_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ landing_page_token: $json.landing_page_token, landing_page_url: $json.landing_page_url, storage_provider: $json.storage_provider, storage_key: $json.storage_key, storage_url: $json.storage_url, duration_seconds: $json.duration_seconds, status: $json.status, rendered_at: $json.rendered_at }) }}",
+        "options": {}
+      },
+      "id": "hwh-0008",
+      "name": "Mark Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/video/delivery-route' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, video_render_id: $('Build Patch').item.json.video_render_id }) }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "hwh-0009",
+      "name": "Trigger Delivery Router",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Fire-and-forget call to clx-video-delivery-router-v1. We don't block the HeyGen webhook response on delivery — HeyGen retries on non-200 within 3s."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, video_render_id: $('Build Patch').item.json.video_render_id, storage_url: $('Build Patch').item.json.storage_url, landing_page_url: $('Build Patch').item.json.landing_page_url }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "hwh-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2340, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "hwh-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":                     { "main": [[ { "node": "Verify Signature", "type": "main", "index": 0 } ]] },
+    "Verify Signature":            { "main": [[ { "node": "IF Verified", "type": "main", "index": 0 } ]] },
+    "IF Verified":                 { "main": [[ { "node": "Save HeyGen URL", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Save HeyGen URL":             { "main": [[ { "node": "Download MP4 from HeyGen", "type": "main", "index": 0 } ]] },
+    "Download MP4 from HeyGen":    { "main": [[ { "node": "Upload to R2", "type": "main", "index": 0 } ]] },
+    "Upload to R2":                { "main": [[ { "node": "Build Patch", "type": "main", "index": 0 } ]] },
+    "Build Patch":                 { "main": [[ { "node": "Mark Ready", "type": "main", "index": 0 } ]] },
+    "Mark Ready":                  { "main": [[ { "node": "Trigger Delivery Router", "type": "main", "index": 0 } ]] },
+    "Trigger Delivery Router":     { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

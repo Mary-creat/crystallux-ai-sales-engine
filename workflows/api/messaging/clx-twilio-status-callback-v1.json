@@ -1,0 +1,117 @@
+{
+  "name": "CLX - Twilio Status Callback v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twilio/status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tsc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-twilio-status-callback-001",
+      "notes": "DEACTIVATED. Public POST. Twilio status callback (delivery / read / failed) + inbound replies. For status updates, looks up messages_sent by external_id (Twilio MessageSid) and updates status + delivered_at/read_at/replied_at. For inbound (Body present + From present), inserts an inbound row + triggers clx-agent-conversation-handler-v1 (C5)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\n// Twilio sends form-encoded by default — n8n decodes to object.\nconst sid = body.MessageSid || body.SmsSid || null;\nconst status = body.MessageStatus || body.SmsStatus || null;\nconst inboundBody = body.Body || null;\nconst from = body.From || null;\nconst to = body.To || null;\nconst isInbound = !!(inboundBody && from && status === undefined);\nif (isInbound) {\n  return { json: {\n    _path: 'inbound',\n    inbound: { from: from, to: to, body: inboundBody, sid: sid }\n  } };\n}\nif (!sid || !status) return { json: { _bad: true } };\nreturn { json: {\n  _path: 'status',\n  external_id: sid,\n  status: status,\n  status_normalized: ({ delivered: 'delivered', read: 'read', failed: 'failed', undelivered: 'failed', sent: 'sent', queued: 'pending' })[String(status).toLowerCase()] || status\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tsc-0002",
+      "name": "Parse Twilio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json._path }}", "rightValue": "status", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "status" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json._path }}", "rightValue": "inbound", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "inbound" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tsc-0003",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/messages_sent?external_id=eq.' + encodeURIComponent($json.external_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const s = $json.status_normalized; const upd = { status: s }; const now = new Date().toISOString(); if (s === 'delivered') upd.delivered_at = now; if (s === 'read') upd.read_at = now; if (s === 'replied') upd.replied_at = now; return JSON.stringify(upd); })() }}",
+        "options": {}
+      },
+      "id": "tsc-0004",
+      "name": "Update Message Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/conversation-handler' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, channel: ($json.inbound.from || '').indexOf('whatsapp:') === 0 ? 'whatsapp' : 'sms', from: $json.inbound.from, to: $json.inbound.to, message: $json.inbound.body, external_id: $json.inbound.sid }) }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "tsc-0005",
+      "name": "Trigger Conversation Handler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 540],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<Response/>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/xml" } ] }
+        }
+      },
+      "id": "tsc-0006",
+      "name": "Respond TwiML Empty",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1140, 400]
+    }
+  ],
+  "connections": {
+    "Webhook":                     { "main": [[ { "node": "Parse Twilio", "type": "main", "index": 0 } ]] },
+    "Parse Twilio":                { "main": [[ { "node": "Switch", "type": "main", "index": 0 } ]] },
+    "Switch":                      { "main": [[ { "node": "Update Message Status", "type": "main", "index": 0 } ], [ { "node": "Trigger Conversation Handler", "type": "main", "index": 0 } ]] },
+    "Update Message Status":       { "main": [[ { "node": "Respond TwiML Empty", "type": "main", "index": 0 } ]] },
+    "Trigger Conversation Handler":{ "main": [[ { "node": "Respond TwiML Empty", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

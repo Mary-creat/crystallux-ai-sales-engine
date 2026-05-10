@@ -1,0 +1,187 @@
+{
+  "name": "CLX - Video Landing Page v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "v/:token",
+        "responseMode": "responseNode",
+        "options": { "rawBody": false }
+      },
+      "id": "vlp-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-video-landing-page-001",
+      "notes": "DEACTIVATED. Public GET /webhook/v/:token. Renders the personalised video landing page using token to look up video_renders + lead. Page is mobile-responsive, brand-purple, autoplay muted (click-to-unmute), tracks engagement events to clx-video-engagement-tracker via fetch on the page. Booking CTA links to client.calendly_url or generic /book."
+    },
+    {
+      "parameters": {
+        "jsCode": "const params = $input.item.json.params || {};\nconst token = params.token || $input.item.json.token || '';\nif (!token || token.length < 8) return { json: { _bad_token: true } };\nreturn { json: { token: token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vlp-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._bad_token }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "vlp-0003",
+      "name": "IF Bad Token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?landing_page_token=eq.' + encodeURIComponent($json.token) + '&select=id,lead_id,client_id,storage_url,duration_seconds,status,landing_page_token&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "vlp-0004",
+      "name": "Lookup Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nif (!row || !row.id || row.status !== 'ready' && row.status !== 'delivered') {\n  return { json: { _not_found: true } };\n}\nreturn { json: { render: row } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vlp-0005",
+      "name": "Validate Render",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._not_found }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "vlp-0006",
+      "name": "IF Not Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.render.lead_id) + '&select=id,first_name,full_name,company,city&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "vlp-0007",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($('Validate Render').item.json.render.client_id) + '&select=id,client_name,calendly_url&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "vlp-0008",
+      "name": "Fetch Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2
+      },
+      "id": "vlp-0009",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1860, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Render personalised landing page HTML.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst leads = allOf('Fetch Lead');\nconst clients = allOf('Fetch Client');\nconst lead = leads[0] || {};\nconst client = clients[0] || {};\nconst render = $('Validate Render').item.json.render;\n\nconst escape = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;'); };\nconst firstName = escape(lead.first_name || (lead.full_name || '').split(' ')[0] || 'there');\nconst company = escape(lead.company || 'your business');\nconst clientName = escape(client.client_name || 'Crystallux');\nconst videoUrl = escape(render.storage_url);\nconst bookUrl = escape(client.calendly_url || ('https://crystallux.org/book?lead=' + encodeURIComponent(lead.id || '')));\nconst trackerBase = process.env.LANDING_PAGE_TRACKER_BASE || 'https://automation.crystallux.org/webhook/v/track';\nconst renderId = escape(render.id);\n\nconst html = [\n  '<!doctype html>',\n  '<html lang=\"en\">',\n  '<head>',\n  '  <meta charset=\"utf-8\" />',\n  '  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />',\n  '  <title>A quick personal video for ' + firstName + '</title>',\n  '  <style>',\n  '    *{box-sizing:border-box;margin:0;padding:0}',\n  '    body{font-family:Inter,-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,#0F0A1F 0%,#1F1338 100%);color:#fff;min-height:100vh;padding:24px 16px}',\n  '    .wrap{max-width:720px;margin:0 auto;padding:32px 0}',\n  '    .brand{display:flex;align-items:center;gap:8px;font-size:14px;opacity:.7;margin-bottom:24px}',\n  '    .brand-dot{width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#7C3AED 0%,#5B21B6 100%)}',\n  '    h1{font-size:28px;line-height:1.2;font-weight:600;margin-bottom:12px}',\n  '    h1 .accent{color:#A78BFA}',\n  '    .lede{font-size:16px;opacity:.85;margin-bottom:24px;line-height:1.5}',\n  '    .video-wrap{background:#000;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(124,58,237,.25);margin-bottom:24px;aspect-ratio:16/9}',\n  '    video{width:100%;height:100%;display:block}',\n  '    .cta{display:block;width:100%;padding:18px 24px;background:linear-gradient(135deg,#7C3AED 0%,#5B21B6 100%);color:#fff;text-decoration:none;border-radius:12px;text-align:center;font-weight:600;font-size:18px;box-shadow:0 8px 24px rgba(124,58,237,.4);transition:transform .15s}',\n  '    .cta:hover{transform:translateY(-2px)}',\n  '    .footer{text-align:center;font-size:13px;opacity:.55;margin-top:32px}',\n  '    @media (max-width:480px){h1{font-size:22px}}',\n  '  </style>',\n  '</head>',\n  '<body>',\n  '  <div class=\"wrap\">',\n  '    <div class=\"brand\"><span class=\"brand-dot\"></span><span>' + clientName + '</span></div>',\n  '    <h1>Hey <span class=\"accent\">' + firstName + '</span> — quick video for ' + company + '</h1>',\n  '    <p class=\"lede\">Takes 60 seconds. Tap to unmute.</p>',\n  '    <div class=\"video-wrap\">',\n  '      <video id=\"v\" src=\"' + videoUrl + '\" controls autoplay muted playsinline preload=\"metadata\"></video>',\n  '    </div>',\n  '    <a class=\"cta\" id=\"cta\" href=\"' + bookUrl + '\" target=\"_blank\" rel=\"noopener\">Book 15 minutes &rarr;</a>',\n  '    <p class=\"footer\">Powered by ' + clientName + ' &middot; <a href=\"https://crystallux.org\" style=\"color:inherit\">Crystallux</a></p>',\n  '  </div>',\n  '  <script>',\n  '    (function(){',\n  '      var rid=\"' + renderId + '\";',\n  '      var trk=\"' + trackerBase + '\";',\n  '      function send(t,d){fetch(trk,{method:\"POST\",headers:{\"content-type\":\"application/json\"},body:JSON.stringify({video_render_id:rid,event_type:t,event_data:d||{}})}).catch(function(){});}',\n  '      send(\"page_view\");',\n  '      var v=document.getElementById(\"v\");',\n  '      var seen={p:false,q1:false,q2:false,q3:false,c:false};',\n  '      v.addEventListener(\"play\",function(){if(!seen.p){send(\"video_play\");seen.p=true;}});',\n  '      v.addEventListener(\"timeupdate\",function(){',\n  '        var p=v.currentTime/(v.duration||1);',\n  '        if(p>=.25&&!seen.q1){send(\"video_25\");seen.q1=true;}',\n  '        if(p>=.50&&!seen.q2){send(\"video_50\");seen.q2=true;}',\n  '        if(p>=.75&&!seen.q3){send(\"video_75\");seen.q3=true;}',\n  '      });',\n  '      v.addEventListener(\"ended\",function(){if(!seen.c){send(\"video_complete\");seen.c=true;}});',\n  '      document.getElementById(\"cta\").addEventListener(\"click\",function(){send(\"cta_click\");});',\n  '    })();',\n  '  </script>',\n  '</body>',\n  '</html>'\n].join('\\n');\n\nreturn { json: { html: html, status: 200 } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "vlp-0010",
+      "name": "Render HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "text/html; charset=utf-8" }, { "name": "Cache-Control", "value": "no-store, max-age=0" } ] }
+        }
+      },
+      "id": "vlp-0011",
+      "name": "Respond HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2340, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html><body style=\"font-family:Inter,sans-serif;text-align:center;padding:80px 16px;background:#0F0A1F;color:#fff\"><h1>Link not valid</h1><p style=\"opacity:.7\">This video link is invalid or expired. Reach out to the sender for a fresh link.</p></body></html>",
+        "options": {
+          "responseCode": 404,
+          "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "text/html; charset=utf-8" } ] }
+        }
+      },
+      "id": "vlp-0012",
+      "name": "Respond 404",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract Token", "type": "main", "index": 0 } ]] },
+    "Extract Token":    { "main": [[ { "node": "IF Bad Token", "type": "main", "index": 0 } ]] },
+    "IF Bad Token":     { "main": [[ { "node": "Respond 404", "type": "main", "index": 0 } ], [ { "node": "Lookup Render", "type": "main", "index": 0 } ]] },
+    "Lookup Render":    { "main": [[ { "node": "Validate Render", "type": "main", "index": 0 } ]] },
+    "Validate Render":  { "main": [[ { "node": "IF Not Found", "type": "main", "index": 0 } ]] },
+    "IF Not Found":     { "main": [[ { "node": "Respond 404", "type": "main", "index": 0 } ], [ { "node": "Fetch Lead", "type": "main", "index": 0 }, { "node": "Fetch Client", "type": "main", "index": 0 } ]] },
+    "Fetch Lead":       { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Client":     { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Merge Branches":   { "main": [[ { "node": "Render HTML", "type": "main", "index": 0 } ]] },
+    "Render HTML":      { "main": [[ { "node": "Respond HTML", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

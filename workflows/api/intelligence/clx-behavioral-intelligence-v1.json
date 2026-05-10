@@ -1,0 +1,247 @@
+{
+  "name": "CLX - Behavioral Intelligence v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 30 }
+          ]
+        }
+      },
+      "id": "bi-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Every 30 min. Picks up behavioral_signals with relevance_score IS NULL (idx_bs_unclassified), classifies via Claude Sonnet against §35 10-category taxonomy, updates row with relevance_score + sensitivity_level. Logs cost to agent_costs (cost_type=claude_token). High-sensitivity rows are flagged for human review by surfacing in dashboard via existing scan_errors entry."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_signals?relevance_score=is.null&archived=eq.false&order=detected_at.asc&limit=50&select=id,lead_id,client_id,signal_type,signal_category,niche_name,signal_data,signal_source,detected_at",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "bi-0002",
+      "name": "Fetch Unclassified Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst signals = Array.isArray(raw) ? raw : (raw && raw.id ? [raw] : []);\nif (signals.length === 0) {\n  return [{ json: { _empty: true, reason: 'no_unclassified_signals' } }];\n}\nreturn signals.map(function (s) { return { json: { signal: s } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bi-0003",
+      "name": "Fan Out Signals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bi-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "bi-0005",
+      "name": "Batch (5)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Claude prompt to classify a single behavioral signal.\n// Universal multi-vertical: signal can be from insurance, mortgage,\n// real estate, dental, etc. Classifier must pick the right §35\n// category and sensitivity, and propose a recommended_archetype.\nconst signal = $json.signal;\nconst niche = signal.niche_name || 'service_industry';\n\nconst systemPrompt = [\n  'You are the Crystallux Behavioral Intelligence classifier.',\n  '',\n  'You receive a single per-lead behavioral signal and classify it against the OPERATIONS_HANDBOOK §35 ten-category taxonomy:',\n  '  1. personal           — birthdays, anniversaries, life events',\n  '  2. business           — job changes, promotions, expansion',\n  '  3. industry           — vertical-specific events (e.g. carrier rate change for insurance)',\n  '  4. sports             — regional team performance / wins',\n  '  5. news               — public events affecting lead',\n  '  6. social             — activity patterns (post frequency, sentiment)',\n  '  7. vertical_specific  — niche-specific events for ' + niche,\n  '  8. financial          — market conditions / interest rates',\n  '  9. geographic         — location changes / weather',\n  ' 10. calendar           — internal scheduling milestones',\n  '',\n  'Output strictly as JSON. Schema:',\n  '{',\n  '  \"signal_category\": \"<one of the 10 above>\",',\n  '  \"sensitivity_level\": \"low\" | \"medium\" | \"high\",',\n  '  \"relevance_score\": <integer 0-100>,',\n  '  \"recommended_archetype\": \"<archetype_name string, or null>\",',\n  '  \"rationale\": \"<1 sentence why>\"',\n  '}',\n  '',\n  'Rules:',\n  '- sensitivity_level=high if signal is personal/medical/financially-private. high signals route to human review queue and do NOT auto-fire outreach.',\n  '- relevance_score=0-100. 80+ means strong outreach trigger. 50-79 worth queueing. <50 noise.',\n  '- recommended_archetype must match a known archetype_name in the niche, or null if uncertain.',\n  '- niche for this client: ' + niche\n].join('\\n');\n\nconst userPrompt = [\n  'Signal to classify:',\n  '- type: ' + signal.signal_type,\n  '- raw category guess: ' + signal.signal_category,\n  '- source: ' + signal.signal_source,\n  '- detected: ' + signal.detected_at,\n  '- payload: ' + JSON.stringify(signal.signal_data || {}, null, 2).slice(0, 1500),\n  '',\n  'Classify and return JSON.'\n].join('\\n');\n\nreturn { json: {\n  signal_id: signal.id,\n  client_id: signal.client_id,\n  lead_id: signal.lead_id,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 500,\n    temperature: 0.2,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPrompt } ]\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "bi-0006",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "bi-0007",
+      "name": "Claude Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 500],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse + validate Claude classification.\nconst ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\nlet textOut = null;\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || null; } catch (e) {}\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\n\nif (!textOut) {\n  return { json: {\n    signal_id: ctx.signal_id, client_id: ctx.client_id,\n    _failed: true, error: 'no_text_in_response', tokens: tokens\n  } };\n}\n\nconst cleaned = String(textOut).replace(/```json|```/g, '').trim();\nlet parsed = null;\ntry { parsed = JSON.parse(cleaned); } catch (e) {\n  return { json: {\n    signal_id: ctx.signal_id, client_id: ctx.client_id,\n    _failed: true, error: 'parse_error', raw_text: cleaned.slice(0, 300), tokens: tokens\n  } };\n}\n\nconst validCategories = ['personal','business','industry','sports','news','social','vertical_specific','financial','geographic','calendar'];\nconst validSensitivity = ['low','medium','high'];\n\nconst category = validCategories.indexOf(parsed.signal_category) >= 0 ? parsed.signal_category : 'business';\nconst sensitivity = validSensitivity.indexOf(parsed.sensitivity_level) >= 0 ? parsed.sensitivity_level : 'low';\nconst relevance = Math.min(Math.max(parseInt(parsed.relevance_score) || 0, 0), 100);\n\nreturn { json: {\n  signal_id: ctx.signal_id,\n  client_id: ctx.client_id,\n  lead_id: ctx.lead_id,\n  signal_category: category,\n  sensitivity_level: sensitivity,\n  relevance_score: relevance,\n  recommended_archetype: parsed.recommended_archetype || null,\n  rationale: parsed.rationale || null,\n  tokens: tokens,\n  needs_review: sensitivity === 'high'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "bi-0008",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._failed }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bi-0009",
+      "name": "IF Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2100, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, node_name: 'behavioral_intelligence_classify', error_code: 'BI_CLASSIFY_FAILED', error_message: 'signal_id=' + $json.signal_id + ' err=' + ($json.error || 'unknown'), created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "bi-0010",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 380],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_signals?id=eq.' + encodeURIComponent($json.signal_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ signal_category: $json.signal_category, sensitivity_level: $json.sensitivity_level, relevance_score: $json.relevance_score }) }}",
+        "options": {}
+      },
+      "id": "bi-0011",
+      "name": "Update Signal Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 600],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_costs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ client_id: $json.client_id, action_id: null, cost_type: 'claude_token', units: $json.tokens || 0, unit_cost_cents: 0.0003, vendor: 'anthropic', recorded_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "bi-0012",
+      "name": "Log Cost",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2580, 600],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Cost in agent_costs.unit_cost_cents = USD cents per token. 0.0003¢/token approximates Claude Sonnet 4.5 blended input+output. Generated total_cents = units × unit_cost_cents."
+    },
+    {
+      "parameters": {},
+      "id": "bi-0013",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2820, 600]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Unclassified Signals", "type": "main", "index": 0 } ]] },
+    "Fetch Unclassified Signals":     { "main": [[ { "node": "Fan Out Signals", "type": "main", "index": 0 } ]] },
+    "Fan Out Signals":                { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Batch (5)", "type": "main", "index": 0 } ]] },
+    "Batch (5)":                      { "main": [[], [ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":            { "main": [[ { "node": "Claude Classify", "type": "main", "index": 0 } ]] },
+    "Claude Classify":                { "main": [[ { "node": "Parse Classification", "type": "main", "index": 0 } ]] },
+    "Parse Classification":           { "main": [[ { "node": "IF Failed", "type": "main", "index": 0 } ]] },
+    "IF Failed":                      { "main": [[ { "node": "Log Failure", "type": "main", "index": 0 } ], [ { "node": "Update Signal Row", "type": "main", "index": 0 } ]] },
+    "Log Failure":                    { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Update Signal Row":              { "main": [[ { "node": "Log Cost", "type": "main", "index": 0 } ]] },
+    "Log Cost":                       { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Batch (5)", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

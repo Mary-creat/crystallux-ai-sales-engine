@@ -1,0 +1,141 @@
+{
+  "name": "CLX - Agent Voice Inbound v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent/voice-inbound",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "avi-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-agent-voice-inbound-001",
+      "notes": "DEACTIVATED. Public endpoint Twilio voice posts to when an inbound call hits the client's Twilio number. Returns TwiML that <Connect><Stream>s the call to Vapi (sip:<vapi-sip-uri>) so the AI receptionist takes over. Logs the call to agent_conversations + agent_actions. Vapi handles the conversation; transcripts arrive at clx-vapi-transcript-streamer-v1 (existing dormant workflow)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\n// Twilio inbound voice posts: From, To, CallSid, etc.\nconst from = body.From || null;\nconst to = body.To || null;\nconst callSid = body.CallSid || null;\nif (!callSid) return { json: { _bad: true } };\nreturn { json: { from: from, to: to, call_sid: callSid } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "avi-0002",
+      "name": "Parse Twilio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._bad }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "avi-0003",
+      "name": "IF Bad",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_channels_enabled?channel=eq.voice&enabled=eq.true&configuration->>twilio_voice_number=eq.' + encodeURIComponent($json.to || '') + '&select=client_id,configuration&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "avi-0004",
+      "name": "Lookup Client by Phone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Parse Twilio').item.json;\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nconst clientId = row && row.client_id;\nconst cfg = (row && row.configuration) || {};\nconst sipUri = cfg.vapi_sip_uri || process.env.VAPI_SIP_URI || 'sip:placeholder@vapi.ai';\n// Build TwiML to bridge the inbound call to Vapi via SIP.\nconst twiml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial><Sip>' + sipUri + '?lead_phone=' + encodeURIComponent(ctx.from || '') + '&amp;client_id=' + encodeURIComponent(clientId || '') + '</Sip></Dial></Response>';\nreturn { json: { twiml: twiml, client_id: clientId, ctx: ctx } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "avi-0005",
+      "name": "Build TwiML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: null, client_id: $json.client_id, channel: 'voice', thread_external_id: $json.ctx.call_sid, message_count: 1, last_message_at: new Date().toISOString(), last_message_direction: 'inbound', current_status: 'active', agent_active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "avi-0006",
+      "name": "Log Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "lead_id is NULL on inbound — we don't yet know which lead this is. Phase 4 polish: phone lookup against leads.phone to associate."
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $('Build TwiML').item.json.twiml }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/xml" } ] }
+        }
+      },
+      "id": "avi-0007",
+      "name": "Respond TwiML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Sorry, this number is not configured. Please try again later.</Say><Hangup/></Response>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": { "entries": [ { "name": "Content-Type", "value": "application/xml" } ] }
+        }
+      },
+      "id": "avi-0008",
+      "name": "Respond TwiML Fallback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":             { "main": [[ { "node": "Parse Twilio", "type": "main", "index": 0 } ]] },
+    "Parse Twilio":        { "main": [[ { "node": "IF Bad", "type": "main", "index": 0 } ]] },
+    "IF Bad":              { "main": [[ { "node": "Respond TwiML Fallback", "type": "main", "index": 0 } ], [ { "node": "Lookup Client by Phone", "type": "main", "index": 0 } ]] },
+    "Lookup Client by Phone":{ "main": [[ { "node": "Build TwiML", "type": "main", "index": 0 } ]] },
+    "Build TwiML":         { "main": [[ { "node": "Log Conversation", "type": "main", "index": 0 } ]] },
+    "Log Conversation":    { "main": [[ { "node": "Respond TwiML", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

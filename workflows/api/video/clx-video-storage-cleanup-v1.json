@@ -1,0 +1,173 @@
+{
+  "name": "CLX - Video Storage Cleanup v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 3 * * *" }
+          ]
+        }
+      },
+      "id": "vsc-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Daily at 03:00 server time. Selects video_renders WHERE retention_until < NOW() AND content_type='outreach' AND status NOT IN ('archived','failed'). For each: deletes the R2 object via awsS3 node, marks status='archived', nulls storage_url. Content-marketing videos (content_type='content_marketing', retention_until=NULL) are kept indefinitely. Logs cleanup summary to admin_action_log."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?retention_until=lt.' + encodeURIComponent(new Date().toISOString()) + '&content_type=eq.outreach&status=neq.archived&status=neq.failed&select=id,storage_key&limit=1000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "vsc-0002",
+      "name": "Fetch Expired",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : (raw && raw.id ? [raw] : []);\nif (rows.length === 0) return [{ json: { _empty: true, count: 0 } }];\nreturn rows.map(function (r) { return { json: r }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "vsc-0003",
+      "name": "Fan Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "vsc-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "vsc-0005",
+      "name": "Per Render",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "bucketName": "={{ $env.R2_BUCKET || 'crystallux-videos' }}",
+        "fileKey": "={{ $json.storage_key }}"
+      },
+      "id": "vsc-0006",
+      "name": "Delete From R2",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [1380, 500],
+      "credentials": { "aws": { "name": "Cloudflare R2" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?id=eq.' + encodeURIComponent($('Per Render').item.json.id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'archived', storage_url: null }) }}",
+        "options": {}
+      },
+      "id": "vsc-0007",
+      "name": "Mark Archived",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "vsc-0008",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1860, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $('Fan Out').all();\nconst count = all.filter(function (i) { return !i.json._empty; }).length;\nreturn { json: { archived_count: count, run_at: new Date().toISOString() } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "vsc-0009",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'crystallux-storage-cleanup', action_type: 'vertical_generated', input_text: 'Daily R2 video cleanup', panel_context: 'video_storage', generated_content: $json, result_summary: 'archived ' + $json.archived_count + ' videos', success: true, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "vsc-0010",
+      "name": "Log Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Expired", "type": "main", "index": 0 } ]] },
+    "Fetch Expired":                  { "main": [[ { "node": "Fan Out", "type": "main", "index": 0 } ]] },
+    "Fan Out":                        { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ], [ { "node": "Per Render", "type": "main", "index": 0 } ]] },
+    "Per Render":                     { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ], [ { "node": "Delete From R2", "type": "main", "index": 0 } ]] },
+    "Delete From R2":                 { "main": [[ { "node": "Mark Archived", "type": "main", "index": 0 } ]] },
+    "Mark Archived":                  { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Render", "type": "main", "index": 0 } ]] },
+    "Build Summary":                  { "main": [[ { "node": "Log Audit", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

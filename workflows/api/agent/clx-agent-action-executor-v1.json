@@ -1,0 +1,293 @@
+{
+  "name": "CLX - Agent Action Executor v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent/action-execute",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aae-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-agent-action-executor-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Routes an agent_decisions row to the right sender based on action_type. Wraps each call with agent_actions audit insert + agent_costs entry."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.decision_id || !body.action_type) return { json: { _empty: true, error: 'decision_id and action_type required' } };\nreturn { json: {\n  _authorized: true,\n  decision_id: body.decision_id,\n  action_type: body.action_type,\n  channel: body.channel || null,\n  message: body.message || '',\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  trigger_id: body.trigger_id || null\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aae-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "aae-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_actions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ decision_id: $json.decision_id, client_id: $json.client_id, lead_id: $json.lead_id, action_type: $json.action_type, channel: $json.channel || ({ send_email: 'email', send_sms: 'sms', send_whatsapp: 'whatsapp', send_video: 'whatsapp', phone_call: 'voice', escalate: 'email', wait: 'email' })[$json.action_type] || 'email', action_data: { message: $json.message }, status: 'pending', taken_by_role: 'agent', taken_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "aae-0004",
+      "name": "Insert Agent Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ins = $input.item.json;\nconst row = Array.isArray(ins) ? ins[0] : ins;\nconst ctx = $('Validate').item.json;\nreturn { json: Object.assign({}, ctx, { agent_action_id: (row && row.id) || null }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aae-0005",
+      "name": "Carry Action ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_sms", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "sms" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "whatsapp" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_video", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "video" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "phone_call", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "voice" },
+            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "escalate", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "escalate" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "aae-0006",
+      "name": "Switch Action Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1380, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: $json.message, agent_action_id: $json.agent_action_id }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "aae-0007",
+      "name": "Call WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 220],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/sms-send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: $json.message, agent_action_id: $json.agent_action_id }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "aae-0008",
+      "name": "Call SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: 'unknown@example.com', vars: { first_name: 'there', message: $json.message } }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "aae-0009",
+      "name": "Call Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 420],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "TODO Phase 4 polish: look up lead.email server-side here rather than hard-coding 'unknown@example.com'. Current MVP relies on caller passing the right email or on B4 video-delivery-router doing lookup before calling email/send."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/video/script-generate' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, intent: 'book_meeting' }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "aae-0010",
+      "name": "Generate Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 520],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Chains B1 (script) → B2 (HeyGen render) → B3 (callback + R2) → B4 (delivery). The Generate Video step kicks off the chain; the rest happens async via HeyGen callback."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/voice-outbound' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: $json.decision_id, lead_id: $json.lead_id, client_id: $json.client_id, script: $json.message, agent_action_id: $json.agent_action_id }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "aae-0011",
+      "name": "Call Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 620],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/escalate' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: $json.decision_id, lead_id: $json.lead_id, client_id: $json.client_id, escalated_to_role: 'client', reason: 'Agent decision selected escalate. Original message: ' + ($json.message || ''), context_summary: $json.message }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "aae-0012",
+      "name": "Call Escalate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 720],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_actions?id=eq.' + encodeURIComponent($('Carry Action ID').item.json.agent_action_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'completed' }) }}",
+        "options": {}
+      },
+      "id": "aae-0013",
+      "name": "Mark Action Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 420],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, agent_action_id: $('Carry Action ID').item.json.agent_action_id, action_type: $('Validate').item.json.action_type }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "aae-0014",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2100, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "aae-0015",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":             { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":        { "main": [[ { "node": "Insert Agent Action", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Insert Agent Action":  { "main": [[ { "node": "Carry Action ID", "type": "main", "index": 0 } ]] },
+    "Carry Action ID":      { "main": [[ { "node": "Switch Action Type", "type": "main", "index": 0 } ]] },
+    "Switch Action Type":   { "main": [
+                                [ { "node": "Call Email", "type": "main", "index": 0 } ],
+                                [ { "node": "Call SMS", "type": "main", "index": 0 } ],
+                                [ { "node": "Call WhatsApp", "type": "main", "index": 0 } ],
+                                [ { "node": "Generate Video", "type": "main", "index": 0 } ],
+                                [ { "node": "Call Voice", "type": "main", "index": 0 } ],
+                                [ { "node": "Call Escalate", "type": "main", "index": 0 } ],
+                                [ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]
+                              ] },
+    "Call Email":           { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
+    "Call SMS":             { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
+    "Call WhatsApp":        { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
+    "Generate Video":       { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
+    "Call Voice":           { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
+    "Call Escalate":        { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
+    "Mark Action Completed":{ "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

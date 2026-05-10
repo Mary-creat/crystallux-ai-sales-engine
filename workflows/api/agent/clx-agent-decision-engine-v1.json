@@ -1,0 +1,324 @@
+{
+  "name": "CLX - Agent Decision Engine v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 15 }
+          ]
+        }
+      },
+      "id": "ade-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Every 15 min. The brain of the AI Sales Agent. Per client-with-agent-enabled: pulls pending behavioral_triggers + agent_personalities + agent_schedules + recent agent_actions, builds Claude context, asks Claude (Sonnet 4.5) what to do for each lead, writes to agent_decisions, calls action_executor (C2). Respects quiet hours, daily caps, per-lead-per-week caps. Universal multi-vertical — Claude tunes message via personality.vertical_context."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_channels_enabled?enabled=eq.true&select=client_id&limit=200",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ade-0002",
+      "name": "Fetch Agent Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : (raw && raw.client_id ? [raw] : []);\nconst seen = {};\nconst clients = [];\nfor (const r of rows) { if (r.client_id && !seen[r.client_id]) { seen[r.client_id] = true; clients.push({ client_id: r.client_id }); } }\nif (clients.length === 0) return [{ json: { _empty: true } }];\nreturn clients.map(function (c) { return { json: c }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ade-0003",
+      "name": "Dedup Clients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "ade-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "ade-0005",
+      "name": "Per Client",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_schedules?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ade-0006",
+      "name": "Fetch Schedule",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 380],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_personalities?client_id=eq.' + encodeURIComponent($('Per Client').item.json.client_id) + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ade-0007",
+      "name": "Fetch Personality",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 520],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_triggers?client_id=eq.' + encodeURIComponent($('Per Client').item.json.client_id) + '&status=eq.pending&order=created_at.asc&limit=20&select=id,lead_id,archetype_id,composite_score,recommended_action,generated_message' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ade-0008",
+      "name": "Fetch Pending Triggers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": { "mode": "append", "numberInputs": 3 },
+      "id": "ade-0009",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1620, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst schedules = allOf('Fetch Schedule');\nconst personalities = allOf('Fetch Personality');\nconst triggers = allOf('Fetch Pending Triggers');\nconst clientId = $('Per Client').item.json.client_id;\n\n// Defaults if rows missing\nconst schedule = schedules[0] || { quiet_hours_start: '21:00', quiet_hours_end: '08:00', timezone: 'America/Toronto', max_actions_per_day: 100, max_actions_per_lead_per_week: 3, weekend_active: false };\nconst personality = personalities[0] || { voice_tone: 'professional', formality_level: 'business_casual', vertical_context: 'service_industry', escalation_rules: {} };\n\n// Quiet hours check (server-side approximation in client TZ).\n// Heuristic: convert now → client tz hour using Intl, compare to quiet_hours.\nlet quiet = false;\ntry {\n  const tzHour = parseInt(new Intl.DateTimeFormat('en-CA', { timeZone: schedule.timezone || 'America/Toronto', hour: 'numeric', hour12: false }).format(new Date()), 10);\n  const startH = parseInt(String(schedule.quiet_hours_start || '21:00').split(':')[0], 10);\n  const endH = parseInt(String(schedule.quiet_hours_end || '08:00').split(':')[0], 10);\n  if (startH > endH) {\n    // wraps midnight\n    quiet = (tzHour >= startH || tzHour < endH);\n  } else {\n    quiet = (tzHour >= startH && tzHour < endH);\n  }\n} catch (e) { /* ignore tz errors */ }\n\nif (quiet) return [{ json: { _quiet: true, client_id: clientId } }];\nif (triggers.length === 0) return [{ json: { _empty: true, client_id: clientId } }];\n\n// Fan out one item per trigger; carry schedule/personality\nreturn triggers.map(function (t) { return { json: { trigger: t, client_id: clientId, schedule: schedule, personality: personality } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ade-0010",
+      "name": "Filter Quiet + Fan Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 520]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty || $json._quiet }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "ade-0011",
+      "name": "IF Skip",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2100, 520]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "ade-0012",
+      "name": "Per Trigger",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2340, 620]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Claude prompt for action decision per trigger.\nconst t = $json.trigger;\nconst p = $json.personality;\nconst clientId = $json.client_id;\n\nconst systemPrompt = [\n  'You are the Crystallux AI Sales Agent decision-maker for client_id=' + clientId + '.',\n  'Vertical context: ' + (p.vertical_context || 'service_industry'),\n  'Tone: ' + (p.voice_tone || 'professional') + ' / ' + (p.formality_level || 'business_casual'),\n  '',\n  'You receive ONE pending behavioral trigger and decide ONE action. Output strictly JSON.',\n  '',\n  'Schema: {',\n  '  \"action_type\": \"send_email\" | \"send_sms\" | \"send_whatsapp\" | \"send_video\" | \"phone_call\" | \"wait\" | \"escalate\",',\n  '  \"channel\":     \"email\" | \"sms\" | \"whatsapp\" | \"voice\" | null,',\n  '  \"reasoning\":   \"<1-2 sentences>\",',\n  '  \"message\":     \"<the actual message text if sending>\",',\n  '  \"confidence\":  <0..1>',\n  '}',\n  '',\n  'Rules:',\n  '- Use the trigger\\'s recommended_action UNLESS you have strong reason to override.',\n  '- For high composite_score (80+): act. For 50-79: act if channel low-cost (email). For <50: prefer wait.',\n  '- Use personality.escalation_rules to decide if you should escalate to human (output action_type=\"escalate\").',\n  '- Match tone of personality. Use the trigger\\'s generated_message as the starting point — refine for tone.',\n  '- Never include URLs you do not have. Never invent facts.'\n].join('\\n');\n\nconst userPrompt = JSON.stringify({\n  trigger: {\n    archetype_id: t.archetype_id,\n    composite_score: t.composite_score,\n    recommended_action: t.recommended_action,\n    suggested_message: t.generated_message\n  },\n  escalation_rules: p.escalation_rules || {}\n});\n\nreturn { json: {\n  trigger_id: t.id,\n  lead_id: t.lead_id,\n  client_id: clientId,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 600,\n    temperature: 0.3,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPrompt } ]\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ade-0013",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2580, 620]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "ade-0014",
+      "name": "Claude Decide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 620],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\nlet textOut = '';\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet decision = null;\ntry { decision = JSON.parse(String(textOut).replace(/```json|```/g, '').trim()); } catch (e) {}\nif (!decision) {\n  decision = { action_type: 'wait', channel: null, reasoning: 'parse_failed', message: '', confidence: 0.0 };\n}\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\nreturn { json: {\n  trigger_id: ctx.trigger_id,\n  lead_id: ctx.lead_id,\n  client_id: ctx.client_id,\n  decision_row: {\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    decision_type: decision.action_type || 'wait',\n    reasoning: decision.reasoning || null,\n    context_used: { trigger_id: ctx.trigger_id, channel: decision.channel, generated_message: decision.message },\n    target_role: null,\n    confidence_score: Math.min(Math.max(parseFloat(decision.confidence) || 0, 0), 1),\n    outcome: 'pending'\n  },\n  message: decision.message || '',\n  channel: decision.channel || null,\n  action_type: decision.action_type || 'wait',\n  tokens: tokens\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ade-0015",
+      "name": "Parse Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3060, 620]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_decisions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.decision_row) }}",
+        "options": {}
+      },
+      "id": "ade-0016",
+      "name": "Insert Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3300, 620],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/action-execute' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const ins = $input.item.json; const row = Array.isArray(ins) ? ins[0] : ins; const ctx = $('Parse Decision').item.json; return JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: row && row.id, action_type: ctx.action_type, channel: ctx.channel, message: ctx.message, lead_id: ctx.lead_id, client_id: ctx.client_id, trigger_id: ctx.trigger_id }); })() }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "ade-0017",
+      "name": "Trigger Action Executor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3540, 620],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_triggers?id=eq.' + encodeURIComponent($('Parse Decision').item.json.trigger_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'queued' }) }}",
+        "options": {}
+      },
+      "id": "ade-0018",
+      "name": "Mark Trigger Queued",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3780, 620],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "ade-0019",
+      "name": "Loop Continue Trigger",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [4020, 620]
+    },
+    {
+      "parameters": {},
+      "id": "ade-0020",
+      "name": "Loop Continue Client",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2340, 460]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Agent Clients", "type": "main", "index": 0 } ]] },
+    "Fetch Agent Clients":            { "main": [[ { "node": "Dedup Clients", "type": "main", "index": 0 } ]] },
+    "Dedup Clients":                  { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Client", "type": "main", "index": 0 } ]] },
+    "Per Client":                     { "main": [[], [ { "node": "Fetch Schedule", "type": "main", "index": 0 }, { "node": "Fetch Personality", "type": "main", "index": 0 }, { "node": "Fetch Pending Triggers", "type": "main", "index": 0 } ]] },
+    "Fetch Schedule":                 { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Personality":              { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Pending Triggers":         { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Merge Branches":                 { "main": [[ { "node": "Filter Quiet + Fan Out", "type": "main", "index": 0 } ]] },
+    "Filter Quiet + Fan Out":         { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
+    "IF Skip":                        { "main": [[ { "node": "Loop Continue Client", "type": "main", "index": 0 } ], [ { "node": "Per Trigger", "type": "main", "index": 0 } ]] },
+    "Per Trigger":                    { "main": [[ { "node": "Loop Continue Client", "type": "main", "index": 0 } ], [ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":            { "main": [[ { "node": "Claude Decide", "type": "main", "index": 0 } ]] },
+    "Claude Decide":                  { "main": [[ { "node": "Parse Decision", "type": "main", "index": 0 } ]] },
+    "Parse Decision":                 { "main": [[ { "node": "Insert Decision", "type": "main", "index": 0 } ]] },
+    "Insert Decision":                { "main": [[ { "node": "Trigger Action Executor", "type": "main", "index": 0 } ]] },
+    "Trigger Action Executor":        { "main": [[ { "node": "Mark Trigger Queued", "type": "main", "index": 0 } ]] },
+    "Mark Trigger Queued":            { "main": [[ { "node": "Loop Continue Trigger", "type": "main", "index": 0 } ]] },
+    "Loop Continue Trigger":          { "main": [[ { "node": "Per Trigger", "type": "main", "index": 0 } ]] },
+    "Loop Continue Client":           { "main": [[ { "node": "Per Client", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,167 @@
+{
+  "name": "CLX - Video Engagement Tracker v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v/track",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "vet-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-video-engagement-tracker-001",
+      "notes": "DEACTIVATED. Public POST. Receives engagement events from clx-video-landing-page-v1 (B5) JS. Inserts to video_engagement. High-intent events (video_75 / video_complete / cta_click / booking_completed) ALSO insert a behavioral_signal so the AI Agent decision engine can pick up the signal in its next 15-min tick."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst rid = body.video_render_id;\nconst evt = body.event_type;\nconst data = body.event_data || {};\nconst headers = $input.item.json.headers || {};\nconst valid = ['page_view','video_play','video_25','video_50','video_75','video_complete','cta_click','booking_started','booking_completed'];\nif (!rid || valid.indexOf(evt) < 0) return { json: { _bad: true } };\nreturn { json: {\n  insert: {\n    video_render_id: rid,\n    event_type: evt,\n    event_data: data,\n    ip_address: headers['cf-connecting-ip'] || headers['x-forwarded-for'] || null,\n    user_agent: headers['user-agent'] || null,\n    occurred_at: new Date().toISOString()\n  },\n  high_intent: (evt === 'video_75' || evt === 'video_complete' || evt === 'cta_click' || evt === 'booking_completed'),\n  evt: evt\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "vet-0002",
+      "name": "Validate + Build",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._bad }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "vet-0003",
+      "name": "IF Bad",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_engagement",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert) }}",
+        "options": {}
+      },
+      "id": "vet-0004",
+      "name": "Insert Engagement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $('Validate + Build').item.json.high_intent }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "vet-0005",
+      "name": "IF High Intent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_renders?id=eq.' + encodeURIComponent($('Validate + Build').item.json.insert.video_render_id) + '&select=lead_id,client_id,niche_name&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "vet-0006",
+      "name": "Fetch Render Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/record_behavioral_signal",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const r = $input.item.json; const row = Array.isArray(r) ? r[0] : r; const evt = $('Validate + Build').item.json.evt; return JSON.stringify({ p_lead_id: row && row.lead_id, p_client_id: row && row.client_id, p_signal_type: 'video_engagement_high_intent', p_signal_category: 'business', p_niche_name: row && (row.niche_name || 'service_industry'), p_signal_data: { event_type: evt, video_render_id: $('Validate + Build').item.json.insert.video_render_id }, p_signal_source: 'public', p_relevance_score: 85, p_sensitivity_level: 'low', p_expires_at: null }); })() }}",
+        "options": {}
+      },
+      "id": "vet-0007",
+      "name": "Insert High-Intent Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "vet-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "vet-0009",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Validate + Build", "type": "main", "index": 0 } ]] },
+    "Validate + Build":     { "main": [[ { "node": "IF Bad", "type": "main", "index": 0 } ]] },
+    "IF Bad":               { "main": [[ { "node": "Respond 400", "type": "main", "index": 0 } ], [ { "node": "Insert Engagement", "type": "main", "index": 0 } ]] },
+    "Insert Engagement":    { "main": [[ { "node": "IF High Intent", "type": "main", "index": 0 } ]] },
+    "IF High Intent":       { "main": [[ { "node": "Fetch Render Context", "type": "main", "index": 0 } ], [ { "node": "Respond OK", "type": "main", "index": 0 } ]] },
+    "Fetch Render Context": { "main": [[ { "node": "Insert High-Intent Signal", "type": "main", "index": 0 } ]] },
+    "Insert High-Intent Signal": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,238 @@
+{
+  "name": "CLX - Agent Daily Summary v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 7 * * *" }
+          ]
+        }
+      },
+      "id": "ads-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. 07:00 daily. Per-client agent activity rollup → upserts agent_performance + sends agent-daily-summary.html email to client. Per-client timezone is read from agent_schedules; current MVP fires at server 07:00 (Toronto). Phase 4 enhancement: split into per-timezone schedules so each client gets the email at their local 07:00."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_channels_enabled?enabled=eq.true&select=client_id&limit=200",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ads-0002",
+      "name": "Fetch Agent Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst rows = Array.isArray(raw) ? raw : (raw && raw.client_id ? [raw] : []);\nconst seen = {};\nconst clients = [];\nfor (const r of rows) { if (r.client_id && !seen[r.client_id]) { seen[r.client_id] = true; clients.push({ client_id: r.client_id }); } }\nif (clients.length === 0) return [{ json: { _empty: true } }];\nreturn clients.map(function (c) { return { json: c }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ads-0003",
+      "name": "Dedup Clients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "ads-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "ads-0005",
+      "name": "Per Client",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ (() => { const since = new Date(Date.now() - 24*60*60*1000).toISOString(); return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_actions?client_id=eq.' + encodeURIComponent($json.client_id) + '&taken_at=gte.' + encodeURIComponent(since) + '&select=action_type,channel,status,cost_cents&limit=10000'; })() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "ads-0006",
+      "name": "Fetch Yesterday Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 380],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ (() => { const since = new Date(Date.now() - 24*60*60*1000).toISOString(); return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/bookings?client_id=eq.' + encodeURIComponent($('Per Client').item.json.client_id) + '&created_at=gte.' + encodeURIComponent(since) + '&select=id&limit=1000'; })() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "ads-0007",
+      "name": "Fetch Yesterday Bookings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 540],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($('Per Client').item.json.client_id) + '&select=client_name,id&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ads-0008",
+      "name": "Fetch Client Name",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 700],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?client_id=eq.' + encodeURIComponent($('Per Client').item.json.client_id) + '&user_role=eq.client&select=email&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ads-0009",
+      "name": "Fetch Client Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 860],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": { "mode": "append", "numberInputs": 4 },
+      "id": "ads-0010",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1620, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst actions = allOf('Fetch Yesterday Actions');\nconst bookings = allOf('Fetch Yesterday Bookings');\nconst clients = allOf('Fetch Client Name');\nconst recipients = allOf('Fetch Client Email');\nconst clientId = $('Per Client').item.json.client_id;\nconst clientName = (clients[0] && clients[0].client_name) || 'your team';\nconst recipientEmail = (recipients[0] && recipients[0].email) || null;\n\n// Aggregate KPIs\nconst counts = { messages_sent: 0, messages_received: 0, calls_outbound: 0, calls_inbound: 0, escalations_triggered: 0, total_cost_cents: 0 };\nfor (const a of actions) {\n  const at = a.action_type || '';\n  if (at.indexOf('_send') >= 0 || at.indexOf('_reply') >= 0) counts.messages_sent += 1;\n  if (at === 'voice_call_outbound') counts.calls_outbound += 1;\n  if (at === 'voice_call_inbound') counts.calls_inbound += 1;\n  counts.total_cost_cents += (parseInt(a.cost_cents) || 0);\n}\ncounts.meetings_booked = bookings.length;\ncounts.conversion_rate = counts.messages_sent > 0 ? +(counts.meetings_booked / counts.messages_sent).toFixed(4) : 0;\nconst dateYesterday = new Date(Date.now() - 24*60*60*1000).toISOString().slice(0, 10);\n\nreturn { json: {\n  client_id: clientId,\n  client_name: clientName,\n  recipient_email: recipientEmail,\n  date_yesterday: dateYesterday,\n  perf_row: Object.assign({ client_id: clientId, date: dateYesterday }, counts),\n  email_vars: {\n    client_name: clientName,\n    date: dateYesterday,\n    messages_sent: counts.messages_sent,\n    calls_outbound: counts.calls_outbound,\n    calls_inbound: counts.calls_inbound,\n    meetings_booked: counts.meetings_booked,\n    escalations_triggered: counts.escalations_triggered,\n    total_cost: '$' + (counts.total_cost_cents / 100).toFixed(2)\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ads-0011",
+      "name": "Aggregate KPIs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_performance",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.perf_row) }}",
+        "options": {}
+      },
+      "id": "ads-0012",
+      "name": "Upsert agent_performance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 600],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "UNIQUE(client_id, date) constraint dedupes via 'resolution=ignore-duplicates'. Idempotent re-runs safe."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'agent-daily-summary', to: $('Aggregate KPIs').item.json.recipient_email, vars: $('Aggregate KPIs').item.json.email_vars }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "ads-0013",
+      "name": "Send Summary Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 600],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "ads-0014",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2580, 600]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Agent Clients", "type": "main", "index": 0 } ]] },
+    "Fetch Agent Clients":            { "main": [[ { "node": "Dedup Clients", "type": "main", "index": 0 } ]] },
+    "Dedup Clients":                  { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Client", "type": "main", "index": 0 } ]] },
+    "Per Client":                     { "main": [[], [ { "node": "Fetch Yesterday Actions", "type": "main", "index": 0 }, { "node": "Fetch Yesterday Bookings", "type": "main", "index": 0 }, { "node": "Fetch Client Name", "type": "main", "index": 0 }, { "node": "Fetch Client Email", "type": "main", "index": 0 } ]] },
+    "Fetch Yesterday Actions":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Yesterday Bookings":       { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Client Name":              { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch Client Email":             { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Merge Branches":                 { "main": [[ { "node": "Aggregate KPIs", "type": "main", "index": 0 } ]] },
+    "Aggregate KPIs":                 { "main": [[ { "node": "Upsert agent_performance", "type": "main", "index": 0 } ]] },
+    "Upsert agent_performance":       { "main": [[ { "node": "Send Summary Email", "type": "main", "index": 0 } ]] },
+    "Send Summary Email":             { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Client", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

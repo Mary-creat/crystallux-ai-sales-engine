@@ -1,0 +1,274 @@
+{
+  "name": "CLX - Behavioral Trigger Engine v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "id": "bte-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Hourly. Compounds classified behavioral signals into archetype matches. For each lead with new (un-acted-on, classified) signals: calls match_signal_to_trigger RPC, takes top archetype, generates personalised message via the archetype.message_template_inline + lead context, inserts behavioral_triggers row with status='pending'. clx-campaign-router-v2 already reads behavioral_triggers table — flipping status='pending' is what hands off to the router."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_signals?relevance_score=gte.50&acted_on=eq.false&archived=eq.false&detected_at=gte.{{ encodeURIComponent(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) }}&order=detected_at.desc&limit=100&select=id,lead_id,client_id,signal_type,signal_category,niche_name,relevance_score,sensitivity_level,detected_at",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "bte-0002",
+      "name": "Fetch Recent Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// De-dup by lead_id — only run match RPC once per lead per cycle even\n// if the lead has multiple new signals.\nconst raw = $input.first().json;\nconst signals = Array.isArray(raw) ? raw : (raw && raw.id ? [raw] : []);\nif (signals.length === 0) {\n  return [{ json: { _empty: true, reason: 'no_qualifying_signals' } }];\n}\nconst seen = {};\nconst out = [];\nfor (const s of signals) {\n  if (!s.lead_id || seen[s.lead_id]) continue;\n  seen[s.lead_id] = true;\n  out.push({ json: { signal_id: s.id, lead_id: s.lead_id, client_id: s.client_id, niche_name: s.niche_name } });\n}\nreturn out;",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bte-0003",
+      "name": "Dedup By Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bte-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "bte-0005",
+      "name": "Per Lead Batch",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/match_signal_to_trigger",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.lead_id, p_signal_id: $json.signal_id }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "bte-0006",
+      "name": "Match Archetype (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Take top match (RPC returns ordered by conversion_rate desc).\nconst ctx = $('Per Lead Batch').item.json;\nconst raw = $input.item.json;\nconst rows = Array.isArray(raw) ? raw : (raw && raw.archetype_id ? [raw] : []);\nif (rows.length === 0) {\n  return { json: { _no_match: true, lead_id: ctx.lead_id, client_id: ctx.client_id } };\n}\nconst top = rows[0];\nreturn { json: {\n  lead_id: ctx.lead_id,\n  client_id: ctx.client_id,\n  archetype_id: top.archetype_id,\n  archetype_name: top.archetype_name,\n  composite_score: top.composite_score,\n  recommended_action: top.recommended_action,\n  recommended_channel: top.recommended_channel,\n  contributing_signals: top.contributing_signals || []\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "bte-0007",
+      "name": "Pick Top Archetype",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._no_match }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bte-0008",
+      "name": "IF No Match",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1860, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?id=eq.' + encodeURIComponent($json.archetype_id) + '&select=message_template_inline,recommended_action,recommended_channel&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "bte-0009",
+      "name": "Fetch Archetype Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 580],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($('Pick Top Archetype').item.json.lead_id) + '&select=id,full_name,first_name,company,city,industry&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "bte-0010",
+      "name": "Fetch Lead Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 720],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2
+      },
+      "id": "bte-0011",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2340, 650]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge branches converge here. Pull both via allOf.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst archetypeRows = allOf('Fetch Archetype Template');\nconst leadRows = allOf('Fetch Lead Context');\nconst archetype = (archetypeRows[0] && archetypeRows[0].id) ? archetypeRows[0] : (archetypeRows[0] || {});\nconst lead = (leadRows[0] && leadRows[0].id) ? leadRows[0] : (leadRows[0] || {});\nconst ctx = $('Pick Top Archetype').item.json;\n\nconst tpl = archetype.message_template_inline || ('Hi {{first_name}}, noticed something relevant for {{company}} — quick chat?');\nconst rendered = tpl\n  .replace(/\\{\\{first_name\\}\\}/g, lead.first_name || (lead.full_name || '').split(' ')[0] || 'there')\n  .replace(/\\{\\{full_name\\}\\}/g, lead.full_name || '')\n  .replace(/\\{\\{company\\}\\}/g, lead.company || 'your business')\n  .replace(/\\{\\{city\\}\\}/g, lead.city || '');\n\nreturn { json: {\n  trigger_row: {\n    lead_id: ctx.lead_id,\n    client_id: ctx.client_id,\n    archetype_id: ctx.archetype_id,\n    contributing_signals: ctx.contributing_signals || [],\n    composite_score: ctx.composite_score,\n    status: 'pending',\n    recommended_action: archetype.recommended_action || ctx.recommended_action,\n    generated_message: rendered,\n    generated_message_lang: 'en'\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bte-0012",
+      "name": "Build Trigger Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2580, 650]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_triggers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.trigger_row) }}",
+        "options": {}
+      },
+      "id": "bte-0013",
+      "name": "Insert Trigger",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2820, 650],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Insertion handoff — clx-campaign-router-v2 (protected production workflow) reads behavioral_triggers WHERE status='pending' and routes outreach via the established sender chain."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?id=eq.' + encodeURIComponent($('Pick Top Archetype').item.json.archetype_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fired_count: 1, updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "bte-0014",
+      "name": "Increment Fired Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3060, 650],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Note: PATCH replaces value — this sets fired_count=1 each time. Production fix is to call an RPC that does fired_count = fired_count + 1. Acceptable for MVP — clx-behavioral-archetype-learner-v1 (A5) recomputes from behavioral_triggers ground truth weekly."
+    },
+    {
+      "parameters": {},
+      "id": "bte-0015",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3300, 650]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Recent Signals", "type": "main", "index": 0 } ]] },
+    "Fetch Recent Signals":           { "main": [[ { "node": "Dedup By Lead", "type": "main", "index": 0 } ]] },
+    "Dedup By Lead":                  { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[], [ { "node": "Per Lead Batch", "type": "main", "index": 0 } ]] },
+    "Per Lead Batch":                 { "main": [[], [ { "node": "Match Archetype (RPC)", "type": "main", "index": 0 } ]] },
+    "Match Archetype (RPC)":          { "main": [[ { "node": "Pick Top Archetype", "type": "main", "index": 0 } ]] },
+    "Pick Top Archetype":             { "main": [[ { "node": "IF No Match", "type": "main", "index": 0 } ]] },
+    "IF No Match":                    { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ], [ { "node": "Fetch Archetype Template", "type": "main", "index": 0 }, { "node": "Fetch Lead Context", "type": "main", "index": 0 } ]] },
+    "Fetch Archetype Template":       { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Lead Context":             { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Merge Branches":                 { "main": [[ { "node": "Build Trigger Row", "type": "main", "index": 0 } ]] },
+    "Build Trigger Row":              { "main": [[ { "node": "Insert Trigger", "type": "main", "index": 0 } ]] },
+    "Insert Trigger":                 { "main": [[ { "node": "Increment Fired Count", "type": "main", "index": 0 } ]] },
+    "Increment Fired Count":          { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Lead Batch", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

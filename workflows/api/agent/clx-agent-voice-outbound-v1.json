@@ -1,0 +1,187 @@
+{
+  "name": "CLX - Agent Voice Outbound v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent/voice-outbound",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "avo-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-agent-voice-outbound-001",
+      "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Initiates outbound voice call via Vapi. Vapi handles voice synthesis + conversation autonomously using the supplied script as the assistant's first turn / system context. Vapi callback hits clx-vapi-transcript-streamer-v1 (already-existing dormant workflow) for transcript chunks and clx-voice-result-webhook-v1 for outcome. DORMANT until Mary configures Vapi account + assistant id + phone number. Mary's choice: Vapi over Retell — see docs/agent/build-phases.md for reasoning."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.client_id || !body.script) return { json: { _empty: true, error: 'lead_id, client_id, script required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  script: String(body.script).slice(0, 4000),\n  decision_id: body.decision_id || null,\n  agent_action_id: body.agent_action_id || null\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "avo-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "avo-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.lead_id) + '&select=phone&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "avo-0004",
+      "name": "Fetch Lead Phone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nconst phone = row && row.phone;\nif (!phone) return { json: { _no_phone: true, error: 'lead has no phone' } };\nconst ctx = $('Validate').item.json;\nreturn { json: Object.assign({}, ctx, { to_phone: phone.replace(/[^+0-9]/g, '') }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "avo-0005",
+      "name": "Compose",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_phone }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "combinator": "and"
+        }
+      },
+      "id": "avo-0006",
+      "name": "IF No Phone",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ 'Bearer ' + $env.VAPI_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ assistantId: $env.VAPI_ASSISTANT_ID, phoneNumberId: $env.VAPI_PHONE_NUMBER_ID, customer: { number: $json.to_phone }, assistantOverrides: { firstMessage: $json.script, recordingEnabled: true, metadata: { lead_id: $json.lead_id, client_id: $json.client_id, decision_id: $json.decision_id, agent_action_id: $json.agent_action_id } } }) }}",
+        "options": { "timeout": 20000 }
+      },
+      "id": "avo-0007",
+      "name": "Vapi Initiate Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 240],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Vapi assistantId + phoneNumberId come from Mary's Vapi account configuration. assistantOverrides.firstMessage uses our script as the agent's opening line. metadata flows through to webhooks."
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Compose').item.json;\nconst resp = $input.item.json || {};\nconst callId = resp.id || (resp.call && resp.call.id) || null;\nif (!callId) return { json: { _failed: true, error: (resp.error || resp.message || 'no_call_id') } };\nreturn { json: { call_id: callId, ctx: ctx } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "avo-0008",
+      "name": "Parse Vapi Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/messages_sent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $json.ctx.lead_id, client_id: $json.ctx.client_id, channel: 'voice', direction: 'outbound', content: $json.ctx.script, external_id: $json.call_id, status: 'sent', cost_cents: 5, agent_action_id: $json.ctx.agent_action_id, sent_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "avo-0009",
+      "name": "Log messages_sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, call_id: $('Parse Vapi Response').item.json.call_id }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "avo-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2340, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'no_phone_or_unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "avo-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":           { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":      { "main": [[ { "node": "Fetch Lead Phone", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Fetch Lead Phone":   { "main": [[ { "node": "Compose", "type": "main", "index": 0 } ]] },
+    "Compose":            { "main": [[ { "node": "IF No Phone", "type": "main", "index": 0 } ]] },
+    "IF No Phone":        { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Vapi Initiate Call", "type": "main", "index": 0 } ]] },
+    "Vapi Initiate Call": { "main": [[ { "node": "Parse Vapi Response", "type": "main", "index": 0 } ]] },
+    "Parse Vapi Response":{ "main": [[ { "node": "Log messages_sent", "type": "main", "index": 0 } ]] },
+    "Log messages_sent":  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

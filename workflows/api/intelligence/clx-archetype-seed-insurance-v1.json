@@ -1,0 +1,131 @@
+{
+  "name": "CLX - Archetype Seed (Insurance) v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intelligence/seed-insurance",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "asi-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-archetype-seed-insurance-001",
+      "notes": "DEACTIVATED. One-time admin trigger. Seeds 14 insurance-vertical archetypes into signal_archetypes. Idempotent — uses ON CONFLICT (niche_name, archetype_name) DO NOTHING via Supabase Prefer header. Mary POSTs once after deploy with internal_secret. Other verticals get their own seed workflows in subsequent vertical-launch sprints (real estate, mortgage, dental, construction, consulting, agencies, financial advisors)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) {\n  return { json: { _unauthorized: true, error: 'internal secret required' } };\n}\nreturn { json: { _authorized: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asi-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "asi-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Insurance starter archetype library — 14 vertical-specific archetypes.\n// Patterned per OPERATIONS_HANDBOOK §35.13 and adjusted for compounding signals.\n// Each archetype's trigger_signals list MUST all be present (un-acted-on, last 14d)\n// in behavioral_signals for the archetype to fire. Single-signal archetypes\n// fire on first detection; multi-signal compound archetypes need full set.\nconst archetypes = [\n  {\n    archetype_name: 'birthday_window_7d',\n    description: 'Lead birthday within next or past 7 days — light-touch personal-relevance moment.',\n    trigger_signals: ['birthday_window_7d'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, hope you have a great year ahead. Quick check-in — would now be a good time to review your coverage at {{company}}?',\n    sensitivity_floor: 'low',\n    cool_down_days: 365\n  },\n  {\n    archetype_name: 'lead_anniversary_30d',\n    description: 'First 30-day check-in — confirm onboarding sticking and surface any new needs.',\n    trigger_signals: ['lead_anniversary_30d'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, it has been a month since we connected — anything new at {{company}} I should know about coverage-wise?',\n    sensitivity_floor: 'low',\n    cool_down_days: 60\n  },\n  {\n    archetype_name: 'lead_anniversary_365d',\n    description: 'Annual check-in. Most insurance policies renew annually; this is the natural review window.',\n    trigger_signals: ['lead_anniversary_365d'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, marks one year since we first spoke. Quick 15-min review of how things are going at {{company}}?',\n    sensitivity_floor: 'low',\n    cool_down_days: 180\n  },\n  {\n    archetype_name: 'policy_renewal_window_60d',\n    description: '60 days out from policy renewal — start the conversation early to avoid auto-renewal lock-in.',\n    trigger_signals: ['policy_renewal_60d'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, your policy renews in about 60 days — best time to compare carriers before the auto-renewal locks in. Worth a 20-min review?',\n    sensitivity_floor: 'low',\n    cool_down_days: 90\n  },\n  {\n    archetype_name: 'policy_renewal_window_30d',\n    description: '30 days out — escalate channel to phone if email did not land.',\n    trigger_signals: ['policy_renewal_30d'],\n    recommended_action: 'phone_call',\n    recommended_channel: 'voice',\n    message_template_inline: 'Hi {{first_name}}, calling about your renewal coming up next month — wanted to make sure you have options to compare before it auto-renews.',\n    sensitivity_floor: 'low',\n    cool_down_days: 30\n  },\n  {\n    archetype_name: 'policy_renewal_window_7d',\n    description: '7 days out — last-call urgency; agent escalates to human if no response within 24h.',\n    trigger_signals: ['policy_renewal_7d'],\n    recommended_action: 'queue_for_review',\n    recommended_channel: 'voice',\n    message_template_inline: 'Hi {{first_name}}, your renewal is in 7 days. If you do not hear from us, your current carrier will auto-renew. Quick call?',\n    sensitivity_floor: 'low',\n    cool_down_days: 14\n  },\n  {\n    archetype_name: 'new_baby_life_insurance_opportunity',\n    description: 'Compound: family addition signal + life-insurance niche relevance — strong upsell trigger.',\n    trigger_signals: ['family_addition'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, congratulations on the news. Many of my clients revisit life coverage when family changes — happy to walk you through what fits now.',\n    sensitivity_floor: 'medium',\n    cool_down_days: 365\n  },\n  {\n    archetype_name: 'business_expansion_commercial',\n    description: 'Lead company has expanded (new hires / new location) — commercial coverage gap likely.',\n    trigger_signals: ['business_expansion'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, congrats on the growth at {{company}}. Worth checking your commercial coverage scales with the new headcount — quick 15-min review?',\n    sensitivity_floor: 'low',\n    cool_down_days: 90\n  },\n  {\n    archetype_name: 'home_purchase_home_insurance',\n    description: 'Lead address-change signal indicates home purchase — home insurance binding window.',\n    trigger_signals: ['address_change_residential'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, looks like a move recently — home insurance binding usually has to happen pre-closing. Want me to pull a same-day quote?',\n    sensitivity_floor: 'medium',\n    cool_down_days: 180\n  },\n  {\n    archetype_name: 'storm_damage_claim_check',\n    description: 'Major weather event in lead geographic area — proactive claim-readiness check.',\n    trigger_signals: ['weather_severe_local'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, saw the storm in {{city}}. Want to make sure you know what your policy covers and how to file fast if there is damage?',\n    sensitivity_floor: 'low',\n    cool_down_days: 30\n  },\n  {\n    archetype_name: 'commercial_fleet_growth',\n    description: 'Business adds vehicles — commercial fleet insurance review trigger.',\n    trigger_signals: ['fleet_size_increase'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, the fleet at {{company}} has grown — commercial-auto pricing scales differently past certain unit counts. Worth a check?',\n    sensitivity_floor: 'low',\n    cool_down_days: 120\n  },\n  {\n    archetype_name: 'job_promotion_increased_coverage',\n    description: 'Lead promoted / new role — income increase often means coverage gap on existing policies.',\n    trigger_signals: ['job_promotion'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, congratulations on the new role. With income changes it is worth a coverage review — many people are under-insured after a step up.',\n    sensitivity_floor: 'medium',\n    cool_down_days: 180\n  },\n  {\n    archetype_name: 'fsra_regulatory_change',\n    description: 'FSRA regulatory change affecting insurance brokers in Ontario — informational outreach demonstrating expertise.',\n    trigger_signals: ['fsra_regulatory_filing'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, FSRA pushed a change worth knowing about. Quick summary attached — applies to your situation if {{company}} is in the affected band.',\n    sensitivity_floor: 'low',\n    cool_down_days: 90\n  },\n  {\n    archetype_name: 'extended_quiet_period_60d',\n    description: 'Lead has had no engagement for 60+ days — gentle re-engagement before status decay to Closed Lost.',\n    trigger_signals: ['quiet_period_60d'],\n    recommended_action: 'send_email',\n    recommended_channel: 'email',\n    message_template_inline: 'Hi {{first_name}}, just checking in — anything I can help with at {{company}} this quarter, or should we park things until renewal?',\n    sensitivity_floor: 'low',\n    cool_down_days: 90\n  }\n];\n\nreturn archetypes.map(function (a) {\n  return { json: Object.assign({\n    niche_name: 'insurance',\n    active: true\n  }, a, { trigger_signals: a.trigger_signals }) };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asi-0004",
+      "name": "Build Archetype Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ niche_name: $json.niche_name, archetype_name: $json.archetype_name, description: $json.description, trigger_signals: $json.trigger_signals, recommended_action: $json.recommended_action, recommended_channel: $json.recommended_channel, message_template_inline: $json.message_template_inline, sensitivity_floor: $json.sensitivity_floor, cool_down_days: $json.cool_down_days, active: $json.active }) }}",
+        "options": {}
+      },
+      "id": "asi-0005",
+      "name": "Insert Archetype",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Prefer header includes 'resolution=ignore-duplicates' so the UNIQUE(niche_name, archetype_name) constraint dedupes silently — workflow is idempotent."
+    },
+    {
+      "parameters": {
+        "jsCode": "const inserted = $('Build Archetype Rows').all().length;\nreturn { json: { ok: true, archetypes_seeded: inserted, niche: 'insurance', message: 'Insurance archetype seed complete. ' + inserted + ' archetypes upserted (idempotent). Next vertical seed workflows: real estate / mortgage / dental / construction / consulting / agencies / financial advisors.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asi-0006",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "asi-0007",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+      },
+      "id": "asi-0008",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":               { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate":              { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized":         { "main": [[ { "node": "Build Archetype Rows", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
+    "Build Archetype Rows":  { "main": [[ { "node": "Insert Archetype", "type": "main", "index": 0 } ]] },
+    "Insert Archetype":      { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ]] },
+    "Build Summary":         { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

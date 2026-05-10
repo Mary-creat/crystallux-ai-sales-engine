@@ -1,0 +1,194 @@
+{
+  "name": "CLX - Behavioral Archetype Learner v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 2 * * 0" }
+          ]
+        }
+      },
+      "id": "bal-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Sunday 02:00 weekly. Conversion-rate learning loop per §35.13 step 7. For each active archetype: count behavioral_triggers WHERE archetype_id=X AND status='acted' (numerator) and total fired (denominator). Update conversion_rate. Disable archetypes with conversion_rate < 0.05 after 50+ acted-on triggers. Surfaces top performers via existing admin-action-log entry."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?active=eq.true&select=id,niche_name,archetype_name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 10000 }
+      },
+      "id": "bal-0002",
+      "name": "Fetch Active Archetypes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst archetypes = Array.isArray(raw) ? raw : (raw && raw.id ? [raw] : []);\nif (archetypes.length === 0) {\n  return [{ json: { _empty: true, reason: 'no_active_archetypes' } }];\n}\nreturn archetypes.map(function (a) { return { json: a }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bal-0003",
+      "name": "Fan Out Archetypes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bal-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "bal-0005",
+      "name": "Per Archetype",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/behavioral_triggers?archetype_id=eq.' + encodeURIComponent($json.id) + '&select=id,status,outcome,created_at&limit=10000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "bal-0006",
+      "name": "Fetch Triggers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Per Archetype').item.json;\nconst raw = $input.first().json;\nconst triggers = Array.isArray(raw) ? raw : [];\n\nconst total = triggers.length;\nconst actedOn = triggers.filter(function (t) { return t.status === 'acted' || t.outcome === 'engaged' || t.outcome === 'meeting_booked' || t.outcome === 'closed'; }).length;\nconst converted = triggers.filter(function (t) { return t.outcome === 'meeting_booked' || t.outcome === 'closed'; }).length;\n\n// Conversion rate is meetings/closes per fired trigger.\n// Below-threshold (< 5%) AND sample size big enough (50+ acted-on) → disable.\nconst conversionRate = total > 0 ? +(converted / total).toFixed(4) : null;\nconst shouldDisable = (actedOn >= 50 && conversionRate !== null && conversionRate < 0.05);\n\nreturn { json: {\n  archetype_id: ctx.id,\n  archetype_name: ctx.archetype_name,\n  niche_name: ctx.niche_name,\n  fired_count: total,\n  acted_on_count: actedOn,\n  converted_count: converted,\n  conversion_rate: conversionRate,\n  should_disable: shouldDisable\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "bal-0007",
+      "name": "Compute Conversion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 500]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?id=eq.' + encodeURIComponent($json.archetype_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ conversion_rate: $json.conversion_rate, fired_count: $json.fired_count, acted_on_count: $json.acted_on_count, active: !$json.should_disable, updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "bal-0008",
+      "name": "Update Archetype Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1860, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "bal-0009",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2100, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $('Compute Conversion').all().map(function (i) { return i.json; });\nconst disabled = all.filter(function (a) { return a.should_disable; });\nconst topPerformers = all.slice().sort(function (a, b) {\n  return (b.conversion_rate || 0) - (a.conversion_rate || 0);\n}).slice(0, 5);\nreturn { json: {\n  archetypes_processed: all.length,\n  disabled_count: disabled.length,\n  disabled_names: disabled.map(function (d) { return d.archetype_name; }),\n  top_performers: topPerformers.map(function (t) { return { name: t.archetype_name, niche: t.niche_name, conversion_rate: t.conversion_rate, fired: t.fired_count }; }),\n  run_at: new Date().toISOString()\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bal-0010",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ admin_user: 'crystallux-archetype-learner', action_type: 'vertical_generated', input_text: 'Archetype learning loop weekly run', panel_context: 'behavioral_intelligence', generated_content: $json, result_summary: 'ok', success: true, created_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "bal-0011",
+      "name": "Log To Admin Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Active Archetypes", "type": "main", "index": 0 } ]] },
+    "Fetch Active Archetypes":        { "main": [[ { "node": "Fan Out Archetypes", "type": "main", "index": 0 } ]] },
+    "Fan Out Archetypes":             { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ], [ { "node": "Per Archetype", "type": "main", "index": 0 } ]] },
+    "Per Archetype":                  { "main": [[ { "node": "Build Summary", "type": "main", "index": 0 } ], [ { "node": "Fetch Triggers", "type": "main", "index": 0 } ]] },
+    "Fetch Triggers":                 { "main": [[ { "node": "Compute Conversion", "type": "main", "index": 0 } ]] },
+    "Compute Conversion":             { "main": [[ { "node": "Update Archetype Stats", "type": "main", "index": 0 } ]] },
+    "Update Archetype Stats":         { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Archetype", "type": "main", "index": 0 } ]] },
+    "Build Summary":                  { "main": [[ { "node": "Log To Admin Audit", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

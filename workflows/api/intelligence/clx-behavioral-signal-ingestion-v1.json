@@ -1,0 +1,184 @@
+{
+  "name": "CLX - Behavioral Signal Ingestion v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 6 }
+          ]
+        }
+      },
+      "id": "bsi-0001",
+      "name": "Schedule Trigger (DEACTIVATED)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "DEACTIVATED. Fires every 6h once activated. Per-lead behavioral scan across §35 categories. Mirrors clx-signal-ingestion-v1 architecture but per-lead scope instead of platform-wide. Writes raw signals to behavioral_signals with relevance_score=NULL — Behavioral Intelligence (A2) classifier picks them up via idx_bs_unclassified. Universal multi-vertical: filters by client.niche_name."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?behavioral_intel_enabled=eq.true&select=id,client_name,niche_name,vertical,city",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "bsi-0002",
+      "name": "Fetch BI-enabled Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Per-client lead scan target. Returns leads owned by BI-enabled clients,\n// up to 200 oldest-touched leads per run (rate-limit safe). The 6h schedule\n// means each lead gets re-scanned ~4×/day at most.\nconst clients = $input.first().json;\nconst clientList = Array.isArray(clients) ? clients : (clients && clients.id ? [clients] : []);\nif (clientList.length === 0) {\n  return [{ json: { _empty: true, reason: 'no_bi_enabled_clients' } }];\n}\nreturn clientList.map(function (c) {\n  return { json: {\n    client_id: c.id,\n    client_name: c.client_name,\n    niche_name: c.niche_name || c.vertical || 'service_industry',\n    city: c.city || null\n  } };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bsi-0003",
+      "name": "Fan Out Clients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bsi-0004",
+      "name": "IF Empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "bsi-0005",
+      "name": "Per Client Batch",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,full_name,first_name,company,industry,city,email,phone,linkedin_url,date_created,birthday&order=updated_at.asc.nullslast&limit=200' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000 }
+      },
+      "id": "bsi-0006",
+      "name": "Fetch Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Per-lead source scanner. V1 implements the cheap-source MVP:\n//   - calendar: birthday match (if lead.birthday present)\n//   - calendar: lead anniversary (account-creation milestone at 30/90/365d)\n//   - business: company name change signal (placeholder — needs CRM diff)\n//   - vertical_specific: niche-specific cheap probes\n// Expensive sources (LinkedIn API, Apollo enrichment, news scraping) are\n// declared as TODO Code nodes so Mary can wire them per-client when\n// credentials are bound. This keeps the workflow runnable today against\n// real data without external paid integrations.\nconst clientCtx = $('Per Client Batch').item.json;\nconst leadsRaw = $input.first().json;\nconst leads = Array.isArray(leadsRaw) ? leadsRaw : (leadsRaw && leadsRaw.id ? [leadsRaw] : []);\nif (leads.length === 0) {\n  return [{ json: { _empty: true, client_id: clientCtx.client_id } }];\n}\n\nconst now = new Date();\nconst todayMonth = now.getUTCMonth() + 1;\nconst todayDay = now.getUTCDate();\nconst signals = [];\n\nfor (var i = 0; i < leads.length; i++) {\n  var lead = leads[i];\n\n  // -- calendar: birthday match (today ± 7 days) --\n  if (lead.birthday) {\n    try {\n      var d = new Date(lead.birthday);\n      if (!isNaN(d.getTime())) {\n        var bm = d.getUTCMonth() + 1;\n        var bd = d.getUTCDate();\n        var dayDiff = Math.abs(bm - todayMonth) * 30 + Math.abs(bd - todayDay);\n        if (dayDiff <= 7) {\n          signals.push({\n            lead_id: lead.id,\n            client_id: clientCtx.client_id,\n            signal_type: 'birthday_window_7d',\n            signal_category: 'calendar',\n            niche_name: clientCtx.niche_name,\n            signal_data: { birthday: lead.birthday, days_until_or_since: dayDiff, lead_first_name: lead.first_name || (lead.full_name || '').split(' ')[0] || null },\n            signal_source: 'public',\n            sensitivity_level: 'low'\n          });\n        }\n      }\n    } catch (e) { /* skip malformed dates */ }\n  }\n\n  // -- calendar: account anniversary (30 / 90 / 365 days) --\n  if (lead.date_created) {\n    try {\n      var created = new Date(lead.date_created);\n      var ageDays = Math.floor((now.getTime() - created.getTime()) / 86400000);\n      [30, 90, 365].forEach(function (window) {\n        if (Math.abs(ageDays - window) <= 1) {\n          signals.push({\n            lead_id: lead.id,\n            client_id: clientCtx.client_id,\n            signal_type: 'lead_anniversary_' + window + 'd',\n            signal_category: 'calendar',\n            niche_name: clientCtx.niche_name,\n            signal_data: { age_days: ageDays, milestone: window },\n            signal_source: 'public',\n            sensitivity_level: 'low'\n          });\n        }\n      });\n    } catch (e) { /* skip */ }\n  }\n\n  // -- vertical_specific (insurance): policy_renewal_due placeholder --\n  // Real implementation: read policies table renewal_date once schema lands.\n  // Insurance Phase 4 will populate. V1 emits a nudge if niche==insurance and lead has been quiet 60d+.\n  if (clientCtx.niche_name === 'insurance' || clientCtx.niche_name === 'insurance_broker') {\n    // placeholder — requires policies table (Phase 4)\n  }\n\n  // -- TODO sources (placeholder Code nodes, wire when credentials available) --\n  // - LinkedIn: job changes / promotions / company news / posts (Unipile API per client)\n  // - Apollo: business expansion / employee count delta\n  // - News: per-lead news mentions (NewsAPI org search)\n  // - Public records: address changes / business filings (per-vertical APIs)\n}\n\nif (signals.length === 0) {\n  return [{ json: { _empty: true, client_id: clientCtx.client_id, reason: 'no_signals_found' } }];\n}\nreturn signals.map(function (s) { return { json: s }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bsi-0007",
+      "name": "Scan Sources Per Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bsi-0008",
+      "name": "IF Has Signals",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1860, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/record_behavioral_signal",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.lead_id, p_client_id: $json.client_id, p_signal_type: $json.signal_type, p_signal_category: $json.signal_category, p_niche_name: $json.niche_name, p_signal_data: $json.signal_data, p_signal_source: $json.signal_source, p_relevance_score: null, p_sensitivity_level: $json.sensitivity_level, p_expires_at: null }) }}",
+        "options": {}
+      },
+      "id": "bsi-0009",
+      "name": "Insert Signal (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 580],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "notes": "Calls record_behavioral_signal RPC which is consent-gated. Returns NULL silently if the client hasn't opted in to this signal_category (signal_subscriptions). NULL = no insert; not an error. Caller should not treat NULL as failure."
+    },
+    {
+      "parameters": {},
+      "id": "bsi-0010",
+      "name": "Loop Continue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2340, 580]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run summary. Aggregates per-source counts + total signals inserted.\nconst all = $('Scan Sources Per Lead').all();\nlet total = 0;\nlet emptyClients = 0;\nconst byCategory = {};\nfor (const it of all) {\n  if (it.json._empty) { emptyClients += 1; continue; }\n  total += 1;\n  const cat = it.json.signal_category || 'unknown';\n  byCategory[cat] = (byCategory[cat] || 0) + 1;\n}\nreturn { json: {\n  total_signals_scanned: total,\n  empty_client_runs: emptyClients,\n  signals_by_category: byCategory,\n  run_at: new Date().toISOString()\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "bsi-0011",
+      "name": "Summarize Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 280]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch BI-enabled Clients", "type": "main", "index": 0 } ]] },
+    "Fetch BI-enabled Clients":       { "main": [[ { "node": "Fan Out Clients", "type": "main", "index": 0 } ]] },
+    "Fan Out Clients":                { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
+    "IF Empty":                       { "main": [[ { "node": "Summarize Run", "type": "main", "index": 0 } ], [ { "node": "Per Client Batch", "type": "main", "index": 0 } ]] },
+    "Per Client Batch":               { "main": [[ { "node": "Summarize Run", "type": "main", "index": 0 } ], [ { "node": "Fetch Leads", "type": "main", "index": 0 } ]] },
+    "Fetch Leads":                    { "main": [[ { "node": "Scan Sources Per Lead", "type": "main", "index": 0 } ]] },
+    "Scan Sources Per Lead":          { "main": [[ { "node": "IF Has Signals", "type": "main", "index": 0 } ]] },
+    "IF Has Signals":                 { "main": [[ { "node": "Per Client Batch", "type": "main", "index": 0 } ], [ { "node": "Insert Signal (RPC)", "type": "main", "index": 0 } ]] },
+    "Insert Signal (RPC)":            { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
+    "Loop Continue":                  { "main": [[ { "node": "Per Client Batch", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
