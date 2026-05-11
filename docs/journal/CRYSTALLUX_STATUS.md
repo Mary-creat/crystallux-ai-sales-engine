@@ -1,8 +1,10 @@
-# Crystallux Build Status — 2026-05-10 (Part B push)
+# Crystallux Build Status — 2026-05-11
 
-> **Audience:** Mary. Keep this open while wiring credentials. **Status: Layer 2 Part B (MGA Operations + Reviews + Video Engagement) complete in this commit. Layer 2 is 67% complete. Layer 2 Part C (insurer-facing) is the final session.**
-> Latest commit on `scale-sprint-v1`: TBD on push (this doc lands in the same commit).
-> Prior HEAD: `b4f5ec0` (Layer 2 Part A — AI Compliance Engine).
+> **Audience:** Mary. Keep this open while wiring credentials. **Status: Layer 2 Part B (MGA Operations + Reviews + Video Engagement) complete. Layer 2 is 67% complete. Layer 2 Part C (insurer-facing) is the final session.**
+> Latest commit on `scale-sprint-v1`: `475ef01` (feature audit). Most recent engineering commit: `f5a73cf` (Layer 2 Part B).
+
+> **📘 NEW (2026-05-11): Comprehensive Founder's Operations Handbook published.**
+> Single source of truth for operating, understanding, and making decisions about the Crystallux platform: [`docs/handbook/FOUNDER_OPERATIONS_HANDBOOK.md`](../handbook/FOUNDER_OPERATIONS_HANDBOOK.md). Read this if you're new to the codebase or stuck on operations. Status doc + handbook are complementary: this doc is **what's currently shipped**, the handbook is **how the whole thing works**.
 
 ## LATEST: Layer 2 Part B — MGA Operations + Reviews + Video Engagement
 

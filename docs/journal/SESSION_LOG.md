@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-11 — Founder's Operations Handbook
+
+**Branch:** `scale-sprint-v1`
+**Scope:** documentation only. No code changes.
+
+Created `docs/handbook/FOUNDER_OPERATIONS_HANDBOOK.md` — comprehensive single-source-of-truth handbook for Mary as a solo non-technical founder.
+
+10 sections, ~12,000 words:
+1. Strategic context (elevator pitch, 3-layer architecture, business model, positioning, vision)
+2. System inventory (components, domains, credentials locations, database tables, workflow inventory, vendor criticality matrix)
+3. How to operate (daily/weekly/monthly routines + 8 common operations step-by-step + common errors with fixes)
+4. Emergency procedures (7 playbooks: everything-down, lead-gen-stopped, lost-keys, customer-broken-thing, rollback, database-broken, emergency contacts)
+5. Roadmap & recent decisions (phase status table + 7 strategic decisions documented + 30/90/365 day priorities)
+6. Vendor relationships (each of 18 vendors: what, why, account, pricing, fallback)
+7. Decision frameworks (build vs buy / feature requests / pricing / hire vs outsource / migration / customer / investor)
+8. Glossary (insurance terms + technical terms + Crystallux-specific terms in plain English)
+9. Maintenance (how to keep updated, versioning, onboarding new people)
+10. Appendices (common commands quick-reference, useful resources, recommended reading)
+
+Plain-English throughout. Cross-references all existing docs without duplicating content. Designed so a non-technical advisor / employee / investor can read it cover-to-cover and operate the platform.
+
+Updates to existing docs:
+- This session log entry
+- `CRYSTALLUX_STATUS.md` reference to the handbook (top of doc)
+
+Reads the 3 recent audits and folds their findings into the operational sections:
+- `docs/audit/2026-05-11-comprehensive-audit.md` (state-of-the-platform)
+- `docs/audit/2026-05-11-core-engine-universal-audit.md` (universality)
+- `docs/audit/2026-05-11-feature-audit.md` (feature completeness)
+
+### Cross-references
+
+- The handbook itself: [`../handbook/FOUNDER_OPERATIONS_HANDBOOK.md`](../handbook/FOUNDER_OPERATIONS_HANDBOOK.md)
+
+---
+
 ## 2026-05-10 — Layer 2 Part B: MGA Operations + Reviews + Video Engagement (Insurance)
 
 **Branch:** `scale-sprint-v1`
