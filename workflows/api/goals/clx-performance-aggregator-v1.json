@@ -1,0 +1,99 @@
+{
+  "name": "CLX - Performance Aggregator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "30 0 * * *" } ] }
+      },
+      "id": "pa-0001",
+      "name": "Schedule 00:30 Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/goals/aggregate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pa-0002",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-performance-aggregator-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/user_goals?status=eq.in_progress&select=id&limit=2000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "pa-0003",
+      "name": "Fetch Active Goals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (r) { return { json: { user_goal_id: r.id } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pa-0004",
+      "name": "Fan Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/recompute_goal_progress",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_user_goal_id\": \"{{ $json.user_goal_id }}\" }",
+        "options": { "batching": { "batch": { "batchSize": 1, "batchInterval": 50 } } }
+      },
+      "id": "pa-0005",
+      "name": "Recompute",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const total = ($('Fan Out').all() || []).length;\nreturn { json: { ok: true, goals_recomputed: total } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pa-0006",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "pa-0007", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1420, 300] }
+  ],
+  "connections": {
+    "Schedule 00:30 Daily": { "main": [[ { "node": "Fetch Active Goals", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Active Goals", "type": "main", "index": 0 } ]] },
+    "Fetch Active Goals":   { "main": [[ { "node": "Fan Out",            "type": "main", "index": 0 } ]] },
+    "Fan Out":              { "main": [[ { "node": "Recompute",          "type": "main", "index": 0 } ]] },
+    "Recompute":            { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",         "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

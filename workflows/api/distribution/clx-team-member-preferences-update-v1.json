@@ -1,0 +1,143 @@
+{
+  "name": "CLX - Team Member Preferences Update v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/team-member/preferences",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tmp-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-team-member-preferences-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst body = $input.item.json.body || {};\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tmp-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "tmp-0003",
+      "name": "IF Bad Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "tmp-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst body = $('Extract Inputs').first().json.body || {};\nconst payload = {\n  user_id: row.user_id,\n  is_accepting_leads:  typeof body.is_accepting_leads  === 'boolean' ? body.is_accepting_leads  : true,\n  daily_capacity:      typeof body.daily_capacity      === 'number'  ? body.daily_capacity      : 20,\n  weekly_capacity:     typeof body.weekly_capacity     === 'number'  ? body.weekly_capacity     : 80,\n  preferred_zones:     Array.isArray(body.preferred_zones)     ? body.preferred_zones     : [],\n  preferred_lead_types:Array.isArray(body.preferred_lead_types)? body.preferred_lead_types: [],\n  skills:              Array.isArray(body.skills)              ? body.skills              : [],\n  out_of_office_until: body.out_of_office_until || null,\n  updated_at: new Date().toISOString()\n};\nreturn { json: { ok: true, payload } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tmp-0005",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "tmp-0006",
+      "name": "IF Session OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/team_member_preferences?on_conflict=user_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "tmp-0007",
+      "name": "Upsert Preferences",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : rows;\nreturn { json: { ok: true, preferences: row } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tmp-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 320]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } },
+      "id": "tmp-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 320]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } },
+      "id": "tmp-0010",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 200]
+    }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract Inputs",    "type": "main", "index": 0 } ]] },
+    "Extract Inputs":  { "main": [[ { "node": "IF Bad Input",      "type": "main", "index": 0 } ]] },
+    "IF Bad Input":    { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Build Payload",     "type": "main", "index": 0 } ]] },
+    "Build Payload":   { "main": [[ { "node": "IF Session OK",     "type": "main", "index": 0 } ]] },
+    "IF Session OK":   { "main": [ [ { "node": "Upsert Preferences","type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Upsert Preferences":{ "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

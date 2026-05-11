@@ -1,0 +1,166 @@
+{
+  "name": "CLX - Lead Distribute v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/leads/distribute",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ld-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-lead-distribute-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst body = $input.item.json.body || {};\nif (!body.client_id) return { json: { ok: false, status: 400, error: 'client_id required' } };\nreturn { json: { token, client_id: body.client_id, lead_id: body.lead_id || null, max_leads: body.max_leads || 50 } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ld-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ld-0003",
+      "name": "IF Bad Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "ld-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst client_id = $('Extract Inputs').first().json.client_id;\nconst lead_id   = $('Extract Inputs').first().json.lead_id;\nconst max_leads = $('Extract Inputs').first().json.max_leads;\nreturn { json: { ok: true, user_id: row.user_id, user_role: row.user_role, client_id, lead_id, max_leads } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ld-0005",
+      "name": "Check Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ld-0006",
+      "name": "IF Session OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/distribute_pending_leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_client_id\": \"{{ $json.client_id }}\", \"p_lead_id\": {{ $json.lead_id ? '\"' + $json.lead_id + '\"' : 'null' }}, \"p_max_leads\": {{ $json.max_leads }} }",
+        "options": {}
+      },
+      "id": "ld-0007",
+      "name": "Distribute",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.item.json;\nconst distributed = typeof result === 'number' ? result : (Array.isArray(result) ? result[0] : 0);\nreturn { json: { ok: true, distributed } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ld-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "ld-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "ld-0010",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 200]
+    }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract Inputs",   "type": "main", "index": 0 } ]] },
+    "Extract Inputs":  { "main": [[ { "node": "IF Bad Input",     "type": "main", "index": 0 } ]] },
+    "IF Bad Input":    { "main": [
+                                  [ { "node": "Respond 4xx",      "type": "main", "index": 0 } ],
+                                  [ { "node": "Validate Session", "type": "main", "index": 0 } ]
+                                ] },
+    "Validate Session":{ "main": [[ { "node": "Check Session",    "type": "main", "index": 0 } ]] },
+    "Check Session":   { "main": [[ { "node": "IF Session OK",    "type": "main", "index": 0 } ]] },
+    "IF Session OK":   { "main": [
+                                  [ { "node": "Distribute",       "type": "main", "index": 0 } ],
+                                  [ { "node": "Respond 4xx",      "type": "main", "index": 0 } ]
+                                ] },
+    "Distribute":      { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

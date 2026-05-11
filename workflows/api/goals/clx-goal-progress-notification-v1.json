@@ -1,0 +1,130 @@
+{
+  "name": "CLX - Goal Progress Notification v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 9 * * 1" } ] }
+      },
+      "id": "gpn-0001",
+      "name": "Schedule Monday 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/goals/notify",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "gpn-0002",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-goal-progress-notification-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/user_goals?status=eq.in_progress&select=id,user_id,achievement_percentage,period_start,period_end,target_value,current_value,template_id&limit=2000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "gpn-0003",
+      "name": "Fetch Goals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const goals = Array.isArray($input.item.json) ? $input.item.json : [];\nconst today = new Date();\nconst flagged = goals.filter(function (g) {\n  const start = new Date(g.period_start).getTime();\n  const end   = new Date(g.period_end).getTime();\n  const total = end - start;\n  if (total <= 0) return false;\n  const elapsed = Math.max(0, today.getTime() - start);\n  const periodPct = Math.min(100, (elapsed / total) * 100);\n  const ach = parseFloat(g.achievement_percentage) || 0;\n  if (ach >= 100) return true;                       // achieved\n  return ach < (periodPct - 20);                      // behind track by >20pp\n});\nconst byUser = {};\nflagged.forEach(function (g) {\n  if (!byUser[g.user_id]) byUser[g.user_id] = [];\n  byUser[g.user_id].push(g);\n});\nreturn Object.keys(byUser).map(function (uid) { return { json: { user_id: uid, goals: byUser[uid] } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "gpn-0004",
+      "name": "Group By User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/team_members?id=eq.{{ $json.user_id }}&select=id,email,full_name,client_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "gpn-0005",
+      "name": "Fetch Member",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const member = Array.isArray($input.item.json) ? $input.item.json[0] : $input.item.json;\nif (!member || !member.email) return { json: { ok: false, skipped: true } };\nconst goals = $('Group By User').itemMatching($itemIndex).json.goals;\nconst achieved = goals.filter(function (g) { return parseFloat(g.achievement_percentage) >= 100; });\nconst behind   = goals.filter(function (g) { return parseFloat(g.achievement_percentage) <  100; });\nconst subject  = achieved.length > 0 ? 'Weekly goals update — you hit a target' : 'Weekly goals update — a goal needs attention';\nconst lines = [];\nlines.push('Hi ' + (member.full_name || 'there') + ',');\nlines.push('');\nachieved.forEach(function (g) { lines.push('Achieved: ' + Math.round(parseFloat(g.achievement_percentage)) + '% of target.'); });\nbehind.forEach(function (g)   { lines.push('Behind track: ' + Math.round(parseFloat(g.achievement_percentage)) + '% of target with period ending ' + g.period_end + '.'); });\nlines.push('');\nlines.push('Open the dashboard to see details and adjust your plan.');\nreturn { json: { to: member.email, subject, text: lines.join('\\n') } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "gpn-0006",
+      "name": "Compose Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Accept", "value": "application/json" },
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "X-Postmark-Server-Token", "value": "={{ $vars.POSTMARK_SERVER_TOKEN }}" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"From\": \"notifications@crystallux.org\", \"To\": \"{{ $json.to }}\", \"Subject\": \"{{ $json.subject }}\", \"TextBody\": \"{{ $json.text }}\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "gpn-0007",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sent = ($('Send Email').all() || []).length;\nreturn { json: { ok: true, notifications_sent: sent } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "gpn-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "gpn-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1900, 300] }
+  ],
+  "connections": {
+    "Schedule Monday 09:00": { "main": [[ { "node": "Fetch Goals",    "type": "main", "index": 0 } ]] },
+    "Webhook":               { "main": [[ { "node": "Fetch Goals",    "type": "main", "index": 0 } ]] },
+    "Fetch Goals":           { "main": [[ { "node": "Group By User", "type": "main", "index": 0 } ]] },
+    "Group By User":         { "main": [[ { "node": "Fetch Member",  "type": "main", "index": 0 } ]] },
+    "Fetch Member":          { "main": [[ { "node": "Compose Email", "type": "main", "index": 0 } ]] },
+    "Compose Email":         { "main": [[ { "node": "Send Email",    "type": "main", "index": 0 } ]] },
+    "Send Email":            { "main": [[ { "node": "Shape Response","type": "main", "index": 0 } ]] },
+    "Shape Response":        { "main": [[ { "node": "Respond OK",    "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

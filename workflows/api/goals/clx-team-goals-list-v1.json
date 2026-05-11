@@ -1,0 +1,150 @@
+{
+  "name": "CLX - Team Goals List v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/goals/team",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tgl-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-team-goals-list-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst body = $input.item.json.body || {};\nif (!body.client_id) return { json: { ok: false, status: 400, error: 'client_id required' } };\nreturn { json: { token, client_id: body.client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tgl-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "tgl-0003",
+      "name": "IF Bad Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "tgl-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowed = ['admin','mga_principal','supervisor'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { ok: false, status: 403, error: 'Manager role required' } };\nconst client_id = $('Extract Inputs').first().json.client_id;\nreturn { json: { ok: true, client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tgl-0005",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "tgl-0006",
+      "name": "IF Role OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/team_members?client_id=eq.{{ $json.client_id }}&select=id,email,full_name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "tgl-0007",
+      "name": "Fetch Members",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/user_goals?status=eq.in_progress&select=id,user_id,template_id,period_start,period_end,target_value,current_value,achievement_percentage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "tgl-0008",
+      "name": "Fetch All Goals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": { "type": "combineByPosition", "options": {} },
+      "id": "tgl-0009",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1780, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; }\n};\nconst members = allOf('Fetch Members');\nconst goals   = allOf('Fetch All Goals');\nconst memberIds = members.map(function (m) { return m.id; });\nconst byUser = {};\nmembers.forEach(function (m) { byUser[m.id] = { user_id: m.id, full_name: m.full_name, email: m.email, goals: [] }; });\ngoals.forEach(function (g) { if (byUser[g.user_id]) byUser[g.user_id].goals.push(g); });\nconst team = Object.keys(byUser).map(function (k) { return byUser[k]; });\nreturn { json: { ok: true, team } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "tgl-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "tgl-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2220, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "tgl-0012", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract Inputs",  "type": "main", "index": 0 } ]] },
+    "Extract Inputs":  { "main": [[ { "node": "IF Bad Input",    "type": "main", "index": 0 } ]] },
+    "IF Bad Input":    { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Check Role",     "type": "main", "index": 0 } ]] },
+    "Check Role":      { "main": [[ { "node": "IF Role OK",     "type": "main", "index": 0 } ]] },
+    "IF Role OK":      { "main": [ [ { "node": "Fetch Members", "type": "main", "index": 0 }, { "node": "Fetch All Goals", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Members":   { "main": [[ { "node": "Merge",          "type": "main", "index": 0 } ]] },
+    "Fetch All Goals": { "main": [[ { "node": "Merge",          "type": "main", "index": 1 } ]] },
+    "Merge":           { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

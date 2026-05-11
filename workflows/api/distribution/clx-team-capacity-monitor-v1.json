@@ -1,0 +1,109 @@
+{
+  "name": "CLX - Team Capacity Monitor v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "15 0 * * *" } ] }
+      },
+      "id": "tcm-0001",
+      "name": "Schedule 00:15 Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/team-capacity/recalc",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tcm-0002",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-team-capacity-monitor-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/team_member_preferences?select=user_id,daily_capacity,is_accepting_leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "tcm-0003",
+      "name": "Fetch Preferences",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prefs = $input.item.json || [];\nconst rows = (Array.isArray(prefs) ? prefs : []).map(function (p) {\n  return {\n    user_id: p.user_id,\n    log_date: new Date().toISOString().slice(0,10),\n    leads_assigned_today: 0,\n    leads_capacity_today: p.is_accepting_leads ? (p.daily_capacity || 20) : 0\n  };\n});\nreturn { json: { rows } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "tcm-0004",
+      "name": "Build Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/team_capacity_log?on_conflict=user_id,log_date",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "tcm-0005",
+      "name": "Upsert Capacity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const count = (($('Build Rows').first() && $('Build Rows').first().json && $('Build Rows').first().json.rows) || []).length;\nreturn { json: { ok: true, rows_seeded: count } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "tcm-0006",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } },
+      "id": "tcm-0007",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1420, 300]
+    }
+  ],
+  "connections": {
+    "Schedule 00:15 Daily": { "main": [[ { "node": "Fetch Preferences", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Preferences", "type": "main", "index": 0 } ]] },
+    "Fetch Preferences":    { "main": [[ { "node": "Build Rows",        "type": "main", "index": 0 } ]] },
+    "Build Rows":           { "main": [[ { "node": "Upsert Capacity",   "type": "main", "index": 0 } ]] },
+    "Upsert Capacity":      { "main": [[ { "node": "Shape Response",    "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,159 @@
+{
+  "name": "CLX - User Goals Assign v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/goals/assign",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "uga-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-user-goals-assign-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst body = $input.item.json.body || {};\nfor (const k of ['user_id','template_id','period_start']) { if (!body[k]) return { json: { ok: false, status: 400, error: 'Missing ' + k } }; }\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "uga-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "uga-0003",
+      "name": "IF Bad Input",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "uga-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowed = ['admin','mga_principal','supervisor'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { ok: false, status: 403, error: 'Manager role required' } };\nreturn { json: { ok: true, body: $('Extract Inputs').first().json.body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "uga-0005",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+      },
+      "id": "uga-0006",
+      "name": "IF Role OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/goal_templates?id=eq.{{ $json.body.template_id }}&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "uga-0007",
+      "name": "Fetch Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst tpl  = Array.isArray(rows) ? (rows[0] || null) : null;\nif (!tpl) return { json: { ok: false, status: 404, error: 'Template not found' } };\nconst body = $('Check Role').first().json.body;\nconst start = new Date(body.period_start);\nlet end = new Date(start);\nswitch (tpl.period) {\n  case 'daily':     end.setDate(start.getDate()); break;\n  case 'weekly':    end.setDate(start.getDate() + 6); break;\n  case 'monthly':   end.setMonth(start.getMonth() + 1); end.setDate(end.getDate() - 1); break;\n  case 'quarterly': end.setMonth(start.getMonth() + 3); end.setDate(end.getDate() - 1); break;\n  case 'annual':    end.setFullYear(start.getFullYear() + 1); end.setDate(end.getDate() - 1); break;\n  default:          end.setDate(start.getDate() + 6);\n}\nconst payload = {\n  user_id:      body.user_id,\n  template_id:  tpl.id,\n  period_start: body.period_start,\n  period_end:   end.toISOString().slice(0,10),\n  target_value: body.target_value || tpl.target_value,\n  current_value: 0,\n  status: 'in_progress'\n};\nreturn { json: { ok: true, payload } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "uga-0008",
+      "name": "Build Goal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/user_goals?on_conflict=user_id,template_id,period_start",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "uga-0009",
+      "name": "Upsert Goal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : rows;\nreturn { json: { ok: true, user_goal: row } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "uga-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "uga-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2440, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "uga-0012", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs":  { "main": [[ { "node": "IF Bad Input",   "type": "main", "index": 0 } ]] },
+    "IF Bad Input":    { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Check Role",    "type": "main", "index": 0 } ]] },
+    "Check Role":      { "main": [[ { "node": "IF Role OK",    "type": "main", "index": 0 } ]] },
+    "IF Role OK":      { "main": [ [ { "node": "Fetch Template", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Template":  { "main": [[ { "node": "Build Goal",    "type": "main", "index": 0 } ]] },
+    "Build Goal":      { "main": [[ { "node": "Upsert Goal",   "type": "main", "index": 0 } ]] },
+    "Upsert Goal":     { "main": [[ { "node": "Shape Response","type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",    "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

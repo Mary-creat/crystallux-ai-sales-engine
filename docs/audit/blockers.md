@@ -118,3 +118,102 @@ this-pass`). Until the backend workflows land, the FAB shows a
   `Check Client` node — `client_id` comes from the validated session row,
   never from the request body.
 - Re-import + activate per usual. Cloudflare cache purge if needed.
+
+---
+
+## 8. Apply Layer 1 core-engine migrations (Commit A)
+
+Apply in order. All idempotent — safe to re-run.
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/lead-distribution-schema.sql
+psql "$DATABASE_URL" -f db/migrations/agent-goals-schema.sql
+psql "$DATABASE_URL" -f db/migrations/missing-table-fixes.sql
+```
+
+- `lead-distribution-schema.sql` adds the F7 tables + 3 RPCs.
+- `agent-goals-schema.sql` adds the F3 tables + 2 RPCs.
+- `missing-table-fixes.sql` consolidates `closing_scripts`,
+  `agent_calendar_prefs`, `daily_task_plan`, `agent_daily_summary` —
+  these already exist in production (from
+  `docs/architecture/migrations/`), so this file is a no-op there.
+  Required only if a fresh Supabase project does not have the §29-§34
+  tables.
+
+**Verify RPCs exist after applying:**
+
+```sql
+SELECT proname FROM pg_proc
+WHERE proname IN (
+  'assign_lead_to_user','unassign_lead','distribute_pending_leads',
+  'upsert_user_goal_progress','recompute_goal_progress',
+  'upsert_daily_plan','match_script_to_state','get_scripts_for_lead',
+  'calculate_daily_summary'
+);
+```
+
+If any §29-§34 RPCs are missing (the last four), apply the matching
+legacy migration from `docs/architecture/migrations/` listed at the
+bottom of `db/migrations/missing-table-fixes.sql`.
+
+---
+
+## 9. Re-import Layer 1 workflows into n8n (Commit A)
+
+12 new workflows under `workflows/api/distribution/` and
+`workflows/api/goals/`:
+
+```bash
+# On VPS:
+docker cp workflows/api/distribution n8n:/tmp/distribution
+docker cp workflows/api/goals        n8n:/tmp/goals
+docker exec n8n n8n import:workflow --separate --input=/tmp/distribution
+docker exec n8n n8n import:workflow --separate --input=/tmp/goals
+```
+
+All ship `active: false`. After importing, decide which scheduled
+ones to activate (see step 10).
+
+---
+
+## 10. Activate Layer 1 scheduled workflows (when ready)
+
+Flip `active: true` in n8n UI on:
+
+- `clx-performance-aggregator-v1`  (00:30 daily — recomputes goal progress)
+- `clx-team-capacity-monitor-v1`   (00:15 daily — seeds today's capacity rows)
+- `clx-performance-snapshot-v1`    (Sun 01:00 + 1st-of-month 01:00)
+- `clx-goal-progress-notification-v1`  (Mon 09:00 — emails)
+
+The webhook-only workflows (`clx-lead-distribute-v1`,
+`clx-lead-reassign-v1`, `clx-lead-self-claim-v1`,
+`clx-team-member-preferences-update-v1`, `clx-user-goals-assign-v1`,
+`clx-user-goals-list-v1`, `clx-team-goals-list-v1`,
+`clx-goal-template-create-v1`) can be activated as soon as the
+migrations land — they're idle until the frontend (Commit B) calls them.
+
+---
+
+## 11. Seed initial goal templates + distribution rule per client
+
+Once the migrations are applied and a client is ready to use F3/F7,
+seed at least one template and one rule. Suggested defaults for
+Crystallux Insurance Network (test client):
+
+```sql
+-- One default round-robin rule for distribution.
+INSERT INTO lead_distribution_rules (client_id, rule_name, rule_type, priority, active)
+VALUES ('6edc687d-07b0-4478-bb4b-820dc4eebf5d', 'default-round-robin', 'round_robin', 100, true)
+ON CONFLICT (client_id, rule_name) DO NOTHING;
+
+-- Three example goal templates.
+INSERT INTO goal_templates (client_id, template_name, metric, period, target_value, role)
+VALUES
+  ('6edc687d-07b0-4478-bb4b-820dc4eebf5d', 'weekly-meetings',    'meetings_booked', 'weekly',  8,  'advisor'),
+  ('6edc687d-07b0-4478-bb4b-820dc4eebf5d', 'weekly-calls',       'calls_made',      'weekly',  40, 'advisor'),
+  ('6edc687d-07b0-4478-bb4b-820dc4eebf5d', 'monthly-leads',      'leads_assigned',  'monthly', 40, 'advisor')
+ON CONFLICT (client_id, template_name) DO NOTHING;
+```
+
+Per-user goal instantiation happens through the `goals/assign` webhook
+once advisors are onboarded.

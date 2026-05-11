@@ -1,0 +1,131 @@
+{
+  "name": "CLX - Performance Snapshot v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 1 * * 0" } ] }
+      },
+      "id": "ps-0001",
+      "name": "Schedule Sunday 01:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 1 1 * *" } ] }
+      },
+      "id": "ps-0002",
+      "name": "Schedule First Of Month 01:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 350]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/goals/snapshot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ps-0003",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 500],
+      "webhookId": "clx-performance-snapshot-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/user_goals?status=eq.in_progress&select=id,user_id,current_value,target_value,achievement_percentage,template_id,period_end&limit=2000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ps-0004",
+      "name": "Fetch Active Goals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 350],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/goal_templates?select=id,metric,period&active=eq.true&limit=2000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ps-0005",
+      "name": "Fetch Templates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 500],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const goals = $('Fetch Active Goals').all().map(function (i) { return i.json; }).flat ? $('Fetch Active Goals').all().map(function (i) { return i.json; }).flat() : ($('Fetch Active Goals').first().json || []);\nconst templates = $('Fetch Templates').all().map(function (i) { return i.json; }).flat ? $('Fetch Templates').all().map(function (i) { return i.json; }).flat() : ($('Fetch Templates').first().json || []);\nconst tplMap = {};\n(Array.isArray(templates) ? templates : []).forEach(function (t) { tplMap[t.id] = t; });\nconst byUser = {};\n(Array.isArray(goals) ? goals : []).forEach(function (g) {\n  const tpl = tplMap[g.template_id];\n  if (!tpl) return;\n  if (!byUser[g.user_id]) byUser[g.user_id] = {};\n  byUser[g.user_id][tpl.metric] = {\n    current: parseFloat(g.current_value) || 0,\n    target:  parseFloat(g.target_value) || 0,\n    achievement_pct: parseFloat(g.achievement_percentage) || 0\n  };\n});\nconst today = new Date().toISOString().slice(0,10);\nconst dow = new Date().getDay();\nconst dom = new Date().getDate();\nconst period = (dom === 1) ? 'monthly' : 'weekly';\nconst rows = Object.keys(byUser).map(function (uid) {\n  return { user_id: uid, snapshot_date: today, snapshot_period: period, metrics: byUser[uid], trend: 'stable' };\n});\nreturn { json: { rows } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ps-0006",
+      "name": "Build Snapshots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/performance_snapshots?on_conflict=user_id,snapshot_date,snapshot_period",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+        ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "ps-0007",
+      "name": "Upsert Snapshots",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = ($('Build Snapshots').first().json && $('Build Snapshots').first().json.rows) || [];\nreturn { json: { ok: true, snapshots_created: rows.length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ps-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ps-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1500, 400] }
+  ],
+  "connections": {
+    "Schedule Sunday 01:00":          { "main": [[ { "node": "Fetch Active Goals", "type": "main", "index": 0 } ]] },
+    "Schedule First Of Month 01:00":  { "main": [[ { "node": "Fetch Active Goals", "type": "main", "index": 0 } ]] },
+    "Webhook":                        { "main": [[ { "node": "Fetch Active Goals", "type": "main", "index": 0 } ]] },
+    "Fetch Active Goals":             { "main": [[ { "node": "Fetch Templates",    "type": "main", "index": 0 } ]] },
+    "Fetch Templates":                { "main": [[ { "node": "Build Snapshots",   "type": "main", "index": 0 } ]] },
+    "Build Snapshots":                { "main": [[ { "node": "Upsert Snapshots",   "type": "main", "index": 0 } ]] },
+    "Upsert Snapshots":               { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
+    "Shape Response":                 { "main": [[ { "node": "Respond OK",         "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
