@@ -349,3 +349,64 @@ Flip `active: true` on (in n8n UI):
 - `clx-file-completeness-bulk-refresh-v1` (03:00 daily — stub heartbeat)
 
 Webhook-only workflows can be activated as soon as imported.
+
+---
+
+## 22. Apply Session 2 Layer 2 schemas (insurance)
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/insurance-content-library-schema.sql
+psql "$DATABASE_URL" -f db/migrations/insurance-onboarding-curriculum-schema.sql
+```
+
+Both idempotent. Both tag `vertical_id='insurance'` on every column.
+
+---
+
+## 23. Re-import Session 2 Layer 2 workflows
+
+12 new workflows under `workflows/api/insurance-mga/`:
+
+```bash
+docker cp workflows/api/insurance-mga n8n:/tmp/insurance-mga-s2
+docker exec n8n n8n import:workflow --separate --input=/tmp/insurance-mga-s2
+```
+
+(Re-imports Session 1's insurance-mga workflows too — that's fine,
+n8n updates existing workflows by name.) All ship `active: false`.
+
+---
+
+## 24. Seed Layer 2 content + training + onboarding
+
+Run each once with `INTERNAL_EMAIL_SECRET`:
+
+```bash
+SECRET=<INTERNAL_EMAIL_SECRET>
+
+curl -X POST https://automation.crystallux.org/webhook/mga/insurance/content-library-seed \
+  -H "Content-Type: application/json" -d "{\"internal_secret\":\"$SECRET\"}"
+# expect: { ok: true, vertical_id: 'insurance', templates_seeded: 20 }
+
+curl -X POST https://automation.crystallux.org/webhook/mga/insurance/training-topics-seed \
+  -H "Content-Type: application/json" -d "{\"internal_secret\":\"$SECRET\"}"
+# expect: { ok: true, topics_seeded: 12 }
+
+curl -X POST https://automation.crystallux.org/webhook/mga/insurance/onboarding-curriculum-seed \
+  -H "Content-Type: application/json" -d "{\"internal_secret\":\"$SECRET\"}"
+# expect: { ok: true, days_seeded: 30 }
+```
+
+All three idempotent — safe to re-run.
+
+---
+
+## 25. Smoke test calculators + onboarding
+
+After deploying insurance-mga-dashboard (Cloudflare auto-deploys on push):
+
+- Hard-refresh `mga.crystallux.org` (Ctrl+Shift+R).
+- Log in as advisor / sub_agent / mga_principal.
+- Sidebar should show **Calculators** + **Onboarding** under Advisor.
+- Open Calculators → Income Replacement → annual_income_cents=7500000, years=15 → expect a coverage estimate ≈ $84-92M cents depending on inflation/return.
+- Open Onboarding → expect Day 1 ("Welcome + license verification") to show **Start** button. Clicking advances to in_progress.

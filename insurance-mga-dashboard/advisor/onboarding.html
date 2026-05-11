@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Onboarding · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">30-Day Onboarding</h1><div class="clx-page-sub">Structured curriculum. Supervisor signs off at Day 30.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components-mga.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(user.email||'')+'</span>';
+    load();
+  });
+  function load(){
+    var c = document.getElementById('content');
+    clxApi.mgaPost('onboarding-status', {}).then(function(resp){
+      if(!resp.ok){c.innerHTML='<div class="clx-error-box">'+clxApi.escapeHtml(resp.error||'Failed.')+'</div>';return;}
+      var d = resp.data || {};
+      var days = d.days || [];
+      if(days.length===0){c.innerHTML='<div class="clx-card"><div class="clx-empty">No curriculum seeded yet. Run <code>POST /webhook/mga/insurance/onboarding-curriculum-seed</code> with INTERNAL_EMAIL_SECRET to seed 30 days, then refresh.</div></div>';return;}
+      var html = '';
+      html += '<div class="clx-stat-grid">';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Progress</div><div class="clx-stat-value">'+(d.completed_days||0)+' / '+(d.total_days||30)+'</div><div class="clx-stat-sub">days complete</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Current day</div><div class="clx-stat-value">Day '+(d.current_day||1)+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">In progress</div><div class="clx-stat-value">'+(d.in_progress_days||0)+'</div></div>';
+      html += '</div>';
+      html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Curriculum</div></div>';
+      html += '<table class="clx-table"><thead><tr><th>Day</th><th>Module</th><th>Time</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+      days.forEach(function(day){
+        var statusCls = day.status==='completed'?'clx-badge-success':(day.status==='in_progress'?'clx-badge-info':'clx-badge-neutral');
+        html += '<tr><td>'+day.day_number+'</td><td><strong>'+clxApi.escapeHtml(day.module_title)+'</strong><div style="color:#6b7280;font-size:12px">'+clxApi.escapeHtml(day.module_description||'')+'</div></td><td>'+(day.estimated_minutes||30)+' min</td><td><span class="clx-badge '+statusCls+'">'+day.status+'</span></td><td>';
+        if(day.status==='pending') html += '<button class="clx-btn clx-btn-ghost" data-day="'+day.id+'" data-status="in_progress">Start</button>';
+        else if(day.status==='in_progress') html += '<button class="clx-btn clx-btn-primary" data-day="'+day.id+'" data-status="completed">Complete</button>';
+        else html += '✓';
+        html += '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      c.innerHTML = html;
+      document.querySelectorAll('[data-day]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var curriculum_id = btn.getAttribute('data-day');
+          var status = btn.getAttribute('data-status');
+          btn.disabled = true; btn.textContent = '...';
+          clxApi.mgaPost('onboarding-advance', { curriculum_id: curriculum_id, status: status }).then(function(r){
+            if(r.ok) load(); else { btn.disabled = false; btn.textContent = 'Retry'; }
+          });
+        });
+      });
+    });
+  }
+})();
+</script>
+</body></html>

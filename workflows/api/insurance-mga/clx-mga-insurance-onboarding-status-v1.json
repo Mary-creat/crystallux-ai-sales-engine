@@ -1,0 +1,67 @@
+{
+  "name": "CLX - MGA Insurance Onboarding Status v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/onboarding-status", "responseMode": "responseNode", "options": {} }, "id": "ios-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-onboarding-status-001", "notes": "DEACTIVATED. Session-token. Returns the requesting advisor's onboarding curriculum + progress joined into a single payload." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ios-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ios-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "ios-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { _ok: true, advisor_id: row.user_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ios-0005", "name": "Check Session", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ios-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/insurance_onboarding_curriculum?vertical_id=eq.insurance&is_active=eq.true&select=*&order=day_number.asc",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ios-0007", "name": "Fetch Curriculum", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/advisor_onboarding_progress?advisor_id=eq.{{ $('Check Session').first().json.advisor_id }}&vertical_id=eq.insurance&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "ios-0008", "name": "Fetch Progress", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "type": "combineByPosition", "options": {} }, "id": "ios-0009", "name": "Merge", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1840, 400] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst curriculum = allOf('Fetch Curriculum');\nconst progress = allOf('Fetch Progress');\nconst progressByCurriculum = {};\nprogress.forEach(function (p) { progressByCurriculum[p.curriculum_id] = p; });\nconst items = curriculum.map(function (c) { const p = progressByCurriculum[c.id] || null; return Object.assign({}, c, { progress: p, status: p ? p.status : 'pending' }); });\nconst completed = items.filter(function (i) { return i.status === 'completed'; }).length;\nconst inProgress = items.filter(function (i) { return i.status === 'in_progress'; }).length;\nconst currentDay = items.find(function (i) { return i.status === 'in_progress' || i.status === 'pending'; });\nreturn { json: { ok: true, vertical_id: 'insurance', total_days: items.length, completed_days: completed, in_progress_days: inProgress, current_day: currentDay ? currentDay.day_number : items.length + 1, days: items } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ios-0010", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2080, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ios-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2320, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ios-0012", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Check Session", "type": "main", "index": 0 } ]] },
+    "Check Session":   { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Fetch Curriculum", "type": "main", "index": 0 }, { "node": "Fetch Progress", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Curriculum":{ "main": [[ { "node": "Merge", "type": "main", "index": 0 } ]] },
+    "Fetch Progress":  { "main": [[ { "node": "Merge", "type": "main", "index": 1 } ]] },
+    "Merge":           { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

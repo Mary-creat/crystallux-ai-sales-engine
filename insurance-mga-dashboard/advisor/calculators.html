@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calculators · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Needs Calculators</h1><div class="clx-page-sub">Educational estimates. Final coverage must be reviewed and approved by a licensed advisor.</div></div></div>
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Pick a calculator</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="tabs"></div>
+    <div id="calcArea"></div>
+  </div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components-mga.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require(['advisor','sub_agent','mga_principal','admin','supervisor']).then(function(user){
+    if(!user)return;
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(user.email||'')+'</span>';
+    render();
+  });
+  var calcs = [
+    { key: 'income-replacement',   label: 'Income Replacement',   fields: [['annual_income_cents','Annual income (cents)','number','7500000'],['years_to_replace','Years to replace','number','15'],['inflation_rate','Inflation rate (eg 0.02)','number','0.02'],['return_rate','Return rate (eg 0.04)','number','0.04']] },
+    { key: 'mortgage-debt',        label: 'Mortgage + Debt',      fields: [['mortgage_balance_cents','Mortgage balance (cents)','number','45000000'],['other_debt_cents','Other debt (cents)','number','500000']] },
+    { key: 'dependent-support',    label: 'Dependent Support',    fields: [['annual_support_per_dependent_cents','Annual support per dependent (cents)','number','1500000'],['num_dependents','Number of dependents','number','2'],['years_per_dependent','Years per dependent','number','18']] },
+    { key: 'final-expenses',       label: 'Final Expenses',       fields: [['funeral_cost_cents','Funeral cost (cents)','number','1500000'],['estate_closing_cents','Estate closing (cents)','number','500000'],['uncovered_medical_cents','Uncovered medical (cents)','number','0']] },
+    { key: 'education',            label: 'Education',            fields: [['annual_education_cost_cents','Annual education cost today (cents)','number','2000000'],['years_until_start','Years until start','number','10'],['years_attending','Years attending','number','4'],['education_inflation_rate','Education inflation rate','number','0.05'],['num_children','Number of children','number','2']] },
+    { key: 'business-key-person',  label: 'Business / Key Person',fields: [['key_person_salary_cents','Key person salary (cents)','number','15000000'],['revenue_contribution_cents','Annual revenue contribution (cents)','number','50000000'],['years_to_replace','Years to replace','number','3'],['replacement_search_cost_cents','Replacement search cost (cents)','number','2000000']] },
+    { key: 'total-needs',          label: 'Total Needs Summary',  fields: [['income_replacement_cents','Income replacement (cents)','number','0'],['mortgage_debt_cents','Mortgage + debt (cents)','number','0'],['dependent_support_cents','Dependent support (cents)','number','0'],['final_expenses_cents','Final expenses (cents)','number','0'],['education_cents','Education (cents)','number','0'],['existing_coverage_cents','Existing coverage (cents)','number','0']] }
+  ];
+  function render(){
+    var t = document.getElementById('tabs');
+    calcs.forEach(function(c, i){
+      var b = document.createElement('button');
+      b.className = 'clx-btn ' + (i===0?'clx-btn-primary':'clx-btn-ghost');
+      b.textContent = c.label;
+      b.addEventListener('click', function(){
+        document.querySelectorAll('#tabs .clx-btn').forEach(function(el){el.className='clx-btn clx-btn-ghost';});
+        b.className='clx-btn clx-btn-primary';
+        showCalc(c);
+      });
+      t.appendChild(b);
+    });
+    showCalc(calcs[0]);
+  }
+  function showCalc(c){
+    var area = document.getElementById('calcArea');
+    var html = '<form id="calcForm" style="display:flex;flex-direction:column;gap:10px;max-width:520px">';
+    c.fields.forEach(function(f){
+      html += '<label>'+f[1]+' <input type="'+f[2]+'" step="0.001" name="'+f[0]+'" value="'+f[3]+'" style="width:200px"></label>';
+    });
+    html += '<button type="submit" class="clx-btn clx-btn-primary">Calculate</button><div id="calcResult"></div></form>';
+    area.innerHTML = html;
+    document.getElementById('calcForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var body = {};
+      c.fields.forEach(function(f){ body[f[0]] = parseFloat(fd.get(f[0])) || 0; });
+      var out = document.getElementById('calcResult');
+      out.innerHTML = '<span class="clx-spinner"></span> Calculating…';
+      clxApi.mgaPost('calculator/' + c.key, body).then(function(resp){
+        if(!resp.ok){out.innerHTML='<div class="clx-error-box">'+clxApi.escapeHtml(resp.error||'Failed.')+'</div>';return;}
+        var d = resp.data || {};
+        var fmt = function(cents){return '$'+((parseFloat(cents)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:2});};
+        out.innerHTML = '<div class="clx-stat" style="margin-top:12px"><div class="clx-stat-label">Recommended coverage</div><div class="clx-stat-value">'+fmt(d.coverage_amount_cents||0)+'</div><div class="clx-stat-sub">'+clxApi.escapeHtml(d.disclaimer||'')+'</div></div>';
+      });
+    });
+  }
+})();
+</script>
+</body></html>
