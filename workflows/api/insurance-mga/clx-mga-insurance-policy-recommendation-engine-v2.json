@@ -1,0 +1,118 @@
+{
+  "name": "CLX - MGA Insurance Policy Recommendation Engine v2",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/policy-recommend-v2", "responseMode": "responseNode", "options": {} },
+      "id": "pre2-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-policy-recommendation-engine-v2-001",
+      "notes": "DEACTIVATED. v2 upgrade — queries carrier_products instead of hardcoded matrix. v1 stays in repo as fallback until v2 proves out."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.suitability_assessment_id) return { json: { _empty: true, error: 'suitability_assessment_id required' } };\nreturn { json: { _authorized: true, suitability_assessment_id: body.suitability_assessment_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pre2-0002", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "pre2-0003", "name": "IF Authorized", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/suitability_assessments?id=eq.' + encodeURIComponent($json.suitability_assessment_id) + '&vertical_id=eq.insurance&select=*&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "pre2-0004", "name": "Fetch Assessment", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst a = (Array.isArray(rows) ? rows[0] : rows) || null;\nif (!a || !a.id) return { json: { _not_found: true } };\nreturn { json: { _ok: true, assessment: a, product_type: a.product_type } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pre2-0005", "name": "Check Found", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1100, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_products?vertical_id=eq.insurance&product_type=eq.' + encodeURIComponent($json.product_type || '') + '&active=eq.true&ai_compliance_ready=eq.true&select=*,insurance_carriers(carrier_name,carrier_type,ai_compliance_ready)&limit=20' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "pre2-0006", "name": "Fetch Carrier Products", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1320, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const productsList = Array.isArray($input.item.json) ? $input.item.json : [];\nconst a = $('Check Found').first().json.assessment;\nconst available = productsList.map(function (p) {\n  return {\n    product_id: p.id,\n    carrier: p.insurance_carriers ? p.insurance_carriers.carrier_name : 'Unknown',\n    product: p.product_name,\n    features: Array.isArray(p.features) ? p.features.reduce(function (acc, f) { acc[f] = true; return acc; }, {}) : {},\n    coverage_min_cents: p.min_coverage_cents,\n    coverage_max_cents: p.max_coverage_cents,\n    base_premium_cents: p.base_premium_cents,\n    commission_first_year: p.commission_first_year\n  };\n});\nif (available.length === 0) return { json: { _no_products: true, product_type: a.product_type, message: 'No carrier_products configured for product_type=' + a.product_type + '. Seed via carrier-product-create or carrier-seed.' } };\n\nconst systemPrompt = [\n  'You are the Crystallux AI Policy Recommendation Engine for the INSURANCE vertical (vertical_id=insurance).',\n  'Product type: ' + a.product_type,\n  'Rank top 3-5 products by match quality given the client needs.',\n  '',\n  'For EACH product output:',\n  '{',\n  '  \"product_id\":               <uuid from available list>,',\n  '  \"carrier_name\":             <string from available list>,',\n  '  \"product_name\":             <string from available list>,',\n  '  \"coverage_amount_cents\":    <integer>,',\n  '  \"premium_monthly_cents\":    <integer>,',\n  '  \"premium_annual_cents\":     <integer>,',\n  '  \"term_years\":               <integer, 0 if not term-based>,',\n  '  \"ai_match_score\":           <integer 0-100>,',\n  '  \"ai_ranking\":               <integer 1-N, 1=best>,',\n  '  \"ai_reasoning\":             <2-3 sentences>',\n  '}',\n  '',\n  'Output strictly JSON: { \"recommendations\": [ ... ] }',\n  '',\n  'Rules:',\n  '- Premium estimates are PRELIMINARY. Mark as illustrative ranges in your reasoning.',\n  '- Use only carriers/products from the available list (must include product_id).',\n  '- Consider: client needs (coverage gap), affordability, carrier reputation, features.',\n  '- For term_life: term_years should match recommended_term_years from needs_analysis.',\n  '- coverage_amount_cents must match needs_analysis.recommended_coverage_cents UNLESS recommending a step-down for affordability — call that out.'\n].join('\\n');\n\nconst userPayload = JSON.stringify({\n  vertical_id: 'insurance',\n  product_type: a.product_type,\n  needs_analysis: a.needs_analysis,\n  ai_recommended_coverage_amount_cents: a.ai_recommended_coverage_amount,\n  ai_recommended_term_years: a.ai_recommended_term_years,\n  client_situation: a.client_situation,\n  available_products: available\n});\n\nreturn { json: { assessment: a, available_count: available.length, claude_payload: { model: 'claude-sonnet-4-5-20250929', max_tokens: 1500, temperature: 0.2, system: systemPrompt, messages: [ { role: 'user', content: userPayload } ] } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pre2-0007", "name": "Build Claude Prompt", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1560, 320]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_products }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "pre2-0008", "name": "IF No Products", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1800, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "anthropic-version", "value": "2023-06-01" },
+          { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+        ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "pre2-0009", "name": "Claude Rank", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2040, 240],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $('Build Claude Prompt').item.json.assessment;\nconst resp = $input.item.json || {};\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\nconst recs = (parsed && Array.isArray(parsed.recommendations)) ? parsed.recommendations : [];\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\nif (recs.length === 0) return [{ json: { _no_recs: true, suitability_assessment_id: a.id, client_id: a.client_id, advisor_id: a.advisor_id, tokens: tokens } }];\nreturn recs.map(function (r, idx) {\n  return { json: {\n    insert_row: {\n      vertical_id: 'insurance',\n      suitability_assessment_id: a.id,\n      carrier_product_id: r.product_id || null,\n      carrier_name: r.carrier_name,\n      product_name: r.product_name,\n      product_type: a.product_type,\n      coverage_amount: parseInt(r.coverage_amount_cents) || 0,\n      premium_monthly: parseInt(r.premium_monthly_cents) || 0,\n      premium_annual: parseInt(r.premium_annual_cents) || 0,\n      term_years: parseInt(r.term_years) || 0,\n      features: {},\n      ai_match_score: Math.min(Math.max(parseInt(r.ai_match_score) || 0, 0), 100),\n      ai_ranking: parseInt(r.ai_ranking) || (idx + 1),\n      ai_reasoning: r.ai_reasoning || null,\n      status: 'recommended'\n    },\n    suitability_assessment_id: a.id,\n    client_id: a.client_id,\n    advisor_id: a.advisor_id,\n    tokens: idx === 0 ? tokens : 0\n  } };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pre2-0010", "name": "Fan Out Recs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2280, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_recommendations", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.insert_row) }}",
+        "options": {}
+      },
+      "id": "pre2-0011", "name": "Insert Recommendation", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2520, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', version: 'v2', recommendations_count: $('Fan Out Recs').all().length, suitability_assessment_id: $('Fan Out Recs').first().json.suitability_assessment_id }) }}", "options": { "responseCode": 200 } },
+      "id": "pre2-0012", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2760, 240]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || ($json._no_products ? $json.message : 'Unauthorized') }) }}", "options": { "responseCode": "={{ $json._no_products ? 422 : ($json.status || 401) }}" } },
+      "id": "pre2-0013", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1800, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":           { "main": [[ { "node": "Validate",           "type": "main", "index": 0 } ]] },
+    "Validate":          { "main": [[ { "node": "IF Authorized",      "type": "main", "index": 0 } ]] },
+    "IF Authorized":     { "main": [ [ { "node": "Fetch Assessment", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Assessment":  { "main": [[ { "node": "Check Found",        "type": "main", "index": 0 } ]] },
+    "Check Found":       { "main": [[ { "node": "Fetch Carrier Products", "type": "main", "index": 0 } ]] },
+    "Fetch Carrier Products": { "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
+    "Build Claude Prompt":{ "main": [[ { "node": "IF No Products",   "type": "main", "index": 0 } ]] },
+    "IF No Products":    { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Claude Rank", "type": "main", "index": 0 } ] ] },
+    "Claude Rank":       { "main": [[ { "node": "Fan Out Recs",       "type": "main", "index": 0 } ]] },
+    "Fan Out Recs":      { "main": [[ { "node": "Insert Recommendation", "type": "main", "index": 0 } ]] },
+    "Insert Recommendation": { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

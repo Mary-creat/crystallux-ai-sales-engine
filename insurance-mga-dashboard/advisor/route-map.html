@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Route Map · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">Route Map</h1><div class="clx-page-sub">Nearest-neighbour optimization of today's appointments. Saves drive time.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      load(user);
+    });
+    function load(user) {
+      var c = document.getElementById('content');
+      var body = { agent_id: user.id || user.user_id, client_id: user.client_id || null, date: new Date().toISOString().slice(0,10) };
+      clxApi.postWebhook('clx-route-optimizer', body).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Route optimization not yet active.') + '</div>'; return; }
+        var d = resp.data || {};
+        var html = '';
+        html += '<div class="clx-stat-grid">';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Appointments</div><div class="clx-stat-value">' + ((d.ordered_appointment_ids || []).length) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Distance before</div><div class="clx-stat-value">' + (d.total_km_before != null ? d.total_km_before.toFixed(1) + ' km' : '—') + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Distance after</div><div class="clx-stat-value">' + (d.total_km_after != null ? d.total_km_after.toFixed(1) + ' km' : '—') + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Time saved</div><div class="clx-stat-value">' + (d.saved_minutes != null ? Math.round(d.saved_minutes) + ' min' : '—') + '</div></div>';
+        html += '</div>';
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Optimized order</div></div><div id="map" style="height:420px;border-radius:8px;overflow:hidden"></div></div>';
+        c.innerHTML = html;
+        var geom = d.route_geometry || [];
+        if (geom.length === 0) { document.getElementById('map').innerHTML = '<div class="clx-empty">No coordinates available yet. Make sure today\'s appointments are geocoded.</div>'; return; }
+        var map = L.map('map').setView(geom[0], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        geom.forEach(function (p, i) { L.marker(p).addTo(map).bindPopup('Stop ' + (i + 1)); });
+        L.polyline(geom, { color: '#3b82f6' }).addTo(map);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

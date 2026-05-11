@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Today's Plan · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head">
+        <div>
+          <h1 class="clx-page-title">Today's Plan</h1>
+          <div class="clx-page-sub">Ranked by the universal Crystallux engine — SLA replies, hot leads, no-show rebooks first.</div>
+        </div>
+      </div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      load(user);
+    });
+    function load(user) {
+      var c = document.getElementById('content');
+      var body = { agent_id: user.id || user.user_id, client_id: user.client_id || null };
+      clxApi.postWebhook('clx-daily-plan', body).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed to load plan.') + '</div>'; return; }
+        var d = resp.data || {};
+        var tasks = (d.tasks || []);
+        var html = '';
+        html += '<div class="clx-card"><div class="clx-card-head"><div><div class="clx-card-title">Plan summary</div><div class="clx-card-sub">' + clxApi.escapeHtml(d.summary || 'Plan generated — see ranked tasks below.') + '</div></div><div class="clx-card-meta">Plan ID: ' + clxApi.escapeHtml(d.plan_id || '—') + ' · Tasks: ' + (d.task_count || tasks.length || 0) + '</div></div></div>';
+        if (tasks.length === 0) html += '<div class="clx-card"><div class="clx-empty">No ranked tasks for today. Either the plan generator has not run, or your queue is genuinely clear.</div></div>';
+        else {
+          html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Ranked tasks</div></div>';
+          html += clxComp.renderTable(tasks, [
+            { label: '#', cell: function (t) { return clxApi.escapeHtml(t.rank); } },
+            { label: 'Type', cell: function (t) { return clxApi.escapeHtml(t.category || t.task_category || '—'); } },
+            { label: 'Label', cell: function (t) { return clxApi.escapeHtml(t.label || t.title || '—'); } },
+            { label: 'Reason', cell: function (t) { return clxApi.escapeHtml(t.reason || ''); } },
+            { label: 'SLA', cell: function (t) { return t.sla_breached ? '<span class="clx-badge clx-badge-danger">Breached</span>' : '<span class="clx-badge clx-badge-neutral">On time</span>'; } },
+            { label: 'Due', cell: function (t) { return clxApi.formatDate(t.due_by); } }
+          ]);
+          html += '</div>';
+        }
+        c.innerHTML = html;
+      });
+    }
+  })();
+</script>
+</body>
+</html>

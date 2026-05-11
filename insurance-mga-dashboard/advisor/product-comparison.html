@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Product Compare · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">Product Comparison</h1><div class="clx-page-sub">Side-by-side view of carrier products during a suitability interview.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin','supervisor']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      render();
+    });
+    function render() {
+      var c = document.getElementById('content');
+      var html = '';
+      html += '<div class="clx-card"><div class="clx-card-head"><div><div class="clx-card-title">Pick products to compare</div><div class="clx-card-sub">Check 2-4 products from the catalog below, then click Compare.</div></div></div>';
+      html += '<div id="picker"><div class="clx-empty"><span class="clx-spinner"></span> Loading catalog…</div></div>';
+      html += '<div style="margin-top:12px"><button class="clx-btn clx-btn-primary" id="btnCompare" disabled>Compare selected</button></div>';
+      html += '</div>';
+      html += '<div id="comparison"></div>';
+      c.innerHTML = html;
+
+      clxApi.mgaPost('carriers-list', {}).then(function (resp) {
+        var picker = document.getElementById('picker');
+        if (!resp.ok) { picker.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed to load catalog.') + '</div>'; return; }
+        var carriers = (resp.data && resp.data.carriers) || [];
+        var allProducts = [];
+        carriers.forEach(function (cr) {
+          (cr.products || []).filter(function (p) { return p.active; }).forEach(function (p) {
+            allProducts.push({ id: p.id, carrier: cr.carrier_name, name: p.product_name, type: p.product_type });
+          });
+        });
+        if (allProducts.length === 0) { picker.innerHTML = '<div class="clx-empty">No products in catalog. Seed first.</div>'; return; }
+        var byType = {};
+        allProducts.forEach(function (p) { (byType[p.type] = byType[p.type] || []).push(p); });
+        var h = '';
+        Object.keys(byType).sort().forEach(function (type) {
+          h += '<div style="margin-bottom:12px"><div style="font-weight:600;margin-bottom:6px">' + clxApi.escapeHtml(type) + '</div>';
+          byType[type].forEach(function (p) {
+            h += '<label style="display:block;padding:4px 0"><input type="checkbox" class="cmp-pick" value="' + clxApi.escapeHtml(p.id) + '" /> ' + clxApi.escapeHtml(p.carrier) + ' — ' + clxApi.escapeHtml(p.name) + '</label>';
+          });
+          h += '</div>';
+        });
+        picker.innerHTML = h;
+        var btn = document.getElementById('btnCompare');
+        function updateBtn() {
+          var n = document.querySelectorAll('.cmp-pick:checked').length;
+          btn.disabled = (n < 2 || n > 4);
+        }
+        picker.addEventListener('change', updateBtn);
+        btn.addEventListener('click', function () {
+          var ids = Array.prototype.slice.call(document.querySelectorAll('.cmp-pick:checked')).map(function (el) { return el.value; });
+          var out = document.getElementById('comparison');
+          out.innerHTML = '<div class="clx-empty"><span class="clx-spinner"></span> Comparing…</div>';
+          clxApi.mgaPost('product-compare', { product_ids: ids }).then(function (resp) {
+            if (!resp.ok) { out.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed.') + '</div>'; return; }
+            var comparison = (resp.data && resp.data.comparison) || [];
+            if (comparison.length === 0) { out.innerHTML = '<div class="clx-empty">No comparison data returned.</div>'; return; }
+            var rowsHtml = '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Comparison (' + comparison.length + ')</div></div>';
+            rowsHtml += '<table class="clx-table"><thead><tr><th>Field</th>' + comparison.map(function (c) { return '<th>' + clxApi.escapeHtml(c.carrier) + ' — ' + clxApi.escapeHtml(c.product_name) + '</th>'; }).join('') + '</tr></thead><tbody>';
+            var fields = [
+              ['Type', function (c) { return c.product_type; }],
+              ['Min coverage', function (c) { return c.coverage ? clxApi.formatMoney(c.coverage.min_cents) : '—'; }],
+              ['Max coverage', function (c) { return c.coverage ? clxApi.formatMoney(c.coverage.max_cents) : '—'; }],
+              ['Base premium', function (c) { return c.premium ? clxApi.formatMoney(c.premium.base_cents) : '—'; }],
+              ['Underwriting age', function (c) { return c.underwriting ? (c.underwriting.min_age || '—') + ' – ' + (c.underwriting.max_age || '—') : '—'; }],
+              ['Commission FY', function (c) { return c.commission ? (c.commission.first_year || '—') + '%' : '—'; }],
+              ['AI-ready', function (c) { return c.ai_compliance_ready ? '✓' : '—'; }],
+              ['Features', function (c) { return (c.features || []).map(function (f) { return clxApi.escapeHtml(f); }).join(', ') || '—'; }]
+            ];
+            fields.forEach(function (f) {
+              rowsHtml += '<tr><td><strong>' + f[0] + '</strong></td>' + comparison.map(function (c) { return '<td>' + f[1](c) + '</td>'; }).join('') + '</tr>';
+            });
+            rowsHtml += '</tbody></table></div>';
+            out.innerHTML = rowsHtml;
+          });
+        });
+      });
+    }
+  })();
+</script>
+</body>
+</html>

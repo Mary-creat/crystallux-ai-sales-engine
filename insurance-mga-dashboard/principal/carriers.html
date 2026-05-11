@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carriers · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/principal/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">Carriers</h1><div class="clx-page-sub">Insurance carriers your MGA places with. AI-ready carriers accept pre-screened applications.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      load();
+    });
+    function load() {
+      var c = document.getElementById('content');
+      clxApi.mgaPost('carriers-list', {}).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed to load carriers.') + '</div>'; return; }
+        var carriers = (resp.data && resp.data.carriers) || [];
+        var html = '';
+        html += '<div class="clx-card"><div class="clx-card-head"><div><div class="clx-card-title">Carrier roster (' + carriers.length + ')</div><div class="clx-card-sub">Run the seed workflow once to populate digital-friendly carriers.</div></div></div>';
+        if (carriers.length === 0) html += '<div class="clx-empty">No carriers configured. Run <code>POST /webhook/mga/insurance/carrier-seed</code> (internal secret) to seed 8 digital-friendly defaults, then refresh.</div>';
+        else html += clxComp.renderTable(carriers, [
+          { label: 'Carrier', cell: function (c) { return clxApi.escapeHtml(c.carrier_name); } },
+          { label: 'Type', cell: function (c) { return clxApi.escapeHtml(c.carrier_type); } },
+          { label: 'Provinces', cell: function (c) { var p = Array.isArray(c.province_licensed) ? c.province_licensed : []; return clxApi.escapeHtml(p.join(', ') || '—'); } },
+          { label: 'Status', cell: function (c) { return clxComp.carrierStatusBadge(c); } },
+          { label: 'Digital quote', cell: function (c) { return c.digital_quote_ready ? '<span class="clx-badge clx-badge-success">Yes</span>' : '<span class="clx-badge clx-badge-neutral">No</span>'; } },
+          { label: 'Products', cell: function (c) { return (c.products || []).length; } }
+        ]);
+        html += '</div>';
+        c.innerHTML = html;
+      });
+    }
+  })();
+</script>
+</body>
+</html>

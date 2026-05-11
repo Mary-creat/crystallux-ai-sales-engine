@@ -1,0 +1,82 @@
+{
+  "name": "CLX - MGA Insurance Quote Engine v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/quote-engine", "responseMode": "responseNode", "options": {} },
+      "id": "qe-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-quote-engine-001",
+      "notes": "DEACTIVATED. Routes quote requests to manual/api/portal based on carrier_integrations.integration_type for each carrier in carrier_ids."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nif (!body.lead_id || !Array.isArray(body.carrier_ids) || body.carrier_ids.length === 0 || !body.client_id) return { json: { _empty: true, status: 400, error: 'lead_id, client_id, carrier_ids[] required' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "qe-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} },
+      "id": "qe-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403, error: 'Advisor or higher required' } };\nreturn { json: { _ok: true, body: $('Extract').item.json.body, actor_id: row.id || row.user_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "qe-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "qe-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_integrations?client_id=eq.{{ $json.body.client_id }}&carrier_id=in.({{ ($json.body.carrier_ids || []).join(',') }})&select=carrier_id,integration_type,sync_status,active",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "qe-0006", "name": "Fetch Integrations", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const integrations = Array.isArray($input.item.json) ? $input.item.json : [];\nconst body = $('Check Role').first().json.body;\nconst actor_id = $('Check Role').first().json.actor_id;\nconst byType = { manual: [], email: [], api: [], portal: [], unconfigured: [] };\n(body.carrier_ids || []).forEach(function (cid) {\n  const integ = integrations.find(function (i) { return i.carrier_id === cid && i.active; });\n  if (!integ) byType.unconfigured.push(cid);\n  else (byType[integ.integration_type] || byType.unconfigured).push(cid);\n});\n// Pre-seed pending carrier_quotes rows so the principal dashboard surfaces them.\nconst rows = (body.carrier_ids || []).map(function (cid) {\n  return { vertical_id: 'insurance', client_id: body.client_id, lead_id: body.lead_id, carrier_id: cid, product_id: body.product_id || null, suitability_assessment_id: body.suitability_assessment_id || null, quote_source: 'manual', quote_data: { dispatch: 'quote-engine' }, status: 'pending', created_by_user_id: actor_id };\n});\nreturn { json: { ok: true, dispatch: byType, pending_rows: rows, summary: { manual: byType.manual.length, email: byType.email.length, api: byType.api.length, portal: byType.portal.length, unconfigured: byType.unconfigured.length } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "qe-0007", "name": "Plan Dispatch", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_quotes", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.pending_rows) }}", "options": { "continueOnFail": true }
+      },
+      "id": "qe-0008", "name": "Seed Pending", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1840, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const planned = $('Plan Dispatch').first().json || {};\nreturn { json: { ok: true, dispatch: planned.dispatch, summary: planned.summary } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "qe-0009", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2080, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "qe-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2320, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "qe-0011", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1120, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract",          "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":{ "main": [[ { "node": "Check Role",       "type": "main", "index": 0 } ]] },
+    "Check Role":      { "main": [[ { "node": "IF OK",            "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Fetch Integrations", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Integrations":{ "main": [[ { "node": "Plan Dispatch",  "type": "main", "index": 0 } ]] },
+    "Plan Dispatch":   { "main": [[ { "node": "Seed Pending",     "type": "main", "index": 0 } ]] },
+    "Seed Pending":    { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

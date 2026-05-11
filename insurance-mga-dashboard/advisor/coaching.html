@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Coaching · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">Coaching</h1><div class="clx-page-sub">Productivity score + flags from the daily-summary generator.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      load(user);
+    });
+    function load(user) {
+      var c = document.getElementById('content');
+      var agent_id = user.id || user.user_id;
+      // Read agent_daily_summary directly via the generator's "current view" webhook.
+      // If the productivity surface isn't activated yet, fall back to a helpful empty state.
+      clxApi.postWebhook('productivity/summary/run', { agent_id: agent_id }).then(function (resp) {
+        if (!resp.ok && resp.status !== 200 && resp.status !== 0) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Coaching surface not yet active.') + '</div>'; return; }
+        var d = (resp.data && resp.data.summaries) ? resp.data : { summary: null };
+        // The generator returns { ok, summaries }; for current-day data the principal team page
+        // is more useful — here we render the single-agent latest snapshot.
+        var s = (d.summary || (Array.isArray(d.summaries) ? d.summaries[0] : null)) || {};
+        var html = '';
+        html += '<div class="clx-stat-grid">';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Productivity score</div><div class="clx-stat-value">' + (s.productivity_score != null ? Math.round(s.productivity_score) : '—') + '</div><div class="clx-stat-sub">' + clxApi.escapeHtml(s.trend || 'insufficient_data') + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Productive minutes</div><div class="clx-stat-value">' + (s.productive_minutes || 0) + '</div><div class="clx-stat-sub">of ' + (s.total_minutes_tracked || 0) + ' tracked</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Calls · Emails · Meetings</div><div class="clx-stat-value">' + (s.calls_made || 0) + ' · ' + (s.emails_sent || 0) + ' · ' + (s.meetings_held || 0) + '</div></div>';
+        html += '<div class="clx-stat"><div class="clx-stat-label">Leads qualified · Deals closed</div><div class="clx-stat-value">' + (s.leads_qualified || 0) + ' · ' + (s.deals_closed || 0) + '</div></div>';
+        html += '</div>';
+        var flags = Array.isArray(s.coaching_flags) ? s.coaching_flags : [];
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Coaching flags</div></div>';
+        if (flags.length === 0) html += '<div class="clx-empty">No coaching flags. Either you are on track, or the productivity classifier has not run yet today.</div>';
+        else html += '<ul class="clx-bullet-list">' + flags.map(function (f) { return '<li>' + clxApi.escapeHtml(typeof f === 'string' ? f : (f.label || f.flag || JSON.stringify(f))) + '</li>'; }).join('') + '</ul>';
+        html += '</div>';
+        c.innerHTML = html;
+      });
+    }
+  })();
+</script>
+</body>
+</html>

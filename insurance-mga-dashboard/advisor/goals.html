@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Goals · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/advisor/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">My Goals</h1><div class="clx-page-sub">Active targets + achievement %. Updated nightly by the universal performance aggregator.</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['advisor','sub_agent','mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      load();
+    });
+    function load() {
+      var c = document.getElementById('content');
+      clxApi.postApi('goals/my-progress', {}).then(function (resp) {
+        if (!resp.ok) { c.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed to load goals.') + '</div>'; return; }
+        var goals = (resp.data && resp.data.goals) || [];
+        if (goals.length === 0) { c.innerHTML = '<div class="clx-card"><div class="clx-empty">No active goals yet. Your principal can assign targets from <strong>Team Goals</strong>.</div></div>'; return; }
+        var html = '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Active goals (' + goals.length + ')</div></div>';
+        html += clxComp.renderTable(goals, [
+          { label: 'Goal', cell: function (g) { return clxApi.escapeHtml(g.template_name || 'Goal'); } },
+          { label: 'Metric', cell: function (g) { return clxApi.escapeHtml(g.metric || ''); } },
+          { label: 'Period', cell: function (g) { return clxApi.escapeHtml(g.period || '') + ' (' + clxApi.formatDate(g.period_start) + ' → ' + clxApi.formatDate(g.period_end) + ')'; } },
+          { label: 'Progress', cell: function (g) { return clxComp.performanceProgressBar(g.current_value, g.target_value); } }
+        ]);
+        html += '</div>';
+        c.innerHTML = html;
+      });
+    }
+  })();
+</script>
+</body>
+</html>

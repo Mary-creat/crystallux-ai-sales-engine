@@ -217,3 +217,62 @@ ON CONFLICT (client_id, template_name) DO NOTHING;
 
 Per-user goal instantiation happens through the `goals/assign` webhook
 once advisors are onboarded.
+
+---
+
+## 12. Apply Layer 2 carrier-integration migration (Commit B)
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/carrier-integration-schema.sql
+```
+
+Adds `insurance_carriers`, `carrier_products`, `carrier_integrations`,
+`carrier_quotes` — all tagged `vertical_id='insurance'`. Idempotent.
+
+---
+
+## 13. Re-import Layer 2 workflows (Commit B)
+
+9 new workflows under `workflows/api/insurance-mga/`:
+
+```bash
+docker cp workflows/api/insurance-mga n8n:/tmp/insurance-mga-c
+docker exec n8n n8n import:workflow --separate --input=/tmp/insurance-mga-c
+```
+
+All ship `active: false`. Activate after step 14.
+
+---
+
+## 14. Seed digital-friendly carriers (one-time)
+
+```bash
+curl -X POST https://automation.crystallux.org/webhook/mga/insurance/carrier-seed \
+  -H "Content-Type: application/json" \
+  -d '{"internal_secret":"<INTERNAL_EMAIL_SECRET>"}'
+```
+
+Expected response: `{"ok":true,"carriers_seeded":8,"products_seeded":~20}`.
+See `docs/insurance-mga/DIGITAL_FRIENDLY_CARRIERS_GUIDE.md` for the roster.
+
+---
+
+## 15. Activate v2 policy recommendation (optional)
+
+After carriers are seeded, flip `active: true` on
+`clx-mga-insurance-policy-recommendation-engine-v2`. v1 stays `active: false`
+as fallback. v2 returns 422 if no products exist for the requested product_type.
+
+---
+
+## 16. Deploy insurance-mga-dashboard frontend (Cloudflare)
+
+11 new pages + 3 shared file edits (api.js, components-mga.js, nav.html).
+Cloudflare Pages auto-deploys on push to `scale-sprint-v1`. After deploy:
+
+- Hard-refresh `mga.crystallux.org` (Ctrl+Shift+R) to bust cache.
+- Verify the new sidebar entries render for `info@crystallux.org`
+  (mga_principal role).
+- Smoke test each new page returns data or a clear empty state — DO NOT
+  expect data on `route-map`, `coaching`, `team-productivity` until the
+  upstream §29-§34 universal workflows are activated.

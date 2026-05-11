@@ -1,0 +1,64 @@
+{
+  "name": "CLX - MGA Insurance Product Compare v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/product-compare", "responseMode": "responseNode", "options": {} },
+      "id": "pc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-product-compare-001",
+      "notes": "DEACTIVATED. Returns side-by-side comparison of carrier_products. Used during suitability interview by advisor/product-comparison.html."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nif (!Array.isArray(body.product_ids) || body.product_ids.length === 0) return { json: { _empty: true, status: 400, error: 'product_ids[] required' } };\nreturn { json: { token, product_ids: body.product_ids } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pc-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} },
+      "id": "pc-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','mga_principal','admin','supervisor','sub_agent'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403, error: 'Advisor or higher required' } };\nreturn { json: { _ok: true, product_ids: $('Extract').item.json.product_ids } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pc-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "pc-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_products?vertical_id=eq.insurance&id=in.({{ ($json.product_ids || []).join(',') }})&select=*,insurance_carriers(id,carrier_name,carrier_type,ai_compliance_ready)",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "pc-0006", "name": "Fetch Products", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = Array.isArray($input.item.json) ? $input.item.json : [];\nconst comparison = products.map(function (p) {\n  return {\n    id: p.id,\n    carrier: p.insurance_carriers ? p.insurance_carriers.carrier_name : null,\n    product_name: p.product_name,\n    product_type: p.product_type,\n    coverage: { min_cents: p.min_coverage_cents, max_cents: p.max_coverage_cents },\n    premium: { base_cents: p.base_premium_cents },\n    underwriting: { min_age: p.underwriting_min_age, max_age: p.underwriting_max_age, notes: p.underwriting_notes },\n    commission: { first_year: p.commission_first_year, renewal: p.commission_renewal },\n    features: Array.isArray(p.features) ? p.features : [],\n    ai_compliance_ready: !!p.ai_compliance_ready\n  };\n});\nreturn { json: { ok: true, comparison } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pc-0007", "name": "Shape Comparison", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "pc-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1840, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "pc-0009", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1120, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract",          "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session":{ "main": [[ { "node": "Check Role",       "type": "main", "index": 0 } ]] },
+    "Check Role":      { "main": [[ { "node": "IF OK",            "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Fetch Products", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Products":  { "main": [[ { "node": "Shape Comparison", "type": "main", "index": 0 } ]] },
+    "Shape Comparison":{ "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

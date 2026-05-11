@@ -1,0 +1,87 @@
+{
+  "name": "CLX - MGA Insurance Carrier Seed Digital Friendly v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "mga/insurance/carrier-seed", "responseMode": "responseNode", "options": {} },
+      "id": "csd-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-mga-insurance-carrier-seed-digital-friendly-001",
+      "notes": "DEACTIVATED. INTERNAL_EMAIL_SECRET auth. Idempotent seed: 8 Canadian digital-friendly carriers + 3-4 starter products each. Run once after migrations land."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\n\n// Digital-friendly Canadian carriers (life + P&C). digital_quote_ready means they\n// have public quote APIs or carrier portals; ai_compliance_ready means they accept\n// AI-pre-screened applications. Names are placeholder-safe — verify business\n// relationships before production marketing claims.\nconst carriers = [\n  { name: 'PolicyMe',        code: 'POLICYME',   type: 'life',         provinces: ['ON','BC','AB','QC','MB','SK','NS','NB'], ai: true,  digital: true,  email: 'partners@policyme.com' },\n  { name: 'Walnut Insurance',code: 'WALNUT',     type: 'life',         provinces: ['ON','BC','AB','QC'],                       ai: true,  digital: true,  email: 'partners@walnutinsurance.com' },\n  { name: 'Manulife',        code: 'MANULIFE',   type: 'life',         provinces: ['ON','BC','AB','QC','MB','SK','NS','NB','PE','NL','YT','NT','NU'], ai: false, digital: false, email: null },\n  { name: 'Sun Life',        code: 'SUNLIFE',    type: 'life',         provinces: ['ON','BC','AB','QC','MB','SK','NS','NB','PE','NL','YT','NT','NU'], ai: false, digital: false, email: null },\n  { name: 'Canada Life',     code: 'CANADALIFE', type: 'life',         provinces: ['ON','BC','AB','QC','MB','SK','NS','NB','PE','NL'], ai: false, digital: false, email: null },\n  { name: 'iA Financial',    code: 'IA',         type: 'life',         provinces: ['ON','BC','AB','QC','MB','SK','NS','NB'], ai: false, digital: true, email: null },\n  { name: 'Intact',          code: 'INTACT',     type: 'p_and_c',      provinces: ['ON','BC','AB','QC','MB','SK','NS','NB','PE','NL'], ai: true,  digital: true,  email: null },\n  { name: 'Aviva Canada',    code: 'AVIVA',      type: 'p_and_c',      provinces: ['ON','BC','AB','QC','MB','SK','NS','NB'], ai: false, digital: true, email: null }\n];\n\n// 3-4 starter products per carrier.\nconst products = {\n  POLICYME:   [\n    { name: 'Term 10', type: 'term_life', min: 10000000, max: 500000000, base: 1500, fy: 100.0, ren: 5.0, ai: true,  features: ['fully_underwritten_online','convertible','renewable'] },\n    { name: 'Term 20', type: 'term_life', min: 10000000, max: 500000000, base: 2800, fy: 100.0, ren: 5.0, ai: true,  features: ['fully_underwritten_online','convertible','renewable'] }\n  ],\n  WALNUT:     [\n    { name: 'Group Term', type: 'term_life', min: 5000000, max: 200000000, base: 1200, fy: 90.0, ren: 4.0, ai: true,  features: ['employer_distribution','simplified_issue'] }\n  ],\n  MANULIFE:   [\n    { name: 'Family Term',   type: 'term_life',        min: 25000000, max: 2500000000, base: 2500, fy: 110.0, ren: 5.0, ai: false, features: ['renewable','convertible','child_rider'] },\n    { name: 'Manulife Par',  type: 'whole_life',       min: 25000000, max: 500000000,  base: 8000, fy: 90.0,  ren: 4.0, ai: false, features: ['participating','vanishing_premium'] },\n    { name: 'Lifecheque',    type: 'critical_illness', min: 5000000,  max: 200000000,  base: 4500, fy: 80.0,  ren: 4.0, ai: false, features: ['return_of_premium','25_conditions'] }\n  ],\n  SUNLIFE:    [\n    { name: 'SunTerm',              type: 'term_life',        min: 25000000, max: 2500000000, base: 2600, fy: 110.0, ren: 5.0, ai: false, features: ['renewable','convertible'] },\n    { name: 'Sun Par Protector II', type: 'whole_life',       min: 25000000, max: 500000000,  base: 8200, fy: 90.0,  ren: 4.0, ai: false, features: ['participating','vanishing_premium'] },\n    { name: 'Sun CII',              type: 'critical_illness', min: 5000000,  max: 200000000,  base: 4600, fy: 80.0,  ren: 4.0, ai: false, features: ['return_of_premium','25_conditions'] }\n  ],\n  CANADALIFE: [\n    { name: 'My Term',                type: 'term_life',        min: 25000000, max: 2500000000, base: 2550, fy: 110.0, ren: 5.0, ai: false, features: ['renewable','convertible'] },\n    { name: 'Wealth Achiever Plus',   type: 'whole_life',       min: 25000000, max: 500000000,  base: 8100, fy: 90.0,  ren: 4.0, ai: false, features: ['participating','vanishing_premium'] },\n    { name: 'LifeAdvance CI',         type: 'critical_illness', min: 5000000,  max: 200000000,  base: 4400, fy: 80.0,  ren: 4.0, ai: false, features: ['return_of_premium','26_conditions'] }\n  ],\n  IA:         [\n    { name: 'Term Life Pick-A-Term',  type: 'term_life',        min: 25000000, max: 1000000000, base: 2400, fy: 105.0, ren: 5.0, ai: false, features: ['renewable','convertible'] },\n    { name: 'Genesis IUL',            type: 'universal_life',   min: 25000000, max: 500000000,  base: 7000, fy: 85.0,  ren: 4.0, ai: false, features: ['indexed_strategies'] }\n  ],\n  INTACT:     [\n    { name: 'Personal Auto',    type: 'auto', min: 100000000, max: 5000000000, base: 12000, fy: 15.0, ren: 12.0, ai: true,  features: ['multi_vehicle_discount','loyalty_discount'] },\n    { name: 'Homeowners',       type: 'home', min: 100000000, max: 5000000000, base: 8000,  fy: 15.0, ren: 12.0, ai: true,  features: ['water_endorsement','sewer_backup'] },\n    { name: 'Tenant',           type: 'tenant', min: 5000000, max: 100000000,  base: 1500,  fy: 15.0, ren: 12.0, ai: true,  features: ['contents_replacement'] }\n  ],\n  AVIVA:      [\n    { name: 'Aviva Auto',       type: 'auto', min: 100000000, max: 5000000000, base: 12500, fy: 15.0, ren: 12.0, ai: false, features: ['multi_vehicle_discount'] },\n    { name: 'Ovation Home',     type: 'home', min: 100000000, max: 5000000000, base: 8200,  fy: 15.0, ren: 12.0, ai: false, features: ['water_endorsement','sewer_backup'] }\n  ]\n};\n\nreturn { json: { _authorized: true, carriers, products } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "csd-0002", "name": "Build Seed Data", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "csd-0003", "name": "IF Authorized", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const carriers = $input.item.json.carriers || [];\nconst rows = carriers.map(function (c) {\n  return { vertical_id: 'insurance', carrier_name: c.name, carrier_code: c.code, carrier_type: c.type, province_licensed: c.provinces, ai_compliance_ready: !!c.ai, digital_quote_ready: !!c.digital, contact_email: c.email || null, active: true };\n});\nreturn { json: { rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "csd-0004", "name": "Prepare Carriers", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/insurance_carriers?on_conflict=vertical_id,carrier_name", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "csd-0005", "name": "Upsert Carriers", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1120, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/insurance_carriers?vertical_id=eq.insurance&select=id,carrier_code", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "csd-0006", "name": "Fetch Carrier Ids", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const carrierRows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byCode = {};\ncarrierRows.forEach(function (r) { if (r.carrier_code) byCode[r.carrier_code] = r.id; });\nconst productsByCode = $('Build Seed Data').first().json.products || {};\nconst rows = [];\nObject.keys(productsByCode).forEach(function (code) {\n  const carrierId = byCode[code];\n  if (!carrierId) return;\n  (productsByCode[code] || []).forEach(function (p) {\n    rows.push({\n      vertical_id: 'insurance',\n      carrier_id: carrierId,\n      product_name: p.name,\n      product_type: p.type,\n      min_coverage_cents: p.min,\n      max_coverage_cents: p.max,\n      base_premium_cents: p.base,\n      commission_first_year: p.fy,\n      commission_renewal: p.ren,\n      ai_compliance_ready: !!p.ai,\n      features: Array.isArray(p.features) ? p.features : [],\n      active: true\n    });\n  });\n});\nreturn { json: { rows, carriers_seeded: carrierRows.length, products_to_seed: rows.length } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "csd-0007", "name": "Prepare Products", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_products?on_conflict=carrier_id,product_name", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "csd-0008", "name": "Upsert Products", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1840, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const seeded = $('Prepare Products').first().json || {};\nreturn { json: { ok: true, carriers_seeded: seeded.carriers_seeded || 0, products_seeded: seeded.products_to_seed || 0 } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "csd-0009", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2080, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "csd-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2320, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "csd-0011", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 600] }
+  ],
+  "connections": {
+    "Webhook":           { "main": [[ { "node": "Build Seed Data",  "type": "main", "index": 0 } ]] },
+    "Build Seed Data":   { "main": [[ { "node": "IF Authorized",   "type": "main", "index": 0 } ]] },
+    "IF Authorized":     { "main": [ [ { "node": "Prepare Carriers", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Prepare Carriers":  { "main": [[ { "node": "Upsert Carriers",  "type": "main", "index": 0 } ]] },
+    "Upsert Carriers":   { "main": [[ { "node": "Fetch Carrier Ids","type": "main", "index": 0 } ]] },
+    "Fetch Carrier Ids": { "main": [[ { "node": "Prepare Products", "type": "main", "index": 0 } ]] },
+    "Prepare Products":  { "main": [[ { "node": "Upsert Products",  "type": "main", "index": 0 } ]] },
+    "Upsert Products":   { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":    { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

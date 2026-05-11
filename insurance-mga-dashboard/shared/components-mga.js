@@ -77,6 +77,33 @@
     return '<span class="clx-priority-bar ' + cls + '" title="Priority: ' + esc(priority || 'medium') + '"></span>';
   }
 
+  // 8. PerformanceProgressBar — horizontal bar with achievement % overlay
+  function performanceProgressBar(current, target) {
+    var c = parseFloat(current) || 0;
+    var t = parseFloat(target)  || 0;
+    var pct = t > 0 ? Math.min(100, (c / t) * 100) : 0;
+    var cls = pct >= 100 ? 'clx-bar-success' : (pct >= 70 ? 'clx-bar-info' : (pct >= 40 ? 'clx-bar-warning' : 'clx-bar-danger'));
+    return '<div class="clx-progress"><div class="clx-progress-fill ' + cls + '" style="width:' + pct.toFixed(1) + '%"></div><div class="clx-progress-label">' + c + ' / ' + t + ' (' + Math.round(pct) + '%)</div></div>';
+  }
+
+  // 9. CapacityIndicator — team load: green <70%, amber 70-90%, red >90%
+  function capacityIndicator(used, capacity) {
+    var u = parseInt(used) || 0;
+    var c = parseInt(capacity) || 0;
+    var pct = c > 0 ? (u / c) * 100 : 0;
+    var cls = pct >= 90 ? 'clx-badge-danger' : (pct >= 70 ? 'clx-badge-warning' : 'clx-badge-success');
+    return '<span class="clx-badge ' + cls + '">' + u + ' / ' + c + ' (' + Math.round(pct) + '%)</span>';
+  }
+
+  // 10. CarrierStatusBadge — active / inactive / pending / api_offline
+  function carrierStatusBadge(carrier) {
+    if (!carrier) return '';
+    if (!carrier.active) return '<span class="clx-badge clx-badge-neutral">Inactive</span>';
+    if (carrier.api_endpoint && carrier.sync_status === 'error') return '<span class="clx-badge clx-badge-danger">API Offline</span>';
+    if (carrier.ai_compliance_ready) return '<span class="clx-badge clx-badge-success">AI Ready</span>';
+    return '<span class="clx-badge clx-badge-info">Active</span>';
+  }
+
   // Helper: render an empty / loading / error state
   function renderState(kind, message) {
     if (kind === 'loading') return '<div class="clx-empty"><span class="clx-spinner"></span> Loading…</div>';
@@ -106,6 +133,9 @@
   global.clxComp.triggerSourceBadge     = triggerSourceBadge;
   global.clxComp.videoEngagementStatus  = videoEngagementStatus;
   global.clxComp.priorityIndicator      = priorityIndicator;
+  global.clxComp.performanceProgressBar = performanceProgressBar;
+  global.clxComp.capacityIndicator      = capacityIndicator;
+  global.clxComp.carrierStatusBadge     = carrierStatusBadge;
   global.clxComp.renderState            = renderState;
   global.clxComp.renderTable            = renderTable;
 })(window);

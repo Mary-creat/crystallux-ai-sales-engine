@@ -12,7 +12,9 @@
    =================================================================== */
 (function (global) {
   'use strict';
-  var BASE = 'https://automation.crystallux.org/webhook/mga/insurance/';
+  var BASE         = 'https://automation.crystallux.org/webhook/mga/insurance/';
+  var BASE_API     = 'https://automation.crystallux.org/webhook/api/';
+  var BASE_WEBHOOK = 'https://automation.crystallux.org/webhook/';
 
   function getToken() { try { return localStorage.getItem('clx_session_token') || ''; } catch (e) { return ''; } }
   function authHeaders() { var t = getToken(); var h = { 'Content-Type': 'application/json' }; if (t) h['Authorization'] = 'Bearer ' + t; return h; }
@@ -28,8 +30,7 @@
     return snippet || ('Request failed (' + status + ').');
   }
 
-  function call(action, body) {
-    var url = BASE + action;
+  function callUrl(url, body) {
     return fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body || {}) })
       .then(function (r) {
         return r.text().then(function (txt) {
@@ -40,8 +41,14 @@
       .catch(function (err) { return { ok: false, status: 0, data: null, error: 'Network error: ' + (err && err.message || err) }; });
   }
 
+  function call(action, body)        { return callUrl(BASE + action,         body); }
+  function callApi(action, body)     { return callUrl(BASE_API + action,     body); }
+  function callWebhook(action, body) { return callUrl(BASE_WEBHOOK + action, body); }
+
   global.clxApi = {
     mgaPost: call,
+    postApi: callApi,
+    postWebhook: callWebhook,
     formatMoney: function (cents) { var v = (parseInt(cents) || 0) / 100; return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
     formatDate: function (isoOrDate) { if (!isoOrDate) return ''; var d = new Date(isoOrDate); if (isNaN(d.getTime())) return String(isoOrDate); return d.toLocaleDateString('en-CA'); },
     relativeTime: function (iso) { if (!iso) return ''; var d = new Date(iso).getTime(); if (isNaN(d)) return ''; var diff = (Date.now() - d) / 1000; if (diff < 60) return 'just now'; if (diff < 3600) return Math.floor(diff/60) + 'm ago'; if (diff < 86400) return Math.floor(diff/3600) + 'h ago'; return Math.floor(diff/86400) + 'd ago'; },

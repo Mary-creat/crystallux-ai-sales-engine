@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lead Distribution · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/principal/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a>
+  </div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head"><div><h1 class="clx-page-title">Lead Distribution</h1><div class="clx-page-sub">Round-robin rules + per-advisor capacity preferences (F7 universal engine).</div></div></div>
+      <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    </div>
+  </main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+    clxAuth.require(['mga_principal','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      render(user);
+    });
+    function render(user) {
+      var c = document.getElementById('content');
+      var html = '';
+      // Trigger distribute action card.
+      html += '<div class="clx-card"><div class="clx-card-head"><div><div class="clx-card-title">Run distribution now</div><div class="clx-card-sub">Assigns all unassigned leads (lead_status=Campaign Assigned) via the active round-robin rule.</div></div></div>';
+      html += '<button class="clx-btn clx-btn-primary" id="btnDistribute">Distribute pending leads</button>';
+      html += '<div id="distribResult" style="margin-top:12px"></div>';
+      html += '</div>';
+      // My preferences form (principal acts as their own advisor when active).
+      html += '<div class="clx-card"><div class="clx-card-head"><div><div class="clx-card-title">My capacity + zones</div><div class="clx-card-sub">Per-user preferences. Advisors update their own row.</div></div></div>';
+      html += '<form id="prefsForm" style="display:flex;flex-direction:column;gap:12px;max-width:520px">';
+      html += '<label>Accepting leads <input type="checkbox" name="is_accepting_leads" checked></label>';
+      html += '<label>Daily capacity <input type="number" name="daily_capacity" min="0" max="200" value="20" style="width:80px"></label>';
+      html += '<label>Weekly capacity <input type="number" name="weekly_capacity" min="0" max="800" value="80" style="width:80px"></label>';
+      html += '<label>Preferred zones (comma-separated postal prefixes, eg M5V,M4Y) <input type="text" name="preferred_zones" placeholder=""></label>';
+      html += '<button type="submit" class="clx-btn clx-btn-primary">Save preferences</button>';
+      html += '<div id="prefsResult"></div>';
+      html += '</form>';
+      html += '</div>';
+      c.innerHTML = html;
+
+      document.getElementById('btnDistribute').addEventListener('click', function () {
+        var out = document.getElementById('distribResult');
+        out.innerHTML = '<span class="clx-spinner"></span> Running…';
+        clxApi.postApi('leads/distribute', { client_id: user.client_id }).then(function (resp) {
+          if (!resp.ok) { out.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed.') + '</div>'; return; }
+          out.innerHTML = '<div class="clx-card-sub">Distributed <strong>' + ((resp.data && resp.data.distributed) || 0) + '</strong> leads.</div>';
+        });
+      });
+
+      document.getElementById('prefsForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(e.target);
+        var zonesStr = (fd.get('preferred_zones') || '').toString();
+        var body = {
+          is_accepting_leads: !!fd.get('is_accepting_leads'),
+          daily_capacity: parseInt(fd.get('daily_capacity')) || 20,
+          weekly_capacity: parseInt(fd.get('weekly_capacity')) || 80,
+          preferred_zones: zonesStr ? zonesStr.split(',').map(function (s) { return s.trim().toUpperCase(); }).filter(Boolean) : []
+        };
+        var out = document.getElementById('prefsResult');
+        out.innerHTML = '<span class="clx-spinner"></span> Saving…';
+        clxApi.postApi('team-member/preferences', body).then(function (resp) {
+          if (!resp.ok) { out.innerHTML = '<div class="clx-error-box">' + clxApi.escapeHtml(resp.error || 'Failed.') + '</div>'; return; }
+          out.innerHTML = '<div class="clx-badge clx-badge-success">Saved</div>';
+        });
+      });
+    }
+  })();
+</script>
+</body>
+</html>
