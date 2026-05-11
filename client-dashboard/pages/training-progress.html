@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Training Progress · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Training</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Training Progress</h1><div class="clx-page-sub">Per-category competency + recommended next topics.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+  clxAuth.require(['admin','supervisor','mga_principal','advisor','sub_agent','client_admin','client_user']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    load();
+  });
+  function load(){
+    var c = document.getElementById('content');
+    clxApi.call('api/training/progress', {}).then(function(resp){
+      if(!resp.ok){c.innerHTML='<div class="clx-error-box">'+esc(resp.error||'Failed.')+'</div>';return;}
+      var d = resp.data || {};
+      var html = '';
+      html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Competency by category</div></div>';
+      var prog = d.progress || [];
+      if(prog.length===0) html += '<div class="clx-empty">No completed training sessions yet. Open Training Coach to start.</div>';
+      else { html += '<table class="clx-table"><thead><tr><th>Category</th><th>Sessions</th><th>Completed</th><th>Avg competency</th></tr></thead><tbody>'; prog.forEach(function(p){html += '<tr><td>'+esc(p.category)+'</td><td>'+(p.sessions||0)+'</td><td>'+(p.completed||0)+'</td><td>'+(p.average_competency!=null?p.average_competency+'/100':'—')+'</td></tr>';}); html += '</tbody></table>'; }
+      html += '</div>';
+      var rem = d.remediation_needed || [];
+      if(rem.length>0) html += '<div class="clx-card" style="border-left:4px solid #f59e0b"><div class="clx-card-head"><div class="clx-card-title">⚠️ Practice more on</div></div><ul>'+rem.map(function(r){return '<li>'+esc(r)+'</li>';}).join('')+'</ul></div>';
+      var next = d.next_suggestions || [];
+      if(next.length>0){ html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Recommended next topics</div></div><ul>'+next.map(function(n){return '<li><strong>'+esc(n.title)+'</strong> — '+esc(n.category)+' · '+esc(n.difficulty||'')+'</li>';}).join('')+'</ul></div>'; }
+      c.innerHTML = html;
+    });
+  }
+})();
+</script>
+</body></html>

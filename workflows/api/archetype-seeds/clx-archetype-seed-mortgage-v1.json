@@ -1,0 +1,50 @@
+{
+  "name": "CLX - Archetype Seed Mortgage v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-mortgage", "responseMode": "responseNode", "options": {} },
+      "id": "asm-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-archetype-seed-mortgage-001",
+      "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent (UNIQUE(niche_name, archetype_name)). Seeds 8 mortgage broker archetypes for niche_name='mortgage'."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nconst rows = [\n  { niche_name: 'mortgage', archetype_name: 'first_time_buyer',     description: 'First-time home buyer researching mortgage options.',     trigger_signals: ['pre_approval_search','first_property_browse','government_program_view'], optional_signals: ['credit_inquiry','student_loan_paid'], recommended_action: 'send_video', recommended_channel: 'email', cool_down_days: 14 },\n  { niche_name: 'mortgage', archetype_name: 'refinance_seeker',      description: 'Existing homeowner shopping refinance to lower rate.',    trigger_signals: ['rate_comparison_view','refinance_calculator_use'],              optional_signals: ['mortgage_renewal_within_180_days'],                               recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 21 },\n  { niche_name: 'mortgage', archetype_name: 'investment_property',   description: 'Investor seeking rental property financing.',             trigger_signals: ['rental_property_listing_view','investment_calculator_use'],     optional_signals: ['second_property_search'],                                          recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 30 },\n  { niche_name: 'mortgage', archetype_name: 'second_home_buyer',     description: 'Buyer adding a recreational or secondary residence.',     trigger_signals: ['cottage_listing_view','second_home_search'],                    optional_signals: ['equity_takeout_inquiry'],                                          recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 30 },\n  { niche_name: 'mortgage', archetype_name: 'mortgage_renewal',      description: 'Borrower approaching renewal (within 180 days).',         trigger_signals: ['renewal_letter_received','rate_comparison_view'],               optional_signals: [],                                                                  recommended_action: 'send_video', recommended_channel: 'whatsapp', cool_down_days: 14 },\n  { niche_name: 'mortgage', archetype_name: 'pre_qualified_buyer',   description: 'Buyer holding a pre-qualification letter actively searching.', trigger_signals: ['preapproval_letter_dated_within_60d','property_search_active'], optional_signals: ['agent_assigned_signal'],                                          recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 7 },\n  { niche_name: 'mortgage', archetype_name: 'self_employed_borrower',description: 'Self-employed applicant needing alternative-income lending.', trigger_signals: ['self_employed_signal','alt_income_search'],                     optional_signals: ['business_income_grown'],                                          recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 30 },\n  { niche_name: 'mortgage', archetype_name: 'new_to_canada',         description: 'New permanent resident or work-permit holder seeking first mortgage.', trigger_signals: ['pr_status_recent','newcomer_program_view'],                  optional_signals: ['employer_letter_signal'],                                          recommended_action: 'send_video', recommended_channel: 'email', cool_down_days: 30 }\n];\nreturn { json: { _authorized: true, rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asm-0002", "name": "Build Rows", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "asm-0003", "name": "IF Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?on_conflict=niche_name,archetype_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "asm-0004", "name": "Upsert Archetypes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const seeded = ($('Build Rows').first().json.rows || []).length;\nreturn { json: { ok: true, niche_name: 'mortgage', archetypes_seeded: seeded } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asm-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "asm-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "asm-0007", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Build Rows", "type": "main", "index": 0 } ]] },
+    "Build Rows":      { "main": [[ { "node": "IF Auth",    "type": "main", "index": 0 } ]] },
+    "IF Auth":         { "main": [ [ { "node": "Upsert Archetypes", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Upsert Archetypes": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",  "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,94 @@
+{
+  "name": "CLX - Pre Meeting Briefing Generator v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/30 * * * *" } ] } }, "id": "pmbg-0001", "name": "Schedule Every 30m", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/briefing/generate-pending", "responseMode": "responseNode", "options": {} }, "id": "pmbg-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-pre-meeting-briefing-generator-001", "notes": "DEACTIVATED. Every 30m. Finds appointment_log within next 2h without briefing, generates Claude briefing per upcoming meeting." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/appointment_log?scheduled_start=gte.{{ new Date().toISOString() }}&scheduled_start=lte.{{ new Date(Date.now() + 2 * 3600000).toISOString() }}&outcome=is.null&select=id,lead_id,scheduled_start,scheduled_end,appointment_type,agent_id,client_id&limit=50",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "pmbg-0003", "name": "Fetch Upcoming", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (a) { return { json: { appointment: a } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pmbg-0004", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.appointment.lead_id }}&select=*&limit=1",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "pmbg-0005", "name": "Fetch Lead", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [960, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const appt = $('Fan Out').itemMatching($itemIndex).json.appointment;\nconst leadRows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst lead = leadRows[0] || null;\nif (!lead) return { json: { _skip: true } };\nconst systemPrompt = 'You are the Crystallux Pre-Meeting Briefing AI. Prepare the team member 1-2 hours before this meeting.\\n\\nLead context: ' + JSON.stringify(lead).slice(0, 4000) + '\\n\\nMeeting type: ' + (appt.appointment_type || 'discovery_call') + '\\nMeeting time: ' + appt.scheduled_start + '\\n\\nOutput strictly JSON: { \"client_context\": <2-3 sentences>, \"key_facts\": [<bullets>], \"talking_points\": [<bullets>], \"anticipated_objections\": [<bullets>], \"recommended_products\": [<bullets, freeform>], \"competitive_positioning\": <1-2 sentences>, \"closing_techniques\": [<bullets>] }';\nreturn { json: { appt, lead, claude_payload: { model: 'claude-sonnet-4-5-20250929', max_tokens: 1500, temperature: 0.3, system: systemPrompt, messages: [ { role: 'user', content: 'Generate the briefing.' } ] } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pmbg-0006", "name": "Build Prompt", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "anthropic-version", "value": "2023-06-01" }, { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 45000, "batching": { "batch": { "batchSize": 1, "batchInterval": 300 } } }
+      },
+      "id": "pmbg-0007", "name": "Claude Brief", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1440, 300],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build Prompt').itemMatching($itemIndex).json;\nconst resp = $input.item.json || {};\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\nif (!parsed) return { json: { _skip: true } };\nconst row = { user_id: ctx.appt.agent_id, lead_id: ctx.appt.lead_id, meeting_time: ctx.appt.scheduled_start, meeting_type: ctx.appt.appointment_type || 'discovery_call', briefing_content: parsed, generator_source: 'claude' };\nreturn { json: { row } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pmbg-0008", "name": "Build Row", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/pre_meeting_briefings",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "pmbg-0009", "name": "Insert Briefing", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1920, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inserted = ($('Build Row').all() || []).filter(function (i) { return i.json && i.json.row; }).length;\nreturn { json: { ok: true, briefings_generated: inserted } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pmbg-0010", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2160, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "pmbg-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2400, 300] }
+  ],
+  "connections": {
+    "Schedule Every 30m": { "main": [[ { "node": "Fetch Upcoming", "type": "main", "index": 0 } ]] },
+    "Webhook":            { "main": [[ { "node": "Fetch Upcoming", "type": "main", "index": 0 } ]] },
+    "Fetch Upcoming":     { "main": [[ { "node": "Fan Out",        "type": "main", "index": 0 } ]] },
+    "Fan Out":            { "main": [[ { "node": "Fetch Lead",     "type": "main", "index": 0 } ]] },
+    "Fetch Lead":         { "main": [[ { "node": "Build Prompt",   "type": "main", "index": 0 } ]] },
+    "Build Prompt":       { "main": [[ { "node": "Claude Brief",   "type": "main", "index": 0 } ]] },
+    "Claude Brief":       { "main": [[ { "node": "Build Row",      "type": "main", "index": 0 } ]] },
+    "Build Row":          { "main": [[ { "node": "Insert Briefing","type": "main", "index": 0 } ]] },
+    "Insert Briefing":    { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":     { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

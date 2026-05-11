@@ -276,3 +276,76 @@ Cloudflare Pages auto-deploys on push to `scale-sprint-v1`. After deploy:
 - Smoke test each new page returns data or a clear empty state — DO NOT
   expect data on `route-map`, `coaching`, `team-productivity` until the
   upstream §29-§34 universal workflows are activated.
+
+---
+
+## 17. Apply Session 2 Layer 1 schemas
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/pre-meeting-briefing-schema.sql
+psql "$DATABASE_URL" -f db/migrations/training-coach-schema.sql
+psql "$DATABASE_URL" -f db/migrations/file-completeness-schema.sql
+```
+
+All idempotent. Independent — order doesn't matter.
+
+---
+
+## 18. Re-import Session 2 Layer 1 workflows
+
+32 new workflows under 7 new folders:
+
+```bash
+for folder in content archetype-seeds supervisor rebook briefing training completeness; do
+  docker cp workflows/api/$folder n8n:/tmp/$folder
+  docker exec n8n n8n import:workflow --separate --input=/tmp/$folder
+done
+```
+
+All ship `active: false`.
+
+---
+
+## 19. Seed multi-vertical archetypes (optional, per vertical)
+
+For each vertical Mary plans to onboard, POST with `MARY_MASTER_TOKEN`:
+
+```bash
+curl -X POST https://automation.crystallux.org/webhook/api/seed-archetypes-mortgage \
+  -H "Content-Type: application/json" \
+  -d '{"master_token":"<MARY_MASTER_TOKEN>"}'
+```
+
+Substitute `mortgage` with `real-estate`, `logistics`, `beauty`, `dental`,
+or `consulting`. Idempotent — re-running is safe.
+
+---
+
+## 20. Apply for external platform APIs (Phase 4 — Mary's BD task)
+
+Run in parallel — none block the schema/workflow deployment:
+
+- LinkedIn Developer Account (Marketing API)
+- Meta for Developers (Instagram + Facebook Graph API)
+- YouTube Data API (Google Cloud Console)
+- TikTok for Business (Marketing API)
+- X Developer ($200/month tier required for posting)
+
+Until approvals land, the 6 publisher workflows are stubs that respond
+202 and write a `content_publications` row with `status='scheduled'`.
+
+---
+
+## 21. Activate Session 2 scheduled workflows (when ready)
+
+Flip `active: true` on (in n8n UI):
+
+- `clx-content-topic-generator-v1` (06:00 daily)
+- `clx-content-engagement-poller-v1` (every 6h)
+- `clx-content-attribution-loop-v1` (02:00 daily)
+- `clx-content-comment-monitor-v1` (every 2h)
+- `clx-pre-meeting-briefing-generator-v1` (every 30m)
+- `clx-no-show-multi-attempt-v1` (09:00 daily)
+- `clx-file-completeness-bulk-refresh-v1` (03:00 daily — stub heartbeat)
+
+Webhook-only workflows can be activated as soon as imported.

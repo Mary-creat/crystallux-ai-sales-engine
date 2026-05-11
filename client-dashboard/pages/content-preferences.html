@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Content Preferences · Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Content</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Content Preferences</h1><div class="clx-page-sub">Brand voice, target vertical, posting cadence, platforms.</div></div></div>
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Brand + voice</div></div>
+    <form id="prefsForm" style="display:flex;flex-direction:column;gap:12px;max-width:640px">
+      <label>Vertical <select name="vertical"><option value="insurance">Insurance</option><option value="mortgage">Mortgage</option><option value="real_estate">Real Estate</option><option value="logistics">Logistics</option><option value="beauty">Beauty</option><option value="dental">Dental</option><option value="consulting">Consulting</option><option value="other">Other</option></select></label>
+      <label>Brand voice <select name="brand_voice"><option value="trusted-expert">Trusted expert</option><option value="friendly-coach">Friendly coach</option><option value="results-driven">Results-driven</option><option value="warm-advisor">Warm advisor</option></select></label>
+      <label>Target audience <input type="text" name="target_audience" placeholder="eg young families, business owners, first-time buyers"></label>
+      <label>Posting cadence
+        <select name="posting_cadence"><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="daily">Daily</option><option value="custom">Custom</option></select>
+      </label>
+      <fieldset><legend>Platforms</legend>
+        <label><input type="checkbox" name="platforms" value="linkedin" checked> LinkedIn</label>
+        <label><input type="checkbox" name="platforms" value="instagram"> Instagram</label>
+        <label><input type="checkbox" name="platforms" value="facebook"> Facebook</label>
+        <label><input type="checkbox" name="platforms" value="youtube"> YouTube</label>
+        <label><input type="checkbox" name="platforms" value="tiktok"> TikTok</label>
+        <label><input type="checkbox" name="platforms" value="x"> X</label>
+      </fieldset>
+      <button type="submit" class="clx-btn clx-btn-primary">Save</button>
+      <div id="prefsResult"></div>
+    </form>
+  </div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+  clxAuth.require(['client_admin','admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+  });
+  document.getElementById('prefsForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    var platforms = [];
+    document.querySelectorAll('input[name=platforms]:checked').forEach(function(el){platforms.push(el.value);});
+    var body = { vertical: fd.get('vertical'), brand_voice: fd.get('brand_voice'), target_audience: fd.get('target_audience'), posting_cadence: fd.get('posting_cadence'), platforms: platforms };
+    var out = document.getElementById('prefsResult');
+    out.innerHTML = '<span class="clx-spinner"></span> Saving…';
+    // STUB endpoint — landing in a later commit. For now, save to localStorage.
+    try { localStorage.setItem('clx_content_prefs', JSON.stringify(body)); out.innerHTML = '<div class="clx-badge clx-badge-success">Saved locally. Backend endpoint pending Phase 4 activation.</div>'; }
+    catch (e) { out.innerHTML = '<div class="clx-error-box">Failed to save preferences.</div>'; }
+  });
+})();
+</script>
+</body></html>

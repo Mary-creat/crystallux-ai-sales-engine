@@ -1,0 +1,42 @@
+{
+  "name": "CLX - Content Attribution Loop v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 2 * * *" } ] } },
+      "id": "cal-0001", "name": "Schedule 02:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/content/attribution-run", "responseMode": "responseNode", "options": {} },
+      "id": "cal-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-content-attribution-loop-001",
+      "notes": "DEACTIVATED. STUB. Daily attribution: matches leads.source_referrer + lead.created_at against recent content_publications to score which content drove which conversions."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?source=in.(linkedin,instagram,facebook,youtube,tiktok,x,content_marketing)&created_at=gte.{{ new Date(Date.now() - 30 * 86400000).toISOString() }}&select=id,client_id,source,source_referrer,created_at,lead_status&limit=2000",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "cal-0003", "name": "Fetch Content Leads", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byPlatform = {};\nleads.forEach(function (l) {\n  const p = l.source || 'unknown';\n  byPlatform[p] = (byPlatform[p] || 0) + 1;\n});\n// STUB: real attribution joins content_publications.external_post_id with leads.source_referrer\n// and weights by recency. For now, returns a coarse per-platform lead count.\nreturn { json: { ok: true, total_content_leads: leads.length, by_platform: byPlatform, lookback_days: 30 } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cal-0004", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "cal-0005", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [960, 300] }
+  ],
+  "connections": {
+    "Schedule 02:00 Daily": { "main": [[ { "node": "Fetch Content Leads", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Content Leads", "type": "main", "index": 0 } ]] },
+    "Fetch Content Leads":  { "main": [[ { "node": "Shape Response",      "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",          "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

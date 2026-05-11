@@ -1,0 +1,85 @@
+{
+  "name": "CLX - Content Comment Response v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/content/comment-response", "responseMode": "responseNode", "options": {} },
+      "id": "ccr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-content-comment-response-001",
+      "notes": "DEACTIVATED. Called by clx-content-comment-monitor-v1 for each new comment. Claude generates a contextual reply in brand voice. For lead_opportunity intent, creates a lead row. For complaint intent, escalates to human (returns ok:false, escalate:true)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nif (!body.comment_text || !body.platform || !body.intent) return { json: { _empty: true, status: 400, error: 'comment_text, platform, intent required' } };\nreturn { json: { comment_text: body.comment_text, platform: body.platform, intent: body.intent, content_video_id: body.content_video_id || null, commenter_handle: body.commenter_handle || null, client_id: body.client_id || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "ccr-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.item.json;\nif (i.intent === 'complaint') return { json: { _escalate: true, reason: 'complaint — needs human reply' } };\nif (i.intent === 'lead_opportunity') return { json: { _create_lead: true, comment: i } };\nconst systemPrompt = 'You are responding to a public comment on a Crystallux-published video as the brand. Comment intent: ' + i.intent + '. Platform: ' + i.platform + '.\\nComment: ' + i.comment_text + '\\n\\nGenerate ONE reply that:\\n- Is warm, helpful, and on-brand (educational, not pushy)\\n- Is platform-appropriate length (LinkedIn 2-3 sentences, X 1-2 sentences, IG/FB 2-3 sentences)\\n- Never promises anything specific (rates, approvals, coverage)\\n- Invites further conversation via DM if the question is detailed\\n\\nOutput strictly JSON: { \"reply\": <reply text>, \"confidence\": <0-100>, \"requires_human\": <bool> }';\nreturn { json: { context: i, claude_payload: { model: 'claude-haiku-4-5-20251001', max_tokens: 400, temperature: 0.6, system: systemPrompt, messages: [ { role: 'user', content: 'Generate the reply.' } ] } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0004", "name": "Plan Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._escalate }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "ccr-0005", "name": "IF Escalate", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 240]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._create_lead }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "ccr-0006", "name": "IF Lead Opportunity", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "anthropic-version", "value": "2023-06-01" },
+          { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" }
+        ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.claude_payload) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "ccr-0007", "name": "Claude Reply", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 360],
+      "continueOnFail": true, "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || {};\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet parsed = null;\ntry { parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\nif (!parsed || !parsed.reply) return { json: { ok: false, escalate: true, reason: 'Claude returned non-JSON' } };\nreturn { json: { ok: true, reply: parsed.reply, confidence: parsed.confidence || 0, requires_human: !!parsed.requires_human } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0008", "name": "Shape Reply", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"client_id\": {{ $json.comment.client_id ? '\"' + $json.comment.client_id + '\"' : 'null' }}, \"first_name\": \"{{ $json.comment.commenter_handle || 'Social' }}\", \"last_name\": \"Lead\", \"source\": \"{{ $json.comment.platform }}\", \"source_referrer\": \"content_comment\", \"lead_status\": \"New\", \"notes\": \"Imported from {{ $json.comment.platform }} comment: {{ $json.comment.comment_text }}\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "ccr-0009", "name": "Create Lead", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 540],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ccr-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1840, 360] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, escalate: true, reason: $json.reason }) }}", "options": { "responseCode": 200 } }, "id": "ccr-0011", "name": "Respond Escalate", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 100] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, action: 'lead_created' }) }}", "options": { "responseCode": 201 } }, "id": "ccr-0012", "name": "Respond Lead Created", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1600, 540] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ccr-0013", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":            { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":             { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Plan Response", "type": "main", "index": 0 } ] ] },
+    "Plan Response":      { "main": [[ { "node": "IF Escalate", "type": "main", "index": 0 } ]] },
+    "IF Escalate":        { "main": [ [ { "node": "Respond Escalate", "type": "main", "index": 0 } ], [ { "node": "IF Lead Opportunity", "type": "main", "index": 0 } ] ] },
+    "IF Lead Opportunity":{ "main": [ [ { "node": "Create Lead", "type": "main", "index": 0 } ], [ { "node": "Claude Reply", "type": "main", "index": 0 } ] ] },
+    "Claude Reply":       { "main": [[ { "node": "Shape Reply",  "type": "main", "index": 0 } ]] },
+    "Shape Reply":        { "main": [[ { "node": "Respond OK",   "type": "main", "index": 0 } ]] },
+    "Create Lead":        { "main": [[ { "node": "Respond Lead Created", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

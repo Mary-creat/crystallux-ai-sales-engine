@@ -1,0 +1,42 @@
+{
+  "name": "CLX - Content Engagement Poller v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 */6 * * *" } ] } },
+      "id": "cep-0001", "name": "Schedule Every 6h", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/content/engagement-poll", "responseMode": "responseNode", "options": {} },
+      "id": "cep-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-content-engagement-poller-001",
+      "notes": "DEACTIVATED. STUB. Polls each platform for engagement metrics every 6h. Updates content_engagement. Real platform APIs land once developer approvals complete."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_publications?status=eq.published&external_post_id=not.is.null&select=id,platform,external_post_id,content_video_id,published_at&order=published_at.desc&limit=500",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cep-0003", "name": "Fetch Published", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// STUB: each platform requires its own polled metrics endpoint:\n//   linkedin   /ugcPosts/{id}/socialActivity\n//   instagram  Graph API /{ig-media-id}/insights\n//   facebook   Graph API /{post-id}/insights\n//   youtube    youtube.videos.list(part='statistics')\n//   tiktok     /v2/business/video/list\n//   x          /2/tweets/{id}?tweet.fields=public_metrics\n// For now we just touch each row so the schedule keeps a heartbeat.\nreturn { json: { ok: true, polled: rows.length, stub: true } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cep-0004", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "cep-0005", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [960, 300] }
+  ],
+  "connections": {
+    "Schedule Every 6h": { "main": [[ { "node": "Fetch Published", "type": "main", "index": 0 } ]] },
+    "Webhook":           { "main": [[ { "node": "Fetch Published", "type": "main", "index": 0 } ]] },
+    "Fetch Published":   { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":    { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

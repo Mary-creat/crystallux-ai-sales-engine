@@ -1,0 +1,57 @@
+{
+  "name": "CLX - Pre Meeting Briefing Effectiveness v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/briefing/effectiveness", "responseMode": "responseNode", "options": {} }, "id": "pmbe-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-pre-meeting-briefing-effectiveness-001", "notes": "DEACTIVATED. After a meeting, the team member rates briefing usefulness (0-100) + optional notes. Feeds the learning loop." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nconst score = parseFloat(body.effectiveness_score);\nif (!body.briefing_id || isNaN(score) || score < 0 || score > 100) return { json: { _empty: true, status: 400, error: 'briefing_id + effectiveness_score (0-100) required' } };\nreturn { json: { token, briefing_id: body.briefing_id, effectiveness_score: score, effectiveness_notes: body.effectiveness_notes || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pmbe-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "pmbe-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "pmbe-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst i = $('Extract').first().json;\nreturn { json: { _ok: true, user_id: row.user_id, briefing_id: i.briefing_id, effectiveness_score: i.effectiveness_score, effectiveness_notes: i.effectiveness_notes } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pmbe-0005", "name": "Check Session", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "pmbe-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/pre_meeting_briefings?id=eq.{{ $json.briefing_id }}&user_id=eq.{{ $json.user_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"used_at\": \"{{ new Date().toISOString() }}\", \"effectiveness_score\": {{ $json.effectiveness_score }}, \"effectiveness_notes\": {{ $json.effectiveness_notes ? '\"' + ($json.effectiveness_notes || '').replace(/\"/g, '\\\\\"') + '\"' : 'null' }} }",
+        "options": {}
+      },
+      "id": "pmbe-0007", "name": "Update Briefing", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nif (!row) return { json: { ok: false, error: 'Briefing not found or not yours' } };\nreturn { json: { ok: true, briefing_id: row.id, effectiveness_score: row.effectiveness_score } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pmbe-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "pmbe-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2080, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "pmbe-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract",          "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",           "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Check Session",    "type": "main", "index": 0 } ]] },
+    "Check Session":   { "main": [[ { "node": "IF OK",            "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Update Briefing", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Update Briefing": { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

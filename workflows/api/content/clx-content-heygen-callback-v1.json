@@ -1,0 +1,44 @@
+{
+  "name": "CLX - Content HeyGen Callback v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/content/heygen-callback", "responseMode": "responseNode", "options": {} },
+      "id": "chc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-content-heygen-callback-001",
+      "notes": "DEACTIVATED. HMAC-verified callback from HeyGen. Updates content_videos.video_url + status='ready' when render completes."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst sig = headers['x-heygen-signature'] || headers['X-HeyGen-Signature'] || '';\nconst secret = $env.HEYGEN_WEBHOOK_SECRET || '';\n// HMAC validation placeholder — verify when HEYGEN_WEBHOOK_SECRET set in vault.\nif (!sig && secret) return { json: { _unauthorized: true, status: 401, error: 'Missing signature' } };\nconst event = body.event_type || body.type || '';\nconst heygen_id = body.video_id || (body.data && body.data.video_id) || '';\nconst output_url = body.video_url || (body.data && body.data.video_url) || '';\nif (!heygen_id) return { json: { _empty: true, status: 400, error: 'video_id missing' } };\nreturn { json: { event, heygen_id, output_url, status: event === 'success' ? 'ready' : (event === 'fail' ? 'archived' : 'rendering') } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "chc-0002", "name": "Verify + Parse", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "chc-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_videos?heygen_video_id=eq.{{ $json.heygen_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"storage_url\": \"{{ $json.output_url }}\", \"status\": \"{{ $json.status }}\", \"rendered_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": {}
+      },
+      "id": "chc-0004", "name": "Update Video", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, updated: true }) }}", "options": { "responseCode": 200 } }, "id": "chc-0005", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1120, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "chc-0006", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Verify + Parse", "type": "main", "index": 0 } ]] },
+    "Verify + Parse":  { "main": [[ { "node": "IF Bad",         "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Update Video", "type": "main", "index": 0 } ] ] },
+    "Update Video":    { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

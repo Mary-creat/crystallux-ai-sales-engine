@@ -1,0 +1,55 @@
+{
+  "name": "CLX - Cold Lead Mark v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/rebook/cold-lead-mark", "responseMode": "responseNode", "options": {} },
+      "id": "clm-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-cold-lead-mark-001",
+      "notes": "DEACTIVATED. Internal — called by clx-no-show-multi-attempt-v1 after 4 failed attempts. Marks lead as cold, stops automated outreach, notifies assigned advisor."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nif (!body.lead_id) return { json: { _empty: true, status: 400, error: 'lead_id required' } };\nreturn { json: { lead_id: body.lead_id, client_id: body.client_id, appointment_id: body.appointment_id || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "clm-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "clm-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"lead_status\": \"cold\", \"do_not_contact_automated\": true, \"cooled_at\": \"{{ new Date().toISOString() }}\", \"cool_reason\": \"max_rebook_attempts_reached\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "clm-0004", "name": "Mark Cold", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"event_type\": \"lead_marked_cold\", \"event_data\": { \"lead_id\": \"{{ $('Extract').first().json.lead_id }}\", \"client_id\": \"{{ $('Extract').first().json.client_id }}\", \"reason\": \"max_rebook_attempts_reached\" } }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "clm-0005", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1120, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, lead_id: $('Extract').first().json.lead_id, status: 'cold' }) }}", "options": { "responseCode": 200 } }, "id": "clm-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "clm-0007", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":      { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":      { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":       { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Mark Cold", "type": "main", "index": 0 } ] ] },
+    "Mark Cold":    { "main": [[ { "node": "Audit Log",  "type": "main", "index": 0 } ]] },
+    "Audit Log":    { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

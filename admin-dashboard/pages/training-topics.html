@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Training Topics · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Training Topics</h1><div class="clx-page-sub">All universal + per-vertical training topics. Seed insurance topics via the insurance-mga seed workflow.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    load();
+  });
+  function load(){
+    var c = document.getElementById('content');
+    clxApi.call('api/training/topics', {}).then(function(resp){
+      if(!resp.ok){c.innerHTML='<div class="clx-error-box">'+esc(resp.error||'Failed.')+'</div>';return;}
+      var topics = (resp.data && resp.data.topics) || [];
+      if(topics.length===0){c.innerHTML='<div class="clx-card"><div class="clx-empty">No training topics yet. Run a vertical seed workflow (eg insurance-training-topics-seed).</div></div>';return;}
+      var byCat = {};
+      topics.forEach(function(t){(byCat[t.topic_category]=byCat[t.topic_category]||[]).push(t);});
+      var html = '';
+      Object.keys(byCat).sort().forEach(function(cat){
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">'+esc(cat)+' ('+byCat[cat].length+')</div></div>';
+        html += '<table class="clx-table"><thead><tr><th>Title</th><th>Vertical</th><th>Difficulty</th><th>~Min</th><th>Sessions</th></tr></thead><tbody>';
+        byCat[cat].forEach(function(t){
+          html += '<tr><td>'+esc(t.topic_title)+'</td><td>'+(t.vertical_id?esc(t.vertical_id):'<span class="clx-badge clx-badge-info">universal</span>')+'</td><td>'+esc(t.difficulty_level||'beginner')+'</td><td>'+(t.estimated_minutes||'')+'</td><td>'+(t.sessions_count||0)+(t.completed?' ✓':'')+'</td></tr>';
+        });
+        html += '</tbody></table></div>';
+      });
+      c.innerHTML = html;
+    });
+  }
+})();
+</script>
+</body></html>

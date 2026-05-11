@@ -1,0 +1,31 @@
+{
+  "name": "CLX - Archetype Seed Real Estate v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-real-estate", "responseMode": "responseNode", "options": {} }, "id": "asr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-real-estate-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='real_estate'." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nconst rows = [\n  { niche_name: 'real_estate', archetype_name: 'first_time_buyer',         description: 'First-time buyer beginning home search.',                  trigger_signals: ['mls_signup','first_time_program_view'],         optional_signals: ['mortgage_preapproval'], recommended_action: 'send_video', recommended_channel: 'email', cool_down_days: 14 },\n  { niche_name: 'real_estate', archetype_name: 'upsizing_family',          description: 'Growing family looking for larger home.',                  trigger_signals: ['family_size_increase_signal','school_district_search'], optional_signals: ['existing_property_listed'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 21 },\n  { niche_name: 'real_estate', archetype_name: 'downsizing_empty_nester',  description: 'Empty-nester ready to downsize.',                          trigger_signals: ['retirement_signal','condo_search'],             optional_signals: ['equity_inquiry'], recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 30 },\n  { niche_name: 'real_estate', archetype_name: 'investment_buyer',         description: 'Buyer building rental portfolio.',                         trigger_signals: ['rental_yield_calculator','multi_unit_search'],   optional_signals: ['cap_rate_query'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 30 },\n  { niche_name: 'real_estate', archetype_name: 'seller_motivated',         description: 'Homeowner with strong motivation to sell soon.',           trigger_signals: ['for_sale_by_owner_inquiry','market_value_estimate_request'], optional_signals: ['life_event_relocation'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 7 },\n  { niche_name: 'real_estate', archetype_name: 'seller_curious',           description: 'Homeowner exploring without firm timeline.',               trigger_signals: ['home_value_estimate_repeat'],                   optional_signals: [], recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 60 },\n  { niche_name: 'real_estate', archetype_name: 'commercial_buyer',         description: 'Business owner buying commercial real estate.',            trigger_signals: ['commercial_listing_view','sba_loan_inquiry'],   optional_signals: ['business_growth_signal'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 30 }\n];\nreturn { json: { _authorized: true, rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asr-0002", "name": "Build Rows", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "asr-0003", "name": "IF Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?on_conflict=niche_name,archetype_name", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}", "options": {} },
+      "id": "asr-0004", "name": "Upsert Archetypes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "return { json: { ok: true, niche_name: 'real_estate', archetypes_seeded: ($('Build Rows').first().json.rows || []).length } };", "mode": "runOnceForAllItems" }, "id": "asr-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "asr-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "asr-0007", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Build Rows", "type": "main", "index": 0 } ]] },
+    "Build Rows":      { "main": [[ { "node": "IF Auth",    "type": "main", "index": 0 } ]] },
+    "IF Auth":         { "main": [ [ { "node": "Upsert Archetypes", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Upsert Archetypes": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",  "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

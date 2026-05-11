@@ -1,0 +1,30 @@
+{
+  "name": "CLX - Content Comment Monitor v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 */2 * * *" } ] } },
+      "id": "ccm-0001", "name": "Schedule Every 2h", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/content/comment-monitor", "responseMode": "responseNode", "options": {} },
+      "id": "ccm-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-content-comment-monitor-001",
+      "notes": "DEACTIVATED. STUB. Polls each platform for new comments every 2h. Classifies intent (question | complaint | praise | lead_opportunity). Routes to clx-content-comment-response-v1 or escalates to human."
+    },
+    {
+      "parameters": {
+        "jsCode": "// STUB: per-platform comment endpoints.\n//   linkedin   GET /v2/comments?q=resource&resource=<urn>\n//   instagram  Graph API /{ig-media-id}/comments\n//   facebook   Graph API /{post-id}/comments\n//   youtube    youtube.commentThreads.list(part='snippet')\n//   tiktok     /v2/business/comment/list\n//   x          /2/tweets/{id}/replies (search)\nreturn { json: { ok: true, comments_polled: 0, stub: true, message: 'Awaiting platform API approvals.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ccm-0003", "name": "Poll Stub", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [480, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ccm-0004", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [720, 300] }
+  ],
+  "connections": {
+    "Schedule Every 2h": { "main": [[ { "node": "Poll Stub",   "type": "main", "index": 0 } ]] },
+    "Webhook":           { "main": [[ { "node": "Poll Stub",   "type": "main", "index": 0 } ]] },
+    "Poll Stub":         { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

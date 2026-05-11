@@ -1,0 +1,27 @@
+{
+  "name": "CLX - Archetype Seed Dental v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-dental", "responseMode": "responseNode", "options": {} }, "id": "asd-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-dental-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='dental'." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nconst rows = [\n  { niche_name: 'dental', archetype_name: 'new_dental_practice',     description: 'Recently opened dental practice acquiring patients.',     trigger_signals: ['new_office_signal','google_business_new'],     optional_signals: ['hiring_signal'],                 recommended_action: 'send_email',  recommended_channel: 'email', cool_down_days: 14 },\n  { niche_name: 'dental', archetype_name: 'dental_practice_growth',  description: 'Established practice with growth signals.',               trigger_signals: ['additional_op_search','associate_hire'],       optional_signals: ['revenue_growth_signal'],         recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 21 },\n  { niche_name: 'dental', archetype_name: 'dental_specialist',       description: 'Specialist (ortho, perio, endo) growing referrals.',      trigger_signals: ['specialist_referral_inquiry'],                 optional_signals: ['ce_completion_signal'],         recommended_action: 'send_email',  recommended_channel: 'email', cool_down_days: 30 },\n  { niche_name: 'dental', archetype_name: 'dental_group_practice',   description: 'Multi-location DSO/group considering services.',          trigger_signals: ['dso_search','group_practice_signal'],          optional_signals: ['acquisition_signal'],            recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 30 },\n  { niche_name: 'dental', archetype_name: 'orthodontics_practice',   description: 'Orthodontic practice (Invisalign/braces focus).',         trigger_signals: ['invisalign_inquiry','treatment_planning_software'], optional_signals: [],                              recommended_action: 'send_email',  recommended_channel: 'email', cool_down_days: 30 }\n];\nreturn { json: { _authorized: true, rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asd-0002", "name": "Build Rows", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "asd-0003", "name": "IF Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?on_conflict=niche_name,archetype_name", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}", "options": {} }, "id": "asd-0004", "name": "Upsert Archetypes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    { "parameters": { "jsCode": "return { json: { ok: true, niche_name: 'dental', archetypes_seeded: ($('Build Rows').first().json.rows || []).length } };", "mode": "runOnceForAllItems" }, "id": "asd-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "asd-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "asd-0007", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Build Rows", "type": "main", "index": 0 } ]] },
+    "Build Rows":      { "main": [[ { "node": "IF Auth",    "type": "main", "index": 0 } ]] },
+    "IF Auth":         { "main": [ [ { "node": "Upsert Archetypes", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Upsert Archetypes": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",  "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

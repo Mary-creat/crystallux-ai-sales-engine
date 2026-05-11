@@ -1,0 +1,63 @@
+{
+  "name": "CLX - Content Video Render v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/content/video-render", "responseMode": "responseNode", "options": {} },
+      "id": "cvr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-content-video-render-001",
+      "notes": "DEACTIVATED. Delegates to existing video pipeline. Marks content_videos.status='rendering'."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!token && !(body.master_token && body.master_token === masterToken)) return { json: { _unauthorized: true, status: 401 } };\nif (!body.content_video_id) return { json: { _empty: true, status: 400, error: 'content_video_id required' } };\nreturn { json: { content_video_id: body.content_video_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cvr-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } },
+      "id": "cvr-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_videos?id=eq.{{ $json.content_video_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"status\": \"rendering\" }",
+        "options": {}
+      },
+      "id": "cvr-0004", "name": "Mark Rendering", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/api/video/heygen-render' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"content_video_id\": \"{{ $('Extract').first().json.content_video_id }}\", \"source\": \"content_marketing\" }",
+        "options": { "timeout": 30000, "continueOnFail": true }
+      },
+      "id": "cvr-0005", "name": "Delegate To Video Pipeline", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { ok: true, content_video_id: $('Extract').first().json.content_video_id, status: 'rendering', delegated_to: 'clx-video-heygen-render-v1' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cvr-0006", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1360, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 202 } }, "id": "cvr-0007", "name": "Respond 202", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1600, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "cvr-0008", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":  { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":  { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":   { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Mark Rendering", "type": "main", "index": 0 } ] ] },
+    "Mark Rendering":         { "main": [[ { "node": "Delegate To Video Pipeline", "type": "main", "index": 0 } ]] },
+    "Delegate To Video Pipeline": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond 202", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

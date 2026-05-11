@@ -1,0 +1,69 @@
+{
+  "name": "CLX - Training Progress Tracker v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/training/progress", "responseMode": "responseNode", "options": {} }, "id": "tpt-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-training-progress-tracker-001", "notes": "DEACTIVATED. Session-token. Aggregates training_sessions into per-category competency + suggested next topics + remediation flags." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tpt-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "tpt-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "tpt-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { _ok: true, user_id: row.user_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "tpt-0005", "name": "Check Session", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "tpt-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/training_sessions?user_id=eq.{{ $json.user_id }}&select=topic_id,completed,user_rating,competency_score,started_at,completed_at,duration_seconds",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "tpt-0007", "name": "Fetch Sessions", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/training_topics?is_active=eq.true&select=id,topic_category,topic_title,difficulty_level",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "tpt-0008", "name": "Fetch Topics", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "type": "combineByPosition", "options": {} }, "id": "tpt-0009", "name": "Merge", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1840, 400] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst sessions = allOf('Fetch Sessions');\nconst topics   = allOf('Fetch Topics');\nconst topicMap = {};\ntopics.forEach(function (t) { topicMap[t.id] = t; });\nconst byCategory = {};\nsessions.forEach(function (s) {\n  const t = topicMap[s.topic_id]; if (!t) return;\n  const c = byCategory[t.topic_category] || { sessions: 0, completed: 0, total_score: 0, scored: 0 };\n  c.sessions += 1;\n  if (s.completed) c.completed += 1;\n  if (s.competency_score != null) { c.total_score += parseFloat(s.competency_score) || 0; c.scored += 1; }\n  byCategory[t.topic_category] = c;\n});\nconst progress = Object.keys(byCategory).map(function (cat) { const c = byCategory[cat]; return { category: cat, sessions: c.sessions, completed: c.completed, average_competency: c.scored > 0 ? Math.round(c.total_score / c.scored) : null }; });\nconst remediation = progress.filter(function (p) { return p.average_competency != null && p.average_competency < 60; }).map(function (p) { return p.category; });\nconst completedTopicIds = new Set(sessions.filter(function (s) { return s.completed; }).map(function (s) { return s.topic_id; }));\nconst nextSuggestions = topics.filter(function (t) { return !completedTopicIds.has(t.id); }).slice(0, 5).map(function (t) { return { topic_id: t.id, title: t.topic_title, category: t.topic_category, difficulty: t.difficulty_level }; });\nreturn { json: { ok: true, progress, remediation_needed: remediation, next_suggestions: nextSuggestions } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "tpt-0010", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2080, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "tpt-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2320, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "tpt-0012", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Check Session", "type": "main", "index": 0 } ]] },
+    "Check Session":   { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Fetch Sessions", "type": "main", "index": 0 }, { "node": "Fetch Topics", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Sessions":  { "main": [[ { "node": "Merge", "type": "main", "index": 0 } ]] },
+    "Fetch Topics":    { "main": [[ { "node": "Merge", "type": "main", "index": 1 } ]] },
+    "Merge":           { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

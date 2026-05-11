@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Content Performance · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Content Performance</h1><div class="clx-page-sub">Platform-wide content metrics across all clients.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    load();
+  });
+  function load(){
+    var c = document.getElementById('content');
+    clxApi.call('api/content/attribution-run', {}).then(function(resp){
+      if(!resp.ok){c.innerHTML = '<div class="clx-card"><div class="clx-empty">Attribution loop not yet active. Activate the daily 02:00 schedule on clx-content-attribution-loop-v1 to start populating this view.</div></div>';return;}
+      var d = resp.data || {};
+      var html = '';
+      html += '<div class="clx-stat-grid">';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Total content leads (30d)</div><div class="clx-stat-value">'+(d.total_content_leads||0)+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Lookback</div><div class="clx-stat-value">'+(d.lookback_days||30)+' days</div></div>';
+      html += '</div>';
+      var bp = d.by_platform || {};
+      html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">By platform</div></div>';
+      var keys = Object.keys(bp);
+      if(keys.length===0) html += '<div class="clx-empty">No content leads yet.</div>';
+      else { html += '<table class="clx-table"><thead><tr><th>Platform</th><th>Leads (30d)</th></tr></thead><tbody>'; keys.forEach(function(k){html += '<tr><td>'+esc(k)+'</td><td>'+bp[k]+'</td></tr>';}); html += '</tbody></table>'; }
+      html += '</div>';
+      c.innerHTML = html;
+    });
+  }
+})();
+</script>
+</body></html>

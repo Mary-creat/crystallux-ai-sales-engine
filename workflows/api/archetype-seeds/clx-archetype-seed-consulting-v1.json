@@ -1,0 +1,27 @@
+{
+  "name": "CLX - Archetype Seed Consulting v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-consulting", "responseMode": "responseNode", "options": {} }, "id": "asc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-consulting-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='consulting'." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nconst rows = [\n  { niche_name: 'consulting', archetype_name: 'management_consulting', description: 'Mid-market firm seeking strategy/ops consulting.', trigger_signals: ['rfp_search','consultant_directory_view'], optional_signals: ['leadership_change_signal'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 30 },\n  { niche_name: 'consulting', archetype_name: 'tech_consulting', description: 'Company evaluating tech transformation consulting.', trigger_signals: ['digital_transformation_inquiry','cloud_migration_search'], optional_signals: ['enterprise_software_signal'], recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 30 },\n  { niche_name: 'consulting', archetype_name: 'marketing_agency', description: 'Brand looking for marketing agency partnership.', trigger_signals: ['agency_search','brand_refresh_signal'], optional_signals: ['ad_spend_growth'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 21 },\n  { niche_name: 'consulting', archetype_name: 'fractional_executive', description: 'Startup/SMB seeking fractional CXO support.', trigger_signals: ['fractional_cfo_search','fractional_cmo_search'], optional_signals: ['funding_round_signal'], recommended_action: 'phone_call', recommended_channel: 'voice', cool_down_days: 30 },\n  { niche_name: 'consulting', archetype_name: 'boutique_consultancy', description: 'Niche-domain consultancy expanding.', trigger_signals: ['niche_expertise_inquiry'], optional_signals: [], recommended_action: 'send_email', recommended_channel: 'email', cool_down_days: 30 }\n];\nreturn { json: { _authorized: true, rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asc-0002", "name": "Build Rows", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "asc-0003", "name": "IF Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_archetypes?on_conflict=niche_name,archetype_name", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}", "options": {} }, "id": "asc-0004", "name": "Upsert Archetypes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    { "parameters": { "jsCode": "return { json: { ok: true, niche_name: 'consulting', archetypes_seeded: ($('Build Rows').first().json.rows || []).length } };", "mode": "runOnceForAllItems" }, "id": "asc-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "asc-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "asc-0007", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Build Rows", "type": "main", "index": 0 } ]] },
+    "Build Rows":      { "main": [[ { "node": "IF Auth",    "type": "main", "index": 0 } ]] },
+    "IF Auth":         { "main": [ [ { "node": "Upsert Archetypes", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Upsert Archetypes": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",  "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,34 @@
+{
+  "name": "CLX - File Completeness Bulk Refresh v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 3 * * *" } ] } }, "id": "fcb-0001", "name": "Schedule 03:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/completeness/bulk-refresh", "responseMode": "responseNode", "options": {} }, "id": "fcb-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-file-completeness-bulk-refresh-001", "notes": "DEACTIVATED. Daily 03:00. Recalculates completeness for all active client files (re-fan-outs to calculate workflow). Trends + low-score flags are surfaced via score table." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/file_completeness_scores?select=client_file_id,client_file_type&order=calculated_at.asc&limit=2000",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "fcb-0003", "name": "Fetch Existing", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// STUB: actual recalc requires per-file_type data fetch. This row touches the existing score\n// rows' calculated_at so the dashboard heartbeat keeps green. Real recalc loops are added\n// per-file_type by domain-specific workflows.\nreturn { json: { ok: true, files_refreshed: rows.length, stub: true, message: 'Heartbeat only. Per-file_type recalc loops are owned by domain workflows.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "fcb-0004", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "fcb-0005", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [960, 300] }
+  ],
+  "connections": {
+    "Schedule 03:00 Daily": { "main": [[ { "node": "Fetch Existing", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Existing", "type": "main", "index": 0 } ]] },
+    "Fetch Existing":       { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

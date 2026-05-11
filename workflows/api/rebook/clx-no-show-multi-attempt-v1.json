@@ -1,0 +1,76 @@
+{
+  "name": "CLX - No Show Multi Attempt v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 9 * * *" } ] } },
+      "id": "nsma-0001", "name": "Schedule 09:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "api/rebook/multi-attempt", "responseMode": "responseNode", "options": {} },
+      "id": "nsma-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "webhookId": "clx-no-show-multi-attempt-001",
+      "notes": "DEACTIVATED. Daily 09:00. For each no-show in last 14 days without rebook: Day 1=SMS, Day 3=WhatsApp, Day 7=Email, Day 14=Video, then mark cold. Increments appointment_log.rebook_attempts."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/appointment_log?outcome=eq.no_show&scheduled_end=gte.{{ new Date(Date.now() - 14 * 86400000).toISOString() }}&rebook_confirmed=eq.false&select=id,lead_id,client_id,scheduled_end,recovery_attempts,last_recovery_at",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "nsma-0003", "name": "Fetch No Shows", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst now = Date.now();\nreturn rows.map(function (r) {\n  const daysSince = Math.floor((now - new Date(r.scheduled_end).getTime()) / 86400000);\n  const attempts = parseInt(r.recovery_attempts) || 0;\n  let channel = null;\n  if (daysSince >= 1 && attempts < 1) channel = 'sms';\n  else if (daysSince >= 3 && attempts < 2) channel = 'whatsapp';\n  else if (daysSince >= 7 && attempts < 3) channel = 'email';\n  else if (daysSince >= 14 && attempts < 4) channel = 'video';\n  else if (daysSince >= 14 && attempts >= 4) channel = 'mark_cold';\n  return { json: { id: r.id, lead_id: r.lead_id, client_id: r.client_id, days_since: daysSince, attempts: attempts, next_channel: channel } };\n}).filter(function (i) { return i.json.next_channel !== null; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "nsma-0004", "name": "Plan Attempts", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/' + ($json.next_channel === 'mark_cold' ? 'api/rebook/cold-lead-mark' : ($json.next_channel === 'sms' ? 'clx-no-show-sms-recovery' : 'api/rebook/escalate')) }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"appointment_id\": \"{{ $json.id }}\", \"lead_id\": \"{{ $json.lead_id }}\", \"client_id\": \"{{ $json.client_id }}\", \"channel\": \"{{ $json.next_channel }}\", \"attempt_number\": {{ $json.attempts + 1 }} }",
+        "options": { "timeout": 15000, "continueOnFail": true, "batching": { "batch": { "batchSize": 1, "batchInterval": 200 } } }
+      },
+      "id": "nsma-0005", "name": "Dispatch Attempt", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/appointment_log?id=eq.{{ $('Plan Attempts').itemMatching($itemIndex).json.id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"recovery_attempts\": {{ ($('Plan Attempts').itemMatching($itemIndex).json.attempts || 0) + 1 }}, \"last_recovery_at\": \"{{ new Date().toISOString() }}\", \"last_recovery_channel\": \"{{ $('Plan Attempts').itemMatching($itemIndex).json.next_channel }}\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "nsma-0006", "name": "Update Attempt Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1200, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const planned = $('Plan Attempts').all() || [];\nconst byChannel = {};\nplanned.forEach(function (i) { byChannel[i.json.next_channel] = (byChannel[i.json.next_channel] || 0) + 1; });\nreturn { json: { ok: true, dispatched: planned.length, by_channel: byChannel } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "nsma-0007", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1440, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "nsma-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1680, 300] }
+  ],
+  "connections": {
+    "Schedule 09:00 Daily": { "main": [[ { "node": "Fetch No Shows", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch No Shows", "type": "main", "index": 0 } ]] },
+    "Fetch No Shows":       { "main": [[ { "node": "Plan Attempts",  "type": "main", "index": 0 } ]] },
+    "Plan Attempts":        { "main": [[ { "node": "Dispatch Attempt", "type": "main", "index": 0 } ]] },
+    "Dispatch Attempt":     { "main": [[ { "node": "Update Attempt Log", "type": "main", "index": 0 } ]] },
+    "Update Attempt Log":   { "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
