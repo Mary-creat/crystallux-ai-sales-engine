@@ -1,0 +1,59 @@
+{
+  "name": "CLX - Production Report Generate v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/reports/generate", "responseMode": "responseNode", "options": {} }, "id": "prg-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-production-report-generate-001", "notes": "DEACTIVATED. Session-token or MARY_MASTER_TOKEN. Creates a production_reports row keyed to template_id + recipient. Vertical-agnostic — the template carries the vertical filter." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nconst master = $env.MARY_MASTER_TOKEN || '';\nif (!token && !(body.master_token && body.master_token === master)) return { json: { _unauthorized: true, status: 401 } };\nif (!body.template_id || !body.recipient_id || !body.period_start || !body.period_end) return { json: { _empty: true, status: 400, error: 'template_id, recipient_id, period_start, period_end required' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "prg-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "prg-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/production_report_templates?id=eq.{{ $json.body.template_id }}&select=*&limit=1",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "prg-0004", "name": "Fetch Template", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst tpl = Array.isArray(rows) ? rows[0] : rows;\nif (!tpl) return { json: { _not_found: true, status: 404, error: 'Template not found' } };\nconst body = $('Extract').first().json.body;\n// Skeleton report_data — vertical-specific generators (eg insurance) fill richer payload by re-running with full data.\nconst report_data = { template_type: tpl.template_type, template_name: tpl.template_name, metrics_included: tpl.metrics_included || [], period: { start: body.period_start, end: body.period_end }, recipient_account_id: body.recipient_account_id || null, recipient_account_type: body.recipient_account_type || null, generated_skeleton: true };\nconst row = { vertical_id: tpl.vertical_id || null, template_id: tpl.id, recipient_id: body.recipient_id, recipient_account_id: body.recipient_account_id || null, recipient_account_type: body.recipient_account_type || null, reporting_period_start: body.period_start, reporting_period_end: body.period_end, report_data, status: 'generated' };\nreturn { json: { row } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "prg-0005", "name": "Build Row", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._not_found }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "prg-0006", "name": "IF Not Found", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 320] },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/production_reports",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "id": "prg-0007", "name": "Insert Report", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, report: row } };", "mode": "runOnceForEachItem" }, "id": "prg-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 240] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "prg-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2080, 240] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "prg-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Fetch Template", "type": "main", "index": 0 } ] ] },
+    "Fetch Template": { "main": [[ { "node": "Build Row", "type": "main", "index": 0 } ]] },
+    "Build Row":      { "main": [[ { "node": "IF Not Found", "type": "main", "index": 0 } ]] },
+    "IF Not Found":   { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Insert Report", "type": "main", "index": 0 } ] ] },
+    "Insert Report":  { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

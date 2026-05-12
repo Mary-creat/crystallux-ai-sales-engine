@@ -1,0 +1,42 @@
+{
+  "name": "CLX - Production Report Schedule v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 2 * * *" } ] } }, "id": "prs-0001", "name": "Schedule 02:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/reports/schedule-run", "responseMode": "responseNode", "options": {} }, "id": "prs-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-production-report-schedule-001", "notes": "DEACTIVATED. Daily 02:00. For each active template whose schedule_pattern matches the calendar (monthly = run on 1st, quarterly = Jan/Apr/Jul/Oct 1st, annual = Jan 1st), generates reports for all recipients matching template.recipient_role." },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date();\nconst day = today.getDate();\nconst month = today.getMonth() + 1;\nconst patterns = [];\nif (day === 1) patterns.push('monthly');\nif (day === 1 && [1, 4, 7, 10].indexOf(month) !== -1) patterns.push('quarterly');\nif (day === 1 && month === 1) patterns.push('annual');\nreturn { json: { patterns, day, month } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "prs-0003", "name": "Detect Patterns", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/production_report_templates?is_active=eq.true&select=*' + (($json.patterns || []).length > 0 ? '&schedule_pattern=in.(' + $json.patterns.join(',') + ')' : '&schedule_pattern=eq.never') }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "prs-0004", "name": "Fetch Due Templates", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [720, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn { json: { ok: true, scheduled_templates_due: rows.length, patterns_today: $('Detect Patterns').first().json.patterns, message: rows.length === 0 ? 'Nothing scheduled for today.' : 'Per-template fan-out to recipients lives in vertical-specific scheduler workflows. Universal scheduler reports the count; vertical schedulers do the heavy lifting.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "prs-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [960, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "prs-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1200, 300] }
+  ],
+  "connections": {
+    "Schedule 02:00 Daily": { "main": [[ { "node": "Detect Patterns",   "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Detect Patterns",   "type": "main", "index": 0 } ]] },
+    "Detect Patterns":      { "main": [[ { "node": "Fetch Due Templates","type": "main", "index": 0 } ]] },
+    "Fetch Due Templates":  { "main": [[ { "node": "Shape Response",    "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
