@@ -68,11 +68,13 @@
 
 ## 1.2 Business model
 
-**Three revenue streams:**
+**Three primary revenue streams (active today):**
 
 1. **SaaS subscriptions** (Layer 1) — recurring monthly revenue from clients using the universal sales engine.
 2. **MGA commissions** (Layer 2 Crystallux Insurance Network) — Mary's principal stake in the commission ledger of insurance policies sold through her advisors.
 3. **Future marketplace fees** (Layer 3, Year 2-3) — % of revenue from other MGAs running on the platform.
+
+**Full 10-phase monetization roadmap.** Beyond the three primary streams above, Crystallux has 7 additional revenue phases (AdvisorAssist standalone, Insurer Technology Partnerships across 7 tiers, White-Label / Marketplace, Multi-Vertical Expansion, Sentinel Operations, Sentinel Security, Data & Intelligence Products, plus the eventual Strategic Acquisition optionality). The complete reference — with pricing, year-by-year targets, dependencies, risk assessments, ethical framework, and what we explicitly will NOT do — lives in [`docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md`](../strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md). That document is the authoritative reference for every revenue-stream decision; this handbook section captures only the near-term essentials.
 
 **SaaS pricing tiers (from `client-dashboard/onboarding/index.html`):**
 

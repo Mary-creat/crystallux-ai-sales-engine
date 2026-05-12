@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-05-12 — Comprehensive Monetization Strategy Document
+
+**Branch:** `scale-sprint-v1`
+**Scope:** documentation only. No code changes.
+
+Created `docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md` — single authoritative reference for every revenue-stream decision across the 10-phase monetization roadmap.
+
+12 sections + 2 appendices:
+1. Executive summary (Y1/Y3/Y5 conservative/realistic/aspirational targets + key sequencing insight)
+2. All 10 revenue streams in detail — MGA commissions, SaaS subscriptions, AdvisorAssist standalone, Insurer Technology Partnerships (7 tiers), White-Label/Marketplace, Multi-Vertical Expansion, Sentinel Operations, Sentinel Security, Data + Intelligence Products, Strategic Acquisition. Each phase: concept, mechanism, target customer, pricing, year-by-year targets (3 scenarios), build status (already built vs. needs work), dependencies, risk assessment, strategic priority.
+3. Revenue stream prioritization — sequencing logic, build phase calendar, projection tables.
+4. What we will NOT do — explicit rejected paths (scraping, PII sales, predatory pricing, manipulative AI marketing, premature scaling).
+5. Legitimate competitive intelligence — LIMRA/LIIA/FSRA reports, partnership data, conferences.
+6. Pricing strategy across products.
+7. Partner and channel strategy.
+8. Capital strategy — bootstrap default + seed/Series A optionality + strategic investment + acquisition.
+9. Revenue metrics to track — MRR/ARR by stream, CAC, LTV, conversion, strategic ratios.
+10. Strategic options by year (Y1–Y5).
+11. Ethical framework — 6-question decision filter; stakeholder ordering.
+12. Execution priorities (now / this week / this month / defer).
+13. Appendix A — projections detail, sensitivity, break-even, worked unit economics.
+14. Appendix B — competitive comparison (Salesforce FSC, HubSpot, Guidewire, Bold Penguin, Send, Cogitate, Vertafore, Applied).
+
+Cross-referenced:
+- `docs/handbook/FOUNDER_OPERATIONS_HANDBOOK.md` §1.2 updated to point at the new monetization doc as the authoritative reference for revenue decisions beyond the three primary streams that handbook covers directly.
+
+**No code changes. No new schemas. No new workflows.** Pure strategy capture so future sessions / advisors / investors / acquirers reference one source instead of reconstructing thinking from chat fragments.
+
+---
+
 ## 2026-05-11 — Founder's Operations Handbook
 
 **Branch:** `scale-sprint-v1`
