@@ -1,7 +1,7 @@
 # Crystallux Monetization Strategy
 ## Complete Revenue Stream Reference Document
 
-> **Owner:** Mary Akintunde, Founder · **Version:** 1.0 · **Last reviewed:** 2026-05-12
+> **Owner:** Mary Akintunde, Founder · **Version:** 1.1 · **Last reviewed:** 2026-05-12
 >
 > Single source of truth for how Crystallux generates revenue. All
 > phase-by-phase pricing claims, build status, dependencies, and risk
@@ -966,6 +966,154 @@ When stakeholder interests conflict, **end-consumers > regulators > customers > 
 - **Insurer partnership pursuit** — Month 4–6 for Tier 1 relationships; real revenue Year 2.
 - **Multi-vertical expansion** — Year 2. Don't add a vertical until insurance is producing.
 - **Phase 4 content marketing activation** — depends on external API approvals (LinkedIn / Meta / YouTube / TikTok / X) — Mary's BD pursuit in parallel.
+
+---
+
+## Section 13 — Government Funding and Strategic Support
+
+> **Important framing:** government funding is **capital + tax recovery**, not revenue. SR&ED refunds offset tax owed. Grants are non-dilutive capital. Loans are debt. **None of these belong in MRR / ARR / valuation multiples.** They extend runway and reduce the burn rate needed to reach the Phase 1–10 revenue milestones. Treat them as a parallel work-stream to monetization — important, sequenceable, but not part of the revenue projection tables in Section 3.
+
+The Canadian government runs one of the most generous innovation-funding stacks in the OECD. Crystallux qualifies on multiple axes: AI/ML innovation, multi-vertical applicability, Canadian-built-and-operated, job-creation potential, export-market path, compliance/regulatory innovation, and vulnerable-population protection (seniors + financial consumers). Section 13 maps the programs Crystallux should pursue, in what order, with realistic dollar figures and prerequisites.
+
+### Crystallux qualification axes
+
+The same set of program officers evaluates dozens of AI applicants per year. Crystallux's pitch is differentiated on six axes — keep these phrases ready for every application:
+
+- **AI/ML innovation** — Claude-based compliance pre-screening, behavioral-intelligence trigger archetypes, training-coach reinforcement loop, AI-generated content pipelines. All represent genuine technical uncertainty (the SR&ED threshold).
+- **Multi-vertical applicability** — insurance proven; mortgage / real estate / dental / logistics / beauty / consulting architecturally ready. Programs scoring "transferability" love this.
+- **Canadian-built and operated** — Toronto-domiciled, Canadian-data-resident (Supabase + Cloudflare CAD region), Canadian-licensed founder.
+- **Job-creation potential** — Year 2 hiring plan is 3–8 FTE; Year 3 is 15–30 FTE. Includes high-skill AI + engineering roles.
+- **Export-market path** — Section 10's US + UK expansion is a credible export story for Export Development Canada and Trade Commissioner Service.
+- **Compliance / regulatory innovation** — FSRA-aligned AI compliance is a unique regulatory-tech contribution. Programs serving "trust + safety" tilt favorable.
+- **Vulnerable-population protection** — financial-consumer protection (PIPEDA / suitability / replacement disclosure) + future senior-focused verticals. Programs with social-benefit lenses score this highly.
+
+### Tier 1 — Apply immediately (Year 1, Q2–Q3 2026)
+
+#### SR&ED — Scientific Research & Experimental Development Tax Credit
+- **What:** Federal tax credit refunding 35–69% of eligible R&D expenditures (35% federal CCPC + provincial top-up of 10–35% depending on province; Ontario adds 8% Ontario Innovation Tax Credit + 3.5% ORDTC; Quebec is more generous; BC similar).
+- **Who qualifies:** Canadian-controlled private corporations doing experimental development with technical uncertainty. Crystallux's AI compliance engine, behavioral-intelligence trigger system, training coach, and HeyGen-orchestrated video pipeline all qualify.
+- **Eligible expenses:** salaries (founder + contractors), materials, third-party R&D contracts, overhead (proxy method available). Cloud + API costs (Claude, Supabase, n8n hosting) qualify if tied to experimental code.
+- **Application cadence:** annual, filed with corporate tax return (T2 + T661 schedule). 18-month filing window after fiscal year-end; don't miss it.
+- **Realistic Year-1 dollar:** $20K–$60K refund on $80K–$200K of eligible R&D spend. Year 2 with paid staff: $100K–$400K. Year 3: $400K–$1.5M.
+- **Effort:** ~20–40 hours/year if Mary keeps a contemporaneous technical log + invoices. Hire an SR&ED specialist Year 2+ (they keep 15–25% of the refund but find more eligible spend than you would).
+- **Prerequisites for Crystallux:** start a `docs/sred/2026-technical-log.md` now — describe each experiment, the technical uncertainty, the hypothesis, what was tested, the conclusion. CRA looks for *experimentation*, not just *invention*.
+- **Risk:** rejections happen on weak technical narratives. **Mitigation:** SR&ED specialist review before filing.
+
+#### CDAP — Canadian Digital Adoption Program
+- **What:** Federal program with two streams: (1) **Grow Your Business Online** — $2,400 micro-grant + free advisor for businesses adopting e-commerce; (2) **Boost Your Business Technology** — $15K grant + 0% interest BDC loan up to $100K for SMBs adopting digital tools.
+- **Who qualifies (Boost Your Business stream):** Canadian for-profit business with $500K+ annual revenue + at least 1 employee + Canadian incorporation. Crystallux meets the incorporation + employee thresholds once first hire lands; the $500K revenue threshold is the gating constraint.
+- **Application cadence:** open enrolment; processing 30–90 days.
+- **Realistic dollar:** $15K grant + $100K loan at 0% interest (5-year term, no payments first year). Useful for funding hardware, paid software (Stripe, Postmark, HeyGen credits), advisor onboarding tools, sales-enablement spend.
+- **Catch:** the $500K revenue threshold means CDAP is **not Year-1 applicable** unless Phase 1 commissions + Phase 2 SaaS combined cross $500K. Realistic timing: **late Year 1 or Year 2**.
+- **Alternative for pre-$500K:** the "Grow Your Business Online" stream ($2,400 + e-commerce advisor) is open to any Canadian business with at least one employee — apply now.
+
+#### NRC IRAP — Industrial Research Assistance Program
+- **What:** Federal R&D funding via project-based contributions. Range: $50K (small) → $500K (medium) → $10M+ (multi-year strategic).
+- **Who qualifies:** SMBs (<500 FTE) doing technical R&D with commercial potential. Crystallux qualifies obviously — AI-native platform, export potential, multi-vertical roadmap.
+- **How it works:** assigned an **Industrial Technology Advisor (ITA)** who becomes Crystallux's champion. The ITA relationship matters more than the application itself. First conversation is exploratory ("here's what we're building; here's our roadmap") — not a funding ask.
+- **Application cadence:** ongoing; once ITA is engaged, projects can be scoped in 6–10 weeks.
+- **Realistic Year-1 dollar:** $0–$50K (ITA conversation only). Year 2: $100K–$500K on a defined AI compliance + multi-vertical expansion project. Year 3: $500K–$2M on a strategic project.
+- **Effort:** initial ITA outreach is 4–8 hours of preparation + 1–2 meetings. Project applications: 20–60 hours each. Project reporting cadence: quarterly progress reports.
+- **Action this month:** identify the local NRC IRAP office (Toronto = St. Patrick St; check `nrc-cnrc.gc.ca/eng/irap`), submit the "interested in IRAP" web form, get the ITA assigned.
+
+### Tier 2 — After first paying customer (Year 1 H2 → Year 2)
+
+#### Innovation Ontario (Invest Ontario / Ontario Together Trade Fund) — Quebec equivalent: Investissement Québec
+- **What:** provincial economic development funding for high-growth tech. Programs vary; common shapes are grants ($50K–$500K) + interest-deferred loans + tax credits.
+- **Who qualifies:** Ontario-incorporated businesses with growth potential + job creation. Quebec equivalents (Investissement Québec, ESSOR) for QC-incorporated companies; Atlantic Canada Opportunities Agency for Atlantic provinces; Western Economic Diversification for AB/BC/SK/MB.
+- **Application cadence:** quarterly or rolling depending on stream.
+- **Realistic Year-1 dollar:** $0 (not yet enough traction). Year 2: $100K–$500K on a defined growth project.
+- **Prerequisites:** 5+ paying customers + a defined growth project (e.g., "expand to 3 verticals" or "hire 5 AI engineers"). Crystallux qualifies once Phase 2 is producing.
+
+#### BDC capital programs — Business Development Bank of Canada
+- **What:** federal Crown corporation; subordinated debt + growth equity + advisory services. Programs include the **BDC Capital — Growth Equity** (typically $1M–$10M cheques), **BDC Capital — Women in Technology Venture Fund** (since Mary is a woman founder, this is directly applicable; $250K–$5M), and **BDC Small Business Loans** (up to $100K at favorable rates).
+- **Who qualifies:** Canadian SMBs. Women in Technology fund requires 50%+ women ownership — Mary qualifies as solo founder.
+- **Application cadence:** ongoing; equity deals take 3–6 months.
+- **Realistic Year-1 dollar:** $0–$100K (small business loan only). Year 2: $250K–$2M (Women in Technology equity or convertible note). Year 3: $2M–$5M (growth equity Series A participation alongside private investors).
+- **Strategic note:** BDC equity is **friendly capital** — long hold, supportive of founder, no board seat requirement at <$2M. Often participates alongside private VCs in Series A.
+
+#### Sector-specific health / senior programs
+- **What:** Federal + provincial programs for SMBs serving healthcare or senior populations. Examples: **CAN Health Network** (procurement-driven), **AGE-WELL** (national network for technology and aging), **Centre for Aging + Brain Health Innovation** (CABHI) at Baycrest.
+- **Relevance to Crystallux:** the senior-financial-protection angle of insurance compliance + the future multi-vertical roadmap into healthcare/dental/wellness gives Crystallux a credible pitch for these programs.
+- **Realistic Year-1 dollar:** $0 (not yet sector-mature). Year 2: $50K–$300K on a pilot. Year 3: $300K–$1M on a defined deployment.
+- **Prerequisites:** at least one healthcare/senior-vertical pilot customer + an articulated social-benefit framing.
+
+### Tier 3 — Year 2–3 with traction
+
+#### SIF — Strategic Innovation Fund
+- **What:** federal innovation fund for large strategic projects. Range: $5M–$50M per project (sometimes larger). Targets transformative R&D + job creation + supply-chain investments.
+- **Who qualifies:** companies with >$10M project investment + national-strategic importance. Crystallux's "AI-native multi-vertical platform with export potential" is exactly the SIF thesis.
+- **Application cadence:** rolling; deals take 12–24 months from first conversation to first cheque.
+- **Realistic Year-3 dollar:** $5M–$15M on a defined multi-year project (e.g., "build a Canadian AI-compliance hub serving 5 verticals + 3 export markets").
+- **Prerequisites:** Series A closed (signals private-capital validation) + 50+ FTE plan + multi-million revenue + multi-vertical proof.
+
+#### Health Canada innovation programs
+- **What:** various Health Canada streams supporting health-system innovation — including the **Health Care Innovation Fund** and **PrescribeIT-adjacent funding**.
+- **Relevance:** if Crystallux launches a healthcare-adjacent vertical (dental, senior insurance, group benefits, mental-health practitioners), these programs become relevant.
+- **Realistic Year-3 dollar:** $200K–$1M on a defined health-vertical project.
+
+#### Export Development Canada (EDC)
+- **What:** federal export credit agency. Provides credit insurance, working-capital financing, and equity investment for Canadian exporters.
+- **Relevance:** Year 3+ when US / UK / Australia expansion is real. EDC can underwrite international receivables + provide growth capital alongside Series A or B.
+- **Realistic Year-3 dollar:** $0 if domestic-only. $500K–$5M if exporting.
+
+#### AI for Public Good procurement
+- **What:** federal procurement initiatives where the government buys AI services from Canadian companies. Programs include **Innovative Solutions Canada (ISC)** ($150K–$1M Phase 1; $1M–$5M Phase 2) and various direct procurements from departments like ESDC, CRA, Service Canada.
+- **Relevance:** Crystallux's compliance + audit + multi-vertical capabilities are directly applicable to government use cases (procurement compliance, advisor licensing systems, regulator-side compliance scorecards).
+- **Realistic Year-3 dollar:** $150K–$5M on a single ISC challenge.
+
+### Cumulative funding timeline
+
+| Year | Conservative | Realistic | Aspirational |
+|---|---|---|---|
+| Year 1 (2026) | $20K SR&ED + $2K CDAP micro-grant | $50K SR&ED + $15K CDAP + IRAP conversation | $80K SR&ED + $100K IRAP starter + $20K provincial |
+| Year 2 (2027) | $150K SR&ED + $100K CDAP loan | $400K SR&ED + $300K IRAP + $250K BDC + $200K provincial | $800K cumulative non-dilutive + $2M BDC equity |
+| Year 3 (2028) | $500K cumulative | $1M SR&ED + $1.5M IRAP + $1M provincial + $1.5M sector | $5M cumulative + $5M–$15M SIF |
+| Year 3 cumulative total | **$0.7M** | **$3M–$5M** | **$10M–$15M** |
+
+These dollar figures **extend runway** + **fund the Section 2 build calendar without dilution**. Conservative case alone covers ~1 FTE-year. Realistic case in Year 2 covers ~3 FTE-years.
+
+### Application priority order
+
+This is the **execution sequence** for Year 1–2:
+
+1. **SR&ED (annual, easy).** Start the technical log now. File with first T2. Hire specialist Year 2+.
+2. **CDAP "Grow Your Business Online" stream.** Apply now — $2,400 + advisor — low effort, eligible at zero revenue.
+3. **NRC IRAP — open ITA conversation.** Outreach in Month 1–2. First project proposal Year 1 H2 / Year 2.
+4. **CDAP "Boost Your Business Technology" stream.** Apply when revenue crosses $500K (likely late Year 1 / early Year 2).
+5. **Provincial programs.** Apply when 5+ paying SaaS customers signed (Year 2 Q1–Q2).
+6. **BDC — Women in Technology Venture Fund.** Apply Year 2 when MRR ≥ $30K — aligns with the seed-fundraise window in Section 8.
+7. **Health / senior-focused programs.** Apply Year 2–3 once a healthcare-adjacent vertical pilot is signed (Phase 6 expansion).
+8. **SIF — Strategic Innovation Fund.** Begin conversations Year 2; submit application Year 3 once Series A closed + 25+ FTE plan defined.
+
+### How to integrate with Section 8 (Capital Strategy)
+
+Government funding **does not replace** the Section 8 capital strategy — it **complements** it.
+
+- **Bootstrap path:** government funding is the single most important boost. ~$50K Year 1 SR&ED + IRAP can extend bootstrap runway by 4–8 months at solo-founder burn. Year 2 ~$700K of combined non-dilutive cuts the required private-capital raise in half.
+- **Seed fundraise:** present the government funding pipeline (SR&ED expected refund + IRAP project + BDC Women-in-Tech) as part of the use-of-funds story. Investors love non-dilutive capital that stretches their cheque.
+- **Series A:** SIF + provincial growth programs add 30–50% to the effective raise without dilution. A $5M Series A with $5M in matched government funding behaves like a $10M raise.
+
+### Risk + integrity guardrails
+
+- **Don't over-promise.** Application narratives that overstate AI autonomy or revenue trajectory bite back at audit / progress-report time. Use the same honesty rules from Section 11.
+- **Account separately.** Government funding flows through different accounts and reporting cadences than commercial revenue. Use a dedicated bookkeeping class.
+- **Read the strings.** Every grant + loan has reporting requirements + sometimes IP-disclosure + sometimes restrictions on dual-use revenue. Read the contract before signing.
+- **No double-counting.** SR&ED refunds reduce eligible R&D costs in subsequent years; CDAP loans must be repaid; SIF often requires matching commercial revenue. None of this is revenue.
+- **Eligibility limits.** Many programs require minimum revenue / employee / age-of-business thresholds. Verify each application before investing time on a narrative.
+
+### Recommended advisor stack for government funding
+
+- **SR&ED specialist:** Year 2+ engagement. Typical fee: 15–25% of refund + minimum retainer. Vetted firms: G6 Consulting, RDP Associates, NorthBridge, FundingPortal. Get 3 quotes.
+- **Grant-writing consultant:** $5K–$25K per major application (IRAP, SIF). Used selectively — Year 2+ for SIF, optional for IRAP.
+- **Accounting partner:** must understand SR&ED + grant accounting from day one. KMP LLP, Crowe Soberman, or similar mid-size firms with SR&ED practices.
+
+### Action this week
+
+- [ ] Create `docs/sred/2026-technical-log.md` — start logging technical experiments, uncertainties, hypotheses, outcomes. Backfill from Sessions 1–3 commits.
+- [ ] Apply to CDAP "Grow Your Business Online" stream — $2,400 + advisor for any business with ≥1 employee.
+- [ ] Submit NRC IRAP "interested in IRAP" web form to the Toronto regional office.
+- [ ] Add SR&ED + IRAP line items to the founder's running funding pipeline tracker.
 
 ---
 

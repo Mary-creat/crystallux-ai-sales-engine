@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-12 — Monetization Strategy §13 (Government Funding)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** documentation only. No code changes.
+
+Added **Section 13 — Government Funding and Strategic Support** to `docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md`. Bumped doc version to 1.1.
+
+Critical framing established up front: government funding is **capital + tax recovery, not revenue**. SR&ED refunds, grants, and BDC loans do NOT belong in MRR/ARR/valuation multiples — they extend runway and reduce the burn rate needed to reach Section 2 revenue milestones. Treat as parallel work-stream, not part of Section 3 revenue projection tables.
+
+Section 13 contents:
+
+- **Crystallux qualification axes** — six phrases to anchor every application: AI/ML innovation, multi-vertical applicability, Canadian-built-and-operated, job-creation potential, export-market path, compliance/regulatory innovation, vulnerable-population protection.
+- **Tier 1 (apply immediately):** SR&ED tax credit (35–69% refund, Y1 ~$50K), CDAP "Grow Your Business Online" stream ($2,400 + advisor, eligible now), NRC IRAP (begin ITA conversation now; first project Y1 H2 / Y2).
+- **Tier 2 (after first paying customer):** CDAP "Boost Your Business Technology" ($15K grant + $100K 0% loan, needs $500K revenue gate), Innovation Ontario / Investissement Québec / regional equivalents, BDC capital programs including Women in Technology Venture Fund (Mary qualifies as solo woman founder), sector-specific health/senior programs (CAN Health Network, AGE-WELL, CABHI).
+- **Tier 3 (Year 2–3 with traction):** Strategic Innovation Fund ($5M–$50M per project), Health Canada innovation programs, Export Development Canada (when US/UK expansion is real), AI-for-Public-Good procurement (Innovative Solutions Canada $150K–$5M per challenge).
+- **Cumulative funding timeline:** Y1 $20K–$80K, Y2 $250K–$2M, Y3 $0.7M–$15M cumulative.
+- **Application priority order:** SR&ED → CDAP starter → IRAP ITA conversation → CDAP loan stream → provincial → BDC Women-in-Tech → health/senior → SIF.
+- **Integration with Section 8 capital strategy:** government funding extends bootstrap runway by 4–8 months in Y1; cuts required Series A raise by 30–50%.
+- **Risk + integrity guardrails:** no over-promising in narratives, separate accounting, read strings carefully, no double-counting, eligibility thresholds matter.
+- **Recommended advisor stack:** SR&ED specialist (15–25% of refund) Y2+, grant-writing consultant for SIF, accounting partner with SR&ED practice from day one.
+- **Action-this-week checklist:** create `docs/sred/2026-technical-log.md`, apply CDAP Grow Your Business Online, submit NRC IRAP web form to Toronto office, add line items to founder funding tracker.
+
+**No code changes. No new schemas. No new workflows.**
+
+---
+
 ## 2026-05-12 — Comprehensive Monetization Strategy Document
 
 **Branch:** `scale-sprint-v1`
