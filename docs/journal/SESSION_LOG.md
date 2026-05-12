@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-12 — Monetization Strategy §14 (Victory Enrichment Partnership)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** documentation only. No code changes.
+
+Added **Section 14 — Victory Enrichment Partnership Strategy** to `docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md`. Bumped doc version to 1.2.
+
+Critical framing established at the top of §14: Mary leads both Crystallux (for-profit) and Victory Enrichment (registered Canadian charity with CRA number). This creates a **related-party / non-arm's-length relationship** that CRA scrutinizes closely. Every transaction must be (1) fair market value, (2) contemporaneously documented, (3) consistent with what Crystallux would charge an unrelated charity, (4) lawyer-reviewed before execution. **Section is strategic framing — not legal advice. Lawyer review is non-negotiable.**
+
+§14 contents:
+
+- **Why this section belongs in the monetization doc:** Victory is not a Crystallux revenue stream — separate charity with its own mission, board, donors. The two organizations *interact* strategically (shared founder, mission credibility, bi-directional donations, combined funding optionality). Documenting once here prevents quarterly reconstruction.
+- **Confirmed status:** Victory is a registered Canadian charity with CRA number; can issue official tax receipts; led by Mary; mission focus is youth + seniors + post-conflict / displacement reintegration.
+- **4-stage partnership progression:**
+  - **Stage 1 (Months 1-6):** operational integration — Crystallux provides free platform access valued at $1,497-$5,997/mo as a documented gift-in-kind. Requires a published charity-pricing policy + at least one other charity beneficiary to maintain arm's-length defensibility.
+  - **Stage 2 (Months 6-12):** Crystallux pledges 1-2% of annual profits via board resolution. At Y2 realistic ($5.1M revenue) that's $51K/yr; at Y3 ($24.5M) that's $245-490K/yr. Tax-deductible donation to Victory; brand differentiator for Crystallux.
+  - **Stage 3 (Year 2+):** customer-giving via Crystallux billing. Round-up + opt-in donate. Crystallux as collection conduit (no donation revenue — 100% remit to Victory; Victory issues receipt directly to customer). Stripe Connect / split-payment architecture required (8-16 engineering hours, not Y1 priority).
+  - **Stage 4 (Year 3+, $1M+ ARR trigger):** Crystallux Foundation as separate charity or donor-advised fund. Founder equity donated to foundation gets capital-gains elimination + donation receipt at FMV — the single most valuable tax-planning tool for founders heading to $50M+ liquidity events.
+- **Victory funding stack** (3 tiers, Mary-led but governed by Victory's board):
+  - Tier 1 (30 days): local community foundations $1-25K; Ontario Trillium Seed up to $75K; New Horizons for Seniors $25K/project (annual federal call); Rotary/Lions/Kiwanis chapters $1-10K.
+  - Tier 2 (90 days): Ontario Trillium Capital/Strategy $50-250K; McConnell/Lawson/Vancouver Foundation $25-100K; corporate giving (TD Ready Commitment, RBC Future Launch, Scotia ScotiaRISE, BMO Empower) $5-200K; United Way $5-50K.
+  - Tier 3 (6 months): Public Safety Canada (reintegration); IRCC (newcomer/refugee); Veterans Affairs if applicable; McConnell strategic partnership $100-500K; major corporate strategic partnerships $50-500K.
+  - By population: Youth (RBC Future Launch, TD Ready, Canada Summer Jobs); Seniors (New Horizons, Age Well in Place, insurer programs); Reintegration (Public Safety Canada, IRCC settlement).
+- **Victory funding timeline:** Y1 $50-300K, Y2 $200K-1M, Y3 $500K-3M.
+- **Combined Crystallux + Victory operations potential:** Y1 $200K-$1.35M, Y3 $7.6-$56M, Y5 $20-$230M+. Framed as operational scale, NOT Crystallux monetization — Victory's money goes to Victory's mission.
+- **Compliance requirements (mandatory):** separate financials + auditors, documented arm's-length transactions, no private benefit beyond reasonable compensation, annual T3010 filing, COI policies with Mary recusal at Victory board, separate bank accounts, annual audit for Victory.
+- **Compliance (recommended):** non-profit-specialist lawyer $2-10K initial + $5-20K/year ongoing, charity-experienced accountant $3-12K/year, 2-3 Victory board directors with NO Crystallux involvement, total professional-support budget $5-15K/year across both entities.
+- **Strategic advantages framed per stakeholder** (Crystallux gets mission credibility + premium pricing + acquirer premium + employee attraction; Victory gets modern tech platform + operational expertise + marketing reach + sustainable funding floor; Mary gets two complementary missions + diversified strategic options).
+- **Risks + integrity guardrails:** self-dealing perception is biggest risk; CRA charity audit if Victory looks like a side-fund; mission drift if commercial priorities dictate program choices; brand confusion; founder bandwidth (first Victory hire is critical risk-management investment); Section 11 ethical filter on every transaction.
+- **Action checklist this week / this month / this quarter** — document Victory current state, draft + sign service agreement, establish donation tracking, apply for 5 small grants, cultivate 10-20 donors, engage lawyer, first $25-50K Victory funding secured this quarter, first Crystallux→Victory donation, joint impact reporting, public partnership announcement.
+- **Cross-references** to Section 11 (Ethical Framework), Section 13 (Government Funding — same qualification axes apply), Section 8 (Capital Strategy — Stage 4 foundation is part of founder-level capital planning).
+
+**No code changes. No new schemas. No new workflows.**
+
+---
+
 ## 2026-05-12 — Monetization Strategy §13 (Government Funding)
 
 **Branch:** `scale-sprint-v1`
