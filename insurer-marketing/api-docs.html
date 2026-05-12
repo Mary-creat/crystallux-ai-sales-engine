@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>API Documentation — Crystallux for Insurers</title>
+<link rel="stylesheet" href="/shared.css">
+</head><body>
+<header class="site"><div class="brand"><span class="mark">C</span>Crystallux</div><nav><a href="/index.html">Home</a><a href="/capabilities.html">Capabilities</a><a href="/compliance.html">Compliance</a><a href="/case-study.html">Case Study</a><a href="/api-docs.html">API</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a></nav></header>
+<div class="shell">
+  <h1>API documentation for carrier technical teams</h1>
+  <p class="muted">Crystallux exposes a webhook-based REST surface for carriers that want to ingest production data programmatically.</p>
+  <h2>Architecture (one sentence each)</h2>
+  <ul class="checklist">
+    <li>Frontend: Cloudflare Pages, plain HTML+JS (no framework lock-in).</li>
+    <li>API layer: n8n workflow runtime, self-hosted Docker, with a fixed Custom Auth credential per Supabase project.</li>
+    <li>Data layer: Supabase Postgres with vertical_id tagging on every Layer 2 table.</li>
+    <li>AI: Claude (Anthropic) for compliance pre-screening, ranking, and coaching.</li>
+    <li>Storage: Cloudflare R2 for video assets; pg encryption for credentials.</li>
+  </ul>
+  <h2>Carrier-facing endpoints (today)</h2>
+  <pre style="background:var(--soft);padding:14px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.4">
+POST  /webhook/mga/insurance/report/monthly-production
+POST  /webhook/mga/insurance/report/advisor-performance
+POST  /webhook/mga/insurance/report/compliance-health
+POST  /webhook/mga/insurance/report/product-mix
+POST  /webhook/mga/insurance/report/commission-summary
+POST  /webhook/mga/insurance/report/quarterly-business-review
+POST  /webhook/mga/insurance/compliance-score
+POST  /webhook/mga/insurance/insurer-session-validate</pre>
+  <h2>Authentication</h2>
+  <p class="muted">Every carrier-facing endpoint requires a session token in the <code>Authorization: Bearer &lt;token&gt;</code> header. Tokens are issued via the universal auth/login flow and expire after 4 hours for insurer sessions. Server-side validation also confirms the session user has an active <code>insurer_users</code> row linked to an active <code>insurer_account</code>.</p>
+  <h2>Webhook structure (outbound to carrier)</h2>
+  <p class="muted">If your carrier supports webhook ingestion, we can POST to a carrier-supplied <code>webhook_url</code> for events: <code>policy_issued</code>, <code>compliance_score_changed</code>, <code>advisor_appointed</code>. HMAC-SHA256 signature in <code>X-Crystallux-Signature</code> header.</p>
+  <h2>Integration timeline</h2>
+  <p class="muted">Typical carrier integration is 4–8 weeks: 2 weeks alignment + data-sharing consent → 2 weeks API key provisioning + smoke tests → 2–4 weeks production cutover. White-label deployments add 2–4 weeks for DNS + SSL.</p>
+  <h2>Security model</h2>
+  <ul class="checklist">
+    <li>TLS 1.3 in transit. Application-layer encryption (AES-256-GCM) for license numbers + E&O policy numbers + carrier credentials.</li>
+    <li>Row-level filtering: insurer endpoints only return rows where carrier_id matches the session's <code>insurer_account.carrier_id</code>.</li>
+    <li>Append-only audit log on every insurer action (<code>insurer_access_log</code>).</li>
+  </ul>
+</div>
+<footer class="site">© Crystallux Insurance Network</footer>
+</body></html>

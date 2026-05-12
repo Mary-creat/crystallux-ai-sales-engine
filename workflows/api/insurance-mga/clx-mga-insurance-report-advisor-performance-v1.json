@@ -1,0 +1,74 @@
+{
+  "name": "CLX - MGA Insurance Report Advisor Performance v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/report/advisor-performance", "responseMode": "responseNode", "options": {} }, "id": "rmp-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-report-advisor-performance-001", "notes": "DEACTIVATED. Insurer session. Returns monthly production for the insurer's carrier — policies issued, premium written, product mix, advisor breakdown. Filtered to vertical_id=insurance + insurer's carrier_id." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nconst start = body.period_start || new Date(Date.now() - 30*86400000).toISOString().slice(0,10);\nconst end   = body.period_end   || new Date().toISOString().slice(0,10);\nreturn { json: { token, period_start: start, period_end: end } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rmp-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "rmp-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/insurer-session-validate' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"token\": \"{{ $json.token }}\" }",
+        "options": { "timeout": 8000 }
+      },
+      "id": "rmp-0004", "name": "Validate Insurer", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const session = $input.item.json || {};\nif (!session.ok) return { json: { _unauthorized: true, status: session.status || 401, error: session.error || 'Invalid insurer session' } };\nconst acct = session.insurer_account;\nif (!acct) return { json: { _unauthorized: true, status: 403, error: 'No insurer account on session' } };\nconst i = $('Extract').first().json;\nreturn { json: { _ok: true, insurer_account_id: acct.id, carrier_id: acct.carrier_id, user_id: session.user_id, period_start: i.period_start, period_end: i.period_end } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rmp-0005", "name": "Resolve Carrier", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "rmp-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?vertical_id=eq.insurance&carrier_id=eq.{{ $json.carrier_id }}&created_at=gte.{{ $json.period_start }}&created_at=lte.{{ $json.period_end }}&select=id,product_type,coverage_amount_cents,premium_annual_cents,advisor_id,status,created_at",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "rmp-0007", "name": "Fetch Apps", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Resolve Carrier').first().json;\nconst apps = Array.isArray($input.item.json) ? $input.item.json : [];\nconst issued = apps.filter(function (a) { return a.status === 'issued' || a.status === 'in_force'; });\nconst byProduct = {};\nconst byAdvisor = {};\nlet totalPremium = 0;\nissued.forEach(function (a) {\n  const pt = a.product_type || 'unknown';\n  byProduct[pt] = (byProduct[pt] || 0) + 1;\n  if (a.advisor_id) byAdvisor[a.advisor_id] = (byAdvisor[a.advisor_id] || 0) + 1;\n  totalPremium += parseFloat(a.premium_annual_cents) || 0;\n});\nconst payload = { ok: true, vertical_id: 'insurance', insurer_account_id: ctx.insurer_account_id, carrier_id: ctx.carrier_id, period: { start: ctx.period_start, end: ctx.period_end }, summary: { applications_total: apps.length, policies_issued: issued.length, premium_written_cents: totalPremium }, product_mix: byProduct, advisor_count: Object.keys(byAdvisor).length };\nreturn { json: payload };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "rmp-0008", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/insurer-access-audit' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"internal_secret\": \"{{ $env.INTERNAL_EMAIL_SECRET }}\", \"insurer_account_id\": \"{{ $('Resolve Carrier').first().json.insurer_account_id }}\", \"user_id\": \"{{ $('Resolve Carrier').first().json.user_id }}\", \"action\": \"view_report\", \"resource_type\": \"advisor_performance\", \"data_accessed_summary\": \"period {{ $('Resolve Carrier').first().json.period_start }} to {{ $('Resolve Carrier').first().json.period_end }}\" }",
+        "options": { "timeout": 5000, "continueOnFail": true }
+      },
+      "id": "rmp-0009", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2080, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($('Aggregate').first().json) }}", "options": { "responseCode": 200 } }, "id": "rmp-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2320, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "rmp-0011", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Insurer", "type": "main", "index": 0 } ] ] },
+    "Validate Insurer":{ "main": [[ { "node": "Resolve Carrier", "type": "main", "index": 0 } ]] },
+    "Resolve Carrier": { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Fetch Apps", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Apps":      { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":       { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
+    "Audit Log":       { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

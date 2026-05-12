@@ -410,3 +410,75 @@ After deploying insurance-mga-dashboard (Cloudflare auto-deploys on push):
 - Sidebar should show **Calculators** + **Onboarding** under Advisor.
 - Open Calculators → Income Replacement → annual_income_cents=7500000, years=15 → expect a coverage estimate ≈ $84-92M cents depending on inflation/return.
 - Open Onboarding → expect Day 1 ("Welcome + license verification") to show **Start** button. Clicking advances to in_progress.
+
+---
+
+## 26. Apply Session 3 schemas (1 Layer 1 + 3 Layer 2)
+
+```bash
+# Layer 1 universal
+psql "$DATABASE_URL" -f db/migrations/production-reports-schema.sql
+
+# Layer 2 insurance
+psql "$DATABASE_URL" -f db/migrations/insurer-access-schema.sql
+psql "$DATABASE_URL" -f db/migrations/insurance-compliance-scores-schema.sql
+psql "$DATABASE_URL" -f db/migrations/insurance-whitelabel-schema.sql
+```
+
+All idempotent. Order doesn't matter.
+
+---
+
+## 27. Re-import Session 3 workflows
+
+```bash
+# Layer 1 (3 workflows)
+docker cp workflows/api/reports n8n:/tmp/reports
+docker exec n8n n8n import:workflow --separate --input=/tmp/reports
+
+# Layer 2 insurance (21 new workflows)
+docker cp workflows/api/insurance-mga n8n:/tmp/insurance-mga-s3
+docker exec n8n n8n import:workflow --separate --input=/tmp/insurance-mga-s3
+```
+
+All ship `active: false`.
+
+---
+
+## 28. Seed insurer report templates
+
+```bash
+curl -X POST https://automation.crystallux.org/webhook/mga/insurance/report-template-seed \
+  -H "Content-Type: application/json" \
+  -d "{\"internal_secret\":\"$INTERNAL_EMAIL_SECRET\"}"
+# expect: { ok: true, vertical_id: 'insurance', templates_seeded: 6 }
+```
+
+---
+
+## 29. Activate Session 3 scheduled workflows
+
+Flip `active: true` on:
+- `clx-production-report-schedule-v1` (02:00 daily, Layer 1)
+- `clx-mga-insurance-compliance-score-calculate-v1` (04:00 daily, Layer 2)
+- `clx-mga-insurance-compliance-alerts-v1` (every 4h, Layer 2)
+
+Webhook-only workflows can be activated as soon as imported.
+
+---
+
+## 30. Deploy new Cloudflare Pages projects
+
+- **insurer-dashboard/** → new Cloudflare Pages project → suggested domain `portal.crystallux.org`.
+- **insurer-marketing/** → new Cloudflare Pages project → suggested domain `insurers.crystallux.org` (public, no auth).
+- **insurance-mga-dashboard/** auto-deploys on push — hard-refresh to see 3 new principal entries (Insurer Accounts, Demo Mode, White-Label).
+
+### End-to-end insurer smoke test
+
+1. Sign in as `info@crystallux.org` at `mga.crystallux.org`.
+2. **Principal → Insurer Accounts** → create test account against an existing `insurance_carriers.id`.
+3. Invite an insurer user (will write an `auth_users` row with `user_role=insurer_user` + an `insurer_users` link).
+4. Sign in as that insurer user at `portal.crystallux.org`.
+5. Open **Compliance Scorecard** → confirms either real scores or a clear empty state.
+6. Open **Monthly Production** → either real data or empty state.
+7. In Supabase: `SELECT * FROM insurer_access_log ORDER BY created_at DESC LIMIT 10;` — every login + view_report should appear.

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scheduled Reports · Crystallux Insurer Portal</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<div class="clx-readonly-banner">Read-only view — all actions are logged for regulatory audit.</div>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/overview/dashboard.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurer Portal</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Scheduled Reports</h1><div class="clx-page-sub">Premium written + policies issued, filtered to your carrier appointment.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require().then(function(resp){
+    if(!resp)return;
+    var acct = resp.insurer_account || {};
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(resp.email || '')+' · '+clxApi.escapeHtml(acct.company_name || '')+'</span>';
+    load();
+  });
+  function load(){
+    var c = document.getElementById('content');
+    clxApi.post('report/monthly-production', {}).then(function(resp){
+      if(!resp.ok){c.innerHTML = '<div class="clx-error-box">'+clxApi.escapeHtml(resp.error||'Failed.')+'</div>';return;}
+      var d = resp.data || {}; var s = d.summary || {}; var pm = d.product_mix || {};
+      var html = '<div class="clx-stat-grid">';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Period</div><div class="clx-stat-value">'+clxApi.formatDate((d.period||{}).start)+' → '+clxApi.formatDate((d.period||{}).end)+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Applications</div><div class="clx-stat-value">'+(s.applications_total||0)+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Policies issued</div><div class="clx-stat-value">'+(s.policies_issued||0)+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Premium written</div><div class="clx-stat-value">'+clxApi.formatMoney(s.premium_written_cents||0)+'</div></div>';
+      html += '</div>';
+      var keys = Object.keys(pm);
+      html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Product mix</div></div>';
+      if (keys.length === 0) html += '<div class="clx-empty">No production in this period.</div>';
+      else html += '<table class="clx-table"><thead><tr><th>Product</th><th>Policies</th></tr></thead><tbody>'+keys.map(function(k){return '<tr><td>'+clxApi.escapeHtml(k)+'</td><td>'+pm[k]+'</td></tr>';}).join('')+'</tbody></table>';
+      html += '</div>';
+      c.innerHTML = html;
+    });
+  }
+})();
+</script>
+</body></html>

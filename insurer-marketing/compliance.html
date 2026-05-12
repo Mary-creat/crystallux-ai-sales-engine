@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Compliance Posture — Crystallux for Insurers</title>
+<link rel="stylesheet" href="/shared.css">
+</head><body>
+<header class="site"><div class="brand"><span class="mark">C</span>Crystallux</div><nav><a href="/index.html">Home</a><a href="/capabilities.html">Capabilities</a><a href="/compliance.html">Compliance</a><a href="/case-study.html">Case Study</a><a href="/api-docs.html">API</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a></nav></header>
+<div class="shell">
+  <h1>Compliance posture</h1>
+  <p class="muted">Carriers regulated by FSRA, AMF, and other Canadian provincial regulators need MGA partners who can demonstrate compliance discipline. Here is what Crystallux ships with today and what is roadmapped.</p>
+  <h2>Regulatory alignment</h2>
+  <ul class="checklist">
+    <li>FSRA-aligned suitability + replacement disclosure workflows</li>
+    <li>PIPEDA-compliant consent collection at every client touchpoint</li>
+    <li>CASL-compliant outreach: every channel-of-record stored with timestamped consent</li>
+    <li>FINTRAC AML basics: KYC + source-of-funds + PEP/sanctions screening on every application</li>
+    <li>30-day advisor onboarding curriculum with supervisor signoff covering licensing, AML, privacy, replacement, suitability</li>
+  </ul>
+  <h2>Platform safeguards</h2>
+  <ul class="checklist">
+    <li>Audit trails on every state-mutation (regulatory_audit_log)</li>
+    <li>Append-only insurer access log — every report view, export, and login captured</li>
+    <li>Encryption at rest (Supabase pg encryption) and in transit (TLS 1.3)</li>
+    <li>Role-based access controls: advisor / sub_agent / mga_principal / compliance_officer / supervisor / admin / insurer_user</li>
+    <li>Session expiry: 4 hours for insurer sessions; 24 hours for advisor sessions</li>
+    <li>AES-256-GCM application-layer encryption for license numbers + E&O policy numbers</li>
+  </ul>
+  <h2>Roadmap</h2>
+  <ul class="checklist">
+    <li>SOC 2 Type 1 — Year 2 target after first 10 paying customers</li>
+    <li>ISO 27001 — Year 3</li>
+    <li>Immutable audit ledger with cryptographic chaining</li>
+    <li>Penetration testing on every quarterly release</li>
+  </ul>
+  <p class="muted" style="margin-top:36px">Carriers can request a current compliance posture document under NDA via the contact form.</p>
+</div>
+<footer class="site">© Crystallux Insurance Network</footer>
+</body></html>

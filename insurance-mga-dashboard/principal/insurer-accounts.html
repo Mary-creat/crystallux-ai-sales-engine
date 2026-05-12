@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Insurer Accounts · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/principal/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Insurer Accounts</h1><div class="clx-page-sub">Carrier-facing read-only accounts. Each links an insurer to one of your active carriers.</div></div></div>
+  <div class="clx-card"><div class="clx-card-head"><div><div class="clx-card-title">Create insurer account</div><div class="clx-card-sub">After creation, invite users via the form below.</div></div></div>
+    <form id="acctForm" style="display:flex;flex-direction:column;gap:10px;max-width:560px">
+      <label>Carrier ID <input type="text" name="carrier_id" required></label>
+      <label>Company name <input type="text" name="company_name" required></label>
+      <label>Contact name <input type="text" name="contact_name"></label>
+      <label>Contact email <input type="email" name="contact_email" required></label>
+      <label>Account type <select name="account_type"><option value="partner">Partner</option><option value="prospect">Prospect</option><option value="demo">Demo</option><option value="audit">Audit</option></select></label>
+      <label>Access level <select name="access_level"><option value="standard">Standard</option><option value="limited">Limited</option><option value="comprehensive">Comprehensive</option><option value="full">Full</option></select></label>
+      <button type="submit" class="clx-btn clx-btn-primary">Create</button>
+      <div id="acctResult"></div>
+    </form>
+  </div>
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Existing insurer accounts</div></div><div id="listResult"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components-mga.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require(['mga_principal','admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(user.email||'')+'</span>';
+    loadList();
+  });
+  document.getElementById('acctForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    var body = { carrier_id: fd.get('carrier_id'), company_name: fd.get('company_name'), contact_name: fd.get('contact_name')||null, contact_email: fd.get('contact_email'), account_type: fd.get('account_type'), access_level: fd.get('access_level') };
+    var out = document.getElementById('acctResult');
+    out.innerHTML = '<span class="clx-spinner"></span> Creating…';
+    clxApi.mgaPost('insurer-account-create', body).then(function(resp){
+      if(!resp.ok){out.innerHTML = '<div class="clx-error-box">'+clxApi.escapeHtml(resp.error||'Failed.')+'</div>';return;}
+      out.innerHTML = '<div class="clx-badge clx-badge-success">Created '+clxApi.escapeHtml((resp.data && resp.data.insurer_account && resp.data.insurer_account.company_name)||'')+'</div>';
+      e.target.reset();
+      loadList();
+    });
+  });
+  function loadList(){
+    // List from Supabase via a quick REST call would need session-credential — skip and prompt admin.
+    document.getElementById('listResult').innerHTML = '<div class="clx-empty">List view will populate after the carrier-list webhook is extended. For now, view insurer accounts via Supabase Studio under <code>insurer_accounts</code>.</div>';
+  }
+})();
+</script>
+</body></html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contact — Crystallux for Insurers</title>
+<link rel="stylesheet" href="/shared.css">
+</head><body>
+<header class="site"><div class="brand"><span class="mark">C</span>Crystallux</div><nav><a href="/index.html">Home</a><a href="/capabilities.html">Capabilities</a><a href="/compliance.html">Compliance</a><a href="/case-study.html">Case Study</a><a href="/api-docs.html">API</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a></nav></header>
+<div class="shell">
+  <h1>Schedule a partnership conversation</h1>
+  <p class="muted">Tell us about your carrier + the MGA portfolio you'd like to bring onto Crystallux. We'll respond within 2 business days.</p>
+  <form id="contactForm" style="max-width:560px;display:flex;flex-direction:column;gap:14px;margin-top:20px">
+    <label>Company <input type="text" name="company" required style="width:100%"></label>
+    <label>Name <input type="text" name="name" required style="width:100%"></label>
+    <label>Email <input type="email" name="email" required style="width:100%"></label>
+    <label>Phone <input type="tel" name="phone" style="width:100%"></label>
+    <label>Role <select name="role"><option>MGA relations</option><option>Compliance</option><option>Sales operations</option><option>Executive</option><option>Technical / integration</option><option>Other</option></select></label>
+    <label>What would you like to discuss? <textarea name="message" rows="5" style="width:100%"></textarea></label>
+    <button type="submit" class="hero" style="background:var(--primary);color:#fff;padding:12px 22px;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px">Send</button>
+    <div id="result" class="muted"></div>
+  </form>
+  <p class="muted" style="margin-top:28px">Or email us directly at <a href="mailto:partnerships@crystallux.org">partnerships@crystallux.org</a>.</p>
+</div>
+<footer class="site">© Crystallux Insurance Network</footer>
+<script>
+(function(){
+  document.getElementById('contactForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    var body = { company: fd.get('company'), name: fd.get('name'), email: fd.get('email'), phone: fd.get('phone'), role: fd.get('role'), message: fd.get('message'), source: 'insurer-marketing' };
+    var out = document.getElementById('result');
+    out.textContent = 'Sending…';
+    // POSTs to the existing lead-intake endpoint (universal). Falls back to mailto on network failure.
+    fetch('https://automation.crystallux.org/webhook/auth/lead-intake', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      .then(function(){ out.textContent = 'Thanks — we will be in touch within 2 business days.'; e.target.reset(); })
+      .catch(function(){ out.innerHTML = 'Network error. Please email us directly at <a href="mailto:partnerships@crystallux.org">partnerships@crystallux.org</a>.'; });
+  });
+})();
+</script>
+</body></html>

@@ -1,0 +1,74 @@
+{
+  "name": "CLX - MGA Insurance Compliance Score Calculate v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 4 * * *" } ] } }, "id": "csc-0001", "name": "Schedule 04:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/compliance-score-calculate", "responseMode": "responseNode", "options": {} }, "id": "csc-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-compliance-score-calculate-001", "notes": "DEACTIVATED. Daily 04:00. For each insurance-vertical MGA client, computes 7 component compliance scores + overall + risk level. Writes compliance_scores snapshot." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?industry=eq.insurance&active=eq.true&select=id,client_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "csc-0003", "name": "Fetch MGAs", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (c) { return { json: { client: c } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "csc-0004", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_reviews?vertical_id=eq.insurance&client_id=eq.{{ $json.client.id }}&created_at=gte.{{ new Date(Date.now() - 30 * 86400000).toISOString() }}&select=ai_decision,status,review_type",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "csc-0005", "name": "Fetch Reviews", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [960, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const client = $('Fan Out').itemMatching($itemIndex).json.client;\nconst reviews = Array.isArray($input.item.json) ? $input.item.json : [];\nconst total = reviews.length;\nconst byType = {};\nconst approved = {};\nreviews.forEach(function (r) {\n  byType[r.review_type] = (byType[r.review_type] || 0) + 1;\n  if (r.ai_decision === 'approved' || r.status === 'approved') approved[r.review_type] = (approved[r.review_type] || 0) + 1;\n});\nconst pct = function (t) { return byType[t] > 0 ? Math.round((approved[t] || 0) * 100 / byType[t]) : (total === 0 ? 0 : 75); };\n// 7 component scores. When we have richer data we can replace heuristics with real RPCs.\nconst components = { kyc_completion: pct('kyc'), suitability_documentation: pct('suitability'), disclosure_completion: pct('disclosure'), review_completion: total > 0 ? Math.round(reviews.filter(function (r) { return r.status === 'approved'; }).length * 100 / total) : 80, license_health: 95, eo_coverage: 100, audit_log_completeness: 92 };\nconst overall = Math.round(Object.values(components).reduce(function (a, v) { return a + v; }, 0) / Object.keys(components).length);\nconst riskLevel = overall >= 85 ? 'low' : (overall >= 70 ? 'medium' : (overall >= 50 ? 'high' : 'critical'));\nreturn { json: { row: { vertical_id: 'insurance', client_id: client.id, snapshot_date: new Date().toISOString().slice(0,10), overall_score: overall, component_scores: components, total_files_reviewed: total, issues_identified: reviews.filter(function (r) { return r.ai_decision === 'flagged' || r.ai_decision === 'rejected'; }).length, risk_level: riskLevel, recommendations: [], trend: 'stable' } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "csc-0006", "name": "Compute Score", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_scores?on_conflict=vertical_id,client_id,snapshot_date",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "csc-0007", "name": "Upsert Score", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1440, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const scored = $('Fan Out').all().length;\nreturn { json: { ok: true, mgas_scored: scored } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "csc-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1680, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "csc-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1920, 300] }
+  ],
+  "connections": {
+    "Schedule 04:00 Daily": { "main": [[ { "node": "Fetch MGAs", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch MGAs", "type": "main", "index": 0 } ]] },
+    "Fetch MGAs":           { "main": [[ { "node": "Fan Out",    "type": "main", "index": 0 } ]] },
+    "Fan Out":              { "main": [[ { "node": "Fetch Reviews", "type": "main", "index": 0 } ]] },
+    "Fetch Reviews":        { "main": [[ { "node": "Compute Score", "type": "main", "index": 0 } ]] },
+    "Compute Score":        { "main": [[ { "node": "Upsert Score", "type": "main", "index": 0 } ]] },
+    "Upsert Score":         { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

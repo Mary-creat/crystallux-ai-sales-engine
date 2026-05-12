@@ -1,0 +1,37 @@
+{
+  "name": "CLX - MGA Insurance Report Template Seed v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/report-template-seed", "responseMode": "responseNode", "options": {} }, "id": "rts-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-report-template-seed-001", "notes": "DEACTIVATED. INTERNAL_EMAIL_SECRET. Seeds 6 standard insurer report templates into production_report_templates with vertical_id='insurance'." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!body.internal_secret || body.internal_secret !== expected) return { json: { _unauthorized: true, status: 401 } };\nconst rows = [\n  { vertical_id: 'insurance', template_name: 'Monthly Production',         template_type: 'monthly_production',   description: 'Monthly premium written + policies issued for the insurer\\'s carrier appointments.', recipient_role: 'insurer', metrics_included: ['policies_issued','premium_written_cents','product_mix','advisor_breakdown','geographic_distribution'], schedule_pattern: 'monthly', delivery_methods: ['dashboard','email'] },\n  { vertical_id: 'insurance', template_name: 'Advisor Performance',         template_type: 'advisor_performance',   description: 'Per-advisor production metrics: volume, persistency, conversion, compliance score.',  recipient_role: 'insurer', metrics_included: ['per_advisor_volume','persistency_rate','conversion_rate','compliance_score'],         schedule_pattern: 'monthly', delivery_methods: ['dashboard','email'] },\n  { vertical_id: 'insurance', template_name: 'Compliance Health',           template_type: 'compliance_health',     description: 'Compliance scorecard: KYC, suitability, disclosure, review completion, license + E&O health.', recipient_role: 'insurer', metrics_included: ['kyc_completion','suitability_documentation','disclosure_completion','review_completion','license_health','eo_coverage'], schedule_pattern: 'monthly', delivery_methods: ['dashboard'] },\n  { vertical_id: 'insurance', template_name: 'Product Mix Analysis',        template_type: 'monthly_production',   description: 'Product distribution + trend over time.',                                                  recipient_role: 'insurer', metrics_included: ['product_mix','trend_30d','trend_90d','trend_yoy'],                                schedule_pattern: 'quarterly', delivery_methods: ['dashboard'] },\n  { vertical_id: 'insurance', template_name: 'Commission Summary',          template_type: 'commission_breakdown', description: 'Commission paid breakdown for insurer reconciliation.',                                    recipient_role: 'insurer', metrics_included: ['commission_paid_cents','first_year_split','renewal_split','chargebacks_cents'], schedule_pattern: 'monthly', delivery_methods: ['dashboard','email'] },\n  { vertical_id: 'insurance', template_name: 'Quarterly Business Review',   template_type: 'quarterly_summary',     description: 'Comprehensive QBR for insurer-MGA quarterly meetings.',                                     recipient_role: 'insurer', metrics_included: ['production_volume','growth_rate','advisor_health','compliance_trend','strategic_insights'], schedule_pattern: 'quarterly', delivery_methods: ['dashboard','email'] }\n];\nreturn { json: { _authorized: true, rows } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "rts-0002", "name": "Build Seeds", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "rts-0003", "name": "IF Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/production_report_templates?on_conflict=vertical_id,template_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {}
+      },
+      "id": "rts-0004", "name": "Upsert Templates", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "return { json: { ok: true, vertical_id: 'insurance', templates_seeded: ($('Build Seeds').first().json.rows || []).length } };", "mode": "runOnceForAllItems" }, "id": "rts-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "rts-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "rts-0007", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Build Seeds",      "type": "main", "index": 0 } ]] },
+    "Build Seeds":     { "main": [[ { "node": "IF Auth",          "type": "main", "index": 0 } ]] },
+    "IF Auth":         { "main": [ [ { "node": "Upsert Templates", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Upsert Templates":{ "main": [[ { "node": "Shape Response",   "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

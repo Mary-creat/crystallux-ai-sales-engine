@@ -1,0 +1,38 @@
+<!-- Insurer Portal sidebar nav. Inserted into <nav> on each page. -->
+<div class="clx-sidebar-section">Overview</div>
+<a href="/overview/dashboard.html" data-nav="dashboard">Dashboard</a>
+
+<div class="clx-sidebar-section">Production</div>
+<a href="/production/monthly.html"  data-nav="monthly">Monthly Report</a>
+<a href="/production/advisors.html" data-nav="advisors">Advisors</a>
+<a href="/production/products.html" data-nav="products">Product Mix</a>
+<a href="/production/trends.html"   data-nav="trends">Trends</a>
+
+<div class="clx-sidebar-section">Compliance</div>
+<a href="/compliance/scorecard.html" data-nav="scorecard">Scorecard</a>
+<a href="/compliance/audit-log.html" data-nav="audit-log">Audit Log</a>
+<a href="/compliance/reviews.html"   data-nav="reviews">Reviews</a>
+
+<div class="clx-sidebar-section">Reports</div>
+<a href="/reports/library.html"  data-nav="library">Library</a>
+<a href="/reports/generator.html" data-nav="generator">Generator</a>
+<a href="/reports/exports.html"   data-nav="exports">Exports</a>
+<a href="/reports/schedule.html"  data-nav="schedule">Schedule</a>
+
+<div class="clx-sidebar-section">Account</div>
+<a href="/account/profile.html" data-nav="profile">Profile</a>
+<a href="/account/users.html"   data-nav="users">Users</a>
+<a href="#" data-nav="logout" id="navLogout">Sign out</a>
+
+<script>
+  (function () {
+    document.addEventListener('DOMContentLoaded', function () {
+      var current = window.location.pathname.split('/').pop().replace('.html', '');
+      document.querySelectorAll('[data-nav]').forEach(function (el) {
+        if (el.getAttribute('data-nav') === current) el.classList.add('active');
+      });
+      var logout = document.getElementById('navLogout');
+      if (logout) logout.addEventListener('click', function (e) { e.preventDefault(); window.clxAuth.clearSession(); window.location.href = '/index.html'; });
+    });
+  })();
+</script>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign in · Crystallux Insurer Portal</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.login-shell { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; background:#f1f5f9; }
+.login-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:32px; width:380px; max-width:100%; }
+.login-card h1 { margin:0 0 6px; font-size:20px; }
+.login-card .sub { color:var(--muted); margin-bottom:18px; }
+.login-card form { display:flex; flex-direction:column; gap:12px; }
+.login-card input { width:100%; box-sizing:border-box; }
+.login-card .footer { font-size:11px; color:var(--muted); margin-top:14px; text-align:center; }
+</style>
+</head><body>
+<div class="login-shell">
+  <div class="login-card">
+    <h1>Crystallux Insurer Portal</h1>
+    <div class="sub">Read-only access to your carrier-appointment production through Crystallux MGAs.</div>
+    <form id="loginForm">
+      <label>Email <input type="email" name="email" required autofocus></label>
+      <label>Password <input type="password" name="password" required></label>
+      <button type="submit" class="clx-btn clx-btn-primary">Sign in</button>
+      <div id="loginError"></div>
+    </form>
+    <div class="footer">Sessions expire after 4 hours. Every action is logged for regulatory audit.</div>
+  </div>
+</div>
+<script src="/shared/api.js"></script>
+<script>
+(function(){
+  document.getElementById('loginForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    var out = document.getElementById('loginError');
+    out.innerHTML = '<span class="clx-spinner"></span> Signing in…';
+    // Reuses universal /webhook/auth/login. The session-validate workflow restricts to insurer_user role downstream.
+    fetch('https://automation.crystallux.org/webhook/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') }) })
+      .then(function(r){ return r.text().then(function(t){ try { return JSON.parse(t); } catch (e) { return {}; } }); })
+      .then(function(d){
+        if (!d || !d.session_token) { out.innerHTML = '<div class="clx-error-box">' + (d.error || 'Sign-in failed.') + '</div>'; return; }
+        try { localStorage.setItem('clx_session_token', d.session_token); } catch (e) {}
+        window.location.href = '/overview/dashboard.html';
+      })
+      .catch(function(){ out.innerHTML = '<div class="clx-error-box">Network error. Please try again.</div>'; });
+  });
+})();
+</script>
+</body></html>

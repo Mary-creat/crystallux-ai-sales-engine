@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Account Profile · Crystallux Insurer Portal</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<div class="clx-readonly-banner">Read-only view — all actions are logged for regulatory audit.</div>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/overview/dashboard.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurer Portal</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Account Profile</h1><div class="clx-page-sub">Your insurer account details + data-sharing consent.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require().then(function(resp){
+    if(!resp)return;
+    var acct = resp.insurer_account || {};
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(resp.email || '')+' · '+clxApi.escapeHtml(acct.company_name || '')+'</span>';
+    var c = document.getElementById('content');
+    var permissions = resp.permissions || {};
+    var consent = acct.data_sharing_consent || {};
+    var html = '';
+    html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Company</div></div>';
+    html += '<table class="clx-table"><tbody>';
+    html += '<tr><td><strong>Name</strong></td><td>'+clxApi.escapeHtml(acct.company_name || '—')+'</td></tr>';
+    html += '<tr><td><strong>Account access level</strong></td><td>'+clxApi.escapeHtml(acct.access_level || 'standard')+'</td></tr>';
+    html += '<tr><td><strong>Carrier ID</strong></td><td>'+clxApi.escapeHtml(acct.carrier_id || '—')+'</td></tr>';
+    html += '</tbody></table></div>';
+    html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Your role</div></div>';
+    html += '<table class="clx-table"><tbody>';
+    html += '<tr><td><strong>Email</strong></td><td>'+clxApi.escapeHtml(resp.email || '—')+'</td></tr>';
+    html += '<tr><td><strong>Role at insurer</strong></td><td>'+clxApi.escapeHtml(resp.role_at_insurer || '—')+'</td></tr>';
+    html += '<tr><td><strong>Session expires</strong></td><td>4 hours from sign-in (refresh to extend)</td></tr>';
+    html += '</tbody></table></div>';
+    html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Data-sharing consent</div></div>';
+    html += '<table class="clx-table"><thead><tr><th>Category</th><th>Shared</th></tr></thead><tbody>';
+    var keys = ['production_reports','advisor_performance','compliance_data','client_demographics','individual_client_data'];
+    keys.forEach(function(k){
+      var v = consent[k];
+      html += '<tr><td>'+k.replace(/_/g,' ')+'</td><td>'+(v===true?'<span class="clx-badge clx-badge-success">Yes</span>':(v===false?'<span class="clx-badge clx-badge-neutral">No</span>':'<span class="clx-badge clx-badge-neutral">Not set</span>'))+'</td></tr>';
+    });
+    html += '</tbody></table><div class="clx-card-sub" style="margin-top:10px">Changes to data-sharing consent require contacting your Crystallux MGA admin.</div></div>';
+    c.innerHTML = html;
+  });
+})();
+</script>
+</body></html>

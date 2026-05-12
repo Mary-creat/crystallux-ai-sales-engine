@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard · Crystallux Insurer Portal</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<div class="clx-readonly-banner">Read-only view — all actions are logged for regulatory audit.</div>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/overview/dashboard.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurer Portal</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Carrier Dashboard</h1><div class="clx-page-sub" id="pageSub">Loading…</div></div></div>
+  <div class="clx-stat-grid" id="statGrid"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+  <div class="clx-two-col">
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">This month — production</div></div><div id="qProd"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Compliance health</div></div><div id="qCompliance"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+  </div>
+  <div class="clx-two-col">
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Advisor leaderboard</div></div><div id="qAdvisors"><div class="clx-empty">Aggregated counts only. Per-advisor names visible if your account is comprehensive or full access.</div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Recent activity</div></div><div id="qActivity"><div class="clx-empty">Activity feed shows aggregated production events. Click into Monthly Report for detail.</div></div></div>
+  </div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require().then(function(resp){
+    if(!resp)return;
+    var acct = resp.insurer_account || {};
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(resp.email || '')+' · '+clxApi.escapeHtml(acct.company_name || '')+'</span>';
+    document.getElementById('pageSub').textContent = 'Welcome, ' + (acct.company_name || 'partner') + '. Access level: ' + (acct.access_level || 'standard') + '.';
+    load();
+  });
+  function load(){
+    clxApi.post('report/monthly-production', {}).then(function(resp){
+      var grid = document.getElementById('statGrid');
+      var prod = document.getElementById('qProd');
+      if(!resp.ok){ grid.innerHTML = '<div class="clx-card-sub">'+clxApi.escapeHtml(resp.error||'No production data yet.')+'</div>'; prod.innerHTML = '<div class="clx-empty">No production data yet.</div>'; return; }
+      var d = resp.data || {};
+      var s = d.summary || {};
+      grid.innerHTML = '<div class="clx-stat"><div class="clx-stat-label">Applications</div><div class="clx-stat-value">'+(s.applications_total||0)+'</div></div>'
+        + '<div class="clx-stat"><div class="clx-stat-label">Policies issued</div><div class="clx-stat-value">'+(s.policies_issued||0)+'</div></div>'
+        + '<div class="clx-stat"><div class="clx-stat-label">Premium written</div><div class="clx-stat-value">'+clxApi.formatMoney(s.premium_written_cents||0)+'</div></div>'
+        + '<div class="clx-stat"><div class="clx-stat-label">Advisors active</div><div class="clx-stat-value">'+(d.advisor_count||0)+'</div></div>';
+      var pm = d.product_mix || {};
+      var keys = Object.keys(pm);
+      prod.innerHTML = keys.length===0 ? '<div class="clx-empty">No production in this period.</div>'
+        : '<table class="clx-table"><thead><tr><th>Product</th><th>Policies</th></tr></thead><tbody>'+keys.map(function(k){return '<tr><td>'+clxApi.escapeHtml(k)+'</td><td>'+pm[k]+'</td></tr>';}).join('')+'</tbody></table>';
+    });
+    clxApi.post('compliance-score', { client_id: (clxAuth.getCachedAccount() || {}).carrier_id }).then(function(resp){
+      var el = document.getElementById('qCompliance');
+      if (!resp.ok || !resp.data || !resp.data.latest) { el.innerHTML = '<div class="clx-empty">No compliance score yet for the MGA in this carrier appointment.</div>'; return; }
+      var s = resp.data.latest;
+      var pct = parseFloat(s.overall_score) || 0;
+      var cls = pct >= 85 ? 'clx-bar-success' : (pct >= 70 ? 'clx-bar-info' : (pct >= 50 ? 'clx-bar-warning' : 'clx-bar-danger'));
+      el.innerHTML = '<div class="clx-stat-value">'+Math.round(pct)+' / 100</div><div class="clx-stat-sub">Risk: '+clxApi.escapeHtml(s.risk_level||'medium')+' · Trend: '+clxApi.escapeHtml(s.trend||'stable')+'</div>'
+        + '<div class="clx-progress" style="margin-top:10px"><div class="clx-progress-fill '+cls+'" style="width:'+Math.min(100,pct)+'%"></div><div class="clx-progress-label">'+Math.round(pct)+'%</div></div>';
+    });
+  }
+})();
+</script>
+</body></html>

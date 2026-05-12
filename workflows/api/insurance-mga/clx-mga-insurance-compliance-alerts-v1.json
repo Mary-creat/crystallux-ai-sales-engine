@@ -1,0 +1,34 @@
+{
+  "name": "CLX - MGA Insurance Compliance Alerts v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 */4 * * *" } ] } }, "id": "cma-0001", "name": "Schedule Every 4h", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/compliance-alerts", "responseMode": "responseNode", "options": {} }, "id": "cma-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-compliance-alerts-001", "notes": "DEACTIVATED. Every 4h. Identifies emerging compliance issues — high/critical risk_level scores, scores dropping > 10 points in 7 days, license expirations within 30 days." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/compliance_scores?vertical_id=eq.insurance&risk_level=in.(high,critical)&snapshot_date=eq.{{ new Date().toISOString().slice(0,10) }}&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "cma-0003", "name": "Fetch High Risk", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst alerts = rows.map(function (r) { return { client_id: r.client_id, risk_level: r.risk_level, overall_score: r.overall_score, snapshot_date: r.snapshot_date, recommendation: r.risk_level === 'critical' ? 'IMMEDIATE: review compliance pipeline + escalate to mga_principal.' : 'Review compliance gaps within 48 hours.' }; });\nreturn { json: { ok: true, alerts, alerts_count: alerts.length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cma-0004", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "cma-0005", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [960, 300] }
+  ],
+  "connections": {
+    "Schedule Every 4h": { "main": [[ { "node": "Fetch High Risk", "type": "main", "index": 0 } ]] },
+    "Webhook":           { "main": [[ { "node": "Fetch High Risk", "type": "main", "index": 0 } ]] },
+    "Fetch High Risk":   { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":    { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,35 @@
+{
+  "name": "CLX - MGA Insurance Insurer Access Audit v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/insurer-access-audit", "responseMode": "responseNode", "options": {} }, "id": "iaa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-insurer-access-audit-001", "notes": "DEACTIVATED. Internal. Called by every insurer-facing endpoint. Inserts into insurer_access_log. Append-only. INTERNAL_EMAIL_SECRET auth so dashboard cannot self-audit-fake." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!body.internal_secret || body.internal_secret !== expected) return { json: { _unauthorized: true, status: 401 } };\nfor (const k of ['insurer_account_id','action']) { if (!body[k]) return { json: { _empty: true, status: 400, error: 'Missing ' + k } }; }\nreturn { json: { payload: { vertical_id: 'insurance', insurer_account_id: body.insurer_account_id, user_id: body.user_id || null, action: body.action, resource_type: body.resource_type || null, resource_id: body.resource_id || null, ip_address: body.ip_address || null, user_agent: body.user_agent || null, session_id: body.session_id || null, data_accessed_summary: body.data_accessed_summary || null } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "iaa-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "iaa-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/insurer_access_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "iaa-0004", "name": "Insert Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, logged: true }) }}", "options": { "responseCode": 200 } }, "id": "iaa-0005", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1120, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "iaa-0006", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":      { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":      { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":       { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Insert Log", "type": "main", "index": 0 } ] ] },
+    "Insert Log":   { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

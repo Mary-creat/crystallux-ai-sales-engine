@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Compliance Scorecard · Crystallux Insurer Portal</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head><body>
+<div class="clx-readonly-banner">Read-only view — all actions are logged for regulatory audit.</div>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/overview/dashboard.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurer Portal</span></a></div><div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="sidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Compliance Scorecard</h1><div class="clx-page-sub">Per-MGA compliance health. Calculated daily at 04:00.</div></div></div>
+  <div id="content"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script>
+<script>
+(function(){
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('sidebar').innerHTML = h;});
+  clxAuth.require().then(function(resp){
+    if(!resp)return;
+    var acct = resp.insurer_account || {};
+    document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">'+clxApi.escapeHtml(resp.email || '')+' · '+clxApi.escapeHtml(acct.company_name || '')+'</span>';
+    var carrierId = acct.carrier_id;
+    if(!carrierId){document.getElementById('content').innerHTML = '<div class="clx-error-box">No carrier on session.</div>';return;}
+    load(carrierId);
+  });
+  function load(carrierId){
+    var c = document.getElementById('content');
+    clxApi.post('compliance-score', { client_id: carrierId }).then(function(resp){
+      if(!resp.ok || !resp.data){c.innerHTML='<div class="clx-error-box">'+clxApi.escapeHtml(resp.error||'No scorecard available yet.')+'</div>';return;}
+      var latest = resp.data.latest;
+      if(!latest){c.innerHTML='<div class="clx-empty">No compliance score recorded yet. Scorecard generates daily at 04:00 once activated.</div>';return;}
+      var overall = parseFloat(latest.overall_score) || 0;
+      var risk = latest.risk_level || 'medium';
+      var riskCls = risk==='low'?'clx-badge-success':(risk==='medium'?'clx-badge-info':(risk==='high'?'clx-badge-warning':'clx-badge-danger'));
+      var html = '';
+      html += '<div class="clx-stat-grid">';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Overall score</div><div class="clx-stat-value">'+Math.round(overall)+' / 100</div><div class="clx-stat-sub">Snapshot: '+clxApi.escapeHtml(latest.snapshot_date)+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Risk level</div><div class="clx-stat-value"><span class="clx-badge '+riskCls+'">'+clxApi.escapeHtml(risk)+'</span></div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Trend</div><div class="clx-stat-value">'+clxApi.escapeHtml(latest.trend||'stable')+'</div></div>';
+      html += '<div class="clx-stat"><div class="clx-stat-label">Files reviewed</div><div class="clx-stat-value">'+(latest.total_files_reviewed||0)+'</div><div class="clx-stat-sub">'+(latest.issues_identified||0)+' issues identified</div></div>';
+      html += '</div>';
+      html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Component scores</div></div>';
+      var cs = latest.component_scores || {};
+      html += '<table class="clx-table"><thead><tr><th>Component</th><th>Score</th><th></th></tr></thead><tbody>';
+      Object.keys(cs).forEach(function(k){
+        var v = parseFloat(cs[k]) || 0;
+        var cls = v >= 85 ? 'clx-bar-success' : (v >= 70 ? 'clx-bar-info' : (v >= 50 ? 'clx-bar-warning' : 'clx-bar-danger'));
+        html += '<tr><td>'+clxApi.escapeHtml(k.replace(/_/g,' '))+'</td><td>'+Math.round(v)+' / 100</td><td><div class="clx-progress" style="height:14px"><div class="clx-progress-fill '+cls+'" style="width:'+Math.min(100,v)+'%"></div></div></td></tr>';
+      });
+      html += '</tbody></table></div>';
+      var trend = resp.data.trend_90d || [];
+      if (trend.length > 0) {
+        html += '<div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">90-day trend</div></div>';
+        html += '<table class="clx-table"><thead><tr><th>Date</th><th>Overall</th></tr></thead><tbody>'
+          + trend.slice(-30).map(function(p){return '<tr><td>'+clxApi.escapeHtml(p.date)+'</td><td>'+Math.round(p.overall_score)+'</td></tr>';}).join('')
+          + '</tbody></table></div>';
+      }
+      c.innerHTML = html;
+    });
+  }
+})();
+</script>
+</body></html>

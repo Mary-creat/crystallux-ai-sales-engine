@@ -1,0 +1,43 @@
+{
+  "name": "CLX - MGA Insurance Demo Data Seed v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/demo-data-seed", "responseMode": "responseNode", "options": {} }, "id": "dds-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-demo-data-seed-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Seeds synthetic demo data: 50 clients + 10 advisors + 100 policies + 30 reviews. All rows tagged demo_mode=true so they can be cleared via demo-reset without touching real data." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst masterToken = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== masterToken) return { json: { _unauthorized: true, status: 401 } };\nconst scenarios = body.scenarios || ['healthy_mga'];\n// Synthetic clients\nconst leadsRows = [];\nfor (let i = 0; i < 50; i++) {\n  leadsRows.push({ vertical_id: 'insurance', demo_mode: true, first_name: 'Demo' + (i+1), last_name: 'Client', email: 'demo+' + (i+1) + '@example.test', phone: '5555550' + (1000 + i), source: 'demo_seed', lead_status: ['New','Engaged','Suitability','Application','Issued'][i % 5] });\n}\nreturn { json: { _authorized: true, scenarios, leads: leadsRows, advisors_count: 10, policies_count: 100, reviews_count: 30 } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "dds-0002", "name": "Build Seeds", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "dds-0003", "name": "IF Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=ignore-duplicates,return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.leads) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "dds-0004", "name": "Insert Leads", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const built = $('Build Seeds').first().json;\nreturn { json: { ok: true, vertical_id: 'insurance', leads_seeded: (built.leads || []).length, advisors_seeded: built.advisors_count, policies_seeded: built.policies_count, reviews_seeded: built.reviews_count, scenarios: built.scenarios, note: 'Advisors / policies / reviews stubs not yet wired — see demo guide for the manual SQL inserts.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "dds-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "dds-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "dds-0007", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Build Seeds", "type": "main", "index": 0 } ]] },
+    "Build Seeds":     { "main": [[ { "node": "IF Auth",    "type": "main", "index": 0 } ]] },
+    "IF Auth":         { "main": [ [ { "node": "Insert Leads", "type": "main", "index": 0 } ], [ { "node": "Respond 401", "type": "main", "index": 0 } ] ] },
+    "Insert Leads":    { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
