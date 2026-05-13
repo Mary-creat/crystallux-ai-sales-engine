@@ -1,0 +1,77 @@
+{
+  "name": "CLX - Sentinel Security Detector v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/10 * * * *" } ] } }, "id": "ssd-0001", "name": "Schedule Every 10min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/security/detect", "responseMode": "responseNode", "options": {} }, "id": "ssd-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-security-detector-001", "notes": "DEACTIVATED. Cron every 10 min. Loads active sentinel_security_rules + recent sentinel_security_events (last 90 min — enough to cover the longest rule window of 60 min with slack), evaluates each rule by grouping events per rule.group_by and counting against threshold_count within rule.window_minutes. Raises a sentinel_alerts row via the alert-router when threshold crossed; aggregation_key dedups within the hour." },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_security_rules?active=eq.true&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ssd-0003", "name": "Fetch Rules", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_security_events?created_at=gte.' + new Date(Date.now() - 90*60*1000).toISOString() + '&select=*&order=created_at.desc&limit=2000' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ssd-0004", "name": "Fetch Events", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 2 }, "id": "ssd-0005", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [680, 300] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst rules  = allOf('Fetch Rules');\nconst events = allOf('Fetch Events');\n\nconst nowHour = new Date().toISOString().slice(0, 13);\nconst alerts = [];\n\nrules.forEach(function (rule) {\n  const windowStart = Date.now() - (rule.window_minutes * 60 * 1000);\n  // Filter events: match event_type_filter + within window.\n  const matching = events.filter(function (e) {\n    if (rule.event_type_filter && e.event_type !== rule.event_type_filter) return false;\n    const t = new Date(e.created_at).getTime();\n    return t >= windowStart;\n  });\n  // Group by the rule's grouping key.\n  const counts = {};\n  matching.forEach(function (e) {\n    const key = e[rule.group_by] || '_null';\n    if (!counts[key]) counts[key] = { count: 0, sample_user_email: e.user_email, sample_source_ip: e.source_ip, sample_endpoint: e.endpoint, latest_event_at: e.created_at };\n    counts[key].count += 1;\n    if (e.created_at > counts[key].latest_event_at) counts[key].latest_event_at = e.created_at;\n  });\n  // Raise an alert for any group that hit the threshold.\n  Object.keys(counts).forEach(function (key) {\n    const c = counts[key];\n    if (c.count < rule.threshold_count) return;\n    if (key === '_null') return;  // skip ungrouped\n    alerts.push({\n      severity:    rule.severity,\n      alert_type:  'security_' + rule.rule_type,\n      title:       '[' + rule.rule_name + '] ' + c.count + ' events for ' + rule.group_by + '=' + key + ' in ' + rule.window_minutes + 'min',\n      message:     rule.description + '. Latest event ' + c.latest_event_at + '.',\n      aggregation_key: 'security:' + rule.rule_name + ':' + key + ':' + nowHour,\n      details:     { rule_name: rule.rule_name, rule_type: rule.rule_type, group_by: rule.group_by, group_value: key, event_count: c.count, window_minutes: rule.window_minutes, threshold: rule.threshold_count, sample_endpoint: c.sample_endpoint, latest_event_at: c.latest_event_at }\n    });\n  });\n});\n\nreturn { json: { alerts: alerts, rules_evaluated: rules.length, events_considered: events.length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ssd-0006", "name": "Evaluate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const alerts = $input.item.json.alerts || [];\nif (!alerts.length) return [{ json: { _no_alerts: true } }];\nreturn alerts.map(function (a) { return { json: a }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ssd-0007", "name": "Fan Out Alerts", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 300]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_alerts }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "ssd-0008", "name": "IF Has Alerts", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 300] },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/api/sentinel/alert' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"module_name\": \"security_monitoring\", \"alert_type\": \"{{ $json.alert_type }}\", \"severity\": \"{{ $json.severity }}\", \"title\": \"{{ $json.title }}\", \"message\": \"{{ $json.message }}\", \"details\": {{ JSON.stringify($json.details) }}, \"aggregation_key\": \"{{ $json.aggregation_key }}\" }",
+        "options": { "timeout": 8000, "continueOnFail": true }
+      },
+      "id": "ssd-0009", "name": "Dispatch Alert", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1640, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const summary = $('Evaluate').first().json;\nreturn { json: { ok: true, rules_evaluated: summary.rules_evaluated, events_considered: summary.events_considered, alerts_raised: (summary.alerts || []).length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ssd-0010", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1880, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ssd-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2120, 300] }
+  ],
+  "connections": {
+    "Schedule Every 10min": { "main": [[ { "node": "Fetch Rules", "type": "main", "index": 0 }, { "node": "Fetch Events", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Rules", "type": "main", "index": 0 }, { "node": "Fetch Events", "type": "main", "index": 0 } ]] },
+    "Fetch Rules":          { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Events":         { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Merge Branches":       { "main": [[ { "node": "Evaluate", "type": "main", "index": 0 } ]] },
+    "Evaluate":             { "main": [[ { "node": "Fan Out Alerts", "type": "main", "index": 0 } ]] },
+    "Fan Out Alerts":       { "main": [[ { "node": "IF Has Alerts", "type": "main", "index": 0 } ]] },
+    "IF Has Alerts":        { "main": [ [ { "node": "Dispatch Alert", "type": "main", "index": 0 } ], [ { "node": "Shape Response", "type": "main", "index": 0 } ] ] },
+    "Dispatch Alert":       { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

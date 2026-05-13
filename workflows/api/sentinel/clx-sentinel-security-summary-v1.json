@@ -1,0 +1,93 @@
+{
+  "name": "CLX - Sentinel Security Summary v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/security/summary", "responseMode": "responseNode", "options": {} }, "id": "ssms-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-security-summary-001", "notes": "DEACTIVATED. Admin session. Aggregates last 24h security events by event_type + severity, credential rotation inventory with days_to_due, open security alerts, top offending IPs/emails for brute-force tracking. Powers admin-dashboard/pages/sentinel.html Security tab." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ssms-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ssms-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "ssms-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nreturn { json: { _ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ssms-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ssms-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_security_events?created_at=gte.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=*&order=created_at.desc&limit=1000' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ssms-0007", "name": "Fetch Events 24h", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_credential_inventory?active=eq.true&select=*&order=next_rotation_due.asc",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ssms-0008", "name": "Fetch Credentials", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 340],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts?module_name=eq.security_monitoring&status=in.(open,acknowledged)&order=triggered_at.desc&limit=50&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "ssms-0009", "name": "Fetch Security Alerts", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_security_rules?select=*&order=rule_name.asc",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "ssms-0010", "name": "Fetch Rules", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 620],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 4 }, "id": "ssms-0011", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1700, 440] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst events  = allOf('Fetch Events 24h');\nconst creds   = allOf('Fetch Credentials');\nconst alerts  = allOf('Fetch Security Alerts');\nconst rules   = allOf('Fetch Rules');\nconst now = Date.now();\n\n// Event type buckets + severity counts (last 24h).\nconst byType = {};\nconst sevCounts = { info: 0, warning: 0, critical: 0 };\nevents.forEach(function (e) {\n  byType[e.event_type] = (byType[e.event_type] || 0) + 1;\n  if (sevCounts[e.severity] !== undefined) sevCounts[e.severity] += 1;\n});\n\n// Top offenders: IP + email by failed-auth-type events.\nconst failedTypes = ['login_failed','session_rejected','webhook_auth_failed','privilege_denied'];\nconst byIp = {};\nconst byEmail = {};\nevents.forEach(function (e) {\n  if (failedTypes.indexOf(e.event_type) === -1) return;\n  if (e.source_ip) byIp[e.source_ip]    = (byIp[e.source_ip]    || 0) + 1;\n  if (e.user_email) byEmail[e.user_email] = (byEmail[e.user_email] || 0) + 1;\n});\nfunction topN(obj, n) {\n  return Object.keys(obj).map(function (k) { return { key: k, count: obj[k] }; })\n    .sort(function (a, b) { return b.count - a.count; }).slice(0, n);\n}\n\n// Enrich credentials with days_to_due + rotation_status.\nconst enrichedCreds = creds.map(function (c) {\n  const dueAt = c.next_rotation_due ? new Date(c.next_rotation_due).getTime() : null;\n  const daysToDue = dueAt ? Math.floor((dueAt - now) / 86400000) : null;\n  let rotation_status = 'ok';\n  if (daysToDue !== null) {\n    if (daysToDue < 0) rotation_status = 'overdue';\n    else if (daysToDue <= (c.warning_threshold_days || 14)) rotation_status = 'due_soon';\n  }\n  return Object.assign({}, c, { days_to_due: daysToDue, rotation_status: rotation_status });\n});\nconst credCounts = { ok: 0, due_soon: 0, overdue: 0 };\nenrichedCreds.forEach(function (c) { credCounts[c.rotation_status] = (credCounts[c.rotation_status] || 0) + 1; });\n\n// Security posture score (0-100). Penalties for unresolved findings.\nlet score = 100;\nscore -= credCounts.overdue * 10;\nscore -= credCounts.due_soon * 3;\nscore -= sevCounts.critical * 8;\nscore -= sevCounts.warning * 2;\nscore -= alerts.filter(function (a) { return a.status === 'open' && a.severity === 'critical'; }).length * 10;\nscore -= alerts.filter(function (a) { return a.status === 'open' && a.severity === 'warning'; }).length * 3;\nscore = Math.max(0, Math.min(100, score));\n\nreturn { json: {\n  ok: true,\n  generated_at: new Date().toISOString(),\n  posture_score: score,\n  events_last_24h: events.length,\n  event_type_counts: byType,\n  severity_counts: sevCounts,\n  top_offending_ips: topN(byIp, 5),\n  top_offending_emails: topN(byEmail, 5),\n  credentials: enrichedCreds,\n  credential_counts: credCounts,\n  rules: rules,\n  alerts: alerts\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ssms-0012", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1900, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ssms-0013", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2140, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ssms-0014", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":               { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":               { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":                { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":      { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":           { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                 { "main": [ [ { "node": "Fetch Events 24h", "type": "main", "index": 0 }, { "node": "Fetch Credentials", "type": "main", "index": 0 }, { "node": "Fetch Security Alerts", "type": "main", "index": 0 }, { "node": "Fetch Rules", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Events 24h":      { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Credentials":     { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Security Alerts": { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch Rules":           { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Merge Branches":        { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":             { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
