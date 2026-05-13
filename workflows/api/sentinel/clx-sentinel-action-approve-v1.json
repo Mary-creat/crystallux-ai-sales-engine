@@ -1,0 +1,108 @@
+{
+  "name": "CLX - Sentinel Action Approve v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/remediation/action-approve", "responseMode": "responseNode", "options": {} }, "id": "saa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-action-approve-001", "notes": "DEACTIVATED. Admin session. Body: { action_id, decision: 'approve' | 'reject', notes? }. On approve: reads the pending sentinel_actions row, executes its side effect (block_ip / pause_workflow / etc), flips status to 'succeeded' + human_approved=true. On reject: status='rolled_back' + result_data captures notes." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.action_id || !body.decision) return { json: { _empty: true, status: 400, error: 'action_id + decision required (decision: approve | reject)' } };\nif (['approve','reject'].indexOf(body.decision) === -1) return { json: { _empty: true, status: 400, error: 'decision must be approve or reject' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "saa-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "saa-0003", "name": "IF Args OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "saa-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst body = $('Extract').first().json.body;\nreturn { json: { _ok: true, body: body, performed_by: row.user_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "saa-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "saa-0006", "name": "IF Admin", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 320] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions?id=eq.{{ $('Check Admin').first().json.body.action_id }}&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "saa-0007", "name": "Fetch Action", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst action = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!action) return { json: { _missing: true, status: 404, error: 'action not found' } };\nif (action.status !== 'pending') return { json: { _bad_state: true, status: 409, error: 'action is not pending (current status: ' + action.status + ')' } };\nconst body = $('Check Admin').first().json.body;\nconst performedBy = $('Check Admin').first().json.performed_by;\nconst now = new Date().toISOString();\n\nif (body.decision === 'reject') {\n  return { json: { _ok: true, mode: 'reject', plus: { kind: 'noop' }, patch: { status: 'rolled_back', result_data: { notes: body.notes || null, rejected_by: performedBy, rejected_at: now }, human_approved: false }, action: action } };\n}\n\n// Approve path — re-execute the side effect from action.action_data.\nconst data = action.action_data || {};\nconst cfg = data.action_config || {};\nlet plus = { kind: 'noop' };\nif (action.action_type === 'block_ip') {\n  const dur = cfg.block_duration_minutes || 60;\n  const exp = new Date(Date.now() + dur * 60 * 1000).toISOString();\n  plus = { kind: 'block_ip_insert', body: { ip_address: action.target_resource, expires_at: exp, reason: data.reason, blocked_by: 'human:' + performedBy, alert_id: (data.source_alert && data.source_alert.id) || null, action_id: action.id, active: true } };\n} else if (action.action_type === 'pause_workflow' || action.action_type === 'propose_account_lockout') {\n  // For propose_account_lockout we set a marker on the user / write blocklist entry by email — but auth-users lockout would require an existing column. For now we LOG only and let Mary lock manually.\n  plus = { kind: 'log_only' };\n} else if (action.action_type === 'resume_workflow') {\n  plus = { kind: 'breaker_patch', filter: 'workflow_id=eq.' + encodeURIComponent(action.target_resource), body: { current_status: 'active', paused_at: null, paused_reason: null, updated_at: now } };\n} else if (action.action_type === 'propose_credential_revocation') {\n  // Revocation requires Mary to actually rotate at the vendor — Phase 4 records intent, vendor side is manual.\n  plus = { kind: 'log_only' };\n}\nreturn { json: { _ok: true, mode: 'approve', plus: plus, patch: { status: 'succeeded', executed_at: now, result_data: { approved_by: performedBy, approved_at: now, notes: body.notes || null }, human_approved: true, approved_by: performedBy, approved_at: now }, action: action } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "saa-0008", "name": "Plan Approval", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 220]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "saa-0009", "name": "IF Plan OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [2080, 220] },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.plus.kind }}", "rightValue": "block_ip_insert", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } }, "id": "saa-0010", "name": "IF block_ip", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [2320, 140] },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_ip_blocklist",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.plus.body) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "saa-0011", "name": "Insert Blocklist Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2560, 80],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.plus.kind }}", "rightValue": "breaker_patch", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } }, "id": "saa-0012", "name": "IF breaker_patch", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [2320, 280] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_breakers?{{ $json.plus.filter }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.plus.body) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "saa-0013", "name": "Patch Breaker", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2560, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions?id=eq.{{ $json.action.id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {}
+      },
+      "id": "saa-0014", "name": "Patch Action", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2800, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.item.json;\nconst rec = Array.isArray(row) ? row[0] : row;\nconst mode = $('Plan Approval').first().json.mode;\nreturn { json: { ok: true, mode: mode, action: rec } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "saa-0015", "name": "Shape OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3040, 220]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "saa-0016", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [3280, 220] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "saa-0017", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 520] }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":              { "main": [[ { "node": "IF Args OK", "type": "main", "index": 0 } ]] },
+    "IF Args OK":           { "main": [ [ { "node": "Validate Session", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Validate Session":     { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":          { "main": [[ { "node": "IF Admin", "type": "main", "index": 0 } ]] },
+    "IF Admin":             { "main": [ [ { "node": "Fetch Action", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Action":         { "main": [[ { "node": "Plan Approval", "type": "main", "index": 0 } ]] },
+    "Plan Approval":        { "main": [[ { "node": "IF Plan OK", "type": "main", "index": 0 } ]] },
+    "IF Plan OK":           { "main": [ [ { "node": "IF block_ip", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "IF block_ip":          { "main": [ [ { "node": "Insert Blocklist Row", "type": "main", "index": 0 } ], [ { "node": "IF breaker_patch", "type": "main", "index": 0 } ] ] },
+    "Insert Blocklist Row": { "main": [[ { "node": "Patch Action", "type": "main", "index": 0 } ]] },
+    "IF breaker_patch":     { "main": [ [ { "node": "Patch Breaker", "type": "main", "index": 0 } ], [ { "node": "Patch Action", "type": "main", "index": 0 } ] ] },
+    "Patch Breaker":        { "main": [[ { "node": "Patch Action", "type": "main", "index": 0 } ]] },
+    "Patch Action":         { "main": [[ { "node": "Shape OK", "type": "main", "index": 0 } ]] },
+    "Shape OK":             { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

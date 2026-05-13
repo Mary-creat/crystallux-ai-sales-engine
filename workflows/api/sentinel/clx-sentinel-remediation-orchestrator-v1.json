@@ -1,0 +1,180 @@
+{
+  "name": "CLX - Sentinel Remediation Orchestrator v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 * * * *" } ] } }, "id": "sro-0001", "name": "Schedule Every 5min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [180, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/remediation/orchestrate", "responseMode": "responseNode", "options": {} }, "id": "sro-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [180, 380], "webhookId": "clx-sentinel-remediation-orchestrator-001", "notes": "DEACTIVATED. Cron every 5 min. The brain of Phase 4. (1) Sweeps sentinel_ip_blocklist for expired entries. (2) Loads open alerts (last 30 min) + active playbooks + recent sentinel_actions (last 24h, for cooldown checks). (3) For each (alert, playbook) match, checks severity gate + cooldown. (4) Auto-actions: execute directly + write sentinel_actions row. Approval-required: write pending sentinel_actions row with human_approved=false. (5) Also evaluates auto_resume_when_healthy by reading paused breakers + recent sentinel_workflow_health rows." },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_ip_blocklist?active=eq.true&expires_at=lt.{{ $now }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"active\": false, \"unblocked_at\": \"{{ $now }}\", \"unblock_reason\": \"expired\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "sro-0003", "name": "Sweep Expired Blocklist", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [420, 290],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts?status=in.(open,acknowledged)&triggered_at=gte.' + new Date(Date.now() - 30*60*1000).toISOString() + '&select=*&order=triggered_at.desc&limit=200' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sro-0004", "name": "Fetch Open Alerts", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 160],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_remediation_playbooks?active=eq.true&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sro-0005", "name": "Fetch Playbooks", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 290],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions?created_at=gte.' + new Date(Date.now() - 24*60*60*1000).toISOString() + '&select=*&order=created_at.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sro-0006", "name": "Fetch Recent Actions", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 420],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_breakers?current_status=in.(paused,tripped)&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "sro-0007", "name": "Fetch Paused Breakers", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 550],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_health?window_start=gte.' + new Date(Date.now() - 30*60*1000).toISOString() + '&select=workflow_id,workflow_name,window_start,status&order=window_start.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "sro-0008", "name": "Fetch Recent Health", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 680],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 5 }, "id": "sro-0009", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [900, 420] },
+    {
+      "parameters": {
+        "jsCode": "// PHASE 4 ORCHESTRATOR — pure planning step.\n// Reads alerts + playbooks + recent actions + paused breakers + recent\n// health rows, decides which actions to execute or propose, returns a\n// flat list of action records. The next nodes apply each record.\nconst allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst alerts    = allOf('Fetch Open Alerts');\nconst playbooks = allOf('Fetch Playbooks');\nconst actions   = allOf('Fetch Recent Actions');\nconst paused    = allOf('Fetch Paused Breakers');\nconst health    = allOf('Fetch Recent Health');\n\nconst SEV_RANK = { warning: 1, critical: 2, emergency: 3 };\nconst sevOK = function (sev, min) { return (SEV_RANK[sev] || 0) >= (SEV_RANK[min] || 1); };\n\nfunction lastActionFor(playbookName, target) {\n  // Recent action of the same playbook + same target — used for cooldown.\n  let latest = null;\n  actions.forEach(function (a) {\n    const data = a.action_data || {};\n    if (data.playbook_name !== playbookName) return;\n    if (target && a.target_resource !== target) return;\n    if (!latest || a.created_at > latest.created_at) latest = a;\n  });\n  return latest;\n}\n\nfunction inCooldown(playbook, target) {\n  const last = lastActionFor(playbook.playbook_name, target);\n  if (!last) return false;\n  const ageMin = (Date.now() - new Date(last.created_at).getTime()) / 60000;\n  return ageMin < (playbook.cooldown_minutes || 60);\n}\n\nconst planned = [];\n\n// === Alert-driven playbooks ===\nplaybooks.forEach(function (pb) {\n  const matching = alerts.filter(function (a) {\n    if (a.module_name !== pb.trigger_module) return false;\n    if (pb.trigger_alert_type && a.alert_type !== pb.trigger_alert_type) return false;\n    if (!sevOK(a.severity, pb.trigger_severity_min)) return false;\n    return true;\n  });\n  matching.forEach(function (alert) {\n    // Determine target_resource per action_type.\n    let target = null;\n    const det = alert.details || {};\n    if (pb.action_type === 'pause_workflow' || pb.action_type === 'resume_workflow') {\n      target = det.workflow_id || det.workflow_name || null;\n    } else if (pb.action_type === 'block_ip') {\n      target = det.source_ip || (det.group_by === 'source_ip' ? det.group_value : null);\n    } else if (pb.action_type === 'propose_account_lockout') {\n      target = det.user_email || (det.group_by === 'user_email' ? det.group_value : null);\n      // Additional gate: only fire if min_alerts_in_24h same-email brute_force alerts.\n      const minAlerts = (pb.action_config && pb.action_config.min_alerts_in_24h) || 3;\n      const sameEmailAlerts = alerts.filter(function (a) {\n        return a.alert_type === 'security_brute_force' && (a.details || {}).group_value === target;\n      });\n      if (sameEmailAlerts.length < minAlerts) return;\n    } else if (pb.action_type === 'propose_credential_revocation') {\n      target = det.credential_name || null;\n      const minDays = (pb.action_config && pb.action_config.min_overdue_days) || 30;\n      if ((det.days_to_due || 0) > -minDays) return;\n    }\n    if (!target) return;\n    if (inCooldown(pb, target)) return;\n    planned.push({\n      playbook_name: pb.playbook_name,\n      module_name: pb.trigger_module,\n      action_type: pb.action_type,\n      target_resource: target,\n      requires_approval: !!pb.requires_approval,\n      alert_id: alert.id,\n      action_config: pb.action_config || {},\n      reason: ((pb.action_config && pb.action_config.reason_prefix) || ('Playbook ' + pb.playbook_name)) + ' — ' + (alert.title || ''),\n      source_alert: { id: alert.id, title: alert.title, severity: alert.severity, alert_type: alert.alert_type, details: alert.details }\n    });\n  });\n});\n\n// === Time-driven playbook: auto_resume_when_healthy ===\nconst resumePb = playbooks.find(function (p) { return p.playbook_name === 'auto_resume_when_healthy' && p.active; });\nif (resumePb) {\n  paused.forEach(function (br) {\n    if (br.is_essential) return;  // never touch essential (defense in depth)\n    if (inCooldown(resumePb, br.workflow_id)) return;\n    // Filter recent health for this workflow, latest first.\n    const recent = health.filter(function (h) { return h.workflow_id === br.workflow_id; }).slice(0, 3);\n    const minWindows = (resumePb.action_config && resumePb.action_config.min_consecutive_healthy_windows) || 3;\n    if (recent.length < minWindows) return;\n    if (!recent.every(function (h) { return h.status === 'healthy'; })) return;\n    planned.push({\n      playbook_name: resumePb.playbook_name,\n      module_name: resumePb.trigger_module,\n      action_type: 'resume_workflow',\n      target_resource: br.workflow_id,\n      requires_approval: false,\n      alert_id: null,\n      action_config: resumePb.action_config || {},\n      reason: 'Sentinel: ' + minWindows + ' consecutive healthy windows after pause',\n      source_alert: null\n    });\n  });\n}\n\nreturn planned.map(function (p) { return { json: p }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sro-0010", "name": "Plan Actions", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1140, 420]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.requires_approval }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "sro-0011", "name": "IF Auto-execute", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1380, 420] },
+    {
+      "parameters": {
+        "jsCode": "// EXECUTOR — for auto actions only. Builds the SQL payload pieces.\n// We have one Code node per branch because the side effects differ:\n//   - pause_workflow:    PATCH sentinel_workflow_breakers + INSERT action\n//   - resume_workflow:   PATCH sentinel_workflow_breakers + INSERT action\n//   - block_ip:          INSERT sentinel_ip_blocklist + INSERT action\n//   - notify_only:       INSERT action only\n// For simplicity we route each action_type into the same downstream\n// HTTP-PATCH/INSERT nodes using a small router. This Code node\n// emits an array of side-effect descriptors that the next nodes apply.\nconst p = $input.item.json;\nconst now = new Date().toISOString();\nlet plus = null;\nif (p.action_type === 'block_ip') {\n  const dur = (p.action_config && p.action_config.block_duration_minutes) || 60;\n  const exp = new Date(Date.now() + dur * 60 * 1000).toISOString();\n  plus = { kind: 'block_ip_insert', body: { ip_address: p.target_resource, expires_at: exp, reason: p.reason, blocked_by: 'auto:' + p.playbook_name, alert_id: p.alert_id, active: true } };\n} else if (p.action_type === 'pause_workflow') {\n  plus = { kind: 'breaker_patch', filter: 'workflow_id=eq.' + encodeURIComponent(p.target_resource), body: { current_status: 'paused', paused_at: now, paused_reason: p.reason, updated_at: now } };\n} else if (p.action_type === 'resume_workflow') {\n  plus = { kind: 'breaker_patch', filter: 'workflow_id=eq.' + encodeURIComponent(p.target_resource), body: { current_status: 'active', paused_at: null, paused_reason: null, updated_at: now } };\n} else {\n  plus = { kind: 'noop' };\n}\nconst actionRow = {\n  module_name: p.module_name,\n  action_type: p.action_type,\n  target_resource: p.target_resource,\n  action_data: { playbook_name: p.playbook_name, reason: p.reason, action_config: p.action_config, source_alert: p.source_alert },\n  triggered_by: 'auto:' + p.playbook_name,\n  status: 'succeeded',\n  executed_at: now,\n  human_approved: false\n};\nreturn { json: { plus: plus, action_row: actionRow } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sro-0012", "name": "Build Auto Side Effect", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1640, 280]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.plus.kind }}", "rightValue": "block_ip_insert", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } }, "id": "sro-0013", "name": "IF block_ip", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1880, 200] },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_ip_blocklist",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.plus.body) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "sro-0014", "name": "Insert Blocklist Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2120, 140],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.plus.kind }}", "rightValue": "breaker_patch", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } }, "id": "sro-0015", "name": "IF breaker_patch", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1880, 340] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_breakers?{{ $json.plus.filter }}{{ $json.action_row.action_type === 'pause_workflow' ? '&is_essential=eq.false' : '' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.plus.body) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "sro-0016", "name": "Patch Breaker", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2120, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.action_row) }}",
+        "options": {}
+      },
+      "id": "sro-0017", "name": "Log Auto Action", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2360, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PENDING approval — write sentinel_actions with status='pending'.\nconst p = $input.item.json;\nconst row = {\n  module_name: p.module_name,\n  action_type: p.action_type,\n  target_resource: p.target_resource,\n  action_data: { playbook_name: p.playbook_name, reason: p.reason, action_config: p.action_config, source_alert: p.source_alert },\n  triggered_by: 'auto:' + p.playbook_name,\n  status: 'pending',\n  human_approved: false\n};\nreturn { json: row };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sro-0018", "name": "Build Pending Row", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1640, 560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "sro-0019", "name": "Insert Pending Action", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1880, 560],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const planned = $('Plan Actions').all().map(function (i) { return i.json; });\nconst auto = planned.filter(function (p) { return !p.requires_approval; });\nconst pending = planned.filter(function (p) { return p.requires_approval; });\nreturn { json: { ok: true, planned_total: planned.length, auto_executed: auto.length, pending_approval: pending.length, sample_targets: planned.slice(0, 10).map(function (p) { return p.playbook_name + ' → ' + p.target_resource; }) } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sro-0020", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2600, 420]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sro-0021", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2840, 420] }
+  ],
+  "connections": {
+    "Schedule Every 5min":    { "main": [[ { "node": "Sweep Expired Blocklist", "type": "main", "index": 0 } ]] },
+    "Webhook":                { "main": [[ { "node": "Sweep Expired Blocklist", "type": "main", "index": 0 } ]] },
+    "Sweep Expired Blocklist":{ "main": [[ { "node": "Fetch Open Alerts", "type": "main", "index": 0 }, { "node": "Fetch Playbooks", "type": "main", "index": 0 }, { "node": "Fetch Recent Actions", "type": "main", "index": 0 }, { "node": "Fetch Paused Breakers", "type": "main", "index": 0 }, { "node": "Fetch Recent Health", "type": "main", "index": 0 } ]] },
+    "Fetch Open Alerts":      { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Playbooks":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Recent Actions":   { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch Paused Breakers":  { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Fetch Recent Health":    { "main": [[ { "node": "Merge Branches", "type": "main", "index": 4 } ]] },
+    "Merge Branches":         { "main": [[ { "node": "Plan Actions", "type": "main", "index": 0 } ]] },
+    "Plan Actions":           { "main": [[ { "node": "IF Auto-execute", "type": "main", "index": 0 } ]] },
+    "IF Auto-execute":        { "main": [ [ { "node": "Build Auto Side Effect", "type": "main", "index": 0 } ], [ { "node": "Build Pending Row", "type": "main", "index": 0 } ] ] },
+    "Build Auto Side Effect": { "main": [[ { "node": "IF block_ip", "type": "main", "index": 0 } ]] },
+    "IF block_ip":            { "main": [ [ { "node": "Insert Blocklist Row", "type": "main", "index": 0 } ], [ { "node": "IF breaker_patch", "type": "main", "index": 0 } ] ] },
+    "Insert Blocklist Row":   { "main": [[ { "node": "Log Auto Action", "type": "main", "index": 0 } ]] },
+    "IF breaker_patch":       { "main": [ [ { "node": "Patch Breaker", "type": "main", "index": 0 } ], [ { "node": "Log Auto Action", "type": "main", "index": 0 } ] ] },
+    "Patch Breaker":          { "main": [[ { "node": "Log Auto Action", "type": "main", "index": 0 } ]] },
+    "Log Auto Action":        { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Build Pending Row":      { "main": [[ { "node": "Insert Pending Action", "type": "main", "index": 0 } ]] },
+    "Insert Pending Action":  { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":         { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

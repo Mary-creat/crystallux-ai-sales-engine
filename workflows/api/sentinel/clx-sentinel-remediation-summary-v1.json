@@ -1,0 +1,92 @@
+{
+  "name": "CLX - Sentinel Remediation Summary v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/remediation/summary", "responseMode": "responseNode", "options": {} }, "id": "srs-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-remediation-summary-001", "notes": "DEACTIVATED. Admin session. Returns playbooks, active blocklist, pending approvals, and last-7-days action history for the Remediation tab." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "srs-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "srs-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "srs-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nreturn { json: { _ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "srs-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "srs-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_remediation_playbooks?select=*&order=trigger_module.asc,playbook_name.asc",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "srs-0007", "name": "Fetch Playbooks", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_ip_blocklist?active=eq.true&select=*&order=blocked_at.desc&limit=200",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "srs-0008", "name": "Fetch Blocklist", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 340],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions?status=eq.pending&select=*&order=created_at.desc&limit=100",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "srs-0009", "name": "Fetch Pending", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions?created_at=gte.' + new Date(Date.now() - 7*24*60*60*1000).toISOString() + '&select=*&order=created_at.desc&limit=100' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "srs-0010", "name": "Fetch History", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 620],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 4 }, "id": "srs-0011", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1700, 440] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst playbooks = allOf('Fetch Playbooks');\nconst blocklist = allOf('Fetch Blocklist');\nconst pending   = allOf('Fetch Pending');\nconst history   = allOf('Fetch History');\n\n// Counts.\nconst statusCounts = { succeeded: 0, pending: 0, failed: 0, rolled_back: 0 };\nhistory.forEach(function (a) { statusCounts[a.status] = (statusCounts[a.status] || 0) + 1; });\n\n// Actions-per-playbook for the last 7 days.\nconst perPlaybook = {};\nhistory.forEach(function (a) {\n  const name = (a.action_data && a.action_data.playbook_name) || ('manual_' + a.action_type);\n  if (!perPlaybook[name]) perPlaybook[name] = { auto: 0, manual: 0, succeeded: 0, pending: 0, failed: 0, rolled_back: 0 };\n  if ((a.triggered_by || '').startsWith('auto:')) perPlaybook[name].auto += 1;\n  else perPlaybook[name].manual += 1;\n  perPlaybook[name][a.status] = (perPlaybook[name][a.status] || 0) + 1;\n});\n\nreturn { json: {\n  ok: true,\n  generated_at: new Date().toISOString(),\n  playbooks: playbooks,\n  blocklist: blocklist,\n  pending_approvals: pending,\n  recent_actions: history,\n  status_counts: statusCounts,\n  per_playbook: perPlaybook,\n  totals: {\n    playbooks_total: playbooks.length,\n    playbooks_active: playbooks.filter(function (p) { return p.active; }).length,\n    blocklist_active: blocklist.length,\n    pending_approvals: pending.length,\n    actions_7d: history.length\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "srs-0012", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1900, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "srs-0013", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2140, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "srs-0014", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":            { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":             { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":   { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":        { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":              { "main": [ [ { "node": "Fetch Playbooks", "type": "main", "index": 0 }, { "node": "Fetch Blocklist", "type": "main", "index": 0 }, { "node": "Fetch Pending", "type": "main", "index": 0 }, { "node": "Fetch History", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Playbooks":    { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Blocklist":    { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Pending":      { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch History":      { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Merge Branches":     { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":          { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
