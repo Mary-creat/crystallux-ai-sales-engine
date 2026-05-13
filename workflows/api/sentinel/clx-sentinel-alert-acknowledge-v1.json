@@ -1,0 +1,50 @@
+{
+  "name": "CLX - Sentinel Alert Acknowledge v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/alert-acknowledge", "responseMode": "responseNode", "options": {} }, "id": "saa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-alert-acknowledge-001", "notes": "DEACTIVATED. Admin session. Marks an alert as acknowledged or resolved." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.alert_id || !body.action) return { json: { _empty: true, status: 400, error: 'alert_id + action required (action: acknowledge | resolve)' } };\nif (['acknowledge','resolve'].indexOf(body.action) === -1) return { json: { _empty: true, status: 400, error: 'action must be acknowledge or resolve' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "saa-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "saa-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "saa-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst body = $('Extract').first().json.body;\nconst now = new Date().toISOString();\nlet payload;\nif (body.action === 'acknowledge') {\n  payload = { status: 'acknowledged', acknowledged_at: now, acknowledged_by: row.user_id };\n} else {\n  payload = { status: 'resolved', resolved_at: now, resolution_notes: body.notes || null };\n  if (!payload.acknowledged_at) { payload.acknowledged_at = now; payload.acknowledged_by = row.user_id; }\n}\nreturn { json: { _ok: true, alert_id: body.alert_id, payload } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "saa-0005", "name": "Build Update", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "saa-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts?id=eq.{{ $json.alert_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "saa-0007", "name": "Update Alert", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, alert: row } };", "mode": "runOnceForEachItem" }, "id": "saa-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "saa-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2080, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "saa-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Build Update", "type": "main", "index": 0 } ]] },
+    "Build Update":    { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Update Alert", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Update Alert":    { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
