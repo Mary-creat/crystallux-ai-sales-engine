@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-05-13 — Sentinel Phase 1: live dashboard + real vendor collectors
+
+**Branch:** `scale-sprint-v1`
+**Scope:** completes the gaps in the prior 2026-05-13 Sentinel build (this same day). Two more commits to bring Phase 1 from "framework + stubs" to "framework + real compute + live UI".
+
+What was missing before this session:
+- 5 of 6 vendor cost collectors were stubs recording $0 with placeholder notes. Only the Anthropic collector did real compute.
+- The Costs / Alerts tabs in `admin-dashboard/pages/sentinel.html` rendered placeholder text + Supabase Studio SQL hints. No live data, no edit controls.
+
+What landed:
+
+**5 vendor collectors rewritten with real compute (from internal log tables — no vendor billing-API dependency):**
+- twilio: sums `messages_sent.cost_cents WHERE channel IN ('sms','whatsapp') AND DATE(created_at) = yesterday`, breaks down by channel in `usage_metrics`.
+- vapi: sums `messages_sent.cost_cents WHERE channel = 'voice'`, tracks succeeded/failed counts.
+- heygen: sums `video_renders.cost_cents WHERE DATE(rendered_at) = yesterday`, breaks down by `content_type` (outreach vs content_marketing) + tracks total seconds.
+- openai: calls OpenAI Admin API (`/v1/organization/usage/completions?bucket_width=1d`) with `OPENAI_ADMIN_API_KEY` (falls back to `OPENAI_API_KEY`). Computes cost using gpt-4o pricing ($2.50/$10 per 1M in/out). On failure (missing key, 401, network) writes $0 with `data_source='manual'` and a clear note pointing Mary at manual-monthly-entry. Workflow doesn't crash if Mary lacks admin key.
+- supabase: Supabase has no programmatic per-day billing API. Prorates the fixed $25/mo Pro plan base into a daily portion (≈83¢/day), `data_source='manual'`, notes pointing at manual reconciliation when invoice arrives.
+
+**2 new dashboard backend workflows in `workflows/api/sentinel/`:**
+- `clx-sentinel-cost-summary-v1.json` — POST `/webhook/api/sentinel/cost/summary`. Admin session. Parallel-fetches MTD spend + budgets + alerts + breakers; Aggregate node computes today/MTD/yesterday/projected per service + enriches budgets with `percent_used` and `status` (ok/warning/critical/emergency by tier). Uses canonical Merge Branches (mode:append) pattern before Aggregate to handle the 4-way fan-in cleanly.
+- `clx-sentinel-budget-update-v1.json` — POST `/webhook/api/sentinel/budget-update`. Admin role. Whitelisted columns: monthly_limit_cents, daily_limit_cents, warning_pct, critical_pct, auto_pause_pct, active, notes. PATCH on `sentinel_cost_budgets?service_name=eq.<urlencoded>`.
+
+**Frontend (`admin-dashboard/pages/sentinel.html`):**
+- Costs tab now lights up with: 8 stat cards (Total platform MTD + projected, Today across services, per-service tiles for the 6 services), Budgets-vs-MTD table with progress bars and inline Edit form per row (saves via budget-update webhook, refreshes on save), MTD-share comparison table, circuit breaker table with essential-flag badge.
+- Alerts tab renders live alert list with Acknowledge / Resolve buttons calling existing `clx-sentinel-alert-acknowledge-v1` webhook.
+- 5-tab structure, CSS tokens, auth gate (`clxAuth.require(['admin'])`), Overview tab, Health/Security placeholder tabs — all preserved unchanged.
+
+Mary's deployment steps (add to the prior list):
+1. Re-import the 5 rewritten vendor collectors + 2 new dashboard workflows + the updated cost-summary workflow into n8n (8 JSONs total).
+2. (Optional for live OpenAI cost) Add `OPENAI_ADMIN_API_KEY` env var in n8n. Without it, OpenAI shows $0 until manually entered each month.
+3. Activate all 6 vendor collectors at 06:00 daily — they'll backfill yesterday's spend on first run.
+4. Open `admin.crystallux.org/pages/sentinel.html` → Costs tab populates from live data within seconds.
+
+---
+
 ## 2026-05-13 — Sentinel Phase 1 (cost monitoring + foundation for Phases 2-5)
 
 **Branch:** `scale-sprint-v1`

@@ -17,6 +17,26 @@
 .pill-warning { background:#fef3c7; color:#b45309; }
 .pill-critical { background:#fee2e2; color:#b91c1c; }
 .pill-emergency { background:#7f1d1d; color:#fff; }
+.pill-ok { background:#dcfce7; color:#166534; }
+.pill-status-open { background:#fee2e2; color:#b91c1c; }
+.pill-status-acknowledged { background:#fef3c7; color:#b45309; }
+.bar-wrap { width:100%; height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-top:4px; }
+.bar-fill { height:100%; transition:width 0.3s; }
+.bar-ok { background:#16a34a; }
+.bar-warning { background:#eab308; }
+.bar-critical { background:#dc2626; }
+.bar-emergency { background:#7f1d1d; }
+.budget-form { display:none; padding:10px; background:#f8fafc; border-top:1px solid #e5e7eb; }
+.budget-form.open { display:block; }
+.budget-form input { padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; width:120px; margin-right:8px; font-size:13px; }
+.budget-form button { padding:5px 12px; border-radius:4px; border:1px solid #0f4c81; background:#0f4c81; color:#fff; font-size:12px; font-weight:600; cursor:pointer; margin-right:6px; }
+.budget-form button.secondary { background:#fff; color:#0f4c81; }
+.btn-sm { padding:4px 10px; border-radius:4px; font-size:12px; font-weight:600; cursor:pointer; margin-right:4px; }
+.btn-ack { border:1px solid #b45309; background:#fff; color:#b45309; }
+.btn-resolve { border:1px solid #166534; background:#166534; color:#fff; }
+.btn-edit { border:1px solid #6b7280; background:#fff; color:#374151; }
+.trend-bar-cell { display:flex; align-items:center; gap:6px; }
+.trend-spark { display:inline-block; height:14px; background:#0f4c81; border-radius:2px; }
 </style>
 </head><body>
 <header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Sentinel</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
@@ -79,18 +99,15 @@
     });
   });
 
+  // Cached summary response so the Alerts tab can render from the same fetch.
+  var _summary = null;
+
   function loadAll(){
-    // Hit Sentinel-related Supabase tables via Layer 1 admin generic queries. For this dashboard we
-    // make small REST calls directly to Supabase via the admin-dashboard's session token (the
-    // Supabase JS client would be cleaner; this is a minimal first-cut).
-    // Using clxApi.call for adminPost wrapper.
     loadModules();
     loadCosts();
-    loadAlerts();
   }
 
   function loadModules(){
-    // Render placeholder modules registry from the seed
     var html = '<table class="clx-table"><thead><tr><th>Module</th><th>Type</th><th>Status</th></tr></thead><tbody>';
     [['cost_monitoring','monitoring','active'],
      ['health_monitoring','monitoring','planned'],
@@ -109,21 +126,223 @@
   }
 
   function loadCosts(){
-    // Cost summary via a custom dashboard webhook would be cleaner; first cut renders placeholders
-    // and a link to Supabase Studio for now. Once Mary wires a /webhook/api/sentinel/cost/summary
-    // endpoint, this loop can populate fully.
-    document.getElementById('costStats').innerHTML =
-      '<div class="clx-stat"><div class="clx-stat-label">Activate</div><div class="clx-stat-value">7 collectors</div><div class="clx-stat-sub">Cron 06:00 daily</div></div>'
-    + '<div class="clx-stat"><div class="clx-stat-label">Anthropic</div><div class="clx-stat-value">$0.00</div><div class="clx-stat-sub">No data yet</div></div>'
-    + '<div class="clx-stat"><div class="clx-stat-label">Total platform</div><div class="clx-stat-value">$0.00</div><div class="clx-stat-sub">MTD</div></div>';
-
-    document.getElementById('budgetsTable').innerHTML = '<div class="clx-empty">Budgets seeded by migration. Run cost collectors (cron or manual webhook) to populate spend data. View live: <code>SELECT * FROM sentinel_cost_budgets;</code> in Supabase Studio.</div>';
-    document.getElementById('trendTable').innerHTML = '<div class="clx-empty">Trend chart renders after 14 days of collector data accumulates. View live: <code>SELECT tracking_date, service_name, spend_cents FROM sentinel_cost_tracking ORDER BY tracking_date DESC LIMIT 100;</code></div>';
-    document.getElementById('breakersTable').innerHTML = '<div class="clx-empty">Circuit breakers register as workflows execute. View live: <code>SELECT workflow_name, current_status, total_executions_today FROM sentinel_workflow_breakers;</code></div>';
+    clxApi.renderLoading(document.getElementById('costStats'), 'Loading cost summary…');
+    clxApi.call('/api/sentinel/cost/summary', {}).then(function(res){
+      if (!res.ok) {
+        clxApi.renderError(document.getElementById('costStats'), res);
+        ['budgetsTable','trendTable','breakersTable','alertsTable'].forEach(function(id){
+          var el = document.getElementById(id); if (el) clxApi.renderError(el, res);
+        });
+        return;
+      }
+      _summary = res.data || {};
+      renderCostStats(_summary);
+      renderBudgets(_summary);
+      renderTrend(_summary);
+      renderBreakers(_summary);
+      renderAlerts(_summary);
+    });
   }
 
-  function loadAlerts(){
-    document.getElementById('alertsTable').innerHTML = '<div class="clx-empty">Open alerts appear here after the threshold check or anomaly detector runs. View live: <code>SELECT id, severity, title, triggered_at FROM sentinel_alerts WHERE status = \'open\' ORDER BY triggered_at DESC;</code></div>';
+  function renderCostStats(s){
+    var totals = s.totals || {};
+    var byService = (s.by_service && s.by_service.today) || {};
+    var mtdByService = (s.by_service && s.by_service.mtd) || {};
+    var projByService = (s.by_service && s.by_service.projected_month_end) || {};
+
+    function todaySum(){ var t=0; Object.keys(byService).forEach(function(k){t+=byService[k]||0;}); return t; }
+
+    var html = ''
+      + '<div class="clx-stat"><div class="clx-stat-label">Total platform · MTD</div><div class="clx-stat-value">'+fmtMoney(totals.mtd_cents||0)+'</div><div class="clx-stat-sub">Projected '+fmtMoney(totals.projected_month_end_cents||0)+'</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Today</div><div class="clx-stat-value">'+fmtMoney(todaySum())+'</div><div class="clx-stat-sub">Across all services</div></div>';
+
+    // Per-service stat tiles
+    ['anthropic','openai','twilio','vapi','heygen','supabase'].forEach(function(svc){
+      var mtd = mtdByService[svc] || 0;
+      var today = byService[svc] || 0;
+      var proj = projByService[svc] || 0;
+      html += '<div class="clx-stat"><div class="clx-stat-label">'+esc(svc)+'</div><div class="clx-stat-value">'+fmtMoney(mtd)+'</div><div class="clx-stat-sub">Today '+fmtMoney(today)+' · Proj '+fmtMoney(proj)+'</div></div>';
+    });
+    document.getElementById('costStats').innerHTML = html;
+  }
+
+  function renderBudgets(s){
+    var budgets = s.budgets || [];
+    if (!budgets.length) {
+      clxApi.renderEmpty(document.getElementById('budgetsTable'), 'No budgets configured yet. Run the foundation migration to seed them.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Service</th><th>Monthly limit</th><th>MTD spend</th><th>% used</th><th>Status</th><th>Thresholds</th><th></th></tr></thead><tbody>';
+    budgets.forEach(function(b){
+      var pct = b.percent_used || 0;
+      var barCls = 'bar-'+b.status;
+      var pctWidth = Math.min(100, pct);
+      html += '<tr>'
+        + '<td><strong>'+esc(b.service_name)+'</strong></td>'
+        + '<td>'+fmtMoney(b.monthly_limit_cents)+'</td>'
+        + '<td>'+fmtMoney(b.mtd_spend_cents)+'</td>'
+        + '<td>'+pct.toFixed(1)+'%<div class="bar-wrap"><div class="bar-fill '+barCls+'" style="width:'+pctWidth+'%"></div></div></td>'
+        + '<td>'+pill(b.status)+'</td>'
+        + '<td><span style="font-size:11px;color:#6b7280;">W:'+(b.warning_pct||50)+'% C:'+(b.critical_pct||75)+'% AP:'+(b.auto_pause_pct||90)+'%</span></td>'
+        + '<td><button class="btn-sm btn-edit" data-edit-service="'+esc(b.service_name)+'">Edit</button></td>'
+        + '</tr>'
+        + '<tr id="form-'+esc(b.service_name).replace(/[^a-z0-9]/gi,'_')+'" class="budget-form-row" style="display:none;"><td colspan="7"><div class="budget-form open">'
+        +   '<label style="font-size:12px;color:#6b7280;">Monthly limit ($)</label> <input type="number" step="0.01" data-fld="monthly_limit" value="'+((b.monthly_limit_cents||0)/100).toFixed(2)+'">'
+        +   '<label style="font-size:12px;color:#6b7280;">Warning %</label> <input type="number" data-fld="warning_pct" value="'+(b.warning_pct||50)+'">'
+        +   '<label style="font-size:12px;color:#6b7280;">Critical %</label> <input type="number" data-fld="critical_pct" value="'+(b.critical_pct||75)+'">'
+        +   '<label style="font-size:12px;color:#6b7280;">Auto-pause %</label> <input type="number" data-fld="auto_pause_pct" value="'+(b.auto_pause_pct||90)+'">'
+        +   '<button data-save-service="'+esc(b.service_name)+'">Save</button>'
+        +   '<button class="secondary" data-cancel-service="'+esc(b.service_name)+'">Cancel</button>'
+        +   '<div class="save-status" style="margin-top:6px;font-size:12px;"></div>'
+        + '</div></td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('budgetsTable').innerHTML = html;
+    wireBudgetForms();
+  }
+
+  function wireBudgetForms(){
+    document.querySelectorAll('[data-edit-service]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var svc = btn.getAttribute('data-edit-service');
+        var row = document.getElementById('form-'+svc.replace(/[^a-z0-9]/gi,'_'));
+        if (row) row.style.display = (row.style.display === 'none') ? '' : 'none';
+      });
+    });
+    document.querySelectorAll('[data-cancel-service]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var svc = btn.getAttribute('data-cancel-service');
+        var row = document.getElementById('form-'+svc.replace(/[^a-z0-9]/gi,'_'));
+        if (row) row.style.display = 'none';
+      });
+    });
+    document.querySelectorAll('[data-save-service]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var svc = btn.getAttribute('data-save-service');
+        var row = document.getElementById('form-'+svc.replace(/[^a-z0-9]/gi,'_'));
+        if (!row) return;
+        var inputs = row.querySelectorAll('input[data-fld]');
+        var body = { service_name: svc };
+        inputs.forEach(function(i){
+          var key = i.getAttribute('data-fld');
+          var val = i.value;
+          if (val === '' || val === null) return;
+          if (key === 'monthly_limit') body.monthly_limit_cents = Math.round(parseFloat(val)*100);
+          else body[key] = parseInt(val, 10);
+        });
+        var statusEl = row.querySelector('.save-status');
+        statusEl.textContent = 'Saving…'; statusEl.style.color = '#6b7280';
+        btn.disabled = true;
+        clxApi.call('/api/sentinel/budget-update', body).then(function(res){
+          btn.disabled = false;
+          if (res.ok && res.data && res.data.ok !== false) {
+            statusEl.textContent = 'Saved. Refreshing…'; statusEl.style.color = '#166534';
+            setTimeout(loadCosts, 700);
+          } else {
+            statusEl.textContent = (res.error || (res.data && res.data.error) || 'Save failed.'); statusEl.style.color = '#b91c1c';
+          }
+        });
+      });
+    });
+  }
+
+  function renderTrend(s){
+    // Build a per-service MTD bar comparing each service's spend share of total platform MTD.
+    var mtd = (s.by_service && s.by_service.mtd) || {};
+    var today = (s.by_service && s.by_service.today) || {};
+    var yesterday = (s.by_service && s.by_service.yesterday) || {};
+    var proj = (s.by_service && s.by_service.projected_month_end) || {};
+    var services = Object.keys(mtd).filter(function(k){return mtd[k]>0;}).sort(function(a,b){return mtd[b]-mtd[a];});
+    if (!services.length) {
+      clxApi.renderEmpty(document.getElementById('trendTable'), 'No spend recorded yet for this month. Collectors run daily at 06:00 once activated.');
+      return;
+    }
+    var max = Math.max.apply(null, services.map(function(s){return mtd[s];}));
+    var html = '<table class="clx-table"><thead><tr><th>Service</th><th>Today</th><th>Yesterday</th><th>MTD</th><th>MTD share</th><th>Projected EOM</th></tr></thead><tbody>';
+    services.forEach(function(svc){
+      var width = max > 0 ? (mtd[svc] / max * 100) : 0;
+      html += '<tr>'
+        + '<td><strong>'+esc(svc)+'</strong></td>'
+        + '<td>'+fmtMoney(today[svc]||0)+'</td>'
+        + '<td>'+fmtMoney(yesterday[svc]||0)+'</td>'
+        + '<td>'+fmtMoney(mtd[svc]||0)+'</td>'
+        + '<td><div class="trend-bar-cell"><span class="trend-spark" style="width:'+Math.max(2, Math.round(width*1.2))+'px;"></span></div></td>'
+        + '<td>'+fmtMoney(proj[svc]||0)+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('trendTable').innerHTML = html;
+  }
+
+  function renderBreakers(s){
+    var breakers = s.breakers || [];
+    if (!breakers.length) {
+      clxApi.renderEmpty(document.getElementById('breakersTable'), 'No circuit breakers tripped. Workflows execute normally.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Workflow</th><th>Status</th><th>Executions today</th><th>Last error</th><th>Essential</th></tr></thead><tbody>';
+    breakers.forEach(function(b){
+      var statusCls = b.current_status === 'open' ? 'pill-critical' : (b.current_status === 'half_open' ? 'pill-warning' : 'pill-ok');
+      html += '<tr>'
+        + '<td><code style="font-size:12px;">'+esc(b.workflow_name)+'</code></td>'
+        + '<td><span class="pill '+statusCls+'">'+esc(b.current_status||'closed')+'</span></td>'
+        + '<td>'+(b.total_executions_today||0)+'</td>'
+        + '<td style="font-size:12px;color:#6b7280;">'+esc(b.last_error_message||'—')+'</td>'
+        + '<td>'+(b.is_essential ? '<span class="pill pill-info">essential</span>' : '—')+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('breakersTable').innerHTML = html;
+  }
+
+  function renderAlerts(s){
+    var alerts = (s && s.alerts) || [];
+    if (!alerts.length) {
+      clxApi.renderEmpty(document.getElementById('alertsTable'), 'No open alerts. Threshold check + anomaly detector run on schedule; alerts surface here when raised.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Severity</th><th>Title</th><th>Module</th><th>Triggered</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    alerts.forEach(function(a){
+      var statusCls = a.status === 'open' ? 'pill-status-open' : 'pill-status-acknowledged';
+      html += '<tr id="alert-'+esc(a.id)+'">'
+        + '<td>'+pill(a.severity||'info')+'</td>'
+        + '<td><strong>'+esc(a.title||'')+'</strong><br><span style="font-size:12px;color:#6b7280;">'+esc(a.message||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+esc(a.module_name||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+esc((a.triggered_at||'').replace('T',' ').slice(0,16))+'</span></td>'
+        + '<td><span class="pill '+statusCls+'">'+esc(a.status||'open')+'</span></td>'
+        + '<td>'
+        +   (a.status === 'open' ? '<button class="btn-sm btn-ack" data-ack="'+esc(a.id)+'">Acknowledge</button>' : '')
+        +   '<button class="btn-sm btn-resolve" data-resolve="'+esc(a.id)+'">Resolve</button>'
+        +   '<div class="alert-status" style="font-size:11px;color:#6b7280;margin-top:3px;"></div>'
+        + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('alertsTable').innerHTML = html;
+    wireAlertActions();
+  }
+
+  function wireAlertActions(){
+    function act(action, alertId, btn){
+      var row = document.getElementById('alert-'+alertId);
+      var status = row ? row.querySelector('.alert-status') : null;
+      btn.disabled = true; if (status) { status.textContent = action+'…'; status.style.color = '#6b7280'; }
+      clxApi.call('/api/sentinel/alert-acknowledge', { alert_id: alertId, action: action }).then(function(res){
+        btn.disabled = false;
+        if (res.ok && res.data && res.data.ok !== false) {
+          if (status) { status.textContent = 'Done. Refreshing…'; status.style.color = '#166534'; }
+          setTimeout(loadCosts, 700);
+        } else {
+          if (status) { status.textContent = (res.error || (res.data && res.data.error) || 'Failed.'); status.style.color = '#b91c1c'; }
+        }
+      });
+    }
+    document.querySelectorAll('[data-ack]').forEach(function(btn){
+      btn.addEventListener('click', function(){ act('acknowledge', btn.getAttribute('data-ack'), btn); });
+    });
+    document.querySelectorAll('[data-resolve]').forEach(function(btn){
+      btn.addEventListener('click', function(){ act('resolve', btn.getAttribute('data-resolve'), btn); });
+    });
   }
 })();
 </script>

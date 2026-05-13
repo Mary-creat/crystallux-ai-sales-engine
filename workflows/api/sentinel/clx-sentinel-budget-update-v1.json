@@ -1,0 +1,50 @@
+{
+  "name": "CLX - Sentinel Budget Update v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/budget-update", "responseMode": "responseNode", "options": {} }, "id": "sbu-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-budget-update-001", "notes": "DEACTIVATED. Admin session. Patches a sentinel_cost_budgets row by service_name." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.service_name) return { json: { _empty: true, status: 400, error: 'service_name required' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sbu-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "sbu-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "sbu-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst body = $('Extract').first().json.body;\n// Whitelist only the columns we allow updating\nconst payload = { updated_at: new Date().toISOString() };\n['monthly_limit_cents','daily_limit_cents','warning_pct','critical_pct','auto_pause_pct','active','notes'].forEach(function (k) { if (body[k] !== undefined) payload[k] = body[k]; });\nreturn { json: { _ok: true, service_name: body.service_name, payload } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sbu-0005", "name": "Build Patch", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "sbu-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_budgets?service_name=eq.{{ encodeURIComponent($json.service_name) }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "sbu-0007", "name": "Update Budget", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nif (!row) return { json: { ok: false, error: 'Budget row not found for service_name' } };\nreturn { json: { ok: true, budget: row } };", "mode": "runOnceForEachItem" }, "id": "sbu-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sbu-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2080, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "sbu-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":{ "main": [[ { "node": "Build Patch", "type": "main", "index": 0 } ]] },
+    "Build Patch":     { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":           { "main": [ [ { "node": "Update Budget", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Update Budget":   { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
