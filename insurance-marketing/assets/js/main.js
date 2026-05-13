@@ -1,4 +1,4 @@
-/* Crystallux Insurance Network — marketing site JS.
+/* Crystallux Financial Services — marketing site JS.
    Plain vanilla. Mobile nav, FAQ accordion, cookie banner, form submit. */
 
 (function () {

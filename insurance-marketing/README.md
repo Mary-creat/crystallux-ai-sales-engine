@@ -1,10 +1,11 @@
-# Crystallux Insurance Network — Marketing Site
+# Crystallux Financial Services — Marketing Site
 
-Public-facing marketing + lead-capture site for Mary's Canadian insurance MGA. **Separate brand** from the Crystallux SaaS site at `crystallux.org`.
+Public-facing marketing + lead-capture site for **Crystallux Financial Services**, the financial-services division of **Crystallux Inc.** Insurance is the first product line; mortgages, investments, retirement and estate planning launch through 2026–2027.
 
 - **Target URL:** `insurance.crystallux.org`
-- **Brand:** Crystallux Insurance Network (the MGA, not the SaaS).
-- **Audience:** B2C insurance buyers (life, health, P&C, business).
+- **Brand:** Crystallux Financial Services (a Crystallux Inc. division). **Separate brand** from the Crystallux SaaS site at `crystallux.org`, but operationally one company.
+- **Audience:** B2C insurance buyers today; multi-vertical financial-services clients from 2026 onward.
+- **Positioning:** Institutional, brand-led — *not* founder-led. Mary Akintunde (Founder &amp; Principal, LLQP-certified) appears on `/about.html`, `/team.html`, a brief credibility block on `/why-choose-us.html`, and the footer. She does **not** appear in marketing copy across product / service / compliance pages.
 - **Tech:** plain HTML + plain CSS + vanilla JS. No build pipeline. Inter from Google Fonts. Same conventions as `site/` and the admin/client dashboards.
 - **Deployed via:** Cloudflare Pages. CSP locked down in `_headers`; only Calendly + Cloudflare Analytics whitelisted.
 
@@ -12,14 +13,17 @@ Public-facing marketing + lead-capture site for Mary's Canadian insurance MGA. *
 
 | File | Purpose |
 |---|---|
-| `index.html` | Home — hero, 7 product tiles, why-us, how-it-works, carrier strip, trust badges, CTA band |
-| `life-insurance.html` … `business-insurance.html` | One landing page per product line (7 total) |
+| `index.html` | Home — institutional hero, 7 product tiles, why-us, how-it-works, carrier strip, trust badges, CTA band |
+| `life-insurance.html` … `business-insurance.html` | One landing page per product line (7 total). Mary-free (product-focused). |
 | `compare.html` | Static side-by-side comparison (Phase 1) |
 | `needs-assessment.html` | Static lead-capture form (Phase 2 = AI quiz) |
-| `how-it-works.html` / `why-choose-us.html` / `about.html` / `contact.html` | Trust + conversion pages |
+| `how-it-works.html` / `contact.html` | Trust + conversion pages. Mary-free. |
+| `why-choose-us.html` | Six differentiators + **brief founder-credibility block** linking to About. |
+| `about.html` | 4-section structure: Crystallux Financial Services overview / Mary's founder story / Team summary / Parent-company connection to Crystallux Inc. |
+| `team.html` | Leadership + advisor + compliance + technology team page. Mary as Founder &amp; Principal at the top. |
 | `blog/index.html` | Blog landing (stub for SEO) |
-| `resources/life-insurance-guide.html` / `critical-illness-explained.html` / `calculator-collection.html` | Long-form SEO content |
-| `privacy.html` / `terms.html` / `disclosure.html` | Compliance pages (mandatory) |
+| `resources/life-insurance-guide.html` / `critical-illness-explained.html` / `calculator-collection.html` | Long-form SEO content. Mary-free. |
+| `privacy.html` / `terms.html` / `disclosure.html` | Compliance pages. Cite **Crystallux Inc.** as the FSRA licensee; Mary appears as Founder &amp; Principal in Section 1 of disclosure only. |
 
 ## Lead capture
 
@@ -29,7 +33,7 @@ All forms POST to:
 POST https://automation.crystallux.org/webhook/mga/insurance/lead-capture
 ```
 
-Handler workflow: `workflows/api/insurance-mga/clx-mga-insurance-lead-capture-v1.json`. Inserts into `leads` (vertical_id='insurance', client_id = Crystallux Insurance Network test tenant) + writes a `regulatory_audit_log` row. Public CORS endpoint, no session-token auth. CASL consent is enforced client-side AND recorded server-side (`consent_given_at`, `consent_method='web_form_checkbox'`).
+Handler workflow: `workflows/api/insurance-mga/clx-mga-insurance-lead-capture-v1.json`. Inserts into `leads` (vertical_id='insurance', client_id = Crystallux Financial Services test tenant) + writes a `regulatory_audit_log` row. Public CORS endpoint, no session-token auth. CASL consent is enforced client-side AND recorded server-side (`consent_given_at`, `consent_method='web_form_checkbox'`).
 
 ## Deployment
 

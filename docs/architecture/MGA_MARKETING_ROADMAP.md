@@ -1,13 +1,13 @@
-# MGA Marketing Website — Roadmap
+# Crystallux Financial Services — Marketing Site Roadmap
 
-> **Status:** Phase 1 — Marketing Foundation BUILT 2026-05-13 (`insurance-marketing/` folder, 21 pages, lead-capture workflow shipped).
+> **Status:** Phase 1 — Marketing Foundation BUILT 2026-05-13 (`insurance-marketing/` folder, 22 pages, lead-capture workflow shipped). Rebranded 2026-05-13 to institutional brand-led positioning.
 
 ## Site identity
 
 - **URL:** `insurance.crystallux.org` (subdomain on `crystallux.org`)
-- **Brand:** Crystallux Insurance Network — Mary's MGA. **Separate brand** from the Crystallux SaaS site at `crystallux.org` and the Crystallux admin/client dashboards.
-- **Audience:** B2C Canadian insurance buyers (and SMBs for the business-insurance line).
-- **Goal:** Lead capture → advisor consultation → policy placement.
+- **Brand:** Crystallux Financial Services — the financial-services division of **Crystallux Inc.**, a Canadian technology company that also runs the AI platform at `crystallux.org`. The institutional brand stands on its own; Mary Akintunde (Founder &amp; Principal, LLQP-certified) appears on About / Team / Why-Us / footer but not in marketing copy on product, service, or compliance pages.
+- **Audience:** B2C Canadian insurance buyers today; multi-vertical financial-services clients (mortgages / investments / retirement / estate) from 2026 onward.
+- **Goal:** Lead capture → advisor consultation → policy placement. Expand to mortgage applications and investment account onboarding in subsequent phases.
 
 ## Phase 1 — Marketing Foundation (BUILT 2026-05-13)
 
