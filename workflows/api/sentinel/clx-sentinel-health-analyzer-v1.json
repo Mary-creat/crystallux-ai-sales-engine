@@ -1,0 +1,90 @@
+{
+  "name": "CLX - Sentinel Health Analyzer v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/15 * * * *" } ] } }, "id": "sha-0001", "name": "Schedule Every 15min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/health/analyze", "responseMode": "responseNode", "options": {} }, "id": "sha-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-health-analyzer-001", "notes": "DEACTIVATED. Cron every 15 min. Joins recent sentinel_workflow_health (last 30 min) + sentinel_endpoint_health (latest) against sentinel_health_thresholds, raises health alerts via the alert-router. Aggregation_key prevents alert spam." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_health?window_start=gte.' + new Date(Date.now() - 30*60*1000).toISOString() + '&select=*&order=window_start.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sha-0003", "name": "Fetch Workflow Health", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_endpoint_health?checked_at=gte.' + new Date(Date.now() - 30*60*1000).toISOString() + '&select=*&order=checked_at.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sha-0004", "name": "Fetch Endpoint Health", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 360],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_health_thresholds?active=eq.true&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sha-0005", "name": "Fetch Thresholds", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 520],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 3 }, "id": "sha-0006", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [680, 360] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst whealth   = allOf('Fetch Workflow Health');\nconst ehealth   = allOf('Fetch Endpoint Health');\nconst thresholds = allOf('Fetch Thresholds');\n\n// Build threshold lookup: workflow-specific > endpoint-specific > default.\nconst byScope = { workflow: {}, endpoint: {}, default: null };\nthresholds.forEach(function (t) {\n  if (t.scope === 'default') byScope.default = t;\n  else if (t.scope === 'workflow' && t.target_name) byScope.workflow[t.target_name] = t;\n  else if (t.scope === 'endpoint' && t.target_name) byScope.endpoint[t.target_name] = t;\n});\nconst defaults = byScope.default || { error_rate_warning_pct: 10, error_rate_critical_pct: 25, max_silence_minutes: 60, max_p95_ms: 30000, max_consecutive_down: 3 };\n\nconst alerts = [];\nconst nowHour = new Date().toISOString().slice(0, 13);  // YYYY-MM-DDTHH for aggregation_key\n\n// === Workflow analysis ===\n// Latest window per workflow.\nconst latestByWf = {};\nwhealth.forEach(function (h) {\n  if (!latestByWf[h.workflow_id] || h.window_start > latestByWf[h.workflow_id].window_start) {\n    latestByWf[h.workflow_id] = h;\n  }\n});\nObject.keys(latestByWf).forEach(function (wid) {\n  const h = latestByWf[wid];\n  const thr = (h.workflow_name && byScope.workflow[h.workflow_name]) || defaults;\n  const winAgeMin = (Date.now() - new Date(h.window_end).getTime()) / 60000;\n\n  // Silent detection: 0 executions in latest window. We only alarm if windows BEFORE this\n  // also show silence beyond the max_silence_minutes threshold — single 5-min gaps are normal.\n  if (h.execution_count === 0) {\n    const recent = whealth.filter(function (r) { return r.workflow_id === wid; }).slice(0, Math.ceil(thr.max_silence_minutes / 5));\n    const allSilent = recent.length > 0 && recent.every(function (r) { return r.execution_count === 0; });\n    if (allSilent && recent.length * 5 >= thr.max_silence_minutes) {\n      alerts.push({\n        severity: 'critical', alert_type: 'health_workflow_silent',\n        title: '[' + (h.workflow_name || wid) + '] No executions in ' + (recent.length * 5) + ' minutes',\n        message: 'Active workflow has had zero executions for at least ' + thr.max_silence_minutes + ' minutes. Possible scheduler stall, credential issue, or upstream dependency outage.',\n        aggregation_key: 'health:silent:' + wid + ':' + nowHour,\n        details: { workflow_id: wid, workflow_name: h.workflow_name, silent_for_minutes: recent.length * 5, threshold_minutes: thr.max_silence_minutes }\n      });\n    }\n    return;\n  }\n\n  // Error rate evaluation.\n  const errPct = parseFloat(h.error_rate_pct) || 0;\n  if (errPct >= thr.error_rate_critical_pct) {\n    alerts.push({\n      severity: 'critical', alert_type: 'health_error_spike',\n      title: '[' + (h.workflow_name || wid) + '] ' + errPct.toFixed(1) + '% error rate — CRITICAL',\n      message: 'Error rate breached critical threshold (' + thr.error_rate_critical_pct + '%) in the latest 5-min window. ' + h.error_count + '/' + h.execution_count + ' failed.',\n      aggregation_key: 'health:error:critical:' + wid + ':' + nowHour,\n      details: { workflow_id: wid, workflow_name: h.workflow_name, error_rate_pct: errPct, error_count: h.error_count, execution_count: h.execution_count, threshold_pct: thr.error_rate_critical_pct }\n    });\n  } else if (errPct >= thr.error_rate_warning_pct) {\n    alerts.push({\n      severity: 'warning', alert_type: 'health_error_spike',\n      title: '[' + (h.workflow_name || wid) + '] ' + errPct.toFixed(1) + '% error rate — warning',\n      message: 'Error rate breached warning threshold (' + thr.error_rate_warning_pct + '%) in the latest 5-min window.',\n      aggregation_key: 'health:error:warning:' + wid + ':' + nowHour,\n      details: { workflow_id: wid, workflow_name: h.workflow_name, error_rate_pct: errPct, threshold_pct: thr.error_rate_warning_pct }\n    });\n  }\n\n  // Latency check.\n  if (h.p95_duration_ms && h.p95_duration_ms > thr.max_p95_ms) {\n    alerts.push({\n      severity: 'warning', alert_type: 'health_latency_spike',\n      title: '[' + (h.workflow_name || wid) + '] p95 latency ' + Math.round(h.p95_duration_ms / 1000) + 's — over SLO',\n      message: 'p95 execution duration exceeded SLO of ' + Math.round(thr.max_p95_ms / 1000) + 's. Latest window p95 = ' + Math.round(h.p95_duration_ms / 1000) + 's.',\n      aggregation_key: 'health:latency:' + wid + ':' + nowHour,\n      details: { workflow_id: wid, workflow_name: h.workflow_name, p95_ms: h.p95_duration_ms, threshold_ms: thr.max_p95_ms }\n    });\n  }\n});\n\n// === Endpoint analysis ===\nconst latestByEp = {};\nehealth.forEach(function (e) {\n  if (!latestByEp[e.endpoint_name] || e.checked_at > latestByEp[e.endpoint_name].checked_at) {\n    latestByEp[e.endpoint_name] = e;\n  }\n});\nObject.keys(latestByEp).forEach(function (ep) {\n  const e = latestByEp[ep];\n  const thr = byScope.endpoint[ep] || defaults;\n  if (e.status === 'down' && e.consecutive_failures >= thr.max_consecutive_down) {\n    alerts.push({\n      severity: 'critical', alert_type: 'health_endpoint_down',\n      title: '[' + ep + '] Endpoint DOWN (' + e.consecutive_failures + ' consecutive failures)',\n      message: 'Endpoint ' + e.endpoint_url + ' has been down for ' + e.consecutive_failures + ' consecutive checks. Last error: ' + (e.last_error || 'unknown') + '.',\n      aggregation_key: 'health:endpoint_down:' + ep + ':' + nowHour,\n      details: { endpoint_name: ep, endpoint_url: e.endpoint_url, consecutive_failures: e.consecutive_failures, last_error: e.last_error, status_code: e.status_code }\n    });\n  } else if (e.status === 'degraded') {\n    alerts.push({\n      severity: 'warning', alert_type: 'health_endpoint_degraded',\n      title: '[' + ep + '] Endpoint returned non-success status',\n      message: 'Endpoint responded with status ' + (e.status_code || 'unknown') + '. ' + (e.last_error || ''),\n      aggregation_key: 'health:endpoint_degraded:' + ep + ':' + nowHour,\n      details: { endpoint_name: ep, status_code: e.status_code, last_error: e.last_error }\n    });\n  }\n});\n\nreturn { json: { alerts: alerts, workflows_analyzed: Object.keys(latestByWf).length, endpoints_analyzed: Object.keys(latestByEp).length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sha-0007", "name": "Evaluate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [920, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "const alerts = $input.item.json.alerts || [];\nif (!alerts.length) return [{ json: { _no_alerts: true } }];\nreturn alerts.map(function (a) { return { json: a }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sha-0008", "name": "Fan Out Alerts", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 360]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._no_alerts }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "sha-0009", "name": "IF Has Alerts", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 360] },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/api/sentinel/alert' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"module_name\": \"health_monitoring\", \"alert_type\": \"{{ $json.alert_type }}\", \"severity\": \"{{ $json.severity }}\", \"title\": \"{{ $json.title }}\", \"message\": \"{{ $json.message }}\", \"details\": {{ JSON.stringify($json.details) }}, \"aggregation_key\": \"{{ $json.aggregation_key }}\" }",
+        "options": { "timeout": 8000, "continueOnFail": true }
+      },
+      "id": "sha-0010", "name": "Dispatch Alert", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1640, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const summary = $('Evaluate').first().json;\nreturn { json: { ok: true, workflows_analyzed: summary.workflows_analyzed, endpoints_analyzed: summary.endpoints_analyzed, alerts_raised: (summary.alerts || []).length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sha-0011", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1880, 360]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sha-0012", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2120, 360] }
+  ],
+  "connections": {
+    "Schedule Every 15min":  { "main": [[ { "node": "Fetch Workflow Health", "type": "main", "index": 0 }, { "node": "Fetch Endpoint Health", "type": "main", "index": 0 }, { "node": "Fetch Thresholds", "type": "main", "index": 0 } ]] },
+    "Webhook":               { "main": [[ { "node": "Fetch Workflow Health", "type": "main", "index": 0 }, { "node": "Fetch Endpoint Health", "type": "main", "index": 0 }, { "node": "Fetch Thresholds", "type": "main", "index": 0 } ]] },
+    "Fetch Workflow Health": { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Endpoint Health": { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Thresholds":      { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Merge Branches":        { "main": [[ { "node": "Evaluate", "type": "main", "index": 0 } ]] },
+    "Evaluate":              { "main": [[ { "node": "Fan Out Alerts", "type": "main", "index": 0 } ]] },
+    "Fan Out Alerts":        { "main": [[ { "node": "IF Has Alerts", "type": "main", "index": 0 } ]] },
+    "IF Has Alerts":         { "main": [ [ { "node": "Dispatch Alert", "type": "main", "index": 0 } ], [ { "node": "Shape Response", "type": "main", "index": 0 } ] ] },
+    "Dispatch Alert":        { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":        { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

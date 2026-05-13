@@ -1,0 +1,76 @@
+{
+  "name": "CLX - Sentinel Health Workflow Collector v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 * * * *" } ] } }, "id": "shwc-0001", "name": "Schedule Every 5min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/health/collect-workflows", "responseMode": "responseNode", "options": {} }, "id": "shwc-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-health-workflow-collector-001", "notes": "DEACTIVATED. Cron every 5 min. Pulls n8n /api/v1/executions for the last 5 minutes, aggregates per workflow_id into sentinel_workflow_health rows. Requires N8N_API_KEY env var (n8n personal API key)." },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst windowEnd = new Date(Math.floor(now.getTime() / 300000) * 300000);  // round down to nearest 5min\nconst windowStart = new Date(windowEnd.getTime() - 300000);\nreturn { json: { window_start: windowStart.toISOString(), window_end: windowEnd.toISOString(), started_after: windowStart.toISOString() } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "shwc-0003", "name": "Compute Window", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ ($env.N8N_API_BASE || 'http://localhost:5678') + '/api/v1/executions?limit=250&includeData=false' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}" }, { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 15000, "continueOnFail": true }
+      },
+      "id": "shwc-0004", "name": "Fetch n8n Executions", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ ($env.N8N_API_BASE || 'http://localhost:5678') + '/api/v1/workflows?active=true' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}" }, { "name": "Accept", "value": "application/json" } ] },
+        "options": { "timeout": 10000, "continueOnFail": true }
+      },
+      "id": "shwc-0005", "name": "Fetch Active Workflows", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [680, 400]
+    },
+    { "parameters": { "mode": "append", "numberInputs": 2 }, "id": "shwc-0006", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [920, 300] },
+    {
+      "parameters": {
+        "jsCode": "// Build sentinel_workflow_health rows from n8n API responses.\n// Pulls window from Compute Window; executions from Fetch n8n Executions;\n// active workflow list from Fetch Active Workflows (so silent workflows still get a row).\nconst window = $('Compute Window').first().json;\nconst execsResp = $('Fetch n8n Executions').first().json || {};\nconst wfsResp   = $('Fetch Active Workflows').first().json || {};\nconst execs = Array.isArray(execsResp.data) ? execsResp.data : (Array.isArray(execsResp) ? execsResp : []);\nconst wfs   = Array.isArray(wfsResp.data)   ? wfsResp.data   : (Array.isArray(wfsResp)   ? wfsResp   : []);\n\n// Filter executions to the window.\nconst winStart = new Date(window.window_start).getTime();\nconst winEnd   = new Date(window.window_end).getTime();\nconst inWindow = execs.filter(function (e) {\n  const t = new Date(e.startedAt || e.createdAt || 0).getTime();\n  return t >= winStart && t < winEnd;\n});\n\n// Build a name lookup from the workflows list (silent workflows otherwise have no name in exec rows).\nconst nameById = {};\nwfs.forEach(function (w) { nameById[String(w.id)] = w.name; });\n\n// Aggregate by workflow_id.\nconst agg = {};\ninWindow.forEach(function (e) {\n  const wid = String(e.workflowId || e.workflow_id || '');\n  if (!wid) return;\n  if (!agg[wid]) agg[wid] = { workflow_id: wid, workflow_name: nameById[wid] || e.workflowData && e.workflowData.name || null, executions: 0, success: 0, error: 0, waiting: 0, durations: [], last_exec_at: null };\n  agg[wid].executions += 1;\n  const status = String(e.status || e.finished === false ? 'waiting' : (e.stoppedAt ? 'success' : 'unknown')).toLowerCase();\n  // n8n statuses: success | error | waiting | running | canceled | crashed\n  if (status === 'error' || status === 'crashed' || status === 'failed') agg[wid].error += 1;\n  else if (status === 'waiting' || status === 'running') agg[wid].waiting += 1;\n  else if (status === 'success') agg[wid].success += 1;\n  else { agg[wid].success += (e.stoppedAt && !e.error ? 1 : 0); }\n  if (e.startedAt && e.stoppedAt) {\n    const dur = new Date(e.stoppedAt).getTime() - new Date(e.startedAt).getTime();\n    if (dur >= 0 && dur < 24*3600*1000) agg[wid].durations.push(dur);\n  }\n  const ts = e.startedAt || e.stoppedAt || null;\n  if (ts && (!agg[wid].last_exec_at || ts > agg[wid].last_exec_at)) agg[wid].last_exec_at = ts;\n});\n\n// Ensure every active workflow gets a row, even if it had zero executions (silent detection).\nwfs.forEach(function (w) {\n  const wid = String(w.id);\n  if (!agg[wid]) agg[wid] = { workflow_id: wid, workflow_name: w.name, executions: 0, success: 0, error: 0, waiting: 0, durations: [], last_exec_at: null };\n});\n\n// p95 helper.\nfunction p95(arr) {\n  if (!arr.length) return 0;\n  const s = arr.slice().sort(function (a, b) { return a - b; });\n  const idx = Math.min(s.length - 1, Math.floor(s.length * 0.95));\n  return s[idx];\n}\nfunction avg(arr) {\n  if (!arr.length) return 0;\n  return Math.round(arr.reduce(function (a, b) { return a + b; }, 0) / arr.length);\n}\n\nconst rows = Object.keys(agg).map(function (wid) {\n  const a = agg[wid];\n  // Status heuristic — analyzer applies SLO thresholds for final classification.\n  let status = 'healthy';\n  if (a.executions === 0) status = 'silent';\n  else if (a.executions > 0 && (a.error * 100 / a.executions) >= 25) status = 'critical';\n  else if (a.executions > 0 && (a.error * 100 / a.executions) >= 10) status = 'degraded';\n  return {\n    workflow_id: a.workflow_id,\n    workflow_name: a.workflow_name,\n    window_start: window.window_start,\n    window_end:   window.window_end,\n    execution_count: a.executions,\n    success_count: a.success,\n    error_count:   a.error,\n    waiting_count: a.waiting,\n    avg_duration_ms: avg(a.durations),\n    p95_duration_ms: p95(a.durations),\n    last_execution_at: a.last_exec_at,\n    status: status\n  };\n});\n\nreturn rows.map(function (r) { return { json: r }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "shwc-0007", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_health?on_conflict=workflow_id,window_start",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "batching": { "batch": { "batchSize": 1 } } }
+      },
+      "id": "shwc-0008", "name": "Upsert Health Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1400, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $('Aggregate').all().map(function (i) { return i.json; });\nconst counts = { healthy: 0, degraded: 0, critical: 0, silent: 0 };\nrows.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });\nreturn { json: { ok: true, workflows_evaluated: rows.length, counts: counts, window_start: rows[0] ? rows[0].window_start : null, window_end: rows[0] ? rows[0].window_end : null } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "shwc-0009", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1640, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "shwc-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1880, 300] }
+  ],
+  "connections": {
+    "Schedule Every 5min":    { "main": [[ { "node": "Compute Window", "type": "main", "index": 0 } ]] },
+    "Webhook":                { "main": [[ { "node": "Compute Window", "type": "main", "index": 0 } ]] },
+    "Compute Window":         { "main": [[ { "node": "Fetch n8n Executions", "type": "main", "index": 0 }, { "node": "Fetch Active Workflows", "type": "main", "index": 0 } ]] },
+    "Fetch n8n Executions":   { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Active Workflows": { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Merge Branches":         { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":              { "main": [[ { "node": "Upsert Health Row", "type": "main", "index": 0 } ]] },
+    "Upsert Health Row":      { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":         { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

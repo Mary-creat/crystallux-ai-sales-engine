@@ -1,0 +1,74 @@
+{
+  "name": "CLX - Sentinel Health Endpoint Collector v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 * * * *" } ] } }, "id": "shec-0001", "name": "Schedule Every 5min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/health/collect-endpoints", "responseMode": "responseNode", "options": {} }, "id": "shec-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-health-endpoint-collector-001", "notes": "DEACTIVATED. Cron every 5 min. Reads sentinel_endpoints (active=true), pings each, writes sentinel_endpoint_health via record_endpoint_check RPC (carries forward consecutive_failures)." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_endpoints?active=eq.true&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "shec-0003", "name": "Fetch Endpoints", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fan out: one item per endpoint to ping.\nconst rows = $input.item.json;\nconst list = Array.isArray(rows) ? rows : [];\nreturn list.map(function (r) { return { json: r }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "shec-0004", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.endpoint_url }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "*/*" }, { "name": "User-Agent", "value": "Crystallux-Sentinel/1.0" } ] },
+        "options": { "timeout": "={{ $json.timeout_ms || 5000 }}", "continueOnFail": true, "fullResponse": true, "redirect": { "redirect": { "followRedirects": true, "maxRedirects": 3 } } }
+      },
+      "id": "shec-0005", "name": "Ping Endpoint", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify ping result vs the endpoint's expected_status_code + timeout.\n// $('Fan Out') and $('Ping Endpoint') items are paired by index.\nconst endpoint = $('Fan Out').itemMatching($itemIndex).json;\nconst resp = $input.item.json || {};\nconst start = $execution && $execution.startedAt ? new Date($execution.startedAt).getTime() : Date.now();\nlet status_code = null;\nlet status = 'unknown';\nlet last_error = null;\nlet response_time_ms = 0;\n\nif (resp && resp.error) {\n  last_error = String(resp.error.message || resp.error.code || resp.error);\n  status = 'down';\n  status_code = resp.error.statusCode || null;\n} else if (resp && (resp.statusCode || resp.status)) {\n  status_code = resp.statusCode || resp.status;\n  response_time_ms = resp.headers && resp.headers['x-response-time-ms'] ? parseInt(resp.headers['x-response-time-ms']) : 0;\n  if (status_code >= 200 && status_code < 400) status = 'up';\n  else if (status_code >= 500) { status = 'down'; last_error = 'HTTP ' + status_code; }\n  else { status = 'degraded'; last_error = 'HTTP ' + status_code; }\n} else if (resp && resp.body !== undefined) {\n  status = 'up';\n  status_code = 200;\n} else {\n  status = 'unknown';\n  last_error = 'No response data';\n}\n\nreturn { json: {\n  p_endpoint_name:     endpoint.endpoint_name,\n  p_endpoint_url:      endpoint.endpoint_url,\n  p_endpoint_category: endpoint.endpoint_category,\n  p_status_code:       status_code,\n  p_response_time_ms:  response_time_ms,\n  p_status:            status,\n  p_last_error:        last_error\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "shec-0006", "name": "Classify Result", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/record_endpoint_check",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "batching": { "batch": { "batchSize": 1 } } }
+      },
+      "id": "shec-0007", "name": "Record Check", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1400, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $('Classify Result').all().map(function (i) { return i.json; });\nconst counts = { up: 0, down: 0, degraded: 0, unknown: 0 };\nresults.forEach(function (r) { counts[r.p_status] = (counts[r.p_status] || 0) + 1; });\nreturn { json: { ok: true, endpoints_checked: results.length, counts: counts } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "shec-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1640, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "shec-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1880, 300] }
+  ],
+  "connections": {
+    "Schedule Every 5min": { "main": [[ { "node": "Fetch Endpoints", "type": "main", "index": 0 } ]] },
+    "Webhook":             { "main": [[ { "node": "Fetch Endpoints", "type": "main", "index": 0 } ]] },
+    "Fetch Endpoints":     { "main": [[ { "node": "Fan Out",         "type": "main", "index": 0 } ]] },
+    "Fan Out":             { "main": [[ { "node": "Ping Endpoint",   "type": "main", "index": 0 } ]] },
+    "Ping Endpoint":       { "main": [[ { "node": "Classify Result", "type": "main", "index": 0 } ]] },
+    "Classify Result":     { "main": [[ { "node": "Record Check",    "type": "main", "index": 0 } ]] },
+    "Record Check":        { "main": [[ { "node": "Shape Response",  "type": "main", "index": 0 } ]] },
+    "Shape Response":      { "main": [[ { "node": "Respond OK",      "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

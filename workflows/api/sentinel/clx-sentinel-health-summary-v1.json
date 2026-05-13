@@ -1,0 +1,92 @@
+{
+  "name": "CLX - Sentinel Health Summary v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/health/summary", "responseMode": "responseNode", "options": {} }, "id": "shs-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-health-summary-001", "notes": "DEACTIVATED. Admin session. Aggregates latest sentinel_workflow_health + sentinel_endpoint_health + open health alerts + breaker status for the Sentinel Health tab. Powers admin-dashboard/pages/sentinel.html." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "shs-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "shs-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "shs-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nreturn { json: { _ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "shs-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "shs-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_health?window_start=gte.' + new Date(Date.now() - 60*60*1000).toISOString() + '&select=*&order=window_start.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "shs-0007", "name": "Fetch Workflow Health", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_endpoint_health?checked_at=gte.' + new Date(Date.now() - 60*60*1000).toISOString() + '&select=*&order=checked_at.desc&limit=500' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "shs-0008", "name": "Fetch Endpoint Health", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 340],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts?module_name=eq.health_monitoring&status=in.(open,acknowledged)&order=triggered_at.desc&limit=50&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "shs-0009", "name": "Fetch Health Alerts", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_breakers?select=*&order=updated_at.desc&limit=100",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "shs-0010", "name": "Fetch Breakers", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 620],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 4 }, "id": "shs-0011", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1700, 440] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst whealth  = allOf('Fetch Workflow Health');\nconst ehealth  = allOf('Fetch Endpoint Health');\nconst alerts   = allOf('Fetch Health Alerts');\nconst breakers = allOf('Fetch Breakers');\n\n// Latest window per workflow.\nconst latestByWf = {};\nwhealth.forEach(function (h) {\n  if (!latestByWf[h.workflow_id] || h.window_start > latestByWf[h.workflow_id].window_start) {\n    latestByWf[h.workflow_id] = h;\n  }\n});\nconst workflows = Object.values(latestByWf).sort(function (a, b) {\n  const order = { critical: 0, silent: 1, degraded: 2, healthy: 3, unknown: 4 };\n  return (order[a.status] || 9) - (order[b.status] || 9);\n});\n\n// Latest check per endpoint.\nconst latestByEp = {};\nehealth.forEach(function (e) {\n  if (!latestByEp[e.endpoint_name] || e.checked_at > latestByEp[e.endpoint_name].checked_at) {\n    latestByEp[e.endpoint_name] = e;\n  }\n});\nconst endpoints = Object.values(latestByEp).sort(function (a, b) {\n  const order = { down: 0, degraded: 1, up: 2, unknown: 3 };\n  return (order[a.status] || 9) - (order[b.status] || 9);\n});\n\n// Workflow status counts.\nconst wfCounts = { healthy: 0, degraded: 0, critical: 0, silent: 0, unknown: 0 };\nworkflows.forEach(function (w) { wfCounts[w.status] = (wfCounts[w.status] || 0) + 1; });\n\n// Endpoint status counts.\nconst epCounts = { up: 0, down: 0, degraded: 0, unknown: 0 };\nendpoints.forEach(function (e) { epCounts[e.status] = (epCounts[e.status] || 0) + 1; });\n\n// Overall health score: 100 minus penalties for unhealthy workflows + endpoints.\nlet score = 100;\nscore -= wfCounts.critical * 15;\nscore -= wfCounts.silent * 10;\nscore -= wfCounts.degraded * 5;\nscore -= epCounts.down * 15;\nscore -= epCounts.degraded * 5;\nscore = Math.max(0, score);\n\nreturn { json: {\n  ok: true,\n  generated_at: new Date().toISOString(),\n  overall_health_score: score,\n  workflow_counts: wfCounts,\n  endpoint_counts: epCounts,\n  workflows: workflows,\n  endpoints: endpoints,\n  alerts: alerts,\n  breakers: breakers\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "shs-0012", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1900, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "shs-0013", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2140, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "shs-0014", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+  ],
+  "connections": {
+    "Webhook":               { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":               { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":                { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":      { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":           { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                 { "main": [ [ { "node": "Fetch Workflow Health", "type": "main", "index": 0 }, { "node": "Fetch Endpoint Health", "type": "main", "index": 0 }, { "node": "Fetch Health Alerts", "type": "main", "index": 0 }, { "node": "Fetch Breakers", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Workflow Health": { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Endpoint Health": { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Fetch Health Alerts":   { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
+    "Fetch Breakers":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 3 } ]] },
+    "Merge Branches":        { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":             { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
