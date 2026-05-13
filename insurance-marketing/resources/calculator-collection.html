@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Insurance Calculators &amp; Tools | Crystallux Insurance Network</title>
+<meta name="description" content="Free Canadian insurance calculators — income replacement, mortgage protection, education funding, final expenses, combined needs analysis.">
+<link rel="canonical" href="https://insurance.crystallux.org/resources/calculator-collection.html">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/styles.css">
+</head><body>
+
+<header class="site-header"><div class="container nav"><a class="brand" href="/"><span class="brand-mark">C</span>Crystallux Insurance</a><nav class="nav-links" aria-label="Primary"><a href="/life-insurance.html">Life</a><a href="/critical-illness.html">Critical Illness</a><a href="/disability.html">Disability</a><a href="/travel-insurance.html">Travel</a><a href="/auto-insurance.html">Auto &amp; Home</a><a href="/business-insurance.html">Business</a><a href="/how-it-works.html">How it works</a><a href="/about.html">About</a></nav><div class="nav-cta"><a href="/contact.html" class="btn btn--ghost btn--sm">Talk to advisor</a><a href="/needs-assessment.html" class="btn btn--primary btn--sm">Find my coverage</a><button class="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></button></div></div></header>
+
+<section class="hero" style="padding:50px 0 30px;">
+  <div class="container" style="max-width:880px;text-align:center;">
+    <span class="eyebrow">Tools</span>
+    <h1 style="margin-top:10px;">Insurance calculators &amp; sanity-check tools</h1>
+    <p class="lead">Quick math to figure out how much cover you actually need. Not a substitute for an advisor consultation — but a useful starting point.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="grid grid--3">
+      <a href="#income-replacement" class="feature-card" style="text-decoration:none;color:inherit;"><h3>Income replacement</h3><p>How much life cover does your income justify? Rule-of-thumb formula with adjustments for family situation.</p><span style="color:var(--navy);font-weight:600;font-size:0.9rem;">Open calculator →</span></a>
+      <a href="#mortgage-protection" class="feature-card" style="text-decoration:none;color:inherit;"><h3>Mortgage protection</h3><p>The right life cover to clear a mortgage if you're not around to make the payments.</p><span style="color:var(--navy);font-weight:600;font-size:0.9rem;">Open calculator →</span></a>
+      <a href="#education-funding" class="feature-card" style="text-decoration:none;color:inherit;"><h3>Education funding</h3><p>Present-value estimate of your children's post-secondary costs, including residence.</p><span style="color:var(--navy);font-weight:600;font-size:0.9rem;">Open calculator →</span></a>
+      <a href="#final-expenses" class="feature-card" style="text-decoration:none;color:inherit;"><h3>Final expenses</h3><p>Funeral, probate, and estate-settlement cost estimate.</p><span style="color:var(--navy);font-weight:600;font-size:0.9rem;">Open calculator →</span></a>
+      <a href="#combined-needs" class="feature-card" style="text-decoration:none;color:inherit;"><h3>Combined needs analysis</h3><p>Sums the four calculators above into a single recommended cover number.</p><span style="color:var(--navy);font-weight:600;font-size:0.9rem;">Open calculator →</span></a>
+      <a href="/needs-assessment.html" class="feature-card" style="text-decoration:none;color:inherit;background:var(--navy-50);"><h3>Full needs assessment</h3><p>Personalised analysis reviewed by an LLQP-licensed advisor. The real thing.</p><span style="color:var(--navy);font-weight:600;font-size:0.9rem;">Start assessment →</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="income-replacement">
+  <div class="container" style="max-width:760px;">
+    <span class="eyebrow">Calculator 1</span>
+    <h2>Income replacement</h2>
+    <p>The classic life-insurance rule-of-thumb. Cover = annual income × multiplier, where multiplier depends on dependants and years until financial independence.</p>
+    <div class="form-card">
+      <div class="form-row form-row--two">
+        <div class="form-field"><label>Annual gross income ($)</label><input type="number" id="ir-income" value="100000" min="0"></div>
+        <div class="form-field"><label>Multiplier (years of cover)</label><select id="ir-mult"><option value="5">5× (light cover)</option><option value="10" selected>10× (standard)</option><option value="12">12× (young family)</option><option value="15">15× (multiple dependants)</option></select></div>
+      </div>
+      <div style="background:var(--navy-50);padding:18px;border-radius:8px;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Suggested life cover</div><div id="ir-result" style="font-size:2rem;font-weight:800;color:var(--navy);margin-top:8px;">$1,000,000</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt" id="mortgage-protection">
+  <div class="container" style="max-width:760px;">
+    <span class="eyebrow">Calculator 2</span>
+    <h2>Mortgage protection</h2>
+    <p>Life cover sized to clear your mortgage. Better than the bank's mortgage life insurance because it's portable, the beneficiary chooses how to use it, and you keep cover even after the mortgage is paid off.</p>
+    <div class="form-card">
+      <div class="form-row">
+        <div class="form-field"><label>Current mortgage balance ($)</label><input type="number" id="mp-balance" value="650000" min="0"></div>
+      </div>
+      <div style="background:var(--navy-50);padding:18px;border-radius:8px;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Recommended cover</div><div id="mp-result" style="font-size:2rem;font-weight:800;color:var(--navy);margin-top:8px;">$650,000</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="education-funding">
+  <div class="container" style="max-width:760px;">
+    <span class="eyebrow">Calculator 3</span>
+    <h2>Education funding</h2>
+    <p>Estimated post-secondary cost per child. Based on current Canadian undergraduate tuition + residence; doesn't include grad school.</p>
+    <div class="form-card">
+      <div class="form-row form-row--two">
+        <div class="form-field"><label>Number of children</label><input type="number" id="ed-kids" value="2" min="0" max="10"></div>
+        <div class="form-field"><label>Cost per year per child</label><select id="ed-cost"><option value="15000">$15K (commuter)</option><option value="25000" selected>$25K (commuter + some residence)</option><option value="35000">$35K (full residence)</option><option value="50000">$50K (private/professional)</option></select></div>
+      </div>
+      <div style="background:var(--navy-50);padding:18px;border-radius:8px;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Education funding need (4 years × children)</div><div id="ed-result" style="font-size:2rem;font-weight:800;color:var(--navy);margin-top:8px;">$200,000</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt" id="final-expenses">
+  <div class="container" style="max-width:760px;">
+    <span class="eyebrow">Calculator 4</span>
+    <h2>Final expenses</h2>
+    <p>Funeral, burial/cremation, probate, executor fees, and estate-settlement legal costs. Often under-estimated — a typical Canadian funeral is $10K–$20K, before probate and legal.</p>
+    <div class="form-card">
+      <div class="form-row form-row--two">
+        <div class="form-field"><label>Funeral preference</label><select id="fe-funeral"><option value="6000">Cremation, simple ($6K)</option><option value="12000" selected>Standard funeral ($12K)</option><option value="20000">Full-service traditional ($20K)</option></select></div>
+        <div class="form-field"><label>Estate complexity</label><select id="fe-estate"><option value="5000">Simple ($5K probate)</option><option value="15000" selected>Standard ($15K probate + legal)</option><option value="30000">Complex business/estate ($30K+)</option></select></div>
+      </div>
+      <div style="background:var(--navy-50);padding:18px;border-radius:8px;text-align:center;"><div style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Final-expense need</div><div id="fe-result" style="font-size:2rem;font-weight:800;color:var(--navy);margin-top:8px;">$27,000</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="combined-needs">
+  <div class="container" style="max-width:760px;">
+    <span class="eyebrow">Calculator 5</span>
+    <h2>Combined needs analysis</h2>
+    <p>Sums income replacement + mortgage + education + final expenses, less existing assets and existing life cover.</p>
+    <div class="form-card">
+      <p style="color:var(--text-muted);font-size:0.92rem;">Set values in the four calculators above. Then enter your existing cover + liquid assets here:</p>
+      <div class="form-row form-row--two">
+        <div class="form-field"><label>Existing life cover ($)</label><input type="number" id="cn-existing-cover" value="100000" min="0"></div>
+        <div class="form-field"><label>Liquid assets available ($)</label><input type="number" id="cn-assets" value="50000" min="0"></div>
+      </div>
+      <div style="background:var(--gold-50);padding:18px;border-radius:8px;text-align:center;"><div style="font-size:0.85rem;color:#92400e;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Net additional life cover suggested</div><div id="cn-result" style="font-size:2.4rem;font-weight:800;color:#92400e;margin-top:8px;">$1,727,000</div></div>
+      <div class="disclaimer-note" style="margin-top:16px;">This is a rule-of-thumb estimate. A full needs analysis from an advisor factors in spousal income, RRSP/RRIF, employer benefits, tax position, and family-specific goals. Use this as a sanity-check, not a prescription.</div>
+    </div>
+    <div style="text-align:center;margin-top:24px;">
+      <a href="/needs-assessment.html" class="btn btn--primary btn--lg">Get a real advisor review</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-disclosure"><strong style="color:#fff;">Disclosure.</strong> Crystallux Insurance Network is a Canadian insurance MGA. Insurance products are sold by LLQP-licensed advisors. We earn commission from carriers; we disclose commission on every recommendation. No fees to clients. Full disclosure on the <a href="/disclosure.html" style="color:var(--gold);">Disclosure</a> page.</div>
+    <div class="footer-grid">
+      <div class="footer-brand"><div class="brand" style="color:#fff;"><span class="brand-mark">C</span>Crystallux Insurance</div><p>A Canadian insurance MGA offering AI-matched product recommendations across life, health, and property &amp; casualty lines.</p></div>
+      <div><h4>Products</h4><a href="/life-insurance.html">Life</a><a href="/critical-illness.html">Critical illness</a><a href="/disability.html">Disability</a><a href="/travel-insurance.html">Travel</a><a href="/auto-insurance.html">Auto</a><a href="/home-insurance.html">Home</a><a href="/business-insurance.html">Business</a></div>
+      <div><h4>Company</h4><a href="/about.html">About</a><a href="/how-it-works.html">How it works</a><a href="/why-choose-us.html">Why us</a><a href="/blog/">Blog</a><a href="/contact.html">Contact</a></div>
+      <div><h4>Legal</h4><a href="/disclosure.html">Disclosure</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="mailto:complaints@crystallux.org">File a complaint</a></div>
+    </div>
+    <div class="footer-bottom"><div>© <span id="footerYear">2026</span> Crystallux Insurance Network. All rights reserved.</div><div>Guelph, Ontario · clients@crystallux.org</div></div>
+  </div>
+</footer>
+<div class="cookie-banner" id="cookieBanner"><p>We use functional cookies for site operation and analytics. By continuing you consent under PIPEDA &amp; Quebec Law 25. See <a href="/privacy.html">privacy</a>.</p><button class="btn btn--ghost btn--sm" data-cookie-decline>Decline</button><button class="btn btn--primary btn--sm" data-cookie-accept>Accept</button></div>
+<script src="/assets/js/main.js"></script>
+<script>
+// Live calculators — vanilla JS reactive math.
+(function() {
+  function fmtMoney(n) { return '$' + Math.round(n).toLocaleString('en-CA'); }
+  function el(id) { return document.getElementById(id); }
+  function ir() {
+    var income = parseFloat(el('ir-income').value) || 0;
+    var mult = parseFloat(el('ir-mult').value) || 0;
+    el('ir-result').textContent = fmtMoney(income * mult);
+  }
+  function mp() {
+    el('mp-result').textContent = fmtMoney(parseFloat(el('mp-balance').value) || 0);
+  }
+  function ed() {
+    var kids = parseFloat(el('ed-kids').value) || 0;
+    var cost = parseFloat(el('ed-cost').value) || 0;
+    el('ed-result').textContent = fmtMoney(kids * cost * 4);
+  }
+  function fe() {
+    var f = parseFloat(el('fe-funeral').value) || 0;
+    var e = parseFloat(el('fe-estate').value) || 0;
+    el('fe-result').textContent = fmtMoney(f + e);
+  }
+  function cn() {
+    var ir = (parseFloat(el('ir-income').value) || 0) * (parseFloat(el('ir-mult').value) || 0);
+    var mp = parseFloat(el('mp-balance').value) || 0;
+    var ed = (parseFloat(el('ed-kids').value) || 0) * (parseFloat(el('ed-cost').value) || 0) * 4;
+    var fe = (parseFloat(el('fe-funeral').value) || 0) + (parseFloat(el('fe-estate').value) || 0);
+    var existing = parseFloat(el('cn-existing-cover').value) || 0;
+    var assets = parseFloat(el('cn-assets').value) || 0;
+    var net = ir + mp + ed + fe - existing - assets;
+    el('cn-result').textContent = fmtMoney(Math.max(0, net));
+  }
+  function update() { ir(); mp(); ed(); fe(); cn(); }
+  ['ir-income','ir-mult','mp-balance','ed-kids','ed-cost','fe-funeral','fe-estate','cn-existing-cover','cn-assets'].forEach(function(id) {
+    var e = document.getElementById(id);
+    if (e) { e.addEventListener('input', update); e.addEventListener('change', update); }
+  });
+  update();
+})();
+</script>
+</body></html>
