@@ -2,13 +2,23 @@
   "name": "CLX - Sentinel Cost Collector OpenAI v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 * * *" } ] } }, "id": "sco-0001", "name": "Schedule 06:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
-    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/collect-openai", "responseMode": "responseNode", "options": {} }, "id": "sco-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-collector-openai-001", "notes": "DEACTIVATED. SCAFFOLD — records $0 daily until wired. TODO: query api.openai.com/v1/usage with admin key OR sum Whisper transcription calls from copilot logs." },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/collect-openai", "responseMode": "responseNode", "options": {} }, "id": "sco-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-collector-openai-001", "notes": "DEACTIVATED. Cron 06:00 daily. Queries OpenAI Admin API for yesterday's organization usage. Requires OPENAI_ADMIN_API_KEY env var (starts with sk-admin-...). If key missing or 401, records $0 + sets data_source='manual' so Mary knows to enter monthly invoice manually." },
     {
       "parameters": {
-        "jsCode": "const tracking_date = new Date(Date.now() - 86400000).toISOString().slice(0,10);\nreturn { json: { row: { tracking_date, service_name: 'openai', spend_cents: 0, data_source: 'internal_log', usage_metrics: { stub: true }, notes: 'SCAFFOLD — replace with real OpenAI usage compute. Options: (1) query https://api.openai.com/v1/usage with admin key, (2) instrument clx-copilot-whisper-v1 to record per-call duration + cost.' } } };",
+        "method": "GET",
+        "url": "={{ 'https://api.openai.com/v1/organization/usage/completions?start_time=' + Math.floor(new Date(new Date(Date.now() - 86400000).toISOString().slice(0,10) + 'T00:00:00Z').getTime() / 1000) + '&end_time=' + Math.floor(new Date(new Date().toISOString().slice(0,10) + 'T00:00:00Z').getTime() / 1000) + '&bucket_width=1d' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_ADMIN_API_KEY || $env.OPENAI_API_KEY }}" }, { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true, "timeout": 15000 }
+      },
+      "id": "sco-0003", "name": "OpenAI Usage API", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json || {};\nconst tracking_date = new Date(Date.now() - 86400000).toISOString().slice(0,10);\n// Successful response shape: { data: [{ results: [{ input_tokens, output_tokens, ... }] }] }\nif (resp && Array.isArray(resp.data)) {\n  let inTokens = 0, outTokens = 0;\n  resp.data.forEach(function (bucket) {\n    (bucket.results || []).forEach(function (r) {\n      inTokens  += parseInt(r.input_tokens)  || 0;\n      outTokens += parseInt(r.output_tokens) || 0;\n    });\n  });\n  // Conservative: assume gpt-4o pricing ($2.50 input / $10 output per 1M tokens)\n  // → 250 cents in / 1000 cents out per 1M. Adjust if you use different models.\n  const costCents = Math.round((inTokens * 250 + outTokens * 1000) / 1000000);\n  return { json: { row: { tracking_date, service_name: 'openai', spend_cents: costCents, data_source: 'vendor_api', usage_metrics: { input_tokens: inTokens, output_tokens: outTokens, model_rate_assumed: 'gpt-4o' }, notes: 'Computed via OpenAI organization usage API. Rate assumed gpt-4o; reconcile against monthly invoice for accuracy.' } } };\n}\n// Fallback: API call failed (no admin key, 401, network) — record $0 with a clear notes string.\nconst err = resp && resp.error ? (resp.error.message || JSON.stringify(resp.error)) : 'No response';\nreturn { json: { row: { tracking_date, service_name: 'openai', spend_cents: 0, data_source: 'manual', usage_metrics: { fallback: true }, notes: 'OpenAI usage API unavailable (' + err + '). Set OPENAI_ADMIN_API_KEY env var or enter monthly spend manually.' } } };",
         "mode": "runOnceForAllItems"
       },
-      "id": "sco-0003", "name": "Compute Spend (stub)", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [480, 300]
+      "id": "sco-0004", "name": "Compute Spend", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
     },
     {
       "parameters": {
@@ -18,18 +28,19 @@
         "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
         "options": {}
       },
-      "id": "sco-0004", "name": "Upsert Spend Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [720, 300],
+      "id": "sco-0005", "name": "Upsert Spend Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [960, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
-    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, service: 'openai', stub: true, tracking_date: row.tracking_date, spend_cents: row.spend_cents } };", "mode": "runOnceForEachItem" }, "id": "sco-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [960, 300] },
-    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sco-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1200, 300] }
+    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, service: 'openai', tracking_date: row.tracking_date, spend_cents: row.spend_cents, data_source: row.data_source, usage: row.usage_metrics } };", "mode": "runOnceForEachItem" }, "id": "sco-0006", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1200, 300] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sco-0007", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1440, 300] }
   ],
   "connections": {
-    "Schedule 06:00 Daily": { "main": [[ { "node": "Compute Spend (stub)", "type": "main", "index": 0 } ]] },
-    "Webhook":              { "main": [[ { "node": "Compute Spend (stub)", "type": "main", "index": 0 } ]] },
-    "Compute Spend (stub)": { "main": [[ { "node": "Upsert Spend Row",     "type": "main", "index": 0 } ]] },
-    "Upsert Spend Row":     { "main": [[ { "node": "Shape Response",       "type": "main", "index": 0 } ]] },
-    "Shape Response":       { "main": [[ { "node": "Respond OK",           "type": "main", "index": 0 } ]] }
+    "Schedule 06:00 Daily": { "main": [[ { "node": "OpenAI Usage API", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "OpenAI Usage API", "type": "main", "index": 0 } ]] },
+    "OpenAI Usage API":     { "main": [[ { "node": "Compute Spend",     "type": "main", "index": 0 } ]] },
+    "Compute Spend":        { "main": [[ { "node": "Upsert Spend Row",  "type": "main", "index": 0 } ]] },
+    "Upsert Spend Row":     { "main": [[ { "node": "Shape Response",    "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false
