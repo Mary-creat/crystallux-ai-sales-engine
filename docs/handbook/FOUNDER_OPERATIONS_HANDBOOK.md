@@ -25,6 +25,10 @@
 **For the in-product AI operations assistant:**
 - [`docs/handbook/OPERATIONS_ASSISTANT_VISION.md`](OPERATIONS_ASSISTANT_VISION.md) — the Admin Copilot ✦ (built, dormant — 30-min activation per `docs/audit/blockers.md` §6). Plain-English database queries, error troubleshooting, platform Q&A, voice input. ~$20-50/mo at normal use.
 
+**For platform-guardian / cost monitoring (Sentinel):**
+- [`docs/handbook/SENTINEL_OPERATIONS_GUIDE.md`](SENTINEL_OPERATIONS_GUIDE.md) — how to operate Sentinel day-to-day (alerts / budgets / acks / monthly review).
+- [`docs/architecture/SENTINEL_ARCHITECTURE.md`](../architecture/SENTINEL_ARCHITECTURE.md) — Phase 1 cost monitoring shipped; Phases 2 (health) / 3 (security) / 4 (auto-remediation) / 5 (standalone product) are roadmapped on the same foundation.
+
 **If you're new (employee, investor, technical advisor):**
 1. Read **Section 1** (Strategic Context) — 20 min
 2. Then **Section 2** (System Inventory) — 30 min

@@ -1,0 +1,65 @@
+{
+  "name": "CLX - Sentinel Workflow Auto Pause v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/auto-pause", "responseMode": "responseNode", "options": {} }, "id": "swap-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-workflow-auto-pause-001", "notes": "DEACTIVATED. Called by threshold-check when emergency budget hit. Pauses all non-essential workflow breakers, logs to sentinel_actions. Essential workflows (is_essential=true) are NEVER paused — that's by design. Auth: MARY_MASTER_TOKEN only (internal-call pattern)." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst master = $env.MARY_MASTER_TOKEN || '';\nif (!body.master_token || body.master_token !== master) return { json: { _unauthorized: true, status: 401 } };\nif (!body.service_name) return { json: { _empty: true, status: 400, error: 'service_name required' } };\nreturn { json: { service_name: body.service_name, reason: body.reason || 'Budget threshold exceeded for ' + body.service_name } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "swap-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "swap-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_breakers?current_status=eq.active&is_essential=eq.false&select=workflow_id,workflow_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "swap-0004", "name": "Fetch Non-Essential", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (r) { return { json: { workflow_id: r.workflow_id, workflow_name: r.workflow_name } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "swap-0005", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/trip_workflow_breaker",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"p_workflow_id\": \"{{ $json.workflow_id }}\", \"p_reason\": \"{{ $('Extract').first().json.reason }}\", \"p_triggered_by\": \"auto\" }",
+        "options": { "continueOnFail": true, "batching": { "batch": { "batchSize": 1, "batchInterval": 100 } } }
+      },
+      "id": "swap-0006", "name": "Trip Breaker", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const paused = $('Fan Out').all().length;\nconst service = $('Extract').first().json.service_name;\nreturn { json: { ok: true, service_name: service, workflows_paused: paused, note: 'Essential workflows (is_essential=true) are never auto-paused. To pause them you must do so manually.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "swap-0007", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "swap-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1840, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "swap-0009", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 580] }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":              { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
+    "IF Bad":               { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Fetch Non-Essential", "type": "main", "index": 0 } ] ] },
+    "Fetch Non-Essential":  { "main": [[ { "node": "Fan Out",     "type": "main", "index": 0 } ]] },
+    "Fan Out":              { "main": [[ { "node": "Trip Breaker","type": "main", "index": 0 } ]] },
+    "Trip Breaker":         { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",  "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

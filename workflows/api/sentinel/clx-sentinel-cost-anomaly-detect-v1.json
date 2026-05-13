@@ -1,0 +1,62 @@
+{
+  "name": "CLX - Sentinel Cost Anomaly Detect v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 7 * * *" } ] } }, "id": "scad-0001", "name": "Schedule 07:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/anomaly-detect", "responseMode": "responseNode", "options": {} }, "id": "scad-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-anomaly-detect-001", "notes": "DEACTIVATED. Cron 07:00 daily (after 06:00 collectors). Compares yesterday's spend per service to a 14-day baseline. Raises a warning alert if yesterday > 2x baseline (rule of thumb — tune after 30 days of data)." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_tracking?tracking_date=gte.' + new Date(Date.now() - 15*86400000).toISOString().slice(0,10) + '&select=tracking_date,service_name,spend_cents&order=tracking_date.desc' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "scad-0003", "name": "Fetch Recent Spend", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst yesterday = new Date(Date.now() - 86400000).toISOString().slice(0,10);\nconst byService = {};\nrows.forEach(function (r) { (byService[r.service_name] = byService[r.service_name] || []).push({ d: r.tracking_date, c: parseInt(r.spend_cents) || 0 }); });\nconst anomalies = [];\nObject.keys(byService).forEach(function (svc) {\n  const series = byService[svc];\n  const ydayRow = series.find(function (r) { return r.d === yesterday; });\n  if (!ydayRow || ydayRow.c === 0) return;\n  const baseline = series.filter(function (r) { return r.d !== yesterday; });\n  if (baseline.length < 7) return;  // need >= 7 days of history to compute baseline\n  const avg = baseline.reduce(function (a, r) { return a + r.c; }, 0) / baseline.length;\n  if (avg < 10) return;  // skip noise on near-zero baselines (< 10 cents/day)\n  const ratio = ydayRow.c / avg;\n  if (ratio >= 2) {\n    anomalies.push({ service: svc, yesterday_cents: ydayRow.c, baseline_avg_cents: Math.round(avg), ratio: Math.round(ratio * 10) / 10 });\n  }\n});\nreturn { json: { anomalies, services_evaluated: Object.keys(byService).length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "scad-0004", "name": "Detect", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const anomalies = $input.item.json.anomalies || [];\nreturn anomalies.map(function (a) { return { json: { severity: 'warning', alert_type: 'cost_anomaly', title: '[' + a.service + '] yesterday spent ' + a.ratio + 'x the 14-day baseline', message: 'Yesterday $' + (a.yesterday_cents/100).toFixed(2) + ' vs baseline $' + (a.baseline_avg_cents/100).toFixed(2) + '/day. Investigate before threshold check fires.', aggregation_key: 'cost_anomaly:' + a.service + ':' + new Date().toISOString().slice(0,10), details: a } }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "scad-0005", "name": "Fan Out Alerts", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/api/sentinel/alert' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"module_name\": \"cost_monitoring\", \"alert_type\": \"{{ $json.alert_type }}\", \"severity\": \"{{ $json.severity }}\", \"title\": \"{{ $json.title }}\", \"message\": \"{{ $json.message }}\", \"details\": {{ JSON.stringify($json.details) }}, \"aggregation_key\": \"{{ $json.aggregation_key }}\" }",
+        "options": { "timeout": 8000, "continueOnFail": true }
+      },
+      "id": "scad-0006", "name": "Dispatch Alert", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Detect').first().json;\nreturn { json: { ok: true, services_evaluated: r.services_evaluated, anomalies_detected: (r.anomalies || []).length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "scad-0007", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1440, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "scad-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1680, 300] }
+  ],
+  "connections": {
+    "Schedule 07:00 Daily": { "main": [[ { "node": "Fetch Recent Spend", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Recent Spend", "type": "main", "index": 0 } ]] },
+    "Fetch Recent Spend":   { "main": [[ { "node": "Detect",            "type": "main", "index": 0 } ]] },
+    "Detect":               { "main": [[ { "node": "Fan Out Alerts",    "type": "main", "index": 0 } ]] },
+    "Fan Out Alerts":       { "main": [[ { "node": "Dispatch Alert",    "type": "main", "index": 0 } ]] },
+    "Dispatch Alert":       { "main": [[ { "node": "Shape Response",    "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

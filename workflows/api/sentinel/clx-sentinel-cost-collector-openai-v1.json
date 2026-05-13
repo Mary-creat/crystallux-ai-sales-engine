@@ -1,0 +1,36 @@
+{
+  "name": "CLX - Sentinel Cost Collector OpenAI v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 * * *" } ] } }, "id": "sco-0001", "name": "Schedule 06:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/collect-openai", "responseMode": "responseNode", "options": {} }, "id": "sco-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-collector-openai-001", "notes": "DEACTIVATED. SCAFFOLD — records $0 daily until wired. TODO: query api.openai.com/v1/usage with admin key OR sum Whisper transcription calls from copilot logs." },
+    {
+      "parameters": {
+        "jsCode": "const tracking_date = new Date(Date.now() - 86400000).toISOString().slice(0,10);\nreturn { json: { row: { tracking_date, service_name: 'openai', spend_cents: 0, data_source: 'internal_log', usage_metrics: { stub: true }, notes: 'SCAFFOLD — replace with real OpenAI usage compute. Options: (1) query https://api.openai.com/v1/usage with admin key, (2) instrument clx-copilot-whisper-v1 to record per-call duration + cost.' } } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sco-0003", "name": "Compute Spend (stub)", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_tracking?on_conflict=tracking_date,service_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "id": "sco-0004", "name": "Upsert Spend Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [720, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, service: 'openai', stub: true, tracking_date: row.tracking_date, spend_cents: row.spend_cents } };", "mode": "runOnceForEachItem" }, "id": "sco-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [960, 300] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sco-0006", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1200, 300] }
+  ],
+  "connections": {
+    "Schedule 06:00 Daily": { "main": [[ { "node": "Compute Spend (stub)", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Compute Spend (stub)", "type": "main", "index": 0 } ]] },
+    "Compute Spend (stub)": { "main": [[ { "node": "Upsert Spend Row",     "type": "main", "index": 0 } ]] },
+    "Upsert Spend Row":     { "main": [[ { "node": "Shape Response",       "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",           "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

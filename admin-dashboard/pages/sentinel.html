@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sentinel · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--border, #e5e7eb); margin-bottom:18px; }
+.tabs button { background:none; border:none; padding:10px 16px; font-size:14px; font-weight:600; color:var(--muted, #6b7280); cursor:pointer; border-bottom:2px solid transparent; }
+.tabs button.active { color:var(--text, #0f172a); border-bottom-color:#0f4c81; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.pill { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+.pill-info { background:#cffafe; color:#0e7490; }
+.pill-warning { background:#fef3c7; color:#b45309; }
+.pill-critical { background:#fee2e2; color:#b91c1c; }
+.pill-emergency { background:#7f1d1d; color:#fff; }
+</style>
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Sentinel</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Sentinel</h1><div class="clx-page-sub">Unified platform guardian — cost (Phase 1) • health (Phase 2) • security (Phase 3) • auto-remediation (Phase 4).</div></div></div>
+  <div class="tabs" id="tabs">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="costs">Costs</button>
+    <button data-tab="health">Health</button>
+    <button data-tab="security">Security</button>
+    <button data-tab="alerts">Alerts</button>
+  </div>
+
+  <div id="pane-overview" class="tab-pane active">
+    <div class="clx-stat-grid" id="overviewStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Modules</div></div><div id="modulesList"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+  </div>
+
+  <div id="pane-costs" class="tab-pane">
+    <div class="clx-stat-grid" id="costStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading cost data…</div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Budgets vs month-to-date spend</div></div><div id="budgetsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Daily spend — last 14 days</div></div><div id="trendTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Workflow circuit breakers</div></div><div id="breakersTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+  </div>
+
+  <div id="pane-health" class="tab-pane">
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Health monitoring — coming in Phase 2</div></div><div class="clx-empty">Workflow health checks, error rate dashboards, latency tracking, automatic restart playbooks. Roadmapped for Month 2–3 after Crystallux operations stabilize.</div></div>
+  </div>
+
+  <div id="pane-security" class="tab-pane">
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Security monitoring — coming in Phase 3</div></div><div class="clx-empty">Brute-force detection, API-abuse detection, vulnerability scanning, SOC 2/PIPEDA compliance dashboards, credential rotation alerts. Roadmapped for Year 1 end / Year 2 start, after Sentinel Operations standalone product launches.</div></div>
+  </div>
+
+  <div id="pane-alerts" class="tab-pane">
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Unified alerts</div></div><div id="alertsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+  </div>
+
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function fmtMoney(c){return '$'+((parseFloat(c)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function pill(sev){var c='pill-'+sev;return '<span class="pill '+c+'">'+esc(sev)+'</span>';}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    loadAll();
+  });
+
+  // Tab switcher
+  document.querySelectorAll('#tabs button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#tabs button').forEach(function(x){x.classList.remove('active');});
+      document.querySelectorAll('.tab-pane').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      document.getElementById('pane-'+b.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+
+  function loadAll(){
+    // Hit Sentinel-related Supabase tables via Layer 1 admin generic queries. For this dashboard we
+    // make small REST calls directly to Supabase via the admin-dashboard's session token (the
+    // Supabase JS client would be cleaner; this is a minimal first-cut).
+    // Using clxApi.call for adminPost wrapper.
+    loadModules();
+    loadCosts();
+    loadAlerts();
+  }
+
+  function loadModules(){
+    // Render placeholder modules registry from the seed
+    var html = '<table class="clx-table"><thead><tr><th>Module</th><th>Type</th><th>Status</th></tr></thead><tbody>';
+    [['cost_monitoring','monitoring','active'],
+     ['health_monitoring','monitoring','planned'],
+     ['security_monitoring','monitoring','planned'],
+     ['auto_remediation','action','planned']].forEach(function(m){
+      var cls = m[2]==='active' ? 'clx-badge-success' : 'clx-badge-neutral';
+      html += '<tr><td>'+esc(m[0])+'</td><td>'+esc(m[1])+'</td><td><span class="clx-badge '+cls+'">'+esc(m[2])+'</span></td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('modulesList').innerHTML = html;
+
+    document.getElementById('overviewStats').innerHTML =
+      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">1 of 5</div><div class="clx-stat-sub">Cost monitoring active</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Modules planned</div><div class="clx-stat-value">3</div><div class="clx-stat-sub">Health · Security · Auto-remediation</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Status</div><div class="clx-stat-value">Active</div></div>';
+  }
+
+  function loadCosts(){
+    // Cost summary via a custom dashboard webhook would be cleaner; first cut renders placeholders
+    // and a link to Supabase Studio for now. Once Mary wires a /webhook/api/sentinel/cost/summary
+    // endpoint, this loop can populate fully.
+    document.getElementById('costStats').innerHTML =
+      '<div class="clx-stat"><div class="clx-stat-label">Activate</div><div class="clx-stat-value">7 collectors</div><div class="clx-stat-sub">Cron 06:00 daily</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Anthropic</div><div class="clx-stat-value">$0.00</div><div class="clx-stat-sub">No data yet</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Total platform</div><div class="clx-stat-value">$0.00</div><div class="clx-stat-sub">MTD</div></div>';
+
+    document.getElementById('budgetsTable').innerHTML = '<div class="clx-empty">Budgets seeded by migration. Run cost collectors (cron or manual webhook) to populate spend data. View live: <code>SELECT * FROM sentinel_cost_budgets;</code> in Supabase Studio.</div>';
+    document.getElementById('trendTable').innerHTML = '<div class="clx-empty">Trend chart renders after 14 days of collector data accumulates. View live: <code>SELECT tracking_date, service_name, spend_cents FROM sentinel_cost_tracking ORDER BY tracking_date DESC LIMIT 100;</code></div>';
+    document.getElementById('breakersTable').innerHTML = '<div class="clx-empty">Circuit breakers register as workflows execute. View live: <code>SELECT workflow_name, current_status, total_executions_today FROM sentinel_workflow_breakers;</code></div>';
+  }
+
+  function loadAlerts(){
+    document.getElementById('alertsTable').innerHTML = '<div class="clx-empty">Open alerts appear here after the threshold check or anomaly detector runs. View live: <code>SELECT id, severity, title, triggered_at FROM sentinel_alerts WHERE status = \'open\' ORDER BY triggered_at DESC;</code></div>';
+  }
+})();
+</script>
+</body></html>

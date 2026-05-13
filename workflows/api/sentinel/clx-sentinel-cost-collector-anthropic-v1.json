@@ -1,0 +1,54 @@
+{
+  "name": "CLX - Sentinel Cost Collector Anthropic v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 * * *" } ] } }, "id": "scca-0001", "name": "Schedule 06:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/collect-anthropic", "responseMode": "responseNode", "options": {} }, "id": "scca-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-collector-anthropic-001", "notes": "DEACTIVATED. Cron 06:00 daily + manual webhook. Computes yesterday's Anthropic spend from internal logs (agent_decisions table tracks Claude calls). Uses Anthropic published per-1M-token pricing. Idempotent upsert into sentinel_cost_tracking." },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_decisions?created_at=gte.' + new Date(Date.now() - 86400000).toISOString().slice(0,10) + 'T00:00:00Z&created_at=lt.' + new Date().toISOString().slice(0,10) + 'T00:00:00Z&select=tokens_input,tokens_output,model' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "scca-0003", "name": "Fetch Claude Calls", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Anthropic published rates per million tokens (USD → cents, multiply by 100):\n// Claude Sonnet 4.5:  $3 input / $15 output → 300 / 1500 cents per 1M tokens\n// Claude Opus 4.7:    $15 input / $75 output\n// Claude Haiku 4.5:   $0.25 input / $1.25 output\nconst rates = {\n  'claude-sonnet-4-5':  { in: 300,  out: 1500 },\n  'claude-sonnet-4-5-20250929': { in: 300, out: 1500 },\n  'claude-opus-4-7':    { in: 1500, out: 7500 },\n  'claude-haiku-4-5':   { in: 25,   out: 125 },\n  'claude-haiku-4-5-20251001': { in: 25, out: 125 },\n  // fallback for unknown models — assume Sonnet rates\n  '_default':           { in: 300,  out: 1500 }\n};\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nlet inTokens = 0, outTokens = 0, costCents = 0, callsCount = rows.length;\nconst byModel = {};\nrows.forEach(function (r) {\n  const ti = parseInt(r.tokens_input) || 0;\n  const to = parseInt(r.tokens_output) || 0;\n  const rate = rates[r.model] || rates._default;\n  // cents per 1M tokens × tokens / 1,000,000\n  const c = (ti * rate.in + to * rate.out) / 1000000;\n  inTokens += ti; outTokens += to; costCents += c;\n  if (r.model) byModel[r.model] = (byModel[r.model] || 0) + c;\n});\nconst tracking_date = new Date(Date.now() - 86400000).toISOString().slice(0,10);\nreturn { json: { row: { tracking_date, service_name: 'anthropic', spend_cents: Math.round(costCents), data_source: 'internal_log', usage_metrics: { calls: callsCount, tokens_input: inTokens, tokens_output: outTokens, by_model: byModel }, notes: 'Computed from agent_decisions table using published per-1M-token rates.' } } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "scca-0004", "name": "Compute Spend", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_tracking?on_conflict=tracking_date,service_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "id": "scca-0005", "name": "Upsert Spend Row", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [960, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, service: 'anthropic', tracking_date: row.tracking_date, spend_cents: row.spend_cents, usage: row.usage_metrics } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "scca-0006", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1200, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "scca-0007", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1440, 300] }
+  ],
+  "connections": {
+    "Schedule 06:00 Daily": { "main": [[ { "node": "Fetch Claude Calls", "type": "main", "index": 0 } ]] },
+    "Webhook":              { "main": [[ { "node": "Fetch Claude Calls", "type": "main", "index": 0 } ]] },
+    "Fetch Claude Calls":   { "main": [[ { "node": "Compute Spend",      "type": "main", "index": 0 } ]] },
+    "Compute Spend":        { "main": [[ { "node": "Upsert Spend Row",   "type": "main", "index": 0 } ]] },
+    "Upsert Spend Row":     { "main": [[ { "node": "Shape Response",     "type": "main", "index": 0 } ]] },
+    "Shape Response":       { "main": [[ { "node": "Respond OK",         "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

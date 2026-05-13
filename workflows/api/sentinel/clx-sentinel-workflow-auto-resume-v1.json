@@ -1,0 +1,60 @@
+{
+  "name": "CLX - Sentinel Workflow Auto Resume v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 0 1 * *" } ] } }, "id": "swar-0001", "name": "Schedule 1st of Month", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/auto-resume", "responseMode": "responseNode", "options": {} }, "id": "swar-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-workflow-auto-resume-001", "notes": "DEACTIVATED. Cron 00:00 on the 1st of each month. Resets all paused breakers to active (the new month's budget starts fresh). Manual webhook needs MARY_MASTER_TOKEN." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst master = $env.MARY_MASTER_TOKEN || '';\n// Schedule trigger has no body; only require token for the manual-webhook path.\nif ($input.item.json.headers && $input.item.json.body !== undefined && (!body.master_token || body.master_token !== master)) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { _ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "swar-0003", "name": "Auth Check", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "swar-0004", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 300] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_workflow_breakers?current_status=in.(paused,tripped)",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"current_status\": \"active\", \"paused_at\": null, \"paused_reason\": null, \"total_executions_today\": 0, \"total_cost_today_cents\": 0, \"reset_at\": \"{{ new Date().toISOString() }}\", \"updated_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": {}
+      },
+      "id": "swar-0005", "name": "Resume All", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_actions",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"module_name\": \"cost_monitoring\", \"action_type\": \"resume_all_workflows\", \"action_data\": { \"count\": {{ Array.isArray($json) ? $json.length : 0 }}, \"reason\": \"monthly_budget_reset\" }, \"triggered_by\": \"cron:auto-resume\", \"status\": \"succeeded\", \"executed_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "swar-0006", "name": "Log Action", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1120, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resumed = Array.isArray($('Resume All').first().json) ? $('Resume All').first().json.length : 0;\nreturn { json: { ok: true, workflows_resumed: resumed } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "swar-0007", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1360, 220]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "swar-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1600, 220] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorized' }) }}", "options": { "responseCode": 401 } }, "id": "swar-0009", "name": "Respond 401", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [640, 480] }
+  ],
+  "connections": {
+    "Schedule 1st of Month": { "main": [[ { "node": "Auth Check", "type": "main", "index": 0 } ]] },
+    "Webhook":               { "main": [[ { "node": "Auth Check", "type": "main", "index": 0 } ]] },
+    "Auth Check":            { "main": [[ { "node": "IF Bad",   "type": "main", "index": 0 } ]] },
+    "IF Bad":                { "main": [ [ { "node": "Respond 401", "type": "main", "index": 0 } ], [ { "node": "Resume All", "type": "main", "index": 0 } ] ] },
+    "Resume All":            { "main": [[ { "node": "Log Action", "type": "main", "index": 0 } ]] },
+    "Log Action":            { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":        { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

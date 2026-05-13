@@ -1,0 +1,88 @@
+{
+  "name": "CLX - Sentinel Cost Threshold Check v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 */4 * * *" } ] } }, "id": "sctc-0001", "name": "Schedule Every 4h", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/threshold-check", "responseMode": "responseNode", "options": {} }, "id": "sctc-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-threshold-check-001", "notes": "DEACTIVATED. Cron every 4h. Sums month-to-date spend per service, compares to sentinel_cost_budgets, raises alerts at warning/critical thresholds. Critical alerts also call the auto-pause workflow."  },
+    {
+      "parameters": {
+        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_budgets?active=eq.true&select=*",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sctc-0003", "name": "Fetch Budgets", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_tracking?tracking_date=gte.' + new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10) + '&select=service_name,spend_cents' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "sctc-0004", "name": "Fetch MTD Spend", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "type": "combineByPosition", "options": {} }, "id": "sctc-0005", "name": "Merge", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [720, 300] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst budgets = allOf('Fetch Budgets');\nconst spendRows = allOf('Fetch MTD Spend');\nconst spendByService = {};\nlet totalSpend = 0;\nspendRows.forEach(function (r) { const c = parseInt(r.spend_cents) || 0; spendByService[r.service_name] = (spendByService[r.service_name] || 0) + c; totalSpend += c; });\nconst alerts = [];\nbudgets.forEach(function (b) {\n  // Special case: total_platform compares against summed spend across ALL services.\n  const spent = (b.service_name === 'total_platform') ? totalSpend : (spendByService[b.service_name] || 0);\n  const pct = b.monthly_limit_cents > 0 ? (spent * 100 / b.monthly_limit_cents) : 0;\n  const detail = { service: b.service_name, monthly_limit_cents: b.monthly_limit_cents, mtd_spend_cents: spent, percent_used: Math.round(pct * 10) / 10 };\n  if (pct >= (b.auto_pause_pct || 90)) {\n    alerts.push({ severity: 'emergency', alert_type: 'cost_auto_pause', title: '[' + b.service_name + '] ' + Math.round(pct) + '% of monthly cap — AUTO PAUSE THRESHOLD', message: 'Month-to-date spend on ' + b.service_name + ' has hit the auto-pause threshold. Non-essential workflows will be paused.', aggregation_key: 'cost:' + b.service_name + ':auto_pause:' + new Date().toISOString().slice(0,7), details: detail });\n  } else if (pct >= (b.critical_pct || 75)) {\n    alerts.push({ severity: 'critical',  alert_type: 'cost_threshold',  title: '[' + b.service_name + '] ' + Math.round(pct) + '% of monthly cap — CRITICAL',        message: 'Month-to-date spend has crossed the critical threshold.',           aggregation_key: 'cost:' + b.service_name + ':critical:' + new Date().toISOString().slice(0,7),  details: detail });\n  } else if (pct >= (b.warning_pct || 50)) {\n    alerts.push({ severity: 'warning',   alert_type: 'cost_threshold',  title: '[' + b.service_name + '] ' + Math.round(pct) + '% of monthly cap — warning',          message: 'Month-to-date spend has crossed the warning threshold.',            aggregation_key: 'cost:' + b.service_name + ':warning:' + new Date().toISOString().slice(0,7),   details: detail });\n  }\n});\nreturn { json: { alerts, evaluated: budgets.length } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sctc-0006", "name": "Evaluate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const alerts = $input.item.json.alerts || [];\nreturn alerts.map(function (a) { return { json: a }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sctc-0007", "name": "Fan Out Alerts", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/api/sentinel/alert' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"module_name\": \"cost_monitoring\", \"alert_type\": \"{{ $json.alert_type }}\", \"severity\": \"{{ $json.severity }}\", \"title\": \"{{ $json.title }}\", \"message\": \"{{ $json.message }}\", \"details\": {{ JSON.stringify($json.details) }}, \"aggregation_key\": \"{{ $json.aggregation_key }}\" }",
+        "options": { "timeout": 8000, "continueOnFail": true }
+      },
+      "id": "sctc-0008", "name": "Dispatch Alert", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/api/sentinel/cost/auto-pause' }}",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"master_token\": \"{{ $env.MARY_MASTER_TOKEN }}\", \"service_name\": \"{{ $json.details.service }}\", \"reason\": \"{{ $json.title }}\" }",
+        "options": { "timeout": 8000, "continueOnFail": true }
+      },
+      "id": "sctc-0009", "name": "Trigger Auto Pause (if emergency)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1440, 480],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const evaluated = $('Evaluate').first().json.evaluated || 0;\nconst alerts = $('Evaluate').first().json.alerts || [];\nreturn { json: { ok: true, budgets_evaluated: evaluated, alerts_raised: alerts.length, alerts: alerts } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sctc-0010", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1680, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "sctc-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1920, 300] }
+  ],
+  "connections": {
+    "Schedule Every 4h": { "main": [[ { "node": "Fetch Budgets", "type": "main", "index": 0 } ]] },
+    "Webhook":           { "main": [[ { "node": "Fetch Budgets", "type": "main", "index": 0 } ]] },
+    "Fetch Budgets":     { "main": [[ { "node": "Merge",          "type": "main", "index": 0 }, { "node": "Fetch MTD Spend", "type": "main", "index": 0 } ]] },
+    "Fetch MTD Spend":   { "main": [[ { "node": "Merge",          "type": "main", "index": 1 } ]] },
+    "Merge":             { "main": [[ { "node": "Evaluate",       "type": "main", "index": 0 } ]] },
+    "Evaluate":          { "main": [[ { "node": "Fan Out Alerts", "type": "main", "index": 0 } ]] },
+    "Fan Out Alerts":    { "main": [[ { "node": "Dispatch Alert", "type": "main", "index": 0 } ]] },
+    "Dispatch Alert":    { "main": [[ { "node": "Trigger Auto Pause (if emergency)", "type": "main", "index": 0 } ]] },
+    "Trigger Auto Pause (if emergency)": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":    { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

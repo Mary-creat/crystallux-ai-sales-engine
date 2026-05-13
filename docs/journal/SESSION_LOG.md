@@ -4,6 +4,60 @@
 
 ---
 
+## 2026-05-13 — Sentinel Phase 1 (cost monitoring + foundation for Phases 2-5)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** new code + 2 architecture/operations docs. All workflows DORMANT (active:false). Layer 1 universal (no vertical_id).
+
+Built Crystallux Sentinel Phase 1 — unified AI-powered platform guardian. Foundation architected so Phases 2 (health) / 3 (security) / 4 (auto-remediation) / 5 (standalone product) extend without rebuild.
+
+Two commits as recommended:
+
+**Commit A — Foundation:** schema + 2 universal alert workflows + architecture doc.
+**Commit B — Cost monitoring + frontend + ops guide:** 11 cost workflows + dashboard + operations guide + handbook cross-ref.
+
+Schema (`sentinel-foundation-schema.sql`):
+- Foundation tables: sentinel_modules (registry), sentinel_alerts (unified feed with aggregation_key dedup), sentinel_actions (append-only action log with human_approved gate).
+- Phase 1 tables: sentinel_cost_tracking (daily spend per service), sentinel_cost_budgets (per-service thresholds with warning/critical/auto_pause % tiers), sentinel_workflow_breakers (circuit breakers with is_essential flag).
+- RPC: trip_workflow_breaker(workflow_id, reason, triggered_by) — atomic pause + alert + action log.
+- Seed: 7 service budgets + 1 total_platform aggregate row, all per founder spec including daily_limit_cents.
+
+Workflows (13 in workflows/api/sentinel/):
+- Foundation (2): alert-router (webhook + Postmark + 1h dedup window), alert-acknowledge (admin marks open→acknowledged→resolved).
+- Cost-specific (11):
+  - 1 working collector: anthropic (sums agent_decisions.tokens_input/tokens_output × published per-1M-token rates per Sonnet/Opus/Haiku model).
+  - 5 stub collectors: openai/twilio/vapi/heygen/supabase. Each records $0 daily with a specific TODO note pointing at the vendor's billing API or internal-log compute path. Framework runs end-to-end on day 1; replace stubs as each vendor is wired.
+  - threshold-check (cron every 4h, computes MTD % vs budgets, raises alerts at warning/critical/emergency tiers, dispatches auto-pause on emergency, handles total_platform aggregate specially by summing all services).
+  - anomaly-detect (cron 07:00 daily, 14-day baseline vs yesterday, raises warning if yesterday > 2× baseline AND baseline > 10¢/day).
+  - workflow-auto-pause (internal webhook, pauses all is_essential=false breakers via trip_workflow_breaker RPC; essential workflows like auth/billing-webhooks NEVER auto-pause).
+  - workflow-auto-resume (cron 00:00 1st of month, resets all paused/tripped breakers to active).
+  - monthly-report (cron 00:30 1st of month after auto-resume; aggregates last month's spend + emails report).
+
+Design decisions explained in architecture doc:
+- "Compute from internal logs" rather than vendor billing APIs — cleaner auth story, per-workflow attribution possible, reconciliation against monthly invoice in data_source='manual' path.
+- Circuit breakers in addition to alerts — alerts assume human reads within minutes; runaway loops at 3am can burn hundreds. Auto-pause caps blast radius.
+- total_platform aggregate row — protects against multiple services climbing together each at 70% individually but 90% combined.
+- aggregation_key dedup (cost:<service>:<severity>:<YYYY-MM>) — collapses repeated alerts to one per service per month per severity tier.
+
+Frontend (admin-dashboard/pages/sentinel.html):
+- 5-tab interface: Overview / Costs (Phase 1 active) / Health (Phase 2 placeholder) / Security (Phase 3 placeholder) / Alerts (unified).
+- Phase 2/3/4 add tab content without restructuring.
+
+Docs:
+- docs/architecture/SENTINEL_ARCHITECTURE.md — full 5-phase architecture + extension points for Phases 2-5.
+- docs/handbook/SENTINEL_OPERATIONS_GUIDE.md — initial activation steps (in workflow order), alert severity interpretation, budget adjustment, alert acknowledgement, emergency procedure, monthly review, troubleshooting, current limitations.
+- FOUNDER_OPERATIONS_HANDBOOK.md "How to use this handbook" updated with pointers at both Sentinel docs.
+
+Mary's deployment steps:
+1. Apply db/migrations/sentinel-foundation-schema.sql in Supabase Studio.
+2. Import 13 workflows from workflows/api/sentinel/ into n8n.
+3. (Optional) Mark essential workflows in sentinel_workflow_breakers.is_essential = true so they're never auto-paused.
+4. Activate the 13 workflows in the order documented in the ops guide.
+5. Smoke test by curl-ing the anthropic collector webhook + verify a row appears in sentinel_cost_tracking.
+6. Monitor first week — tune budgets after baseline established.
+
+---
+
 ## 2026-05-13 — Operations Assistant vision + Independent Operations guide
 
 **Branch:** `scale-sprint-v1`

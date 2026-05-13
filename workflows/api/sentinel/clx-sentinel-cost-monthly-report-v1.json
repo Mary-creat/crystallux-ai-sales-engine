@@ -1,0 +1,66 @@
+{
+  "name": "CLX - Sentinel Cost Monthly Report v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "30 0 1 * *" } ] } }, "id": "scmr-0001", "name": "Schedule 1st 00:30", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/monthly-report", "responseMode": "responseNode", "options": {} }, "id": "scmr-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-monthly-report-001", "notes": "DEACTIVATED. Cron 00:30 on the 1st of each month (after auto-resume at 00:00). Aggregates last month's spend by service + emails the report. Master token required for manual webhook calls." },
+    {
+      "parameters": {
+        "jsCode": "const d = new Date();\nconst lastMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);\nconst monthEnd = new Date(d.getFullYear(), d.getMonth(), 0);\nreturn { json: { period_start: lastMonth.toISOString().slice(0,10), period_end: monthEnd.toISOString().slice(0,10), period_label: lastMonth.toISOString().slice(0,7) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "scmr-0003", "name": "Compute Period", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_cost_tracking?tracking_date=gte.' + $json.period_start + '&tracking_date=lte.' + $json.period_end + '&select=service_name,spend_cents,usage_metrics&order=service_name.asc' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "scmr-0004", "name": "Fetch Last Month", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byService = {};\nlet total = 0;\nrows.forEach(function (r) { const c = parseInt(r.spend_cents) || 0; byService[r.service_name] = (byService[r.service_name] || 0) + c; total += c; });\nconst lines = Object.keys(byService).sort().map(function (s) { return s + ': $' + (byService[s]/100).toFixed(2); });\nconst body = 'Crystallux Sentinel — Monthly Cost Report (' + $('Compute Period').first().json.period_label + ')\\n\\n' + lines.join('\\n') + '\\n\\nTOTAL: $' + (total/100).toFixed(2);\nreturn { json: { by_service: byService, total_cents: total, period_label: $('Compute Period').first().json.period_label, email_body: body } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "scmr-0005", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Accept", "value": "application/json" },
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_SERVER_TOKEN }}" }
+        ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"From\": \"sentinel@crystallux.org\", \"To\": \"info@crystallux.org\", \"Subject\": \"Sentinel monthly cost report — {{ $json.period_label }} — \\$\" + ({{ $json.total_cents }}/100).toFixed(2), \"TextBody\": \"{{ $json.email_body }}\" }",
+        "options": { "continueOnFail": true, "timeout": 8000 }
+      },
+      "id": "scmr-0006", "name": "Email Report", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $('Aggregate').first().json;\nreturn { json: { ok: true, period: a.period_label, total_cents: a.total_cents, by_service: a.by_service } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "scmr-0007", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1380, 300]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "scmr-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1620, 300] }
+  ],
+  "connections": {
+    "Schedule 1st 00:30": { "main": [[ { "node": "Compute Period", "type": "main", "index": 0 } ]] },
+    "Webhook":            { "main": [[ { "node": "Compute Period", "type": "main", "index": 0 } ]] },
+    "Compute Period":     { "main": [[ { "node": "Fetch Last Month", "type": "main", "index": 0 } ]] },
+    "Fetch Last Month":   { "main": [[ { "node": "Aggregate",      "type": "main", "index": 0 } ]] },
+    "Aggregate":          { "main": [[ { "node": "Email Report",   "type": "main", "index": 0 } ]] },
+    "Email Report":       { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response":     { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
