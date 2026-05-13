@@ -18,8 +18,16 @@
 .pill-critical { background:#fee2e2; color:#b91c1c; }
 .pill-emergency { background:#7f1d1d; color:#fff; }
 .pill-ok { background:#dcfce7; color:#166534; }
+.pill-healthy { background:#dcfce7; color:#166534; }
+.pill-degraded { background:#fef3c7; color:#b45309; }
+.pill-silent { background:#e0e7ff; color:#3730a3; }
+.pill-up { background:#dcfce7; color:#166534; }
+.pill-down { background:#fee2e2; color:#b91c1c; }
 .pill-status-open { background:#fee2e2; color:#b91c1c; }
 .pill-status-acknowledged { background:#fef3c7; color:#b45309; }
+.health-score-ring { display:inline-block; width:80px; height:80px; border-radius:50%; background:conic-gradient(var(--ring-color, #16a34a) calc(var(--ring-pct, 0) * 1%), #e5e7eb 0); position:relative; }
+.health-score-ring::after { content:''; position:absolute; inset:8px; background:#fff; border-radius:50%; }
+.health-score-ring span { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; height:100%; font-weight:700; font-size:20px; color:var(--text, #0f172a); }
 .bar-wrap { width:100%; height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-top:4px; }
 .bar-fill { height:100%; transition:width 0.3s; }
 .bar-ok { background:#16a34a; }
@@ -63,7 +71,10 @@
   </div>
 
   <div id="pane-health" class="tab-pane">
-    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Health monitoring — coming in Phase 2</div></div><div class="clx-empty">Workflow health checks, error rate dashboards, latency tracking, automatic restart playbooks. Roadmapped for Month 2–3 after Crystallux operations stabilize.</div></div>
+    <div class="clx-stat-grid" id="healthStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading health data…</div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Workflow health — last 60 min</div><div class="clx-card-sub" id="healthWorkflowsSub"></div></div><div id="healthWorkflowsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">External endpoint health</div></div><div id="healthEndpointsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Open health alerts</div></div><div id="healthAlertsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
   </div>
 
   <div id="pane-security" class="tab-pane">
@@ -89,13 +100,16 @@
     loadAll();
   });
 
-  // Tab switcher
+  // Tab switcher — lazy-loads Health data on first activation.
+  var _healthLoaded = false;
   document.querySelectorAll('#tabs button').forEach(function(b){
     b.addEventListener('click', function(){
       document.querySelectorAll('#tabs button').forEach(function(x){x.classList.remove('active');});
       document.querySelectorAll('.tab-pane').forEach(function(x){x.classList.remove('active');});
       b.classList.add('active');
-      document.getElementById('pane-'+b.getAttribute('data-tab')).classList.add('active');
+      var tab = b.getAttribute('data-tab');
+      document.getElementById('pane-'+tab).classList.add('active');
+      if (tab === 'health' && !_healthLoaded) { _healthLoaded = true; loadHealth(); }
     });
   });
 
@@ -110,7 +124,7 @@
   function loadModules(){
     var html = '<table class="clx-table"><thead><tr><th>Module</th><th>Type</th><th>Status</th></tr></thead><tbody>';
     [['cost_monitoring','monitoring','active'],
-     ['health_monitoring','monitoring','planned'],
+     ['health_monitoring','monitoring','active'],
      ['security_monitoring','monitoring','planned'],
      ['auto_remediation','action','planned']].forEach(function(m){
       var cls = m[2]==='active' ? 'clx-badge-success' : 'clx-badge-neutral';
@@ -120,8 +134,8 @@
     document.getElementById('modulesList').innerHTML = html;
 
     document.getElementById('overviewStats').innerHTML =
-      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">1 of 5</div><div class="clx-stat-sub">Cost monitoring active</div></div>'
-    + '<div class="clx-stat"><div class="clx-stat-label">Modules planned</div><div class="clx-stat-value">3</div><div class="clx-stat-sub">Health · Security · Auto-remediation</div></div>'
+      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">2 of 5</div><div class="clx-stat-sub">Cost + Health monitoring active</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Modules planned</div><div class="clx-stat-value">2</div><div class="clx-stat-sub">Security · Auto-remediation</div></div>'
     + '<div class="clx-stat"><div class="clx-stat-label">Status</div><div class="clx-stat-value">Active</div></div>';
   }
 
@@ -343,6 +357,154 @@
     document.querySelectorAll('[data-resolve]').forEach(function(btn){
       btn.addEventListener('click', function(){ act('resolve', btn.getAttribute('data-resolve'), btn); });
     });
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // PHASE 2 — HEALTH MONITORING
+  // ═════════════════════════════════════════════════════════════════
+  function loadHealth(){
+    clxApi.renderLoading(document.getElementById('healthStats'), 'Loading health summary…');
+    clxApi.call('/api/sentinel/health/summary', {}).then(function(res){
+      if (!res.ok) {
+        clxApi.renderError(document.getElementById('healthStats'), res);
+        ['healthWorkflowsTable','healthEndpointsTable','healthAlertsTable'].forEach(function(id){
+          var el = document.getElementById(id); if (el) clxApi.renderError(el, res);
+        });
+        return;
+      }
+      var s = res.data || {};
+      renderHealthStats(s);
+      renderHealthWorkflows(s);
+      renderHealthEndpoints(s);
+      renderHealthAlerts(s);
+    });
+  }
+
+  function healthRingColor(score){
+    if (score >= 85) return '#16a34a';
+    if (score >= 70) return '#eab308';
+    if (score >= 50) return '#f97316';
+    return '#dc2626';
+  }
+
+  function renderHealthStats(s){
+    var score = (typeof s.overall_health_score === 'number') ? s.overall_health_score : 0;
+    var wc = s.workflow_counts || {};
+    var ec = s.endpoint_counts || {};
+    var color = healthRingColor(score);
+    var html = ''
+      + '<div class="clx-stat"><div class="clx-stat-label">Overall health</div>'
+      +   '<div style="display:flex;align-items:center;gap:12px;margin-top:6px;">'
+      +     '<div class="health-score-ring" style="--ring-color:'+color+';--ring-pct:'+score+';"><span>'+score+'</span></div>'
+      +     '<div style="font-size:12px;color:#6b7280;">100 = perfect<br>0 = everything down</div>'
+      +   '</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Workflows</div><div class="clx-stat-value">'+(wc.healthy||0)+' / '+((wc.healthy||0)+(wc.degraded||0)+(wc.critical||0)+(wc.silent||0))+'</div><div class="clx-stat-sub">healthy · '+(wc.degraded||0)+' degraded · '+(wc.critical||0)+' critical · '+(wc.silent||0)+' silent</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Endpoints</div><div class="clx-stat-value">'+(ec.up||0)+' / '+((ec.up||0)+(ec.down||0)+(ec.degraded||0))+'</div><div class="clx-stat-sub">up · '+(ec.down||0)+' down · '+(ec.degraded||0)+' degraded</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Open health alerts</div><div class="clx-stat-value">'+((s.alerts||[]).filter(function(a){return a.status==='open';}).length)+'</div><div class="clx-stat-sub">unified Alerts tab for actions</div></div>';
+    document.getElementById('healthStats').innerHTML = html;
+  }
+
+  function workflowStatusPill(status){
+    var cls;
+    if (status === 'critical') cls = 'pill-critical';
+    else if (status === 'silent') cls = 'pill-silent';
+    else if (status === 'degraded') cls = 'pill-degraded';
+    else if (status === 'healthy') cls = 'pill-healthy';
+    else cls = 'pill-info';
+    return '<span class="pill '+cls+'">'+esc(status||'unknown')+'</span>';
+  }
+
+  function endpointStatusPill(status){
+    var cls;
+    if (status === 'down') cls = 'pill-down';
+    else if (status === 'degraded') cls = 'pill-degraded';
+    else if (status === 'up') cls = 'pill-up';
+    else cls = 'pill-info';
+    return '<span class="pill '+cls+'">'+esc(status||'unknown')+'</span>';
+  }
+
+  function fmtDuration(ms){
+    if (!ms || ms === 0) return '—';
+    if (ms < 1000) return ms + 'ms';
+    return (ms / 1000).toFixed(1) + 's';
+  }
+
+  function fmtAgo(ts){
+    if (!ts) return '—';
+    var diff = Date.now() - new Date(ts).getTime();
+    if (diff < 60000) return Math.round(diff / 1000) + 's ago';
+    if (diff < 3600000) return Math.round(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.round(diff / 3600000) + 'h ago';
+    return Math.round(diff / 86400000) + 'd ago';
+  }
+
+  function renderHealthWorkflows(s){
+    var wfs = s.workflows || [];
+    var sub = document.getElementById('healthWorkflowsSub');
+    if (sub) sub.textContent = wfs.length + ' active workflow' + (wfs.length===1?'':'s') + ' tracked';
+    if (!wfs.length) {
+      clxApi.renderEmpty(document.getElementById('healthWorkflowsTable'), 'No workflow health rows yet. The collector runs every 5 minutes once activated.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Workflow</th><th>Status</th><th>Executions</th><th>Success / Error</th><th>Error rate</th><th>p95 latency</th><th>Last exec</th></tr></thead><tbody>';
+    wfs.forEach(function(w){
+      var errPct = parseFloat(w.error_rate_pct) || 0;
+      var errCls = errPct >= 25 ? 'color:#b91c1c;font-weight:600' : (errPct >= 10 ? 'color:#b45309;font-weight:600' : 'color:#374151');
+      html += '<tr>'
+        + '<td><strong>'+esc(w.workflow_name||w.workflow_id)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(w.workflow_id)+'</div></td>'
+        + '<td>'+workflowStatusPill(w.status)+'</td>'
+        + '<td>'+(w.execution_count||0)+'</td>'
+        + '<td><span style="color:#166534;">'+(w.success_count||0)+'</span> / <span style="color:#b91c1c;">'+(w.error_count||0)+'</span></td>'
+        + '<td><span style="'+errCls+';">'+errPct.toFixed(1)+'%</span></td>'
+        + '<td>'+fmtDuration(w.p95_duration_ms)+'</td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(w.last_execution_at)+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('healthWorkflowsTable').innerHTML = html;
+  }
+
+  function renderHealthEndpoints(s){
+    var eps = s.endpoints || [];
+    if (!eps.length) {
+      clxApi.renderEmpty(document.getElementById('healthEndpointsTable'), 'No endpoint pings recorded yet. The endpoint collector runs every 5 minutes once activated.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Endpoint</th><th>Category</th><th>Status</th><th>Status code</th><th>Response time</th><th>Failures in a row</th><th>Last error</th><th>Checked</th></tr></thead><tbody>';
+    eps.forEach(function(e){
+      html += '<tr>'
+        + '<td><strong>'+esc(e.endpoint_name)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(e.endpoint_url)+'</div></td>'
+        + '<td><span style="font-size:12px;">'+esc(e.endpoint_category||'')+'</span></td>'
+        + '<td>'+endpointStatusPill(e.status)+'</td>'
+        + '<td>'+(e.status_code||'—')+'</td>'
+        + '<td>'+fmtDuration(e.response_time_ms)+'</td>'
+        + '<td>'+(e.consecutive_failures>0 ? '<span style="color:#b91c1c;font-weight:600;">'+e.consecutive_failures+'</span>' : '0')+'</td>'
+        + '<td style="font-size:11px;color:#6b7280;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(e.last_error||'—')+'</td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(e.checked_at)+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('healthEndpointsTable').innerHTML = html;
+  }
+
+  function renderHealthAlerts(s){
+    var alerts = (s.alerts || []).filter(function(a){ return a.status !== 'resolved'; });
+    if (!alerts.length) {
+      clxApi.renderEmpty(document.getElementById('healthAlertsTable'), 'No open health alerts. Analyzer runs every 15 minutes and raises alerts when SLOs are breached.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Severity</th><th>Alert</th><th>Triggered</th><th>Status</th></tr></thead><tbody>';
+    alerts.forEach(function(a){
+      var statusCls = a.status === 'open' ? 'pill-status-open' : 'pill-status-acknowledged';
+      html += '<tr>'
+        + '<td>'+pill(a.severity||'info')+'</td>'
+        + '<td><strong>'+esc(a.title||'')+'</strong><br><span style="font-size:12px;color:#6b7280;">'+esc(a.message||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(a.triggered_at)+'</span></td>'
+        + '<td><span class="pill '+statusCls+'">'+esc(a.status||'open')+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table><div style="font-size:12px;color:#6b7280;margin-top:8px;">Use the unified <strong>Alerts</strong> tab to acknowledge or resolve these.</div>';
+    document.getElementById('healthAlertsTable').innerHTML = html;
   }
 })();
 </script>

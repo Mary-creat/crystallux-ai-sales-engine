@@ -112,13 +112,23 @@ Without dedup, a threshold-check that runs every 4h would raise 6 identical aler
 
 ## Phases 2–5 — architectural extension points
 
-### Phase 2 (Health monitoring)
+### Phase 2 (Health monitoring) — BUILT 2026-05-13
 
-Adds:
-- `sentinel_health_checks` table — workflow_id, last_run, success_rate, p95_latency_ms, status.
-- New workflows: `clx-sentinel-health-pulse-v1` (every 5 min), `clx-sentinel-health-error-rate-detect-v1`, `clx-sentinel-workflow-auto-restart-v1`.
-- New alert types in the existing `sentinel_alerts` table (no schema change to foundation).
-- Health tab in `sentinel.html` becomes functional.
+**Schema (`db/migrations/sentinel-health-schema.sql`):**
+- `sentinel_workflow_health` — one row per workflow per 5-min window. Columns: execution_count, success_count, error_count, waiting_count, generated `error_rate_pct`, avg/p95 duration, last_execution_at, status (healthy/degraded/critical/silent/unknown). UNIQUE (workflow_id, window_start) so the collector upserts cleanly.
+- `sentinel_endpoint_health` — per-ping history with carry-forward `consecutive_failures` (via the `record_endpoint_check` RPC).
+- `sentinel_endpoints` — registry of what to ping (supabase_rest, n8n_health, admin/client/marketing dashboards seeded).
+- `sentinel_health_thresholds` — per-workflow / per-endpoint / default SLOs (error-rate warning/critical, max silence minutes, max p95, max consecutive down). Seeded with stricter SLOs for the 7 protected production workflows + auth pathway.
+
+**Workflows in `workflows/api/sentinel/`:**
+- `clx-sentinel-health-workflow-collector-v1` (cron */5 min) — pulls n8n's `/api/v1/executions` API for the window, joins with `/api/v1/workflows?active=true` so silent workflows still get a row. Aggregates per workflow into sentinel_workflow_health upserts. Requires `N8N_API_KEY` env var.
+- `clx-sentinel-health-endpoint-collector-v1` (cron */5 min) — pings each active sentinel_endpoints row, classifies up/down/degraded, writes via RPC.
+- `clx-sentinel-health-analyzer-v1` (cron */15 min) — joins latest workflow + endpoint windows against thresholds, raises alerts via the alert-router (`module_name='health_monitoring'`). Alert types: `health_workflow_silent`, `health_error_spike`, `health_latency_spike`, `health_endpoint_down`, `health_endpoint_degraded`. Aggregation_key prevents spam.
+- `clx-sentinel-health-summary-v1` — admin-gated POST webhook powering the dashboard Health tab.
+
+**Frontend:** Health tab in `sentinel.html` shows: overall health score ring (penalty-based 0–100), workflow/endpoint count tiles, sortable workflow health table (critical → silent → degraded → healthy), endpoint health table with consecutive-failures counter, open health alerts list.
+
+**Deliberately deferred to Phase 4:** auto-restart, auto-recovery of tripped breakers when upstream healthy, automated SLO tuning. Phase 2 detects + alerts; it never modifies workflow state autonomously.
 
 ### Phase 3 (Security)
 
@@ -143,5 +153,6 @@ Same architecture, packaged. Each subscriber gets its own Supabase schema or row
 - [`db/migrations/sentinel-foundation-schema.sql`](../../db/migrations/sentinel-foundation-schema.sql) — the schema.
 - [`docs/handbook/SENTINEL_OPERATIONS_GUIDE.md`](../handbook/SENTINEL_OPERATIONS_GUIDE.md) — how Mary operates Sentinel day-to-day.
 - [`docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md`](../strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md) §7 + §8 — commercial roadmap.
-- [`workflows/api/sentinel/`](../../workflows/api/sentinel/) — the 13 workflows.
+- [`workflows/api/sentinel/`](../../workflows/api/sentinel/) — 19 workflows (13 Phase 1 + dashboard + 4 Phase 2 + 1 health summary).
+- [`db/migrations/sentinel-health-schema.sql`](../../db/migrations/sentinel-health-schema.sql) — Phase 2 schema.
 - [`admin-dashboard/pages/sentinel.html`](../../admin-dashboard/pages/sentinel.html) — the dashboard.

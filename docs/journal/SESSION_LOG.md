@@ -4,6 +4,56 @@
 
 ---
 
+## 2026-05-13 — Sentinel Phase 2 built (Health / Operations monitoring)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** schema + 4 workflows + dashboard webhook + Health tab UI + architecture doc update. Same day as Phase 1 dashboard wire-up — chained directly after Mary said "continue with phase two."
+
+What Phase 2 detects (alerts only — no auto-actions):
+- **Workflow silence** — active workflow with zero executions across enough consecutive 5-min windows to exceed `max_silence_minutes` (default 60, tighter on protected production workflows).
+- **Workflow error-rate spike** — latest 5-min window's `error_rate_pct` over warning (10%) or critical (25%) threshold.
+- **Workflow latency spike** — p95 duration over the workflow's `max_p95_ms` SLO.
+- **Endpoint down** — Supabase REST / n8n / admin dashboard / client dashboard / marketing — flagged after `max_consecutive_down` consecutive failures (default 3).
+- **Endpoint degraded** — endpoint returns non-success status code or partial failure.
+
+Schema (`db/migrations/sentinel-health-schema.sql`):
+- `sentinel_workflow_health` — 5-min aggregated execution stats (count, success/error/waiting, generated `error_rate_pct`, avg/p95 duration, last_execution_at, status). UNIQUE (workflow_id, window_start) for clean upserts.
+- `sentinel_endpoint_health` — per-ping history with `consecutive_failures` carried forward by the `record_endpoint_check` RPC.
+- `sentinel_endpoints` — registry of what to ping (5 endpoints seeded).
+- `sentinel_health_thresholds` — per-workflow / per-endpoint / default SLOs. Seeded with stricter rows for the 7 protected v2/v3 production workflows + the auth pathway.
+- Foundation `sentinel_modules.status` flipped to `'active'` for `health_monitoring`.
+
+Workflows (4 new in `workflows/api/sentinel/`):
+- `clx-sentinel-health-workflow-collector-v1` — cron every 5 min, pulls n8n `/api/v1/executions` API + `/api/v1/workflows?active=true`, aggregates per workflow into a row. Silent workflows still get a row (zero executions) so the analyzer can detect silence. Needs `N8N_API_KEY` env var (n8n personal API key).
+- `clx-sentinel-health-endpoint-collector-v1` — cron every 5 min, pings each active endpoint, writes via RPC that handles the consecutive-failures counter atomically.
+- `clx-sentinel-health-analyzer-v1` — cron every 15 min, joins recent workflow + endpoint health against thresholds, raises alerts via the alert-router. `module_name='health_monitoring'`, aggregation_key by hour to prevent spam.
+- `clx-sentinel-health-summary-v1` — admin-gated POST webhook powering the dashboard. Returns workflows[], endpoints[], alerts[], breakers[], status counts, and a 0-100 overall health score.
+
+Frontend (`admin-dashboard/pages/sentinel.html`):
+- Health tab — placeholder replaced with: health-score conic-gradient ring (color shifts by tier), workflow/endpoint count tiles, sortable workflow health table (critical first), endpoint health table with consecutive-failures counter, open health alerts list (read-only — the unified Alerts tab handles ack/resolve since cost-summary already returns ALL alerts, not just cost).
+- Lazy-loads on tab click — the Health summary webhook is only hit when the user opens the tab.
+- 5-tab structure, CSS tokens, auth gate, Costs/Overview/Security/Alerts tabs all preserved unchanged.
+
+Docs:
+- `docs/architecture/SENTINEL_ARCHITECTURE.md` Phase 2 section rewritten from "planned" to BUILT 2026-05-13 with full schema/workflow/frontend breakdown.
+- `docs/audit/blockers.md` Section 0 extended with the Phase 2 migration + workflow imports + N8N_API_KEY requirement.
+
+What's deliberately NOT in Phase 2 (kept for Phase 4 Auto-remediation):
+- Auto-restart of tripped breakers.
+- Smart resume when upstream healthy.
+- SLO auto-tuning based on observed baselines.
+
+Phase 2 only **detects + alerts**; it never modifies workflow state autonomously. The framework supports auto-remediation (foundation tables + breakers + actions table already in place), but Phase 4 is when that gets wired.
+
+Mary's deployment steps:
+1. Apply `db/migrations/sentinel-health-schema.sql` in Supabase SQL editor.
+2. Import the 4 new health workflow JSONs into n8n.
+3. Set `N8N_API_KEY` env var in the n8n container's `.env` (personal API key, generate from n8n Settings → API).
+4. Activate the 3 cron workflows (2 collectors @ */5 min, analyzer @ */15 min). The summary webhook auto-activates on first call from the dashboard.
+5. Open `admin.crystallux.org/pages/sentinel.html` → Health tab. Within 10-15 min the first health rows appear.
+
+---
+
 ## 2026-05-13 — Sentinel Phase 1: live dashboard + real vendor collectors
 
 **Branch:** `scale-sprint-v1`

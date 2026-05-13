@@ -6,6 +6,37 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0b. Sentinel Phase 2 — Health monitoring deploy (added 2026-05-13)
+
+Phase 2 detects workflow silence, error-rate spikes, latency spikes, and
+external-endpoint outages. Three pieces Mary must do:
+
+1. **Apply the migration:**
+   ```bash
+   psql "$DATABASE_URL" -f db/migrations/sentinel-health-schema.sql
+   # Or paste contents into Supabase SQL editor.
+   ```
+   Idempotent — re-runnable. Verifies by setting `sentinel_modules.status='active'` for `health_monitoring`.
+
+2. **Set `N8N_API_KEY` env var** in the n8n container's `.env`. Generate from n8n UI → Settings → n8n API → "Create an API key". This is the key the workflow-health collector uses to call `/api/v1/executions`. Without it the collector returns 401 and no health rows get written.
+
+3. **Re-import the 4 new health workflows + activate the 3 cron workflows:**
+   ```bash
+   ssh vps "cd ~/crystallux-deploy && git pull && \
+     for f in clx-sentinel-health-workflow-collector-v1.json \
+              clx-sentinel-health-endpoint-collector-v1.json \
+              clx-sentinel-health-analyzer-v1.json \
+              clx-sentinel-health-summary-v1.json; do \
+       docker exec n8n n8n import:workflow --input=/data/workflows/api/sentinel/\$f; \
+     done"
+   ```
+   Then in the n8n UI, activate the 2 collectors and the analyzer (3 total — summary is webhook-only, auto-activates on first call).
+
+Verify by opening `admin.crystallux.org/pages/sentinel.html` → Health tab.
+Within 10-15 min the first health rows + endpoint pings appear.
+
+---
+
 ## 0. Sentinel live-dashboard re-import (added 2026-05-13)
 
 Two new workflows + 5 rewritten vendor collectors + 1 updated summary
