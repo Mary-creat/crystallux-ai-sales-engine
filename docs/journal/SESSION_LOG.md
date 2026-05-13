@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-05-13 — Operations Assistant vision + Independent Operations guide
+
+**Branch:** `scale-sprint-v1`
+**Scope:** documentation only. No code changes.
+
+Mary asked for two new docs:
+1. `docs/handbook/OPERATIONS_ASSISTANT_VISION.md` — vision for an AI Operations Assistant.
+2. `docs/handbook/INDEPENDENT_OPERATIONS_GUIDE.md` — how to operate without external technical support.
+
+**Honest finding:** the "Operations Assistant" she described is **already built** as the Admin Copilot ✦ (4 workflows + frontend in `admin-dashboard/shared/copilot.js` + migration `2026-04-24-admin-copilot.sql` + the full §22 spec in `docs/architecture/OPERATIONS_HANDBOOK.md`). Status: dormant, 30-min activation per blockers.md §6.
+
+`OPERATIONS_ASSISTANT_VISION.md` documents:
+- 4 capabilities (DB query, troubleshoot error, platform Q&A, voice input)
+- Architecture diagram (FAB → n8n workflows → Supabase RPCs)
+- 7 safety guardrails already in code (admin-token auth, SELECT-only at two layers, write requires explicit confirmation, all-actions logged, rate limits, secrets never leaked, client isolation preserved)
+- Cost: $20-$50/mo at normal use
+- 30-min activation steps + when to activate
+- When NOT to use (multi-step deployment, SSH ops, strategic decisions — those route to Claude Code / terminal / handbook §7)
+- Future work (7 scoped items: persistent multi-turn memory, inline charts, suggested follow-ups, voice output, saved queries, whitelisted writes, client-side copilot — totaling 30-40 hours). Discipline note: don't build any of them until 1-2 weeks of real operational use validates which limitation matters most.
+
+`INDEPENDENT_OPERATIONS_GUIDE.md` distills the existing handbook into a focused independent-ops reference:
+- Daily (5 min) / weekly (30 min) / monthly (2 hrs) routines, each a 5-step table linking back to handbook §3.
+- Emergency-procedures index pointing at the 7 playbooks in handbook §4 with time-to-recovery estimates.
+- Tool-routing rules: when to use Admin Copilot ✦ vs Claude Code vs terminal/SSH. Decision rule: "if the answer is a SELECT, use Copilot. If WRITE / SSH / multi-step, use Claude Code or terminal."
+- Self-service troubleshooting decision tree (user-visible / platform unreachable / alerting noisy / money or billing / compliance or regulatory branches).
+- Escalation triggers (3 categories): technical (> 2h stuck, money flowing wrong, regulatory data, DELETE/DROP uncertainty, customer down > 30min, irreversible git op), regulatory/legal (carrier audit, FSRA/AMF/IIROC inquiry, PIPEDA matter, Victory-related related-party transactions), strategic (custom pricing requests, investor inquiry, acquirer inquiry, carrier strategic partnership). Each with "who to call" guidance: freelance DevOps $50-150/hr, non-profit/charity lawyer (Drache Aptowitzer / Carters), insurance regulatory lawyer (NRF / McMillan / Cassels), privacy lawyer, accountant/fractional CFO, founder/startup advisor, securities/corporate lawyer. Hard rule: never close an irreversible decision in fewer than 72 hours, even under pressure.
+- Resource directory: critical platform vendors (Supabase / Cloudflare / VPS / Anthropic), operational vendors (Postmark / Twilio / HeyGen / Stripe / Cal.com / Zoho Sign / Vapi / ElevenLabs / Certn), insurance-industry contacts (Walnut / PolicyMe / Apollo / tier-1 mutuals / E&O insurer), government/funding offices (SR&ED specialists / NRC IRAP / CDAP / OTF / provincial EDAs), legal (4 categories), and a documentation-locations table mapping "common question" → "doc to open".
+- "I'm overwhelmed" reset: a 3-command + 1-SQL-query sequence to know where you stand in 60 seconds, plus permission to take a 30-min break.
+
+Updated `docs/handbook/FOUNDER_OPERATIONS_HANDBOOK.md` "How to use this handbook" section to add explicit pointers at both new docs.
+
+**No code changes.** The Admin Copilot ✦ activation steps are unchanged — `docs/audit/blockers.md` §6 is the operational checklist.
+
+---
+
 ## 2026-05-13 — Seed unblock via direct SQL + complete wiring checklist
 
 **Branch:** `scale-sprint-v1`

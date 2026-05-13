@@ -19,6 +19,12 @@
 3. Third → **Section 7** (Decision Frameworks)
 4. Last resort → contact a technical advisor or open Claude/Claude Code
 
+**For routine independent operations (daily / weekly / monthly):**
+- [`docs/handbook/INDEPENDENT_OPERATIONS_GUIDE.md`](INDEPENDENT_OPERATIONS_GUIDE.md) — distilled daily/weekly/monthly routines, the self-service troubleshooting decision tree, escalation triggers (when to call a freelancer / lawyer / regulator), the resource directory (vendor contacts), and the "I'm overwhelmed" reset sequence.
+
+**For the in-product AI operations assistant:**
+- [`docs/handbook/OPERATIONS_ASSISTANT_VISION.md`](OPERATIONS_ASSISTANT_VISION.md) — the Admin Copilot ✦ (built, dormant — 30-min activation per `docs/audit/blockers.md` §6). Plain-English database queries, error troubleshooting, platform Q&A, voice input. ~$20-50/mo at normal use.
+
 **If you're new (employee, investor, technical advisor):**
 1. Read **Section 1** (Strategic Context) — 20 min
 2. Then **Section 2** (System Inventory) — 30 min
