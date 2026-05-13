@@ -6,6 +6,53 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0c. Sentinel Phase 3 — Security monitoring deploy (added 2026-05-13)
+
+Phase 3 detects brute-force, session anomalies, API abuse, privilege denials,
+rate-limit breaches, and credential rotation overdue.
+
+1. **Apply the migration:**
+   ```bash
+   psql "$DATABASE_URL" -f db/migrations/sentinel-security-schema.sql
+   ```
+   Idempotent. Seeds 15 credentials + 7 detection rules. Sets
+   `sentinel_modules.status='active'` for `security_monitoring`.
+
+2. **Re-import the 5 new security workflows + activate 2 crons:**
+   ```bash
+   ssh vps "cd ~/crystallux-deploy && git pull && \
+     for f in clx-sentinel-security-event-log-v1.json \
+              clx-sentinel-security-detector-v1.json \
+              clx-sentinel-credential-age-check-v1.json \
+              clx-sentinel-security-summary-v1.json \
+              clx-sentinel-credential-rotate-record-v1.json; do \
+       docker exec n8n n8n import:workflow --input=/data/workflows/api/sentinel/\$f; \
+     done"
+   ```
+   In the n8n UI, activate **security-detector** (cron */10 min) and
+   **credential-age-check** (cron 06:00 daily). The 3 webhook-only
+   workflows auto-activate on first call.
+
+3. **(Optional, later) Wire security-event-log into new workflows.**
+   Phase 3 is value-additive — any new workflow that handles auth can
+   POST to `/webhook/api/sentinel/security/event` with
+   `{ master_token, event_type: 'session_rejected' | 'login_failed' |
+   'webhook_auth_failed' | 'privilege_denied', user_email, source_ip,
+   user_agent, details: {...} }` when it detects a security signal.
+   The existing 7 protected v2/v3 production workflows are NOT
+   modified — they keep current behavior.
+
+4. **First-time credential rotation walkthrough.** After deploying,
+   the credential inventory shows `last_rotated_at = NULL` for every
+   row. Click "Mark rotated" on each credential to baseline. From
+   then on, the daily check fires only when a credential actually
+   approaches its `rotation_interval_days` from `last_rotated_at`.
+
+Verify by opening `admin.crystallux.org/pages/sentinel.html` → Security
+tab. Posture score + credential inventory render immediately.
+
+---
+
 ## 0b. Sentinel Phase 2 — Health monitoring deploy (added 2026-05-13)
 
 Phase 2 detects workflow silence, error-rate spikes, latency spikes, and

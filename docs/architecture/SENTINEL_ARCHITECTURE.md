@@ -130,12 +130,24 @@ Without dedup, a threshold-check that runs every 4h would raise 6 identical aler
 
 **Deliberately deferred to Phase 4:** auto-restart, auto-recovery of tripped breakers when upstream healthy, automated SLO tuning. Phase 2 detects + alerts; it never modifies workflow state autonomously.
 
-### Phase 3 (Security)
+### Phase 3 (Security) — BUILT 2026-05-13
 
-Adds:
-- `sentinel_security_events` table.
-- `sentinel_credential_rotations` table.
-- New workflows for brute-force detection, API abuse, vulnerability scans, SOC 2 dashboards.
+**Schema (`db/migrations/sentinel-security-schema.sql`):**
+- `sentinel_security_events` — universal append-only event log. Workflows POST here (via the event-log webhook) when they observe a security-relevant signal: failed login, session rejection, webhook auth failure, privilege denial, rate-limit breach. Indexed on (event_type, created_at) + (user_email, created_at) + (source_ip, created_at) for cheap rule-window queries. `log_security_event()` RPC is the convenience writer.
+- `sentinel_credential_inventory` — 15 seeded credentials (Supabase service-role, Supabase anon, MARY_MASTER_TOKEN, INTERNAL_EMAIL_SECRET, Anthropic, OpenAI, Twilio, Vapi, HeyGen, Postmark, Stripe secret + webhook signing, n8n API key, Cloudflare, admin password). Each row carries `rotation_interval_days` + `warning_threshold_days`. `next_rotation_due` is a generated column.
+- `sentinel_security_rules` — 7 seeded detection rules. Each defines `event_type_filter`, `group_by` (user_email / source_ip / endpoint / user_id), `window_minutes`, `threshold_count`, `severity`. The detector reads this table — no code changes to add new rule types.
+- Foundation `sentinel_modules.status` flipped to `'active'` for `security_monitoring`.
+
+**Workflows in `workflows/api/sentinel/`:**
+- `clx-sentinel-security-event-log-v1` — POST `/webhook/api/sentinel/security/event`. Universal sink. Auth: `MARY_MASTER_TOKEN`. Any workflow that detects a security signal posts here (no callsite knows the schema; the workflow does).
+- `clx-sentinel-security-detector-v1` — cron */10 min. Loads active rules + last 90 min of events, groups events per `rule.group_by`, raises alerts when group count ≥ `threshold_count`. `aggregation_key=security:<rule>:<group_value>:<YYYY-MM-DDTHH>` collapses repeated spikes into one alert per group per rule per hour.
+- `clx-sentinel-credential-age-check-v1` — cron 06:00 daily. Warns when within `warning_threshold_days` of `next_rotation_due`; raises critical when past due. `aggregation_key` by month.
+- `clx-sentinel-security-summary-v1` — admin-gated POST webhook powering the Security tab. Returns posture score (0–100, penalty-based), 24h event-type buckets, severity counts, top-5 offending IPs + emails by failed-auth events, enriched credentials with `days_to_due` + `rotation_status`, all rules, open security alerts.
+- `clx-sentinel-credential-rotate-record-v1` — admin POST that sets `last_rotated_at = now()` after Mary rotates a key. Also writes a `sentinel_actions` row with `human_approved=true` for the audit trail.
+
+**Frontend:** Security tab in `sentinel.html` shows: posture-score conic-gradient ring, event-count + credential-count + open-alert tiles, rules table with 24h event-matching counts, top-5 IPs + top-5 emails by failed-auth, credential inventory with "Mark rotated" button per row, open security alerts list.
+
+**Deliberately deferred to Phase 4:** auto-IP-block on brute-force critical, auto-lockout on confirmed compromise, vulnerability scanning (needs external tooling — Snyk/Trivy out of scope for now), SOC 2/PIPEDA dashboards (separate compliance feature, not core security detection).
 
 ### Phase 4 (Auto-remediation)
 
@@ -153,6 +165,7 @@ Same architecture, packaged. Each subscriber gets its own Supabase schema or row
 - [`db/migrations/sentinel-foundation-schema.sql`](../../db/migrations/sentinel-foundation-schema.sql) — the schema.
 - [`docs/handbook/SENTINEL_OPERATIONS_GUIDE.md`](../handbook/SENTINEL_OPERATIONS_GUIDE.md) — how Mary operates Sentinel day-to-day.
 - [`docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md`](../strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md) §7 + §8 — commercial roadmap.
-- [`workflows/api/sentinel/`](../../workflows/api/sentinel/) — 19 workflows (13 Phase 1 + dashboard + 4 Phase 2 + 1 health summary).
+- [`workflows/api/sentinel/`](../../workflows/api/sentinel/) — 24 workflows (Phase 1 + Phase 2 + Phase 3).
 - [`db/migrations/sentinel-health-schema.sql`](../../db/migrations/sentinel-health-schema.sql) — Phase 2 schema.
+- [`db/migrations/sentinel-security-schema.sql`](../../db/migrations/sentinel-security-schema.sql) — Phase 3 schema.
 - [`admin-dashboard/pages/sentinel.html`](../../admin-dashboard/pages/sentinel.html) — the dashboard.

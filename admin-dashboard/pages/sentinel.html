@@ -78,7 +78,11 @@
   </div>
 
   <div id="pane-security" class="tab-pane">
-    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Security monitoring — coming in Phase 3</div></div><div class="clx-empty">Brute-force detection, API-abuse detection, vulnerability scanning, SOC 2/PIPEDA compliance dashboards, credential rotation alerts. Roadmapped for Year 1 end / Year 2 start, after Sentinel Operations standalone product launches.</div></div>
+    <div class="clx-stat-grid" id="securityStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading security posture…</div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Detection rules — last 24h activity</div><div class="clx-card-sub" id="securityRulesSub"></div></div><div id="securityRulesTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Top offenders — failed-auth events (24h)</div></div><div id="securityOffendersTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Credential rotation inventory</div><div class="clx-card-sub">After rotating a credential, click "Mark rotated" to slide next-due forward.</div></div><div id="securityCredsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Open security alerts</div></div><div id="securityAlertsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
   </div>
 
   <div id="pane-alerts" class="tab-pane">
@@ -110,8 +114,10 @@
       var tab = b.getAttribute('data-tab');
       document.getElementById('pane-'+tab).classList.add('active');
       if (tab === 'health' && !_healthLoaded) { _healthLoaded = true; loadHealth(); }
+      if (tab === 'security' && !_securityLoaded) { _securityLoaded = true; loadSecurity(); }
     });
   });
+  var _securityLoaded = false;
 
   // Cached summary response so the Alerts tab can render from the same fetch.
   var _summary = null;
@@ -125,7 +131,7 @@
     var html = '<table class="clx-table"><thead><tr><th>Module</th><th>Type</th><th>Status</th></tr></thead><tbody>';
     [['cost_monitoring','monitoring','active'],
      ['health_monitoring','monitoring','active'],
-     ['security_monitoring','monitoring','planned'],
+     ['security_monitoring','monitoring','active'],
      ['auto_remediation','action','planned']].forEach(function(m){
       var cls = m[2]==='active' ? 'clx-badge-success' : 'clx-badge-neutral';
       html += '<tr><td>'+esc(m[0])+'</td><td>'+esc(m[1])+'</td><td><span class="clx-badge '+cls+'">'+esc(m[2])+'</span></td></tr>';
@@ -134,8 +140,8 @@
     document.getElementById('modulesList').innerHTML = html;
 
     document.getElementById('overviewStats').innerHTML =
-      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">2 of 5</div><div class="clx-stat-sub">Cost + Health monitoring active</div></div>'
-    + '<div class="clx-stat"><div class="clx-stat-label">Modules planned</div><div class="clx-stat-value">2</div><div class="clx-stat-sub">Security · Auto-remediation</div></div>'
+      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">3 of 5</div><div class="clx-stat-sub">Cost + Health + Security active</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Modules planned</div><div class="clx-stat-value">1</div><div class="clx-stat-sub">Auto-remediation</div></div>'
     + '<div class="clx-stat"><div class="clx-stat-label">Status</div><div class="clx-stat-value">Active</div></div>';
   }
 
@@ -505,6 +511,176 @@
     });
     html += '</tbody></table><div style="font-size:12px;color:#6b7280;margin-top:8px;">Use the unified <strong>Alerts</strong> tab to acknowledge or resolve these.</div>';
     document.getElementById('healthAlertsTable').innerHTML = html;
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // PHASE 3 — SECURITY MONITORING
+  // ═════════════════════════════════════════════════════════════════
+  function loadSecurity(){
+    clxApi.renderLoading(document.getElementById('securityStats'), 'Loading security posture…');
+    clxApi.call('/api/sentinel/security/summary', {}).then(function(res){
+      if (!res.ok) {
+        clxApi.renderError(document.getElementById('securityStats'), res);
+        ['securityRulesTable','securityOffendersTable','securityCredsTable','securityAlertsTable'].forEach(function(id){
+          var el = document.getElementById(id); if (el) clxApi.renderError(el, res);
+        });
+        return;
+      }
+      var s = res.data || {};
+      renderSecurityStats(s);
+      renderSecurityRules(s);
+      renderSecurityOffenders(s);
+      renderSecurityCreds(s);
+      renderSecurityAlerts(s);
+    });
+  }
+
+  function postureRingColor(score){
+    if (score >= 85) return '#16a34a';
+    if (score >= 70) return '#eab308';
+    if (score >= 50) return '#f97316';
+    return '#dc2626';
+  }
+
+  function renderSecurityStats(s){
+    var score = (typeof s.posture_score === 'number') ? s.posture_score : 0;
+    var sev = s.severity_counts || {};
+    var cc  = s.credential_counts || {};
+    var color = postureRingColor(score);
+    var html = ''
+      + '<div class="clx-stat"><div class="clx-stat-label">Security posture</div>'
+      +   '<div style="display:flex;align-items:center;gap:12px;margin-top:6px;">'
+      +     '<div class="health-score-ring" style="--ring-color:'+color+';--ring-pct:'+score+';"><span>'+score+'</span></div>'
+      +     '<div style="font-size:12px;color:#6b7280;">100 = ideal<br>0 = many findings</div>'
+      +   '</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Events · 24h</div><div class="clx-stat-value">'+(s.events_last_24h||0)+'</div><div class="clx-stat-sub">'+(sev.critical||0)+' critical · '+(sev.warning||0)+' warning · '+(sev.info||0)+' info</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Credentials</div><div class="clx-stat-value">'+(cc.ok||0)+' / '+((cc.ok||0)+(cc.due_soon||0)+(cc.overdue||0))+'</div><div class="clx-stat-sub">'+(cc.due_soon||0)+' due soon · '+(cc.overdue||0)+' overdue</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Open security alerts</div><div class="clx-stat-value">'+((s.alerts||[]).filter(function(a){return a.status==='open';}).length)+'</div><div class="clx-stat-sub">unified Alerts tab for actions</div></div>';
+    document.getElementById('securityStats').innerHTML = html;
+  }
+
+  function renderSecurityRules(s){
+    var rules = s.rules || [];
+    var typeCounts = s.event_type_counts || {};
+    var sub = document.getElementById('securityRulesSub');
+    if (sub) sub.textContent = rules.filter(function(r){return r.active;}).length + ' active rule' + (rules.length===1?'':'s');
+    if (!rules.length) {
+      clxApi.renderEmpty(document.getElementById('securityRulesTable'), 'No security rules defined yet. The migration seeds 7 defaults.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Rule</th><th>Type</th><th>Window</th><th>Threshold</th><th>Severity</th><th>Events matching (24h)</th><th>Active</th></tr></thead><tbody>';
+    rules.forEach(function(r){
+      var matchingEvents = r.event_type_filter ? (typeCounts[r.event_type_filter] || 0) : 0;
+      html += '<tr>'
+        + '<td><strong>'+esc(r.rule_name)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(r.description||'')+'</div></td>'
+        + '<td><span style="font-size:12px;">'+esc(r.rule_type)+'</span></td>'
+        + '<td>'+(r.window_minutes||0)+'min</td>'
+        + '<td>'+(r.threshold_count||0)+' per '+esc(r.group_by||'')+'</td>'
+        + '<td>'+pill(r.severity||'warning')+'</td>'
+        + '<td>'+matchingEvents+' total<div style="font-size:11px;color:#9ca3af;">'+esc(r.event_type_filter||'')+'</div></td>'
+        + '<td>'+(r.active ? '<span class="pill pill-up">active</span>' : '<span class="pill pill-info">paused</span>')+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('securityRulesTable').innerHTML = html;
+  }
+
+  function renderSecurityOffenders(s){
+    var ips    = s.top_offending_ips || [];
+    var emails = s.top_offending_emails || [];
+    if (!ips.length && !emails.length) {
+      clxApi.renderEmpty(document.getElementById('securityOffendersTable'), 'No failed-auth events in the last 24 hours. Quiet is good.');
+      return;
+    }
+    var html = '<div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">';
+    html += '<div><div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Top IPs</div>';
+    if (ips.length) {
+      html += '<table class="clx-table"><thead><tr><th>IP</th><th>Failed-auth events</th></tr></thead><tbody>';
+      ips.forEach(function(r){ html += '<tr><td><code style="font-size:12px;">'+esc(r.key)+'</code></td><td>'+r.count+'</td></tr>'; });
+      html += '</tbody></table>';
+    } else { html += '<div class="clx-empty">No IP-tagged failures.</div>'; }
+    html += '</div><div><div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Top emails</div>';
+    if (emails.length) {
+      html += '<table class="clx-table"><thead><tr><th>Email</th><th>Failed-auth events</th></tr></thead><tbody>';
+      emails.forEach(function(r){ html += '<tr><td>'+esc(r.key)+'</td><td>'+r.count+'</td></tr>'; });
+      html += '</tbody></table>';
+    } else { html += '<div class="clx-empty">No email-tagged failures.</div>'; }
+    html += '</div></div>';
+    document.getElementById('securityOffendersTable').innerHTML = html;
+  }
+
+  function renderSecurityCreds(s){
+    var creds = s.credentials || [];
+    if (!creds.length) {
+      clxApi.renderEmpty(document.getElementById('securityCredsTable'), 'No credentials in inventory. The migration seeds 15 defaults.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Credential</th><th>Vendor</th><th>Stored in</th><th>Interval</th><th>Last rotated</th><th>Next due</th><th>Status</th><th></th></tr></thead><tbody>';
+    creds.forEach(function(c){
+      var statusCls;
+      if (c.rotation_status === 'overdue') statusCls = 'pill-critical';
+      else if (c.rotation_status === 'due_soon') statusCls = 'pill-degraded';
+      else statusCls = 'pill-up';
+      var daysLabel;
+      if (c.days_to_due === null || c.days_to_due === undefined) daysLabel = '—';
+      else if (c.days_to_due < 0) daysLabel = Math.abs(c.days_to_due) + 'd overdue';
+      else daysLabel = 'in ' + c.days_to_due + 'd';
+      html += '<tr>'
+        + '<td><strong>'+esc(c.credential_name)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(c.credential_type||'')+'</div></td>'
+        + '<td><span style="font-size:12px;">'+esc(c.vendor||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+esc(c.stored_in||'')+'</span></td>'
+        + '<td>'+(c.rotation_interval_days||0)+'d</td>'
+        + '<td><span style="font-size:12px;">'+(c.last_rotated_at ? fmtAgo(c.last_rotated_at) : 'never')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+daysLabel+'</span></td>'
+        + '<td><span class="pill '+statusCls+'">'+esc(c.rotation_status||'ok')+'</span></td>'
+        + '<td><button class="btn-sm btn-edit" data-rotate-cred="'+esc(c.credential_name)+'">Mark rotated</button></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('securityCredsTable').innerHTML = html;
+    wireCredentialButtons();
+  }
+
+  function wireCredentialButtons(){
+    document.querySelectorAll('[data-rotate-cred]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var name = btn.getAttribute('data-rotate-cred');
+        if (!window.confirm('Confirm: you rotated ' + name + ' right now? This sets last_rotated_at to now and slides next-due forward.')) return;
+        btn.disabled = true;
+        var orig = btn.textContent;
+        btn.textContent = 'Saving…';
+        clxApi.call('/api/sentinel/security/credential-rotate', { credential_name: name }).then(function(res){
+          btn.disabled = false;
+          if (res.ok && res.data && res.data.ok !== false) {
+            btn.textContent = 'Saved';
+            setTimeout(loadSecurity, 700);
+          } else {
+            btn.textContent = orig;
+            window.alert(res.error || (res.data && res.data.error) || 'Save failed.');
+          }
+        });
+      });
+    });
+  }
+
+  function renderSecurityAlerts(s){
+    var alerts = (s.alerts || []).filter(function(a){ return a.status !== 'resolved'; });
+    if (!alerts.length) {
+      clxApi.renderEmpty(document.getElementById('securityAlertsTable'), 'No open security alerts. Detector runs every 10 minutes; credential-age check runs daily at 06:00.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Severity</th><th>Alert</th><th>Triggered</th><th>Status</th></tr></thead><tbody>';
+    alerts.forEach(function(a){
+      var statusCls = a.status === 'open' ? 'pill-status-open' : 'pill-status-acknowledged';
+      html += '<tr>'
+        + '<td>'+pill(a.severity||'info')+'</td>'
+        + '<td><strong>'+esc(a.title||'')+'</strong><br><span style="font-size:12px;color:#6b7280;">'+esc(a.message||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(a.triggered_at)+'</span></td>'
+        + '<td><span class="pill '+statusCls+'">'+esc(a.status||'open')+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table><div style="font-size:12px;color:#6b7280;margin-top:8px;">Use the unified <strong>Alerts</strong> tab to acknowledge or resolve these.</div>';
+    document.getElementById('securityAlertsTable').innerHTML = html;
   }
 })();
 </script>

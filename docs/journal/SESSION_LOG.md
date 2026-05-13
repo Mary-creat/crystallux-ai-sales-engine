@@ -4,6 +4,60 @@
 
 ---
 
+## 2026-05-13 — Sentinel Phase 3 built (Security monitoring)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** schema + 5 workflows + dashboard webhook + Security tab UI + architecture doc update. Same day as Phase 2.
+
+What Phase 3 detects (alerts only — no auto-actions):
+- **Brute force per email** — 5+ failed logins for the same email in 15 min → critical.
+- **Brute force per IP** — 20+ failed logins from same IP in 30 min → critical (distributed credential stuffing).
+- **Session reject burst** — 10+ invalid session validations from one IP in 10 min → warning.
+- **Webhook auth-failure burst** — 15+ webhook auth failures from same IP in 10 min → critical.
+- **Privilege-denied burst** — 5+ 403s for the same user in 30 min → warning.
+- **Rate-limit breaches** — 3+ rate-limit breaches per IP in 1h → warning.
+- **Admin-action burst** — 3+ admin privilege-grants by same user in 1h → warning.
+- **Credential rotation overdue / due-soon** — daily check raises warning at threshold-days, critical when past due.
+
+Schema (`db/migrations/sentinel-security-schema.sql`):
+- `sentinel_security_events` — universal append-only log with cheap per-email / per-IP / per-endpoint indexes. `log_security_event()` RPC is the convenience writer.
+- `sentinel_credential_inventory` — 15 credentials seeded (Supabase keys, Stripe, Anthropic, Twilio, Vapi, HeyGen, OpenAI, Postmark, Cloudflare, n8n API key, MARY_MASTER_TOKEN, INTERNAL_EMAIL_SECRET, admin password). Generated `next_rotation_due` column.
+- `sentinel_security_rules` — 7 detection rules seeded. Each rule defines event_type filter, group_by, window, threshold, severity. Adding new rule = INSERT row, no workflow code change.
+- `sentinel_modules.status` flipped to `'active'` for `security_monitoring`.
+
+Workflows (5 new in `workflows/api/sentinel/`):
+- `security-event-log` — POST `/webhook/api/sentinel/security/event`. Universal sink (MARY_MASTER_TOKEN). Any new workflow that wants to flag a security signal posts here.
+- `security-detector` — cron */10 min. Loads rules + last 90 min of events, groups per `rule.group_by`, raises alerts when threshold crossed. Aggregation_key by hour.
+- `credential-age-check` — cron 06:00 daily. Warning at threshold-days, critical when overdue. Aggregation_key by month.
+- `security-summary` — admin POST webhook for the dashboard. Returns posture score, event buckets, top-5 IPs + top-5 emails by failed-auth, enriched credentials, rules, open alerts.
+- `credential-rotate-record` — admin POST to set `last_rotated_at = now()` after rotation. Also writes a sentinel_actions row with human_approved=true for audit.
+
+Frontend (`admin-dashboard/pages/sentinel.html`):
+- Security tab placeholder replaced with: posture-score ring (0-100 penalty-based), event/credential/alert tiles, detection rules table with 24h event-matching counts, top-5 offending IPs + top-5 offending emails side-by-side, credential inventory table with "Mark rotated" button per row (calls credential-rotate-record + auto-refresh), open security alerts list.
+- Lazy-loads on tab activation.
+- 5-tab structure / CSS / auth / Overview / Costs / Health / Alerts all preserved.
+
+What's NOT in Phase 3 (kept for Phase 4 Auto-remediation):
+- Auto-IP-block on brute-force critical.
+- Auto-account-lockout on confirmed compromise.
+- External vulnerability scanning (needs Snyk/Trivy — out of scope).
+- SOC 2 / PIPEDA compliance dashboards (separate compliance feature, not core detection).
+
+Important design choice: **existing auth workflows are NOT modified.** Phase 3 relies on:
+1. New workflows POSTing to the security-event-log endpoint when they detect signals (e.g., the validate_session paths in NEW workflows can log session_rejected events).
+2. The detector reads the events table — it doesn't tail auth workflow logs directly.
+
+This keeps the 7 protected v2/v3 production workflows untouched. Mary's option: gradually add security-event-log POST calls to NEW workflows over time. The detector is value-additive — it works with whatever events are written.
+
+Mary's deployment steps:
+1. Apply `db/migrations/sentinel-security-schema.sql` in Supabase.
+2. Import the 5 new security workflow JSONs into n8n.
+3. Activate the 2 cron workflows (security-detector @ */10 min, credential-age-check @ 06:00 daily). The 3 webhook-only workflows auto-activate on first call.
+4. Open `admin.crystallux.org/pages/sentinel.html` → Security tab. Posture score + credential inventory show immediately. Detection rule counts populate as events flow in.
+5. (Optional, later) Add security-event-log POST calls to new workflows that involve auth: in their validate_session step, on failure, POST to `/webhook/api/sentinel/security/event` with `event_type: 'session_rejected', source_ip, user_agent`.
+
+---
+
 ## 2026-05-13 — Sentinel Phase 2 built (Health / Operations monitoring)
 
 **Branch:** `scale-sprint-v1`
