@@ -6,6 +6,39 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0. Sentinel live-dashboard re-import (added 2026-05-13)
+
+Two new workflows + 5 rewritten vendor collectors + 1 updated summary
+workflow need to be (re-)imported into n8n on the VPS.
+
+```bash
+ssh vps "cd ~/crystallux-deploy && git pull && \
+  for f in clx-sentinel-cost-collector-twilio-v1.json \
+           clx-sentinel-cost-collector-vapi-v1.json \
+           clx-sentinel-cost-collector-heygen-v1.json \
+           clx-sentinel-cost-collector-openai-v1.json \
+           clx-sentinel-cost-collector-supabase-v1.json \
+           clx-sentinel-cost-summary-v1.json \
+           clx-sentinel-budget-update-v1.json; do \
+    docker exec n8n n8n import:workflow --input=/data/workflows/api/sentinel/\$f; \
+  done"
+```
+
+Then, in n8n UI, activate the 6 cost collectors (cron 06:00 daily).
+The 2 new dashboard webhooks (cost-summary, budget-update) stay
+DORMANT-default but are called only on demand from the dashboard —
+n8n auto-activates a webhook-only workflow when its endpoint is hit.
+
+Optional (for live OpenAI numbers, otherwise OpenAI shows $0 until
+manually entered each month): set `OPENAI_ADMIN_API_KEY` in n8n's
+env (`.env` for the n8n container — admin-scoped key, starts with
+`sk-admin-`).
+
+Verify by opening `admin.crystallux.org/pages/sentinel.html` → Costs
+tab — should populate from live data within seconds.
+
+---
+
 ## 1. Apply test-client SQL migration
 
 **File:** `db/migrations/test-client-account.sql`
