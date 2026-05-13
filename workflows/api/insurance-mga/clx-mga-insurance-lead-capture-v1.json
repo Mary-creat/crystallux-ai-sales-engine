@@ -1,0 +1,55 @@
+{
+  "name": "CLX - MGA Insurance Lead Capture v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/lead-capture", "responseMode": "responseNode", "options": { "allowedOrigins": "https://insurance.crystallux.org,https://crystallux.org" } }, "id": "milc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-lead-capture-001", "notes": "DEACTIVATED. Public CORS endpoint for insurance.crystallux.org marketing-site lead capture forms. No session-token auth (public); CASL consent enforced client-side + recorded server-side. Inserts a row into leads (vertical_id='insurance') and writes a regulatory_audit_log entry. Rate limiting via Cloudflare in front." },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst headers = $input.item.json.headers || {};\nconst fields = body.fields || {};\nconst email = (fields.email || '').toString().trim().toLowerCase();\nconst name  = (fields.name  || fields.full_name || '').toString().trim();\nif (!email || !name) return { json: { _empty: true, status: 400, error: 'name + email required' } };\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) return { json: { _empty: true, status: 400, error: 'invalid email' } };\nif (body.consent_given !== true) return { json: { _empty: true, status: 400, error: 'CASL consent required' } };\n// Build the leads payload. Crystallux Insurance Network is the MGA tenant.\nconst lead = {\n  vertical_id: 'insurance',\n  client_id: '6edc687d-07b0-4478-bb4b-820dc4eebf5d',\n  full_name: name,\n  email: email,\n  phone: fields.phone || null,\n  province: fields.province || null,\n  lead_status: 'New',\n  source: body.source || 'marketing_site',\n  source_url: body.page_url || null,\n  source_referrer: body.referrer || null,\n  notes: 'Insurance interest: ' + (fields.insurance_interest || fields.product || 'unspecified') +\n         (fields.age_range      ? '; age ' + fields.age_range : '') +\n         (fields.family         ? '; family ' + fields.family : '') +\n         (fields.income_range   ? '; income ' + fields.income_range : '') +\n         (fields.message        ? '\\n' + fields.message : ''),\n  consent_given_at: new Date().toISOString(),\n  consent_method: 'web_form_checkbox',\n  ip_address: headers['x-forwarded-for'] || headers['cf-connecting-ip'] || headers['x-real-ip'] || null,\n  user_agent: headers['user-agent'] || null\n};\nconst audit = {\n  vertical_id: 'insurance',\n  event_type: 'marketing_lead_captured',\n  event_data: { source: body.source, page_url: body.page_url, fields_keys: Object.keys(fields), insurance_interest: fields.insurance_interest || null },\n  ip_address: lead.ip_address,\n  user_agent: lead.user_agent\n};\nreturn { json: { lead, audit } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "milc-0002", "name": "Extract + Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "milc-0003", "name": "IF Valid", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [680, 400] },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.lead) }}",
+        "options": {}
+      },
+      "id": "milc-0004", "name": "Insert Lead", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($('Extract + Validate').first().json.audit) }}",
+        "options": { "continueOnFail": true }
+      },
+      "id": "milc-0005", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1160, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $('Insert Lead').first().json;\nconst lead = Array.isArray(row) ? row[0] : row;\nreturn { json: { ok: true, lead_id: lead && lead.id, message: 'Thanks — a licensed advisor will be in touch within one business day.' } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "milc-0006", "name": "Shape OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1400, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200, "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" } ] } } }, "id": "milc-0007", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1640, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid submission' }) }}", "options": { "responseCode": "={{ $json.status || 400 }}", "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" } ] } } }, "id": "milc-0008", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 520] }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract + Validate", "type": "main", "index": 0 } ]] },
+    "Extract + Validate": { "main": [[ { "node": "IF Valid", "type": "main", "index": 0 } ]] },
+    "IF Valid":           { "main": [ [ { "node": "Insert Lead", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Insert Lead":        { "main": [[ { "node": "Audit Log",   "type": "main", "index": 0 } ]] },
+    "Audit Log":          { "main": [[ { "node": "Shape OK",    "type": "main", "index": 0 } ]] },
+    "Shape OK":           { "main": [[ { "node": "Respond OK",  "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

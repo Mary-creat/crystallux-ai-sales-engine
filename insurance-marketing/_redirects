@@ -1,0 +1,13 @@
+# Crystallux Insurance Network — redirects
+# Convenience URLs without .html
+/life            /life-insurance.html          301
+/critical-illness /critical-illness.html       301
+/ci              /critical-illness.html        301
+/disability      /disability.html              301
+/travel          /travel-insurance.html        301
+/auto            /auto-insurance.html          301
+/home-ins        /home-insurance.html          301
+/business        /business-insurance.html      301
+/quote           /needs-assessment.html        301
+/book            /contact.html                 301
+/calendly        /contact.html                 301
