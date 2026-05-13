@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-05-13 — Seed unblock via direct SQL + complete wiring checklist
+
+**Branch:** `scale-sprint-v1`
+**Scope:** documentation only. No code changes.
+
+Mary was mid-deployment. All 13 migrations applied, all 129 workflows imported, `INTERNAL_EMAIL_SECRET` + `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` both set + verified in container, n8n restarted (stop + up). Carrier-seed webhook still returned HTTP 200 with empty body and zero rows. Likely cause: n8n 1.x task-runners sandbox or workflow recompile cache still blocking Code-node env access despite the flag. Diagnosing further would burn hours against a system I can't see.
+
+Decision: **stop fighting n8n. Seed data is static — use direct SQL.**
+
+Created two new deployment docs:
+
+1. `docs/deployment/SEED_FIX_FINAL.md` — single SQL block Mary pastes into Supabase SQL Editor. Idempotent (`ON CONFLICT DO NOTHING`). Seeds 8 carriers + 19 products + 20 content templates + 12 training topics + 30 onboarding days + 6 report templates + 1 default distribution rule + 3 goal templates for the Crystallux Insurance Network MGA tenant. Verification query at the end prints `8 / 19 / 20 / 12 / 30 / 6 / 1 / 3`.
+
+2. `docs/deployment/COMPLETE_WIRING_CHECKLIST.md` — comprehensive remaining-work roadmap organized by time horizon:
+   - **Today (2 hrs):** seeds via SQL + smoke-test existing dashboards + promote Mary to mga_principal.
+   - **This week (5-10 hrs):** deploy 2 new Cloudflare Pages projects (insurer-dashboard → portal.crystallux.org, insurer-marketing → insurers.crystallux.org), activate ~30 webhook-only workflows, recruit + onboard 10 advisors, apply for 3 first-tier carrier appointments (Walnut/PolicyMe/Apollo), bind E&O insurance.
+   - **Next 2-4 weeks:** external service signups in priority order — Postmark, Twilio, Stripe, HeyGen, Cloudflare R2, Cal.com, then Zoho Sign + Stripe Identity + ElevenLabs + NewsAPI + OpenWeather + Vapi, then Phase 4 social platform APIs (LinkedIn / Meta / YouTube / TikTok / X), then Certn. Wire each credential into n8n vault with canonical names. Activate scheduled workflows one at a time. Engage non-profit lawyer for Victory Enrichment partnership (per monetization §14). Start SR&ED technical log + submit IRAP intro form (per monetization §13). Apply for CDAP Grow Your Business Online.
+   - **Next 1-3 months:** carrier appointment turnarounds (30-180 days depending on tier), first LLQP advisor onboarded end-to-end, first commission flowing, first Phase 4 platform API approval lands.
+   - **Months 3-6:** first paying SaaS customer, AdvisorAssist productization, NRC IRAP first project.
+
+Also includes:
+- Pre-launch verification SQL queries (counts confirmation, workflow heartbeat).
+- Smoke-test sequence (advisor flow / principal flow / insurer flow).
+- Known unknowns / future work not blocking launch (n8n seed-workflow refactor, auto DNS+SSL for white-label, content publisher activation, PDF exports, Sentinel Operations).
+- Cross-references to `blockers.md`, `SEED_FIX_FINAL.md`, `FOUNDER_OPERATIONS_HANDBOOK.md` §6, `MONETIZATION_STRATEGY.md` §13 + §14.
+
+Updated `docs/handbook/FOUNDER_OPERATIONS_HANDBOOK.md` "How to use this handbook" section to point at the new deployment docs as the first place to look mid-deployment.
+
+**No code changes. No new schemas. No new workflows.** Workflow refactor (move auth out of Code-node sandbox into HTTP-node parameters with `={{ $env.X }}` expressions) is documented as future work — not blocking launch since direct SQL is the working pattern for static seed data going forward.
+
+---
+
 ## 2026-05-12 — Monetization Strategy §14 (Victory Enrichment Partnership)
 
 **Branch:** `scale-sprint-v1`

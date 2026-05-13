@@ -8,7 +8,12 @@
 
 ## How to use this handbook
 
-**If you're stuck right now:**
+**If you're mid-deployment right now (2026-05-13 forward):**
+1. `docs/deployment/SEED_FIX_FINAL.md` — paste one SQL block into Supabase to seed all carrier / content / training / curriculum / report-template data. Bypasses the n8n seed workflows.
+2. `docs/deployment/COMPLETE_WIRING_CHECKLIST.md` — full remaining-work roadmap organized by time horizon (today / this week / next month / months 3–6).
+3. `docs/audit/blockers.md` — the original granular 30-section deployment checklist; cross-referenced from the wiring checklist.
+
+**If you're stuck right now (operational issue, not deployment):**
 1. First → **Section 4** (Emergency Procedures)
 2. Second → **Section 3** (How to operate)
 3. Third → **Section 7** (Decision Frameworks)
