@@ -55,6 +55,7 @@
     <button data-tab="costs">Costs</button>
     <button data-tab="health">Health</button>
     <button data-tab="security">Security</button>
+    <button data-tab="remediation">Remediation</button>
     <button data-tab="alerts">Alerts</button>
   </div>
 
@@ -83,6 +84,14 @@
     <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Top offenders — failed-auth events (24h)</div></div><div id="securityOffendersTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
     <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Credential rotation inventory</div><div class="clx-card-sub">After rotating a credential, click "Mark rotated" to slide next-due forward.</div></div><div id="securityCredsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
     <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Open security alerts</div></div><div id="securityAlertsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+  </div>
+
+  <div id="pane-remediation" class="tab-pane">
+    <div class="clx-stat-grid" id="remediationStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading remediation status…</div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Pending approvals — destructive actions waiting on you</div></div><div id="remediationPendingTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Active IP blocklist</div></div><div id="remediationBlocklistTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Playbooks</div></div><div id="remediationPlaybooksTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+    <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Recent actions (last 7 days)</div></div><div id="remediationHistoryTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
   </div>
 
   <div id="pane-alerts" class="tab-pane">
@@ -115,9 +124,11 @@
       document.getElementById('pane-'+tab).classList.add('active');
       if (tab === 'health' && !_healthLoaded) { _healthLoaded = true; loadHealth(); }
       if (tab === 'security' && !_securityLoaded) { _securityLoaded = true; loadSecurity(); }
+      if (tab === 'remediation' && !_remediationLoaded) { _remediationLoaded = true; loadRemediation(); }
     });
   });
   var _securityLoaded = false;
+  var _remediationLoaded = false;
 
   // Cached summary response so the Alerts tab can render from the same fetch.
   var _summary = null;
@@ -132,7 +143,7 @@
     [['cost_monitoring','monitoring','active'],
      ['health_monitoring','monitoring','active'],
      ['security_monitoring','monitoring','active'],
-     ['auto_remediation','action','planned']].forEach(function(m){
+     ['auto_remediation','action','active']].forEach(function(m){
       var cls = m[2]==='active' ? 'clx-badge-success' : 'clx-badge-neutral';
       html += '<tr><td>'+esc(m[0])+'</td><td>'+esc(m[1])+'</td><td><span class="clx-badge '+cls+'">'+esc(m[2])+'</span></td></tr>';
     });
@@ -140,8 +151,8 @@
     document.getElementById('modulesList').innerHTML = html;
 
     document.getElementById('overviewStats').innerHTML =
-      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">3 of 5</div><div class="clx-stat-sub">Cost + Health + Security active</div></div>'
-    + '<div class="clx-stat"><div class="clx-stat-label">Modules planned</div><div class="clx-stat-value">1</div><div class="clx-stat-sub">Auto-remediation</div></div>'
+      '<div class="clx-stat"><div class="clx-stat-label">Phase</div><div class="clx-stat-value">4 of 5</div><div class="clx-stat-sub">Cost + Health + Security + Remediation</div></div>'
+    + '<div class="clx-stat"><div class="clx-stat-label">Phase 5</div><div class="clx-stat-value">Standalone</div><div class="clx-stat-sub">Sentinel-as-product roadmap</div></div>'
     + '<div class="clx-stat"><div class="clx-stat-label">Status</div><div class="clx-stat-value">Active</div></div>';
   }
 
@@ -681,6 +692,169 @@
     });
     html += '</tbody></table><div style="font-size:12px;color:#6b7280;margin-top:8px;">Use the unified <strong>Alerts</strong> tab to acknowledge or resolve these.</div>';
     document.getElementById('securityAlertsTable').innerHTML = html;
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // PHASE 4 — AUTO-REMEDIATION
+  // ═════════════════════════════════════════════════════════════════
+  function loadRemediation(){
+    clxApi.renderLoading(document.getElementById('remediationStats'), 'Loading remediation status…');
+    clxApi.call('/api/sentinel/remediation/summary', {}).then(function(res){
+      if (!res.ok) {
+        clxApi.renderError(document.getElementById('remediationStats'), res);
+        ['remediationPendingTable','remediationBlocklistTable','remediationPlaybooksTable','remediationHistoryTable'].forEach(function(id){
+          var el = document.getElementById(id); if (el) clxApi.renderError(el, res);
+        });
+        return;
+      }
+      var s = res.data || {};
+      renderRemediationStats(s);
+      renderRemediationPending(s);
+      renderRemediationBlocklist(s);
+      renderRemediationPlaybooks(s);
+      renderRemediationHistory(s);
+    });
+  }
+
+  function renderRemediationStats(s){
+    var t = s.totals || {};
+    var sc = s.status_counts || {};
+    var html = ''
+      + '<div class="clx-stat"><div class="clx-stat-label">Pending approvals</div><div class="clx-stat-value" style="'+(t.pending_approvals > 0 ? 'color:#b45309;' : '')+'">'+(t.pending_approvals||0)+'</div><div class="clx-stat-sub">destructive actions waiting on you</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Active blocklist</div><div class="clx-stat-value">'+(t.blocklist_active||0)+'</div><div class="clx-stat-sub">IPs currently blocked</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Playbooks</div><div class="clx-stat-value">'+(t.playbooks_active||0)+' / '+(t.playbooks_total||0)+'</div><div class="clx-stat-sub">active rules</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Actions · 7d</div><div class="clx-stat-value">'+(t.actions_7d||0)+'</div><div class="clx-stat-sub">'+(sc.succeeded||0)+' succeeded · '+(sc.rolled_back||0)+' rolled back · '+(sc.failed||0)+' failed</div></div>';
+    document.getElementById('remediationStats').innerHTML = html;
+  }
+
+  function renderRemediationPending(s){
+    var pending = s.pending_approvals || [];
+    if (!pending.length) {
+      clxApi.renderEmpty(document.getElementById('remediationPendingTable'), 'No pending approvals. Destructive playbooks (account lockout, credential revocation) write rows here for you to review before they execute.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Action</th><th>Target</th><th>Reason</th><th>Proposed</th><th>Approve / Reject</th></tr></thead><tbody>';
+    pending.forEach(function(a){
+      var data = a.action_data || {};
+      var src = data.source_alert || {};
+      html += '<tr id="action-'+esc(a.id)+'">'
+        + '<td><strong>'+esc(a.action_type)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(data.playbook_name||'')+'</div></td>'
+        + '<td><code style="font-size:12px;">'+esc(a.target_resource||'')+'</code></td>'
+        + '<td><span style="font-size:12px;">'+esc(data.reason||'')+'</span>'+(src.title?'<div style="font-size:11px;color:#9ca3af;">'+esc(src.title)+'</div>':'')+'</td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(a.created_at)+'</span></td>'
+        + '<td>'
+        +   '<button class="btn-sm btn-resolve" data-approve="'+esc(a.id)+'">Approve</button>'
+        +   '<button class="btn-sm btn-ack" data-reject="'+esc(a.id)+'">Reject</button>'
+        +   '<div class="approval-status" style="font-size:11px;color:#6b7280;margin-top:3px;"></div>'
+        + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('remediationPendingTable').innerHTML = html;
+    wireApprovalButtons();
+  }
+
+  function wireApprovalButtons(){
+    function decide(decision, actionId, btn){
+      var row = document.getElementById('action-'+actionId);
+      var status = row ? row.querySelector('.approval-status') : null;
+      var verb = decision === 'approve' ? 'Approving' : 'Rejecting';
+      if (!window.confirm(decision === 'approve' ? 'Approve this action? It will execute now.' : 'Reject this action? It will be marked rolled-back.')) return;
+      btn.disabled = true; if (status) { status.textContent = verb+'…'; status.style.color = '#6b7280'; }
+      clxApi.call('/api/sentinel/remediation/action-approve', { action_id: actionId, decision: decision }).then(function(res){
+        btn.disabled = false;
+        if (res.ok && res.data && res.data.ok !== false) {
+          if (status) { status.textContent = 'Done. Refreshing…'; status.style.color = '#166534'; }
+          setTimeout(loadRemediation, 700);
+        } else {
+          if (status) { status.textContent = (res.error || (res.data && res.data.error) || 'Failed.'); status.style.color = '#b91c1c'; }
+        }
+      });
+    }
+    document.querySelectorAll('[data-approve]').forEach(function(btn){
+      btn.addEventListener('click', function(){ decide('approve', btn.getAttribute('data-approve'), btn); });
+    });
+    document.querySelectorAll('[data-reject]').forEach(function(btn){
+      btn.addEventListener('click', function(){ decide('reject', btn.getAttribute('data-reject'), btn); });
+    });
+  }
+
+  function renderRemediationBlocklist(s){
+    var bl = s.blocklist || [];
+    if (!bl.length) {
+      clxApi.renderEmpty(document.getElementById('remediationBlocklistTable'), 'No active IP blocks. Blocks expire automatically based on the playbook duration.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>IP</th><th>Reason</th><th>Blocked by</th><th>Blocked</th><th>Expires</th></tr></thead><tbody>';
+    bl.forEach(function(b){
+      var expiresLabel = '—';
+      if (b.expires_at) {
+        var diff = new Date(b.expires_at).getTime() - Date.now();
+        expiresLabel = diff > 0 ? ('in ' + Math.round(diff / 60000) + 'm') : 'imminent';
+      } else {
+        expiresLabel = '<span style="color:#b91c1c;">permanent</span>';
+      }
+      html += '<tr>'
+        + '<td><code style="font-size:12px;">'+esc(b.ip_address)+'</code></td>'
+        + '<td><span style="font-size:12px;">'+esc(b.reason||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+esc(b.blocked_by||'')+'</span></td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(b.blocked_at)+'</span></td>'
+        + '<td><span style="font-size:12px;">'+expiresLabel+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('remediationBlocklistTable').innerHTML = html;
+  }
+
+  function renderRemediationPlaybooks(s){
+    var pbs = s.playbooks || [];
+    var perPB = s.per_playbook || {};
+    if (!pbs.length) {
+      clxApi.renderEmpty(document.getElementById('remediationPlaybooksTable'), 'No playbooks defined. Migration seeds 6 defaults.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Playbook</th><th>Module</th><th>Trigger</th><th>Action</th><th>Approval</th><th>Cooldown</th><th>7-day actions</th><th>Active</th></tr></thead><tbody>';
+    pbs.forEach(function(p){
+      var stats = perPB[p.playbook_name] || { auto: 0, manual: 0 };
+      html += '<tr>'
+        + '<td><strong>'+esc(p.playbook_name)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(p.description||'')+'</div></td>'
+        + '<td><span style="font-size:12px;">'+esc(p.trigger_module)+'</span></td>'
+        + '<td><span style="font-size:12px;">'+esc(p.trigger_alert_type||'(any)')+'</span><div style="font-size:11px;color:#9ca3af;">min '+esc(p.trigger_severity_min)+'</div></td>'
+        + '<td><span style="font-size:12px;">'+esc(p.action_type)+'</span></td>'
+        + '<td>'+(p.requires_approval ? '<span class="pill pill-degraded">human</span>' : '<span class="pill pill-up">auto</span>')+'</td>'
+        + '<td>'+(p.cooldown_minutes||0)+'min</td>'
+        + '<td>'+stats.auto+' auto · '+stats.manual+' manual</td>'
+        + '<td>'+(p.active ? '<span class="pill pill-up">active</span>' : '<span class="pill pill-info">paused</span>')+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('remediationPlaybooksTable').innerHTML = html;
+  }
+
+  function renderRemediationHistory(s){
+    var hist = s.recent_actions || [];
+    if (!hist.length) {
+      clxApi.renderEmpty(document.getElementById('remediationHistoryTable'), 'No actions in the last 7 days. The orchestrator runs every 5 minutes once activated.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Action</th><th>Target</th><th>Triggered by</th><th>Status</th><th>When</th></tr></thead><tbody>';
+    hist.slice(0, 50).forEach(function(a){
+      var statusCls;
+      if (a.status === 'succeeded') statusCls = 'pill-up';
+      else if (a.status === 'pending') statusCls = 'pill-degraded';
+      else if (a.status === 'rolled_back') statusCls = 'pill-info';
+      else statusCls = 'pill-down';
+      var data = a.action_data || {};
+      html += '<tr>'
+        + '<td><strong>'+esc(a.action_type)+'</strong><div style="font-size:11px;color:#9ca3af;">'+esc(data.playbook_name||'')+'</div></td>'
+        + '<td><code style="font-size:11px;">'+esc(a.target_resource||'')+'</code></td>'
+        + '<td><span style="font-size:12px;">'+esc(a.triggered_by||'')+'</span></td>'
+        + '<td><span class="pill '+statusCls+'">'+esc(a.status)+'</span></td>'
+        + '<td><span style="font-size:12px;">'+fmtAgo(a.created_at)+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('remediationHistoryTable').innerHTML = html;
   }
 })();
 </script>

@@ -6,6 +6,59 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0d. Sentinel Phase 4 — Auto-remediation deploy (added 2026-05-13)
+
+Phase 4 takes the alerts from Phases 1–3 and either auto-executes safe
+remediations (pause workflow, resume workflow, block IP) or writes
+pending approval rows for destructive actions (account lockout,
+credential revocation) that Mary must approve from the dashboard.
+
+1. **Apply the migration:**
+   ```bash
+   psql "$DATABASE_URL" -f db/migrations/sentinel-remediation-schema.sql
+   ```
+   Idempotent. Seeds 6 playbooks. Sets `sentinel_modules.status='active'`
+   for `auto_remediation`.
+
+2. **Re-import the 3 new remediation workflows + activate orchestrator:**
+   ```bash
+   ssh vps "cd ~/crystallux-deploy && git pull && \
+     for f in clx-sentinel-remediation-orchestrator-v1.json \
+              clx-sentinel-action-approve-v1.json \
+              clx-sentinel-remediation-summary-v1.json; do \
+       docker exec n8n n8n import:workflow --input=/data/workflows/api/sentinel/\$f; \
+     done"
+   ```
+   In the n8n UI, activate **remediation-orchestrator** (cron */5 min).
+   The 2 webhook-only workflows auto-activate on first call.
+
+3. **(Optional) Wire `is_ip_blocked()` into new auth/webhook workflows.**
+   At the top of any new validate-session step:
+   ```
+   SELECT is_ip_blocked('{{ $json.source_ip }}') AS blocked;
+   ```
+   If true, return 403. The 7 protected v2/v3 production workflows
+   are NOT modified — Phase 4 is opt-in.
+
+4. **Mark essential workflows explicitly.** Run once after the
+   migration so `is_essential=true` rows exist for auth + billing
+   webhook breakers:
+   ```sql
+   UPDATE sentinel_workflow_breakers
+      SET is_essential = true
+    WHERE workflow_name ILIKE 'CLX - Auth %'
+       OR workflow_name ILIKE '%Stripe Webhook%';
+   ```
+   The orchestrator's URL filter (`&is_essential=eq.false`) guarantees
+   these are never auto-paused even if a playbook somehow matches.
+
+Verify by opening `admin.crystallux.org/pages/sentinel.html` →
+Remediation tab. Playbooks render immediately. As alerts fire, the
+orchestrator will populate the pending-approvals table and the
+recent-actions history.
+
+---
+
 ## 0c. Sentinel Phase 3 — Security monitoring deploy (added 2026-05-13)
 
 Phase 3 detects brute-force, session anomalies, API abuse, privilege denials,

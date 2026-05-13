@@ -149,12 +149,28 @@ Without dedup, a threshold-check that runs every 4h would raise 6 identical aler
 
 **Deliberately deferred to Phase 4:** auto-IP-block on brute-force critical, auto-lockout on confirmed compromise, vulnerability scanning (needs external tooling — Snyk/Trivy out of scope for now), SOC 2/PIPEDA dashboards (separate compliance feature, not core security detection).
 
-### Phase 4 (Auto-remediation)
+### Phase 4 (Auto-remediation) — BUILT 2026-05-13
 
-Adds:
-- `sentinel_remediation_playbooks` table — declarative playbook definitions.
-- Existing `sentinel_actions` table already supports auto-remediation (the `human_approved` field is the safety gate).
-- New workflows for playbook execution.
+**Schema (`db/migrations/sentinel-remediation-schema.sql`):**
+- `sentinel_remediation_playbooks` — declarative playbook registry. Each row binds a (module, alert_type, severity_min) trigger to an action_type (pause_workflow / resume_workflow / block_ip / propose_account_lockout / propose_credential_revocation / notify_only), with cooldown_minutes + requires_approval + action_config jsonb. Six playbooks seeded.
+- `sentinel_ip_blocklist` — active blocked source IPs with optional `expires_at`. Unique-active partial index prevents duplicate live blocks per IP.
+- `is_ip_blocked(p_ip)` STABLE SQL function — cheap boolean check for auth-path opt-in.
+- Foundation `sentinel_modules.status` flipped to `'active'` for `auto_remediation`.
+
+**Workflows in `workflows/api/sentinel/`:**
+- `clx-sentinel-remediation-orchestrator-v1` (cron */5 min) — the brain. Sweeps expired blocklist rows first. Joins open alerts (last 30 min) against active playbooks, evaluates cooldown via recent `sentinel_actions` rows. Auto-actions execute in one tick: pause/resume PATCHes `sentinel_workflow_breakers` (with `&is_essential=eq.false` URL guard on pauses); block_ip INSERTs `sentinel_ip_blocklist`. Every execution writes a `sentinel_actions` row. Approval-required actions write a pending `sentinel_actions` row with `human_approved=false`. Also evaluates the time-driven `auto_resume_when_healthy` playbook by joining paused breakers against recent `sentinel_workflow_health` rows (3 consecutive healthy windows = resume).
+- `clx-sentinel-action-approve-v1` — admin POST. Body: `{ action_id, decision: 'approve'|'reject', notes? }`. Re-reads the pending action, re-executes the side effect on approve, marks `rolled_back` on reject. Sets `human_approved + approved_by + approved_at` atomically.
+- `clx-sentinel-remediation-summary-v1` — admin webhook for the Remediation tab. Returns playbooks, active blocklist, pending approvals, last-7-days action history, status counts, per-playbook action stats.
+
+**Frontend:** New 6th tab "Remediation" in `sentinel.html`. Stat tiles for pending approvals (highlighted when >0), active blocklist count, active playbooks count, 7-day action total + success/rolled-back/failed breakdown. Pending approvals table with Approve / Reject buttons. Active blocklist table with expiry countdown. Playbook table showing trigger config + auto/human badge + 7-day action counts. Recent actions history (last 50).
+
+**Safety rails:**
+- Essential workflows (`is_essential=true`) NEVER auto-paused. Both the `trip_workflow_breaker` RPC and the orchestrator's PATCH URL filter enforce this.
+- Destructive actions (account_lockout, credential_revocation) NEVER auto-execute. Orchestrator writes pending row; Mary approves via the dashboard.
+- Cooldowns per (playbook, target) prevent flap loops.
+- Every action — auto or human-approved — writes a `sentinel_actions` audit row with `triggered_by` (`auto:<playbook>` or `human:<user_id>`).
+
+**Deferred (Phase 5+):** Cloudflare WAF integration (push blocklist to edge), `auth_users.locked_until` integration for actual account lockout, vendor-API credential revocation hooks.
 
 ### Phase 5 (Standalone product)
 
@@ -165,7 +181,8 @@ Same architecture, packaged. Each subscriber gets its own Supabase schema or row
 - [`db/migrations/sentinel-foundation-schema.sql`](../../db/migrations/sentinel-foundation-schema.sql) — the schema.
 - [`docs/handbook/SENTINEL_OPERATIONS_GUIDE.md`](../handbook/SENTINEL_OPERATIONS_GUIDE.md) — how Mary operates Sentinel day-to-day.
 - [`docs/strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md`](../strategy/CRYSTALLUX_MONETIZATION_STRATEGY.md) §7 + §8 — commercial roadmap.
-- [`workflows/api/sentinel/`](../../workflows/api/sentinel/) — 24 workflows (Phase 1 + Phase 2 + Phase 3).
+- [`workflows/api/sentinel/`](../../workflows/api/sentinel/) — 27 workflows (Phase 1 + Phase 2 + Phase 3 + Phase 4).
 - [`db/migrations/sentinel-health-schema.sql`](../../db/migrations/sentinel-health-schema.sql) — Phase 2 schema.
 - [`db/migrations/sentinel-security-schema.sql`](../../db/migrations/sentinel-security-schema.sql) — Phase 3 schema.
+- [`db/migrations/sentinel-remediation-schema.sql`](../../db/migrations/sentinel-remediation-schema.sql) — Phase 4 schema.
 - [`admin-dashboard/pages/sentinel.html`](../../admin-dashboard/pages/sentinel.html) — the dashboard.

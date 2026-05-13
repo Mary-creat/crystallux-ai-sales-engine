@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-05-13 — Sentinel Phase 4 built (Auto-remediation)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** schema + 3 workflows + Remediation tab UI + architecture doc + blockers entry. Same day as Phases 2 + 3. Sentinel now covers detection (1+2+3) AND action (4).
+
+What Phase 4 does:
+- **Auto-pause workflow** when health-silent or health-error-spike critical alert fires. 2-hour cooldown.
+- **Auto-resume workflow** when a paused breaker has 3 consecutive healthy windows upstream (= 15 min healthy). 60-min cooldown.
+- **Auto-block IP** for 60 min on `security_brute_force` critical alerts. Per-IP 30-min cooldown.
+- **Propose account lockout** on repeated brute-force same email (≥3 alerts in 24h). HUMAN APPROVED — written as pending sentinel_action row.
+- **Propose credential revocation** when credential ≥30 days overdue AND security alerts active. HUMAN APPROVED.
+
+Schema (`db/migrations/sentinel-remediation-schema.sql`):
+- `sentinel_remediation_playbooks` — declarative registry. 6 playbooks seeded. Each row binds (trigger_module, trigger_alert_type, trigger_severity_min) → (action_type, action_config, cooldown_minutes, requires_approval). Mary tunes via the dashboard (future enhancement).
+- `sentinel_ip_blocklist` — active blocked IPs with optional `expires_at`. Unique-active partial index prevents dup blocks. `is_ip_blocked(p_ip)` STABLE SQL function for cheap auth-path lookup.
+- `sentinel_modules.status` flipped to `'active'` for `auto_remediation`.
+- Reuses `sentinel_actions` foundation table for every execution row — no new audit table needed.
+
+Workflows (3 new in `workflows/api/sentinel/`):
+- `remediation-orchestrator` — cron */5 min. Sweeps expired blocklist first. Loads alerts + playbooks + recent actions + paused breakers + recent health. Plans actions with cooldown gating. Auto-executes safe actions in one tick (PATCH breaker / INSERT blocklist + INSERT sentinel_actions). Writes pending sentinel_actions row for approval-required playbooks.
+- `action-approve` — admin POST. Body: `{ action_id, decision: 'approve'|'reject', notes? }`. Re-executes side effect on approve, marks rolled_back on reject.
+- `remediation-summary` — admin webhook for the Remediation tab.
+
+Frontend (`admin-dashboard/pages/sentinel.html`):
+- New 6th tab "Remediation" between Security and Alerts.
+- Stat tiles: pending approvals (amber when >0), active blocklist count, active playbooks (X / Y), 7-day action total + status breakdown.
+- Pending approvals table with per-row Approve / Reject buttons (window.confirm + call action-approve + auto-refresh).
+- Active IP blocklist table with expiry countdown ("in 47m", "imminent", "permanent").
+- Playbooks table — trigger / action / auto-vs-human pill / cooldown / 7-day action counts / active pill.
+- Recent actions history (last 50) with status pills (succeeded/pending/rolled_back/failed).
+- Overview tab bumped to "Phase 4 of 5".
+
+Safety rails (all enforced):
+- Essential workflows (`is_essential=true`) NEVER auto-paused. Both `trip_workflow_breaker` RPC and the orchestrator's PATCH URL filter (`&is_essential=eq.false`) enforce this defense-in-depth.
+- Account lockout + credential revocation NEVER auto-execute — orchestrator writes `sentinel_actions` pending row; Mary approves via dashboard before any side effect.
+- Per-(playbook, target) cooldowns prevent flap loops (e.g., resume-then-immediate-pause cycling).
+- Every action — auto or approved — writes a `sentinel_actions` audit row with `triggered_by` set to `auto:<playbook>` or `human:<user_id>`.
+
+What's NOT in Phase 4:
+- Cloudflare WAF integration — the blocklist is Crystallux-side; edge enforcement requires Cloudflare API wiring (Phase 5).
+- Actual `auth_users.locked_until` integration — the propose_account_lockout action records intent and stops at "Mary approves"; the column change is manual until that schema slot exists.
+- Vendor-API credential revocation hooks — same pattern: Phase 4 records intent, Mary rotates at the vendor.
+
+Mary's deployment steps:
+1. Apply `db/migrations/sentinel-remediation-schema.sql` in Supabase.
+2. Import the 3 new remediation workflow JSONs into n8n.
+3. Activate the orchestrator (cron */5 min). The 2 webhook-only workflows auto-activate on first call.
+4. Open `admin.crystallux.org/pages/sentinel.html` → Remediation tab. Playbooks list renders immediately. Action counts populate as alerts fire and the orchestrator runs.
+5. (Optional) For edge-level IP blocking, add an `is_ip_blocked(source_ip)` check at the top of new webhook validate-session steps. Existing 7 protected v2/v3 production workflows stay untouched.
+
+Sentinel coverage now (after all four phases this day):
+- ✅ Budget (cost) — Phase 1
+- ✅ Operations (health) — Phase 2
+- ✅ Security — Phase 3
+- ✅ Auto-remediation — Phase 4
+- Phase 5 (Sentinel-as-product / standalone packaging) is the only remaining roadmap item.
+
+---
+
 ## 2026-05-13 — Sentinel Phase 3 built (Security monitoring)
 
 **Branch:** `scale-sprint-v1`
