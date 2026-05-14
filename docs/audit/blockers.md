@@ -6,6 +6,36 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0e. MGA marketing site — Cloudflare SSL fix (BLOCKING — added 2026-05-14)
+
+`insurance.crystallux.org` returns `ERR_TOO_MANY_REDIRECTS` because Cloudflare SSL/TLS mode is set to "Flexible" on the `crystallux.org` zone, while the Cloudflare Pages origin force-redirects HTTP→HTTPS. The combination is a loop.
+
+**60-second fix (no code change):**
+
+1. Cloudflare dashboard → select `crystallux.org` zone.
+2. Left sidebar → **SSL/TLS** → **Overview**.
+3. Change encryption mode from **Flexible** to **Full (strict)** (or **Full** if strict gives any cert-mismatch error).
+4. Wait 60 seconds for propagation.
+5. Clear cookies for `insurance.crystallux.org`, or test in an incognito window.
+
+If the loop persists after the SSL flip, check Cloudflare → **Rules** → **Page Rules** and delete any "Always Use HTTPS" rule scoped to `insurance.crystallux.org/*` — Cloudflare Pages handles HTTPS natively and a redundant page-rule redirect can cause the loop.
+
+Other MGA-marketing items (non-blocking but needed before public launch):
+
+- **FSRA licence number** for Crystallux Inc. to fill into `about.html` Section 1 + `disclosure.html` Section 1 (currently "License # to be added on FSRA confirmation").
+- **E&O carrier name + policy number** to fill into `disclosure.html` Section 5 (only the $2M minimum is currently stated).
+- **Carrier appointment reconciliation** — remove any carrier name from the home carrier strip + product pages where Crystallux doesn't have an active appointment yet.
+- **Calendly embed code** on `contact.html` (placeholder block currently in place).
+- **Email aliases live:** `clients@crystallux.org`, `complaints@`, `privacy@`, `compliance@`, `career@`.
+- **Lead-capture workflow import + activate** on n8n VPS:
+  ```bash
+  docker exec n8n n8n import:workflow \
+    --input=/data/workflows/api/insurance-mga/clx-mga-insurance-lead-capture-v1.json
+  ```
+  Then activate in the n8n UI.
+
+---
+
 ## 0d. Sentinel Phase 4 — Auto-remediation deploy (added 2026-05-13)
 
 Phase 4 takes the alerts from Phases 1–3 and either auto-executes safe

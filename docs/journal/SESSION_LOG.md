@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-05-14 — MGA marketing site iteration (rebrand, tone-down, deploy fixes) — HANDOFF
+
+**Branch:** `scale-sprint-v1`
+**Scope:** `insurance-marketing/` folder iteration following first deploy to `insurance.crystallux.org`. Mary reviewing in-browser, providing live feedback.
+
+### THE LITERAL NEXT THING (blocking site preview)
+
+`insurance.crystallux.org` returns `ERR_TOO_MANY_REDIRECTS`. Cause: **Cloudflare SSL/TLS mode set to "Flexible"** on the `crystallux.org` zone. The Pages origin force-redirects HTTP→HTTPS while Cloudflare forwards over HTTP, creating a loop.
+
+**Mary's 60-second fix:** Cloudflare → `crystallux.org` zone → SSL/TLS → Overview → change **Flexible** to **Full (strict)**. Wait 60s. Clear cookies / try incognito. If still looping after that, check Rules → Page Rules and delete any "Always Use HTTPS" rule on `insurance.crystallux.org/*`. **No code change required.**
+
+### Commits landed today (newest first)
+
+- `4f9a2da` — Tone-down v2: Mary's specific vocabulary (Smart / Carrier comparison / Insurance specialist / Built for Canadians). Zero AI mentions on public pages. New hero sub: "Licensed advisors. Multi-carrier coverage. Built for Canadians."
+- `8f4b04a` — Victory Enrichment removed from public pages (kept only in `disclosure.html` Section 8). First-pass AI tone-down (75 phrase swaps).
+- `7a6799a` — Tightened nav layout (gap 28→16px, font 0.95→0.88rem, breakpoint 900→1100px). Replaced 228 em-dashes with commas.
+- `2fa354f` — Institutional rebrand: Crystallux Insurance Network → Crystallux Financial Services (a Crystallux Inc. division). New `team.html`. 4-section `about.html` rewrite. Brief founder credibility block on `why-choose-us.html`. Footer restructured (Services / Coming Soon / Crystallux FS / Legal columns + "Powered by crystallux.org" tagline + small "Founded by Mary Akintunde, LLQP" line).
+
+### State of the site
+
+- 22 HTML pages, brand-led positioning, Mary appears only on About / Team / Why-Us-brief block / footer line.
+- AI mention compliance per Mary's brief: home 0, products 0, about 0 body mentions (1 implicit "Canadian technology company" parent descriptor), contact 0, footer "Powered by crystallux.org" only.
+- CTAs all human-focused: "Find my coverage", "Talk to an advisor", "Book consultation", "Get quote", "Subscribe", "Send message".
+- Em-dashes replaced with commas (228 instances) across all pages.
+
+### Open thread Mary hasn't answered yet
+
+**"Subtle AI presence" widget** — Mary's brief mentioned the site has no visible AI presence (chat / video / demo) as a gap, but the brief was truncated before the implementation half. I offered four options; Mary hasn't picked one yet:
+1. Floating chat bubble bottom-right → "Talk to advisor" lead form, no AI conversation.
+2. Short video demo on home page (30–60s loop showing matching flow).
+3. Small "How matching works" 3-step graphic on home only.
+4. Live conversational quote on `needs-assessment.html` — real Claude integration.
+
+Next session: if Mary mentions a widget, build the one she picks. If she doesn't, don't pre-build.
+
+### Items gated on Mary before public launch (also in `docs/audit/blockers.md` §0e)
+
+1. Cloudflare SSL flip (above — blocking site preview).
+2. FSRA licence number for Crystallux Inc. (placeholder on `about.html` + `disclosure.html`).
+3. E&O carrier name + policy number (only the $2M minimum is stated).
+4. Carrier appointment reconciliation — remove any seeded carrier name from carrier strips + product pages where Crystallux doesn't have an active appointment.
+5. Calendly embed code on `contact.html` (placeholder block).
+6. Email aliases configured: `clients@`, `complaints@`, `privacy@`, `compliance@`, `career@`.
+7. Import + activate `clx-mga-insurance-lead-capture-v1` workflow on the n8n VPS.
+
+### Mary's vocabulary preferences (for next session's copy work)
+
+**Use:** Smart, Insurance specialist, Personalised review, Tailored suggestions, Carrier comparison, Built for Canadians, Data-informed, Licensed advisors, Multi-carrier, Family-focused.
+**Avoid:** AI-powered, AI-driven, AI advisor, AI matching, AI analysis, AI recommendations, "powered by AI".
+
+### Mary's feedback patterns
+
+- Iterating fast in-browser; sends short specific notes between visits.
+- Sometimes pastes incomplete briefs (truncation at character limit) — ask for the missing piece rather than guess.
+- Prefers single-commit changes, descriptive commit messages.
+- Direct, business-context-led; minimal small-talk.
+
+---
+
 ## 2026-05-13 — Sentinel Phase 4 built (Auto-remediation)
 
 **Branch:** `scale-sprint-v1`
