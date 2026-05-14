@@ -1,9 +1,12 @@
 # Crystallux Financial Services — redirects
-# Convenience URLs without .html
+# Convenience short URLs. DO NOT add a rule where the source path equals
+# the destination's `.html` stem — Cloudflare Pages normalises requests
+# by stripping `.html` for matching, which would cause an infinite loop.
+# (e.g. /disability → /disability.html would loop because the request
+#  /disability.html normalises to /disability and re-fires this rule.)
+# Safe rules: source path must differ from destination stem.
 /life            /life-insurance.html          301
-/critical-illness /critical-illness.html       301
 /ci              /critical-illness.html        301
-/disability      /disability.html              301
 /travel          /travel-insurance.html        301
 /auto            /auto-insurance.html          301
 /home-ins        /home-insurance.html          301
