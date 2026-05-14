@@ -88,16 +88,16 @@ p { margin: 0 0 1em; }
   color: #fff; display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 1.05rem;
 }
-.nav-links { display: flex; align-items: center; gap: 28px; }
-.nav-links a { color: var(--text); font-weight: 500; font-size: 0.95rem; }
+.nav-links { display: flex; align-items: center; gap: 16px; flex-wrap: nowrap; }
+.nav-links a { color: var(--text); font-weight: 500; font-size: 0.88rem; white-space: nowrap; }
 .nav-links a:hover { color: var(--navy); }
-.nav-cta { display: flex; gap: 12px; align-items: center; }
+.nav-cta { display: flex; gap: 10px; align-items: center; }
 .nav-toggle { display: none; background: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .nav-toggle span { display: block; width: 18px; height: 2px; background: var(--text); margin: 3px 0; }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; flex-direction: column; align-items: stretch; padding: 16px 24px; background: #fff; border-bottom: 1px solid var(--border); gap: 8px; }
   .nav-links.open { display: flex; }
-  .nav-links a { padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+  .nav-links a { padding: 10px 0; border-bottom: 1px solid var(--border-soft); font-size: 0.95rem; }
   .nav-toggle { display: block; }
   .nav-cta .btn--ghost { display: none; }
 }
