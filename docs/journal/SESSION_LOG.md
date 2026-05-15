@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-05-15 — Carrier ops console built (DORMANT until activation)
+
+**Branch:** `scale-sprint-v1`
+**Scope:** Carrier-management section inside `admin.crystallux.org`/`/pages/carriers/*`. Per Mary's senior-engineer brief: schema + 4 (now 5) workflows + 5 frontend pages + 2 docs.
+
+### Commits
+
+- `e44dc0e` — Schema + seed: 4 tables (`carriers`, `carrier_submissions`, `carrier_commissions`, `carrier_reconciliations`) + 23 Canadian carriers seeded (20 `not_applied` + PolicyMe/Walnut/Apollo `pending`).
+- `ad9b7f1` — 4 workflows: status-check (cron + webhook), submission-tracker, commission-calculator, reconciliation. All `active:false`.
+- `ab361e3` — 5 frontend pages (overview / appointments / submissions / commissions / reconciliation) + nav link + 5th workflow `clx-carriers-update-v1` (Mary's brief listed 4 but the appointments page needs an update endpoint to function).
+- (this commit) — Architecture doc + handbook playbook + blockers entry.
+
+### What's built
+
+- **Layer separation** from existing `insurance_carriers` (Layer 2 product registry, vertical_id='insurance'). New `carriers` table is Layer 1 (universal ops, tenant-scoped on `client_id`). Soft FK via `carrier_code`. Mortgage / investment verticals can reuse the ops layer without insurance-specific schema.
+- **Appointment lifecycle:** `not_applied` → `pending` → `approved` → `active` → `suspended`/`terminated`. Stale-pending detection (>30 days).
+- **Submission pipeline:** `in_progress` → `submitted` → `underwriting` → `approved`/`declined` → `issued`/`not_taken`/`withdrawn`. Status transitions auto-set timestamp columns.
+- **Commission calc:** premium × carrier.expected_commission_pct → expected commission row. Override % for per-deal deviations.
+- **Reconciliation:** monthly statement matching with 5% tolerance. Auto-marks matched commissions as received.
+
+### Intentionally incomplete (follow-up work, not blocking)
+
+- List GET endpoints (`/api/carriers/submissions/list`, `/commissions/outstanding`, `/reconciliations/list`) not built. The frontend pages render data from `/api/carriers/status-check` only; list views show graceful empty state with a hint to read Supabase directly.
+- Multi-tenant seed expansion (currently the seed only covers the Crystallux Financial Services tenant; when another MGA onboards, they'd need their own seed step).
+- Multi-year trail commissions on the calculator (currently form only handles `first_year`).
+
+### Activation steps (Mary)
+
+See `docs/audit/blockers.md` §0f. Three steps: apply migration, import + activate 5 workflows, open the Carriers page to verify.
+
+DORMANT per Mary's brief — activate only after first carrier approval.
+
+---
+
 ## 2026-05-14 — MGA marketing site iteration (rebrand, tone-down, deploy fixes) — HANDOFF
 
 **Branch:** `scale-sprint-v1`

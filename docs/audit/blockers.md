@@ -6,6 +6,37 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0f. Carrier ops console — activation steps (added 2026-05-15)
+
+Carrier-management section at `admin.crystallux.org/pages/carriers/*` is BUILT but DORMANT. Activation steps:
+
+1. **Apply the migration:**
+   ```bash
+   psql "$DATABASE_URL" -f db/migrations/carrier-management-schema.sql
+   ```
+   Idempotent. Creates 4 tables (`carriers`, `carrier_submissions`, `carrier_commissions`, `carrier_reconciliations`) and seeds 23 Canadian carriers under the Crystallux Financial Services tenant (20 in `not_applied`, 3 in `pending`: PolicyMe, Walnut, Apollo).
+
+2. **Import + activate the 5 workflows on n8n VPS:**
+   ```bash
+   ssh vps "cd ~/crystallux-deploy && git pull && \
+     for f in clx-carriers-status-check-v1.json \
+              clx-carriers-update-v1.json \
+              clx-carriers-submission-tracker-v1.json \
+              clx-carriers-commission-calculator-v1.json \
+              clx-carriers-reconciliation-v1.json; do \
+       docker exec n8n n8n import:workflow --input=/data/workflows/api/carriers/\$f; \
+     done"
+   ```
+   In the n8n UI, activate all 5. `clx-carriers-status-check-v1` runs as cron Mon 08:00 + on-demand webhook; the others are webhook-only and auto-activate on first call.
+
+3. **Open** `admin.crystallux.org/pages/carriers/overview.html` — should show 23 carriers, "Active appointments: 0", "Pending: 3", "Not applied: 20".
+
+4. **Tune carrier records** as appointments roll in: edit each carrier on the Appointments page to set agent code + expected_commission_pct when activation comes through.
+
+Built but DORMANT per Mary's brief — activate only after first carrier approval. See `docs/architecture/CARRIER_MANAGEMENT.md` (architecture) and `docs/handbook/CARRIER_OPS_GUIDE.md` (Mary's playbook).
+
+---
+
 ## 0e. MGA marketing site — Cloudflare SSL fix (BLOCKING — added 2026-05-14)
 
 `insurance.crystallux.org` returns `ERR_TOO_MANY_REDIRECTS` because Cloudflare SSL/TLS mode is set to "Flexible" on the `crystallux.org` zone, while the Cloudflare Pages origin force-redirects HTTP→HTTPS. The combination is a loop.
