@@ -1,0 +1,106 @@
+{
+  "name": "CLX - Carriers Reconciliation v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/carriers/reconciliation", "responseMode": "responseNode", "options": {} }, "id": "ccr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-reconciliation-001", "notes": "DEACTIVATED. Admin session. Body: { carrier_id, period: 'YYYY-MM', statement_amount_cents, statement_url? }. Records a reconciliation, attempts to match against expected commissions for that carrier+period, computes matched/unmatched amounts, and flags status as matched/partial/discrepancy." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.carrier_id || !body.period || body.statement_amount_cents === undefined) return { json: { _empty: true, status: 400, error: 'carrier_id + period (YYYY-MM) + statement_amount_cents required' } };\nif (!/^\\d{4}-\\d{2}$/.test(body.period)) return { json: { _empty: true, status: 400, error: 'period must be YYYY-MM format' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "ccr-0003", "name": "IF Args OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [680, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "ccr-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst body = $('Extract').first().json.body;\nreturn { json: { _ok: true, body: body, user_id: row.user_id, client_id: row.client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ccr-0006", "name": "IF Admin", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 320] },
+    {
+      "parameters": {
+        "jsCode": "// Compute the period date range for matching expected commissions.\nconst body = $input.item.json.body;\nconst period = body.period;  // 'YYYY-MM'\nconst startDate = period + '-01';\nconst y = parseInt(period.slice(0, 4), 10);\nconst m = parseInt(period.slice(5, 7), 10);\nconst lastDay = new Date(y, m, 0).getDate();\nconst endDate = period + '-' + String(lastDay).padStart(2, '0');\nreturn { json: Object.assign({}, $input.item.json, { period_start: startDate, period_end: endDate }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0007", "name": "Compute Range", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1640, 220]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_commissions?carrier_id=eq.{{ $json.body.carrier_id }}&status=eq.expected&expected_at=gte.{{ $json.period_start }}&expected_at=lte.{{ $json.period_end }}&select=id,expected_amount_cents",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "ccr-0008", "name": "Fetch Expected", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1880, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compare statement amount vs sum of expected commissions in this period.\nconst expected = $input.item.json;\nconst list = Array.isArray(expected) ? expected : [];\nconst ctx = $('Compute Range').first().json;\nconst body = ctx.body;\nlet expectedTotal = 0;\nlist.forEach(function (c) { expectedTotal += parseInt(c.expected_amount_cents) || 0; });\nconst statementAmount = parseInt(body.statement_amount_cents);\nconst delta = statementAmount - expectedTotal;\nlet status;\nif (Math.abs(delta) < 100) status = 'matched';                  // within $1 = matched\nelse if (delta > 0 && expectedTotal === 0) status = 'pending';   // statement received but no expectations\nelse if (Math.abs(delta) < (expectedTotal * 0.05)) status = 'matched';  // within 5%\nelse if (delta < 0) status = 'discrepancy';                      // underpaid materially\nelse status = 'partial';                                          // overpaid or extra payments\nconst now = new Date().toISOString();\nconst row = {\n  client_id: ctx.client_id,\n  carrier_id: body.carrier_id,\n  reconciliation_period: body.period,\n  statement_received_at: now,\n  statement_amount_cents: statementAmount,\n  matched_commissions_cents: expectedTotal,\n  status: status,\n  statement_url: body.statement_url || null,\n  reconciled_by: ctx.user_id,\n  reconciled_at: now,\n  notes: 'Auto-matched: ' + list.length + ' expected commission rows totalling ' + expectedTotal + ' cents; statement ' + statementAmount + ' cents; delta ' + delta + ' cents.'\n};\nreturn { json: { _ok: true, row: row, matched_commission_ids: list.map(function (c) { return c.id; }), expectedTotal: expectedTotal, statementAmount: statementAmount, delta: delta, status: status } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0009", "name": "Compute Match", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2120, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_reconciliations?on_conflict=carrier_id,reconciliation_period",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "id": "ccr-0010", "name": "Upsert Reconciliation", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2360, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Now mark matched expected commissions as 'received' (status flip).\nconst recon = $input.item.json;\nconst reconRow = Array.isArray(recon) ? recon[0] : recon;\nconst ids = $('Compute Match').first().json.matched_commission_ids || [];\nif (!ids.length) return { json: { _no_match: true, reconciliation: reconRow } };\n// PATCH each commission row to mark received.\nreturn { json: { reconciliation_id: reconRow.id, ids: ids, reconciliation: reconRow } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccr-0011", "name": "Prepare Patch", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2600, 220]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_commissions?id=in.({{ ($json.ids || []).join(',') }})",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={ \"status\": \"received\", \"received_at\": \"{{ new Date().toISOString().slice(0,10) }}\", \"reconciliation_id\": \"{{ $json.reconciliation_id }}\", \"updated_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": { "continueOnFail": true }
+      },
+      "id": "ccr-0012", "name": "Mark Commissions Received", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2840, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const match = $('Compute Match').first().json;\nconst reconRow = $('Prepare Patch').first().json.reconciliation;\nreturn { json: { ok: true, reconciliation: reconRow, summary: { expected_total_cents: match.expectedTotal, statement_amount_cents: match.statementAmount, delta_cents: match.delta, status: match.status, commissions_marked_received: ($('Prepare Patch').first().json.ids || []).length } } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ccr-0013", "name": "Shape OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3080, 220]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ccr-0014", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [3320, 220] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ccr-0015", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 500] }
+  ],
+  "connections": {
+    "Webhook":                    { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":                    { "main": [[ { "node": "IF Args OK", "type": "main", "index": 0 } ]] },
+    "IF Args OK":                 { "main": [ [ { "node": "Validate Session", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Validate Session":           { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":                { "main": [[ { "node": "IF Admin", "type": "main", "index": 0 } ]] },
+    "IF Admin":                   { "main": [ [ { "node": "Compute Range", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Compute Range":              { "main": [[ { "node": "Fetch Expected", "type": "main", "index": 0 } ]] },
+    "Fetch Expected":             { "main": [[ { "node": "Compute Match", "type": "main", "index": 0 } ]] },
+    "Compute Match":              { "main": [[ { "node": "Upsert Reconciliation", "type": "main", "index": 0 } ]] },
+    "Upsert Reconciliation":      { "main": [[ { "node": "Prepare Patch", "type": "main", "index": 0 } ]] },
+    "Prepare Patch":              { "main": [[ { "node": "Mark Commissions Received", "type": "main", "index": 0 } ]] },
+    "Mark Commissions Received":  { "main": [[ { "node": "Shape OK", "type": "main", "index": 0 } ]] },
+    "Shape OK":                   { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

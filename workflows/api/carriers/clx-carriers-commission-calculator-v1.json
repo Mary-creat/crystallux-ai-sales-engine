@@ -1,0 +1,98 @@
+{
+  "name": "CLX - Carriers Commission Calculator v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/carriers/commission-calc", "responseMode": "responseNode", "options": {} }, "id": "cccc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-commission-calculator-001", "notes": "DEACTIVATED. Admin session. Body: { submission_id, override_pct? }. Reads the submission + parent carrier's expected_commission_pct, calculates first-year commission (annual_premium × commission_pct × first_year_factor), inserts or updates the carrier_commissions row with status='expected'. First-year factor defaults to 1.0 for P&C, 0.5 for term-life (Canadian convention varies; carrier-specific tuning via override_pct)." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.submission_id) return { json: { _empty: true, status: 400, error: 'submission_id required' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cccc-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "cccc-0003", "name": "IF Args OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [680, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "cccc-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst body = $('Extract').first().json.body;\nreturn { json: { _ok: true, submission_id: body.submission_id, override_pct: body.override_pct || null, client_id: row.client_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cccc-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "cccc-0006", "name": "IF Admin", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 320] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_submissions?id=eq.{{ $json.submission_id }}&select=id,carrier_id,product_line,annual_premium_cents,face_amount_cents,client_id",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cccc-0007", "name": "Fetch Submission", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1640, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subs = $input.item.json;\nconst submission = Array.isArray(subs) ? subs[0] : subs;\nif (!submission) return { json: { _missing: true, status: 404, error: 'submission not found' } };\nreturn { json: { _ok: true, submission: submission, override_pct: $('Check Admin').first().json.override_pct } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cccc-0008", "name": "Submission OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1880, 220]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carriers?id=eq.{{ $json.submission.carrier_id }}&select=id,carrier_name,carrier_type,expected_commission_pct",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cccc-0009", "name": "Fetch Carrier", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2120, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const carriers = $input.item.json;\nconst carrier = Array.isArray(carriers) ? carriers[0] : carriers;\nconst submission = $('Submission OK').first().json.submission;\nconst override = $('Submission OK').first().json.override_pct;\nif (!carrier) return { json: { _missing: true, status: 404, error: 'carrier not found' } };\nconst pct = override !== null ? parseFloat(override) : parseFloat(carrier.expected_commission_pct || 0);\nif (pct <= 0) return { json: { _bad: true, status: 422, error: 'carrier has no expected_commission_pct configured; provide override_pct in the request' } };\nconst premium = parseInt(submission.annual_premium_cents) || 0;\nif (premium <= 0) return { json: { _bad: true, status: 422, error: 'submission has no annual_premium_cents; set premium before calculating commission' } };\n// First-year factor: life products get a fraction of first-year premium converted at high commission rate (Canadian convention varies wildly by carrier; this is a best-guess default). P&C is flat.\nconst lifeProducts = ['term_life','whole_life','universal_life','term-to-100','critical_illness','disability'];\nconst isLife = lifeProducts.indexOf(submission.product_line) >= 0;\nconst firstYearFactor = isLife ? 1.0 : 1.0;  // default 1.0; carrier-specific tuning via override_pct\nconst expected = Math.round(premium * (pct / 100) * firstYearFactor);\nreturn { json: { _ok: true, row: {\n  client_id: submission.client_id,\n  carrier_id: carrier.id,\n  submission_id: submission.id,\n  commission_type: 'first_year',\n  commission_year: 1,\n  expected_amount_cents: expected,\n  expected_at: new Date(Date.now() + 90 * 86400000).toISOString().slice(0,10),  // expect payment within 90 days of issuance\n  status: 'expected',\n  notes: 'Calculated: ' + premium + ' premium × ' + pct + '% commission' + (override !== null ? ' (override)' : '') + (isLife ? ', life first-year factor 1.0' : ', P&C flat')\n}, computed: { premium_cents: premium, commission_pct: pct, expected_cents: expected, carrier_name: carrier.carrier_name } } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cccc-0010", "name": "Compute", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2360, 220]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "cccc-0011", "name": "IF Computed", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [2600, 220] },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_commissions?on_conflict=submission_id,commission_type,commission_year",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "id": "cccc-0012", "name": "Upsert Commission", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2840, 120],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nconst computed = $('Compute').first().json.computed;\nreturn { json: { ok: true, commission: row, computed: computed } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cccc-0013", "name": "Shape OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3080, 120]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "cccc-0014", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [3320, 120] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "cccc-0015", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 500] }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":            { "main": [[ { "node": "IF Args OK", "type": "main", "index": 0 } ]] },
+    "IF Args OK":         { "main": [ [ { "node": "Validate Session", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Validate Session":   { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":        { "main": [[ { "node": "IF Admin", "type": "main", "index": 0 } ]] },
+    "IF Admin":           { "main": [ [ { "node": "Fetch Submission", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Submission":   { "main": [[ { "node": "Submission OK", "type": "main", "index": 0 } ]] },
+    "Submission OK":      { "main": [[ { "node": "Fetch Carrier", "type": "main", "index": 0 } ]] },
+    "Fetch Carrier":      { "main": [[ { "node": "Compute", "type": "main", "index": 0 } ]] },
+    "Compute":            { "main": [[ { "node": "IF Computed", "type": "main", "index": 0 } ]] },
+    "IF Computed":        { "main": [ [ { "node": "Upsert Commission", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Upsert Commission":  { "main": [[ { "node": "Shape OK", "type": "main", "index": 0 } ]] },
+    "Shape OK":           { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

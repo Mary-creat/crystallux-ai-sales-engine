@@ -1,0 +1,71 @@
+{
+  "name": "CLX - Carriers Status Check v1",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 8 * * 1" } ] } }, "id": "ccsc-0001", "name": "Schedule Weekly Mon 08:00", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },
+    { "parameters": { "httpMethod": "POST", "path": "api/carriers/status-check", "responseMode": "responseNode", "options": {} }, "id": "ccsc-0002", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-status-check-001", "notes": "DEACTIVATED. Admin session OR scheduled cron. Reads carriers table; surfaces appointment funnel counts + stale-pending alerts. Cron runs weekly Mon 08:00 ET. Webhook variant is what the dashboard hits for live counts." },
+    {
+      "parameters": {
+        "jsCode": "// Auth: cron has no headers, treat as system-authenticated. Webhook requires bearer token + admin role.\nconst isCron = !$input.item.json.headers;\nif (isCron) return { json: { _ok: true, source: 'cron' } };\nconst headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token, source: 'webhook' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccsc-0003", "name": "Extract Auth", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 300]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ccsc-0004", "name": "IF Bad Auth", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [680, 300] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token || 'cron' }}\" }", "options": { "continueOnFail": true } }, "id": "ccsc-0005", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const src = $('Extract Auth').first().json.source;\nif (src === 'cron') return { json: { _ok: true } };\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nreturn { json: { _ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccsc-0006", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ccsc-0007", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 400] },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carriers?select=id,carrier_code,carrier_name,carrier_type,appointment_status,appointment_applied_at,appointment_approved_at,contracted_lines,expected_commission_pct,active&order=appointment_status,carrier_name",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "ccsc-0008", "name": "Fetch Carriers", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1640, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_submissions?select=carrier_id,submission_status,annual_premium_cents&created_at=gte.' + new Date(Date.now() - 90*86400000).toISOString() }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": { "continueOnFail": true }
+      },
+      "id": "ccsc-0009", "name": "Fetch Submissions 90d", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1640, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "mode": "append", "numberInputs": 2 }, "id": "ccsc-0010", "name": "Merge Branches", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1740, 400] },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst carriers = allOf('Fetch Carriers');\nconst submissions = allOf('Fetch Submissions 90d');\nconst now = Date.now();\n\n// Status counts\nconst counts = { not_applied: 0, pending: 0, approved: 0, active: 0, suspended: 0, terminated: 0 };\ncarriers.forEach(function (c) { counts[c.appointment_status] = (counts[c.appointment_status] || 0) + 1; });\n\n// Stale pending — applied >30 days ago, still pending\nconst stalePending = carriers.filter(function (c) {\n  if (c.appointment_status !== 'pending') return false;\n  if (!c.appointment_applied_at) return false;\n  const days = (now - new Date(c.appointment_applied_at).getTime()) / 86400000;\n  return days > 30;\n});\n\n// Submissions per carrier (90d)\nconst submissionsByCarrier = {};\nconst premiumsByCarrier = {};\nsubmissions.forEach(function (s) {\n  if (!s.carrier_id) return;\n  submissionsByCarrier[s.carrier_id] = (submissionsByCarrier[s.carrier_id] || 0) + 1;\n  premiumsByCarrier[s.carrier_id] = (premiumsByCarrier[s.carrier_id] || 0) + (parseInt(s.annual_premium_cents) || 0);\n});\n\n// Enrich carriers with activity\nconst enriched = carriers.map(function (c) {\n  return Object.assign({}, c, {\n    submissions_90d: submissionsByCarrier[c.id] || 0,\n    premium_volume_90d_cents: premiumsByCarrier[c.id] || 0\n  });\n});\n\nreturn { json: {\n  ok: true,\n  generated_at: new Date().toISOString(),\n  counts: counts,\n  total_carriers: carriers.length,\n  active_count: counts.active,\n  pending_count: counts.pending,\n  stale_pending_count: stalePending.length,\n  stale_pending: stalePending.map(function (c) { return { id: c.id, carrier_name: c.carrier_name, applied_at: c.appointment_applied_at }; }),\n  carriers: enriched\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ccsc-0011", "name": "Aggregate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1980, 400]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ccsc-0012", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2220, 400] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ccsc-0013", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 200] }
+  ],
+  "connections": {
+    "Schedule Weekly Mon 08:00": { "main": [[ { "node": "Extract Auth", "type": "main", "index": 0 } ]] },
+    "Webhook":                   { "main": [[ { "node": "Extract Auth", "type": "main", "index": 0 } ]] },
+    "Extract Auth":              { "main": [[ { "node": "IF Bad Auth", "type": "main", "index": 0 } ]] },
+    "IF Bad Auth":               { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
+    "Validate Session":          { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":               { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
+    "IF OK":                     { "main": [ [ { "node": "Fetch Carriers", "type": "main", "index": 0 }, { "node": "Fetch Submissions 90d", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Fetch Carriers":            { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
+    "Fetch Submissions 90d":     { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
+    "Merge Branches":            { "main": [[ { "node": "Aggregate", "type": "main", "index": 0 } ]] },
+    "Aggregate":                 { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

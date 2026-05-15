@@ -1,0 +1,71 @@
+{
+  "name": "CLX - Carriers Submission Tracker v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/carriers/submission", "responseMode": "responseNode", "options": {} }, "id": "ccst-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-submission-tracker-001", "notes": "DEACTIVATED. Admin session. Body: { action: 'create'|'update', submission_id? (for update), carrier_id, lead_id?, advisor_id?, product_line, submission_status?, policy_number?, face_amount_cents?, annual_premium_cents?, notes? }. Status transitions: in_progress → submitted → underwriting → approved/declined → issued/not_taken/withdrawn. Auto-sets submitted_at / underwriting_decision_at / policy_issued_at based on the status the row is moving to." },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nconst action = body.action || (body.submission_id ? 'update' : 'create');\nif (!['create','update'].includes(action)) return { json: { _empty: true, status: 400, error: 'action must be create or update' } };\nif (action === 'create' && !body.carrier_id) return { json: { _empty: true, status: 400, error: 'carrier_id required for create' } };\nif (action === 'update' && !body.submission_id) return { json: { _empty: true, status: 400, error: 'submission_id required for update' } };\nreturn { json: { token, body, action } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccst-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "ccst-0003", "name": "IF Args OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [680, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "ccst-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst e = $('Extract').first().json;\nconst b = e.body;\nconst action = e.action;\nconst now = new Date().toISOString();\n// Build PATCH/POST payload; auto-set timestamps based on status.\nconst payload = {};\nconst fields = ['carrier_id','lead_id','advisor_id','product_line','applicant_name','policy_number','face_amount_cents','annual_premium_cents','expected_commission_cents','decline_reason','notes','policy_application_id'];\nfields.forEach(function (k) { if (b[k] !== undefined) payload[k] = b[k]; });\nif (b.submission_status) {\n  payload.submission_status = b.submission_status;\n  if (b.submission_status === 'submitted' && !b.submitted_at) payload.submitted_at = now;\n  if (['approved','declined'].indexOf(b.submission_status) >= 0 && !b.underwriting_decision_at) payload.underwriting_decision_at = now;\n  if (b.submission_status === 'issued' && !b.policy_issued_at) payload.policy_issued_at = now;\n}\npayload.updated_at = now;\nif (action === 'create') {\n  payload.client_id = row.client_id;\n  if (!payload.submission_status) payload.submission_status = 'in_progress';\n}\nreturn { json: { _ok: true, action: action, submission_id: b.submission_id || null, payload: payload, user_id: row.user_id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccst-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ccst-0006", "name": "IF Admin", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 320] },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "create", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" } }, "id": "ccst-0007", "name": "IF Create", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1640, 320] },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_submissions",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "ccst-0008", "name": "Insert Submission", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1880, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carrier_submissions?id=eq.{{ $json.submission_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "ccst-0009", "name": "Update Submission", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1880, 420],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, submission: row } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ccst-0010", "name": "Shape OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2120, 320]
+    },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ccst-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2360, 320] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ccst-0012", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 500] }
+  ],
+  "connections": {
+    "Webhook":             { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":             { "main": [[ { "node": "IF Args OK", "type": "main", "index": 0 } ]] },
+    "IF Args OK":          { "main": [ [ { "node": "Validate Session", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Validate Session":    { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":         { "main": [[ { "node": "IF Admin", "type": "main", "index": 0 } ]] },
+    "IF Admin":            { "main": [ [ { "node": "IF Create", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "IF Create":           { "main": [ [ { "node": "Insert Submission", "type": "main", "index": 0 } ], [ { "node": "Update Submission", "type": "main", "index": 0 } ] ] },
+    "Insert Submission":   { "main": [[ { "node": "Shape OK", "type": "main", "index": 0 } ]] },
+    "Update Submission":   { "main": [[ { "node": "Shape OK", "type": "main", "index": 0 } ]] },
+    "Shape OK":            { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
