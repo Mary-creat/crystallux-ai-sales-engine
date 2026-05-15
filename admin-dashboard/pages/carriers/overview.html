@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carriers · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.subnav { display:flex; gap:4px; border-bottom:1px solid var(--border,#e5e7eb); margin-bottom:24px; }
+.subnav a { padding:10px 16px; font-size:14px; font-weight:600; color:var(--muted,#6b7280); text-decoration:none; border-bottom:2px solid transparent; }
+.subnav a.active { color:var(--text,#0f172a); border-bottom-color:#0f4c81; }
+.pill { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+.pill-active { background:#dcfce7; color:#166534; }
+.pill-pending { background:#fef3c7; color:#b45309; }
+.pill-not_applied { background:#f1f5f9; color:#475569; }
+.pill-approved { background:#cffafe; color:#0e7490; }
+.pill-suspended { background:#fee2e2; color:#b91c1c; }
+.pill-terminated { background:#1e293b; color:#fff; }
+.lines-list { display:flex; gap:4px; flex-wrap:wrap; }
+.lines-list span { font-size:11px; padding:2px 6px; background:#f1f5f9; border-radius:4px; color:#475569; }
+.stale-banner { background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:14px 18px; margin-bottom:18px; }
+.stale-banner strong { color:#92400e; }
+</style>
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Carriers</h1><div class="clx-page-sub">Appointment status, submission pipeline, commission tracking, and monthly reconciliation across every Crystallux carrier relationship.</div></div></div>
+
+  <div class="subnav">
+    <a href="/pages/carriers/overview.html" class="active">Overview</a>
+    <a href="/pages/carriers/appointments.html">Appointments</a>
+    <a href="/pages/carriers/submissions.html">Submissions</a>
+    <a href="/pages/carriers/commissions.html">Commissions</a>
+    <a href="/pages/carriers/reconciliation.html">Reconciliation</a>
+  </div>
+
+  <div class="clx-stat-grid" id="statGrid"><div class="clx-empty"><span class="clx-spinner"></span> Loading carrier summary…</div></div>
+
+  <div id="staleBanner" style="display:none;"></div>
+
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">All carriers</div><div class="clx-card-sub" id="carrierTableSub"></div></div><div id="carrierTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function fmtMoney(c){return '$'+((parseFloat(c)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function pill(status){return '<span class="pill pill-'+esc(status)+'">'+esc(status.replace(/_/g,' '))+'</span>';}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    loadSummary();
+  });
+
+  function loadSummary(){
+    clxApi.call('/api/carriers/status-check', {}).then(function(res){
+      if (!res.ok) {
+        clxApi.renderError(document.getElementById('statGrid'), res);
+        clxApi.renderError(document.getElementById('carrierTable'), res);
+        return;
+      }
+      var s = res.data || {};
+      renderStats(s);
+      renderStaleBanner(s);
+      renderCarrierTable(s);
+    });
+  }
+
+  function renderStats(s){
+    var c = s.counts || {};
+    var html = ''
+      + '<div class="clx-stat"><div class="clx-stat-label">Total carriers</div><div class="clx-stat-value">'+(s.total_carriers||0)+'</div><div class="clx-stat-sub">across all appointment states</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Active appointments</div><div class="clx-stat-value">'+(c.active||0)+'</div><div class="clx-stat-sub">carriers we can place business with today</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Pending applications</div><div class="clx-stat-value" style="'+(s.stale_pending_count>0?'color:#b45309;':'')+'">'+(c.pending||0)+'</div><div class="clx-stat-sub">'+(s.stale_pending_count||0)+' stale (>30 days)</div></div>'
+      + '<div class="clx-stat"><div class="clx-stat-label">Not applied</div><div class="clx-stat-value">'+(c.not_applied||0)+'</div><div class="clx-stat-sub">future appointment targets</div></div>';
+    document.getElementById('statGrid').innerHTML = html;
+  }
+
+  function renderStaleBanner(s){
+    if (!s.stale_pending_count || s.stale_pending_count === 0) return;
+    var html = '<div class="stale-banner"><strong>'+s.stale_pending_count+' appointment'+(s.stale_pending_count===1?'':'s')+' stuck in pending &gt;30 days:</strong> ';
+    html += (s.stale_pending || []).map(function(c){return esc(c.carrier_name);}).join(', ');
+    html += '. Follow up with the carrier or update status from <a href="/pages/carriers/appointments.html">Appointments</a>.</div>';
+    var el = document.getElementById('staleBanner');
+    el.innerHTML = html; el.style.display = 'block';
+  }
+
+  function renderCarrierTable(s){
+    var carriers = s.carriers || [];
+    document.getElementById('carrierTableSub').textContent = carriers.length + ' carrier' + (carriers.length===1?'':'s') + ' tracked';
+    if (!carriers.length) {
+      clxApi.renderEmpty(document.getElementById('carrierTable'), 'No carriers in the registry yet. Apply the carrier-management migration to seed the initial 23 Canadian carriers.');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Carrier</th><th>Type</th><th>Status</th><th>Lines</th><th>Submissions (90d)</th><th>Premium volume (90d)</th><th></th></tr></thead><tbody>';
+    carriers.forEach(function(c){
+      var lines = Array.isArray(c.contracted_lines) ? c.contracted_lines : [];
+      html += '<tr>'
+        + '<td><strong>'+esc(c.carrier_name)+'</strong><div style="font-size:11px;color:#9ca3af;"><code>'+esc(c.carrier_code)+'</code></div></td>'
+        + '<td><span style="font-size:12px;">'+esc(c.carrier_type)+'</span></td>'
+        + '<td>'+pill(c.appointment_status)+'</td>'
+        + '<td><div class="lines-list">'+lines.slice(0,4).map(function(l){return '<span>'+esc(l)+'</span>';}).join('')+(lines.length>4?'<span>+'+(lines.length-4)+'</span>':'')+'</div></td>'
+        + '<td>'+(c.submissions_90d||0)+'</td>'
+        + '<td>'+fmtMoney(c.premium_volume_90d_cents||0)+'</td>'
+        + '<td><a href="/pages/carriers/appointments.html?carrier='+esc(c.id)+'" class="clx-link">Manage →</a></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('carrierTable').innerHTML = html;
+  }
+})();
+</script>
+</body></html>

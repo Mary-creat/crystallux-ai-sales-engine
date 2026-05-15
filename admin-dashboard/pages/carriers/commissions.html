@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carriers · Commissions · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.subnav { display:flex; gap:4px; border-bottom:1px solid var(--border,#e5e7eb); margin-bottom:24px; }
+.subnav a { padding:10px 16px; font-size:14px; font-weight:600; color:var(--muted,#6b7280); text-decoration:none; border-bottom:2px solid transparent; }
+.subnav a.active { color:var(--text,#0f172a); border-bottom-color:#0f4c81; }
+.pill { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+.pill-expected { background:#fef3c7; color:#b45309; }
+.pill-received { background:#dcfce7; color:#166534; }
+.pill-underpaid { background:#fee2e2; color:#b91c1c; }
+.pill-overpaid { background:#dbeafe; color:#1e40af; }
+.pill-disputed { background:#fee2e2; color:#b91c1c; }
+.pill-written_off { background:#1e293b; color:#fff; }
+.calc-form { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px; margin-bottom:18px; }
+.calc-form .row { display:flex; gap:12px; align-items:end; }
+.calc-form label { font-size:12px; color:#6b7280; font-weight:600; display:block; margin-bottom:3px; }
+.calc-form input { padding:8px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:13px; width:280px; }
+.btn-primary { padding:8px 16px; border-radius:6px; border:1px solid #0f4c81; background:#0f4c81; color:#fff; font-weight:600; cursor:pointer; }
+</style>
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Commissions</h1><div class="clx-page-sub">Expected vs. received commissions per submission. Outstanding balances. Recalculate when carrier expected_commission_pct changes.</div></div></div>
+
+  <div class="subnav">
+    <a href="/pages/carriers/overview.html">Overview</a>
+    <a href="/pages/carriers/appointments.html">Appointments</a>
+    <a href="/pages/carriers/submissions.html">Submissions</a>
+    <a href="/pages/carriers/commissions.html" class="active">Commissions</a>
+    <a href="/pages/carriers/reconciliation.html">Reconciliation</a>
+  </div>
+
+  <div class="calc-form">
+    <h3 style="margin-top:0;">Recalculate expected commission</h3>
+    <p style="font-size:13px;color:#6b7280;margin-top:0;">Given a submission ID, the calculator pulls the parent carrier's expected_commission_pct × the submission's annual premium and writes an "expected" commission row. Use an override % for carrier-specific first-year deviations.</p>
+    <form id="calcForm">
+      <div class="row">
+        <div><label>Submission ID</label><input name="submission_id" id="subId" placeholder="UUID from submissions table"></div>
+        <div><label>Override commission % (optional)</label><input type="number" step="0.1" name="override_pct" id="overridePct" placeholder="e.g. 60"></div>
+        <button type="button" class="btn-primary" id="calcBtn">Calculate</button>
+      </div>
+      <div id="calcResult" style="margin-top:12px;font-size:13px;"></div>
+    </form>
+  </div>
+
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Outstanding commissions</div></div><div id="outstandingTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function fmtMoney(c){return '$'+((parseFloat(c)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function pill(s){return '<span class="pill pill-'+esc(s)+'">'+esc(s.replace(/_/g,' '))+'</span>';}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    load();
+    wireCalc();
+  });
+
+  function load(){
+    clxApi.renderEmpty(document.getElementById('outstandingTable'), 'Outstanding-commission list endpoint not yet built. Once a submission has an expected commission, use the calculate form above to populate it; future builds will list all rows here automatically.');
+  }
+
+  function wireCalc(){
+    document.getElementById('calcBtn').addEventListener('click', function(){
+      var subId = document.getElementById('subId').value.trim();
+      var override = document.getElementById('overridePct').value;
+      var body = { submission_id: subId };
+      if (override) body.override_pct = parseFloat(override);
+      var result = document.getElementById('calcResult');
+      if (!subId) { result.innerHTML = '<span style="color:#b91c1c;">Submission ID required.</span>'; return; }
+      result.innerHTML = 'Calculating…';
+      clxApi.call('/api/carriers/commission-calc', body).then(function(res){
+        if (res.ok && res.data && res.data.ok !== false) {
+          var c = res.data.computed || {};
+          result.innerHTML = '<span style="color:#166534;font-weight:600;">'+esc(c.carrier_name||'')+'</span>: '
+            + fmtMoney(c.premium_cents) + ' premium × ' + c.commission_pct + '% = <strong>' + fmtMoney(c.expected_cents) + '</strong> expected commission. Row upserted at status="expected".';
+        } else {
+          result.innerHTML = '<span style="color:#b91c1c;">'+esc(res.error || (res.data && res.data.error) || 'Calc failed')+'</span>';
+        }
+      });
+    });
+  }
+})();
+</script>
+</body></html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carriers · Submissions · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.subnav { display:flex; gap:4px; border-bottom:1px solid var(--border,#e5e7eb); margin-bottom:24px; }
+.subnav a { padding:10px 16px; font-size:14px; font-weight:600; color:var(--muted,#6b7280); text-decoration:none; border-bottom:2px solid transparent; }
+.subnav a.active { color:var(--text,#0f172a); border-bottom-color:#0f4c81; }
+.pill { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+.pill-in_progress { background:#f1f5f9; color:#475569; }
+.pill-submitted { background:#cffafe; color:#0e7490; }
+.pill-underwriting { background:#dbeafe; color:#1e40af; }
+.pill-approved { background:#dcfce7; color:#166534; }
+.pill-declined { background:#fee2e2; color:#b91c1c; }
+.pill-issued { background:#86efac; color:#14532d; }
+.pill-not_taken { background:#fef3c7; color:#b45309; }
+.pill-withdrawn { background:#e5e7eb; color:#475569; }
+.filter-row { display:flex; gap:10px; margin-bottom:18px; align-items:center; }
+.filter-row select, .filter-row input { padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; }
+.new-form { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:18px; margin-bottom:18px; display:none; }
+.new-form.open { display:block; }
+.new-form .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:10px; }
+.new-form label { font-size:12px; color:#6b7280; font-weight:600; display:block; margin-bottom:3px; }
+.new-form input, .new-form select { padding:8px 10px; border:1px solid #d1d5db; border-radius:4px; width:100%; font-size:13px; }
+.btn-primary { padding:8px 16px; border-radius:6px; border:1px solid #0f4c81; background:#0f4c81; color:#fff; font-weight:600; cursor:pointer; }
+.btn-ghost { padding:8px 16px; border-radius:6px; border:1px solid #d1d5db; background:#fff; color:#374151; font-weight:600; cursor:pointer; }
+</style>
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Submissions</h1><div class="clx-page-sub">Pipeline tracking per policy application: in_progress → submitted → underwriting → approved/declined → issued. Filterable by carrier and status.</div></div></div>
+
+  <div class="subnav">
+    <a href="/pages/carriers/overview.html">Overview</a>
+    <a href="/pages/carriers/appointments.html">Appointments</a>
+    <a href="/pages/carriers/submissions.html" class="active">Submissions</a>
+    <a href="/pages/carriers/commissions.html">Commissions</a>
+    <a href="/pages/carriers/reconciliation.html">Reconciliation</a>
+  </div>
+
+  <div class="filter-row">
+    <select id="filterStatus"><option value="">All statuses</option><option>in_progress</option><option>submitted</option><option>underwriting</option><option>approved</option><option>declined</option><option>issued</option><option>not_taken</option><option>withdrawn</option></select>
+    <select id="filterCarrier"><option value="">All carriers</option></select>
+    <button class="btn-primary" id="newBtn">+ New submission</button>
+  </div>
+
+  <div class="new-form" id="newForm">
+    <h3 style="margin-top:0;">New submission</h3>
+    <form id="newSubForm">
+      <div class="row">
+        <div><label>Carrier *</label><select name="carrier_id" id="newCarrierSel" required></select></div>
+        <div><label>Product line *</label><select name="product_line" required><option value="">…</option><option>term_life</option><option>whole_life</option><option>universal_life</option><option>critical_illness</option><option>disability</option><option>travel</option><option>auto</option><option>home</option><option>commercial</option></select></div>
+        <div><label>Applicant name</label><input name="applicant_name"></div>
+        <div><label>Status</label><select name="submission_status"><option>in_progress</option><option>submitted</option><option>underwriting</option><option>approved</option><option>issued</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Face amount ($)</label><input type="number" name="_face_amount_dollars" step="1000"></div>
+        <div><label>Annual premium ($)</label><input type="number" name="_annual_premium_dollars" step="1"></div>
+        <div><label>Policy number</label><input name="policy_number"></div>
+        <div><label>Notes</label><input name="notes"></div>
+      </div>
+      <button type="button" class="btn-primary" id="saveBtn">Save submission</button>
+      <button type="button" class="btn-ghost" id="cancelBtn">Cancel</button>
+      <span class="form-status" id="formStatus" style="margin-left:12px;font-size:12px;"></span>
+    </form>
+  </div>
+
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Pipeline</div><div class="clx-card-sub" id="subsTableSub"></div></div><div id="subsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function fmtMoney(c){return '$'+((parseFloat(c)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0});}
+  function pill(s){return '<span class="pill pill-'+esc(s)+'">'+esc(s.replace(/_/g,' '))+'</span>';}
+  function fmtDate(d){return d ? new Date(d).toISOString().slice(0,10) : '—';}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+
+  var _carriers = [];
+  var _submissions = [];
+
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    loadAll();
+    wireForm();
+  });
+
+  function loadAll(){
+    clxApi.call('/api/carriers/status-check', {}).then(function(res){
+      if (!res.ok) { clxApi.renderError(document.getElementById('subsTable'), res); return; }
+      _carriers = (res.data && res.data.carriers) || [];
+      populateCarrierFilter();
+      // Status-check returns submissions count per carrier but not the rows; for the full list we hit the carrier_submissions table directly via the submission tracker… for now we render an empty pipeline and let Mary use the +New submission form to populate it.
+      // Future: add /api/carriers/submissions/list endpoint.
+      renderPipeline([]);
+    });
+  }
+
+  function populateCarrierFilter(){
+    var sel1 = document.getElementById('filterCarrier');
+    var sel2 = document.getElementById('newCarrierSel');
+    sel1.innerHTML = '<option value="">All carriers</option>';
+    sel2.innerHTML = '<option value="">…</option>';
+    _carriers.forEach(function(c){
+      sel1.innerHTML += '<option value="'+esc(c.id)+'">'+esc(c.carrier_name)+'</option>';
+      if (c.appointment_status === 'active' || c.appointment_status === 'approved') {
+        sel2.innerHTML += '<option value="'+esc(c.id)+'">'+esc(c.carrier_name)+'</option>';
+      }
+    });
+  }
+
+  function renderPipeline(subs){
+    document.getElementById('subsTableSub').textContent = subs.length + ' submission' + (subs.length===1?'':'s');
+    if (!subs.length) {
+      clxApi.renderEmpty(document.getElementById('subsTable'), 'No submissions yet. Add one with the "+ New submission" button. (Submission list endpoint not yet built; new submissions are written via the submission tracker but won\\'t appear until a list endpoint exists.)');
+      return;
+    }
+    var html = '<table class="clx-table"><thead><tr><th>Applicant</th><th>Carrier</th><th>Product</th><th>Status</th><th>Face amount</th><th>Premium</th><th>Submitted</th></tr></thead><tbody>';
+    subs.forEach(function(s){
+      var carrier = _carriers.find(function(c){return c.id===s.carrier_id;});
+      html += '<tr>'
+        + '<td><strong>'+esc(s.applicant_name||'—')+'</strong></td>'
+        + '<td>'+esc(carrier?carrier.carrier_name:s.carrier_id)+'</td>'
+        + '<td><span style="font-size:12px;">'+esc(s.product_line||'—')+'</span></td>'
+        + '<td>'+pill(s.submission_status)+'</td>'
+        + '<td>'+fmtMoney(s.face_amount_cents||0)+'</td>'
+        + '<td>'+fmtMoney(s.annual_premium_cents||0)+'</td>'
+        + '<td><span style="font-size:12px;">'+fmtDate(s.submitted_at)+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('subsTable').innerHTML = html;
+  }
+
+  function wireForm(){
+    document.getElementById('newBtn').addEventListener('click', function(){
+      document.getElementById('newForm').classList.toggle('open');
+    });
+    document.getElementById('cancelBtn').addEventListener('click', function(){
+      document.getElementById('newForm').classList.remove('open');
+    });
+    document.getElementById('saveBtn').addEventListener('click', function(){
+      var form = document.getElementById('newSubForm');
+      var body = { action: 'create' };
+      form.querySelectorAll('input, select').forEach(function(el){
+        if (!el.name || el.value === '') return;
+        if (el.name === '_face_amount_dollars') { body.face_amount_cents = Math.round(parseFloat(el.value) * 100); return; }
+        if (el.name === '_annual_premium_dollars') { body.annual_premium_cents = Math.round(parseFloat(el.value) * 100); return; }
+        body[el.name] = el.value;
+      });
+      var status = document.getElementById('formStatus');
+      status.textContent = 'Saving…'; status.style.color = '#6b7280';
+      clxApi.call('/api/carriers/submission', body).then(function(res){
+        if (res.ok && res.data && res.data.ok !== false) {
+          status.textContent = 'Saved.'; status.style.color = '#166534';
+          form.reset();
+          setTimeout(function(){ document.getElementById('newForm').classList.remove('open'); status.textContent = ''; loadAll(); }, 1000);
+        } else {
+          status.textContent = (res.error || (res.data && res.data.error) || 'Save failed.'); status.style.color = '#b91c1c';
+        }
+      });
+    });
+  }
+})();
+</script>
+</body></html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carriers · Appointments · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.subnav { display:flex; gap:4px; border-bottom:1px solid var(--border,#e5e7eb); margin-bottom:24px; }
+.subnav a { padding:10px 16px; font-size:14px; font-weight:600; color:var(--muted,#6b7280); text-decoration:none; border-bottom:2px solid transparent; }
+.subnav a.active { color:var(--text,#0f172a); border-bottom-color:#0f4c81; }
+.pill { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; }
+.pill-active { background:#dcfce7; color:#166534; }
+.pill-pending { background:#fef3c7; color:#b45309; }
+.pill-not_applied { background:#f1f5f9; color:#475569; }
+.pill-approved { background:#cffafe; color:#0e7490; }
+.pill-suspended { background:#fee2e2; color:#b91c1c; }
+.pill-terminated { background:#1e293b; color:#fff; }
+.appt-form { display:none; padding:14px 18px; background:#f8fafc; border-top:1px solid #e5e7eb; }
+.appt-form.open { display:block; }
+.appt-form .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:10px; }
+.appt-form label { font-size:12px; color:#6b7280; display:block; margin-bottom:3px; font-weight:600; }
+.appt-form input, .appt-form select { padding:6px 10px; border:1px solid #d1d5db; border-radius:4px; width:100%; font-size:13px; }
+.appt-form button { padding:6px 14px; border-radius:4px; font-size:12px; font-weight:600; cursor:pointer; margin-right:6px; }
+.btn-save { border:1px solid #0f4c81; background:#0f4c81; color:#fff; }
+.btn-cancel { border:1px solid #d1d5db; background:#fff; color:#374151; }
+</style>
+</head><body>
+<header class="clx-topbar"><div class="clx-topbar-left"><a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a></div><div class="clx-topbar-right" id="clxTopbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div></header>
+<div class="clx-shell"><nav class="clx-sidebar" id="clxSidebar"></nav><main class="clx-main"><div class="clx-content">
+  <div class="clx-page-head"><div><h1 class="clx-page-title">Carrier appointments</h1><div class="clx-page-sub">Manage each carrier's appointment lifecycle: not_applied → pending → approved → active. Set agent codes, contracted product lines, expected commission rates.</div></div></div>
+
+  <div class="subnav">
+    <a href="/pages/carriers/overview.html">Overview</a>
+    <a href="/pages/carriers/appointments.html" class="active">Appointments</a>
+    <a href="/pages/carriers/submissions.html">Submissions</a>
+    <a href="/pages/carriers/commissions.html">Commissions</a>
+    <a href="/pages/carriers/reconciliation.html">Reconciliation</a>
+  </div>
+
+  <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Appointments</div></div><div id="apptTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+
+</div></main></div>
+<script src="/shared/auth.js"></script><script src="/shared/api.js"></script><script src="/shared/components.js"></script>
+<script>
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function pill(status){return '<span class="pill pill-'+esc(status)+'">'+esc(status.replace(/_/g,' '))+'</span>';}
+  function fmtDate(d){return d ? new Date(d).toISOString().slice(0,10) : '—';}
+  fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
+
+  clxAuth.require(['admin']).then(function(user){
+    if(!user)return;
+    document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
+    load();
+  });
+
+  function load(){
+    clxApi.call('/api/carriers/status-check', {}).then(function(res){
+      if (!res.ok) { clxApi.renderError(document.getElementById('apptTable'), res); return; }
+      renderTable((res.data && res.data.carriers) || []);
+    });
+  }
+
+  function renderTable(carriers){
+    if (!carriers.length) { clxApi.renderEmpty(document.getElementById('apptTable'), 'No carriers in registry.'); return; }
+    var html = '<table class="clx-table"><thead><tr><th>Carrier</th><th>Type</th><th>Status</th><th>Agent code</th><th>Commission %</th><th>Applied</th><th>Active since</th><th></th></tr></thead><tbody>';
+    carriers.forEach(function(c){
+      var rowId = 'r-'+c.id;
+      html += '<tr>'
+        + '<td><strong>'+esc(c.carrier_name)+'</strong><div style="font-size:11px;color:#9ca3af;"><code>'+esc(c.carrier_code)+'</code></div></td>'
+        + '<td><span style="font-size:12px;">'+esc(c.carrier_type)+'</span></td>'
+        + '<td>'+pill(c.appointment_status)+'</td>'
+        + '<td><span style="font-size:12px;">'+esc(c.agent_code||'—')+'</span></td>'
+        + '<td>'+(c.expected_commission_pct ? c.expected_commission_pct+'%' : '—')+'</td>'
+        + '<td><span style="font-size:12px;">'+fmtDate(c.appointment_applied_at)+'</span></td>'
+        + '<td><span style="font-size:12px;">'+fmtDate(c.appointment_effective_at)+'</span></td>'
+        + '<td><button class="btn-cancel" data-edit="'+esc(c.id)+'" style="padding:4px 10px;font-size:12px;border-radius:4px;font-weight:600;cursor:pointer;">Edit</button></td>'
+        + '</tr>'
+        + '<tr id="'+rowId+'"><td colspan="8" style="padding:0;"><div class="appt-form"><form data-form="'+esc(c.id)+'">'
+        +   '<div class="row">'
+        +     '<div><label>Appointment status</label><select name="appointment_status"><option'+(c.appointment_status==='not_applied'?' selected':'')+'>not_applied</option><option'+(c.appointment_status==='pending'?' selected':'')+'>pending</option><option'+(c.appointment_status==='approved'?' selected':'')+'>approved</option><option'+(c.appointment_status==='active'?' selected':'')+'>active</option><option'+(c.appointment_status==='suspended'?' selected':'')+'>suspended</option><option'+(c.appointment_status==='terminated'?' selected':'')+'>terminated</option></select></div>'
+        +     '<div><label>Agent code</label><input name="agent_code" value="'+esc(c.agent_code||'')+'"></div>'
+        +     '<div><label>Expected commission %</label><input type="number" step="0.1" name="expected_commission_pct" value="'+esc(c.expected_commission_pct||'')+'"></div>'
+        +     '<div><label>Contact email</label><input type="email" name="contact_email" value="'+esc(c.contact_email||'')+'"></div>'
+        +   '</div>'
+        +   '<div class="row">'
+        +     '<div><label>Applied (YYYY-MM-DD)</label><input type="date" name="appointment_applied_at" value="'+(c.appointment_applied_at?c.appointment_applied_at.slice(0,10):'')+'"></div>'
+        +     '<div><label>Approved (YYYY-MM-DD)</label><input type="date" name="appointment_approved_at" value="'+(c.appointment_approved_at?c.appointment_approved_at.slice(0,10):'')+'"></div>'
+        +     '<div><label>Active since (YYYY-MM-DD)</label><input type="date" name="appointment_effective_at" value="'+(c.appointment_effective_at?c.appointment_effective_at.slice(0,10):'')+'"></div>'
+        +     '<div><label>Notes</label><input name="notes" value="'+esc(c.notes||'')+'"></div>'
+        +   '</div>'
+        +   '<button type="button" class="btn-save" data-save="'+esc(c.id)+'">Save</button>'
+        +   '<button type="button" class="btn-cancel" data-close="'+esc(c.id)+'">Cancel</button>'
+        +   '<span class="form-status" style="margin-left:10px;font-size:12px;"></span>'
+        + '</form></div></td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('apptTable').innerHTML = html;
+    wireEdit();
+  }
+
+  function wireEdit(){
+    document.querySelectorAll('[data-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var row = document.getElementById('r-'+btn.getAttribute('data-edit'));
+        var form = row.querySelector('.appt-form');
+        form.classList.toggle('open');
+      });
+    });
+    document.querySelectorAll('[data-close]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.getElementById('r-'+btn.getAttribute('data-close')).querySelector('.appt-form').classList.remove('open');
+      });
+    });
+    document.querySelectorAll('[data-save]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-save');
+        var form = document.querySelector('[data-form="'+id+'"]');
+        var body = { carrier_id: id, action: 'update' };
+        form.querySelectorAll('input, select').forEach(function(el){
+          if (el.name && el.value !== '') body[el.name] = el.value;
+        });
+        var status = form.querySelector('.form-status');
+        status.textContent = 'Saving…'; status.style.color = '#6b7280';
+        btn.disabled = true;
+        clxApi.call('/api/carriers/update', body).then(function(res){
+          btn.disabled = false;
+          if (res.ok && res.data && res.data.ok !== false) {
+            status.textContent = 'Saved. Refreshing…'; status.style.color = '#166534';
+            setTimeout(load, 700);
+          } else {
+            status.textContent = (res.error || (res.data && res.data.error) || 'Save failed.'); status.style.color = '#b91c1c';
+          }
+        });
+      });
+    });
+  }
+})();
+</script>
+</body></html>

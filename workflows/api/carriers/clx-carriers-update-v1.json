@@ -1,0 +1,50 @@
+{
+  "name": "CLX - Carriers Update v1",
+  "nodes": [
+    { "parameters": { "httpMethod": "POST", "path": "api/carriers/update", "responseMode": "responseNode", "options": {} }, "id": "ccu-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-update-001", "notes": "DEACTIVATED. Admin session. Body: { carrier_id, appointment_status?, agent_code?, contracted_lines?, expected_commission_pct?, contact_name?, contact_email?, contact_phone?, appointment_applied_at?, appointment_approved_at?, appointment_effective_at?, appointment_terminated_at?, termination_reason?, notes? }. Whitelisted columns only. PATCH the row, return the updated record. (Mary's brief listed 4 workflows but the appointments-management page needs an update endpoint — this is the 5th.)" },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.carrier_id) return { json: { _empty: true, status: 400, error: 'carrier_id required' } };\nreturn { json: { token, body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccu-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 400]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } } ], "combinator": "and" } }, "id": "ccu-0003", "name": "IF Args OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [680, 400] },
+    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "ccu-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [920, 320], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst b = $('Extract').first().json.body;\n// Whitelist fields safe to update from the frontend.\nconst payload = { updated_at: new Date().toISOString() };\n['appointment_status','agent_code','contracted_lines','province_authorized','expected_commission_pct','contact_name','contact_email','contact_phone','appointment_applied_at','appointment_approved_at','appointment_effective_at','appointment_terminated_at','termination_reason','active','notes'].forEach(function (k) { if (b[k] !== undefined && b[k] !== '') payload[k] = b[k]; });\n// Coerce numeric / boolean shapes.\nif (payload.expected_commission_pct !== undefined) payload.expected_commission_pct = parseFloat(payload.expected_commission_pct);\nif (payload.contracted_lines !== undefined && typeof payload.contracted_lines === 'string') {\n  try { payload.contracted_lines = JSON.parse(payload.contracted_lines); }\n  catch (e) { payload.contracted_lines = payload.contracted_lines.split(',').map(function(s){ return s.trim(); }).filter(Boolean); }\n}\nreturn { json: { _ok: true, carrier_id: b.carrier_id, payload: payload } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ccu-0005", "name": "Check Admin", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1160, 320]
+    },
+    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "ccu-0006", "name": "IF Admin", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1400, 320] },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/carriers?id=eq.{{ $json.carrier_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "ccu-0007", "name": "Patch Carrier", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1640, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nif (!row) return { json: { ok: false, error: 'carrier not found' } };\nreturn { json: { ok: true, carrier: row } };", "mode": "runOnceForAllItems" }, "id": "ccu-0008", "name": "Shape OK", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1880, 220] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "ccu-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2120, 220] },
+    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "ccu-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 500] }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
+    "Extract":          { "main": [[ { "node": "IF Args OK", "type": "main", "index": 0 } ]] },
+    "IF Args OK":       { "main": [ [ { "node": "Validate Session", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Validate Session": { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin":      { "main": [[ { "node": "IF Admin", "type": "main", "index": 0 } ]] },
+    "IF Admin":         { "main": [ [ { "node": "Patch Carrier", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
+    "Patch Carrier":    { "main": [[ { "node": "Shape OK", "type": "main", "index": 0 } ]] },
+    "Shape OK":         { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
