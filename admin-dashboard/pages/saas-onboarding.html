@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SaaS onboarding · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">SaaS onboarding</h1>
+      <div class="clx-page-sub">End-to-end client provisioning wizard. Stub page — wizard is pending.</div>
+    </div></div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Page in progress</div></div>
+      <div class="clx-empty">
+        <p>This page is a placeholder. The real wizard will drive the <code>clx-admin-onboarding-pipeline-v1</code> workflow through these stages:</p>
+        <ol style="text-align:left;max-width:560px;margin:12px auto;line-height:1.7">
+          <li><strong>Intake</strong> — capture brand + service tier.</li>
+          <li><strong>Provisioning</strong> — create Supabase tenant row, Stripe customer, n8n credential set.</li>
+          <li><strong>Content setup</strong> — seed copy via <code>clx-mga-insurance-content-library-seed-v1</code> (insurance) or the SaaS equivalent.</li>
+          <li><strong>First send</strong> — kick the first outreach campaign + watch deliverability.</li>
+          <li><strong>Active</strong> — mark client production-ready in the dashboard.</li>
+        </ol>
+        <p style="margin-top:14px">For now, see the pipeline view at <a href="/pages/onboarding.html">Onboarding</a> for clients already moving through these stages.</p>
+      </div>
+    </div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+});
+</script>
+</body>
+</html>

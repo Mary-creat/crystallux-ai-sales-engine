@@ -6,6 +6,125 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0i. Cloudflare CDN serving stale admin /shared/* cache (added 2026-05-16)
+
+**The auth.js fix IS deployed to the Cloudflare Pages origin** — but the CDN edge cache is still serving the pre-fix file because `admin-dashboard/_headers` sets `Cache-Control: public, max-age=86400, must-revalidate` on `/shared/*`. The edge holds the old object for up to 24 hours before it will revalidate. `must-revalidate` only kicks in after expiry; it does not force re-check inside the TTL.
+
+This is the real cause of Mary's "your fix didn't work" symptom. The previous routing fix (`1b983dc`) likely had the same cache issue.
+
+**Proof (run from any terminal):**
+
+```bash
+# Cached (what users see) — pre-fix code:
+curl -s https://admin.crystallux.org/shared/auth.js | grep -c "Role inventory"
+# → 0  (stale)
+
+# Cache-busted (origin, what Pages actually shipped):
+curl -s "https://admin.crystallux.org/shared/auth.js?cb=$RANDOM" | grep -c "Role inventory"
+# → 1  (the fix IS there)
+
+# Headers confirm CDN hit:
+curl -sI https://admin.crystallux.org/shared/auth.js | grep cf-cache-status
+# → cf-cache-status: HIT
+```
+
+Client dashboard (`app.crystallux.org`) is already serving the fixed version — its cache rolled. Admin is the laggard.
+
+**The 60-second fix — purge the Cloudflare cache for admin shared assets:**
+
+1. Cloudflare dashboard → `crystallux.org` zone → **Caching** → **Configuration** → **Custom Purge**.
+2. Choose **Purge by URL**. Enter:
+   ```
+   https://admin.crystallux.org/shared/auth.js
+   https://admin.crystallux.org/shared/api.js
+   https://admin.crystallux.org/shared/components.js
+   https://admin.crystallux.org/shared/copilot.js
+   https://admin.crystallux.org/shared/nav.html
+   https://admin.crystallux.org/shared/layout.css
+   ```
+3. Click **Purge**. Next page load fetches fresh from origin.
+
+Alternative if no Custom Purge access: **Purge Everything** for the zone (heavier but simpler).
+
+**Verify** with `bash tests/audit/smoke-domains.sh deploy` — expect all three deploy-marker checks to pass.
+
+**Optional follow-up:** consider lowering `/shared/*` max-age from 86400 to e.g. 300 in `admin-dashboard/_headers` and `client-dashboard/_headers`. 5-minute TTL with revalidation would give us fast deploys without sacrificing meaningful cache hit rate (these files are byte-versioned through deploy already; ETag-based revalidation is cheap). Not landing that in this commit — it's a policy change Mary should weigh.
+
+---
+
+## 0h. n8n returning HTTP 500 on MGA webhooks (added 2026-05-16)
+
+`POST /webhook/mga/insurance/onboarding-status` and `POST /webhook/mga/insurance/carriers-list` both return **HTTP 500 with n8n's HTML "Internal Server Error" page** — not 404, not a workflow error envelope. `POST /webhook/auth/validate-session` returns a proper JSON 401 from the same host, so n8n itself is up; the failure is per-workflow.
+
+This is why `mga.crystallux.org/advisor/onboarding` shows "Failed to fetch" and `mga.crystallux.org/principal/carriers` shows "data error" — the catch path in `clxApi.mgaPost` turns a network/500 into one of those strings.
+
+**Most likely cause given that the workflow JSON exists, `active: false`, and validate-session works:** the workflow has never been imported into the n8n instance, OR was imported but the credentials/Postgres schema it depends on aren't seeded yet. Both MGA pages already hint at this in their own empty states ("Run POST /webhook/mga/insurance/onboarding-curriculum-seed", "Run POST /webhook/mga/insurance/carrier-seed").
+
+**Diagnose on the VPS:**
+
+```bash
+ssh vps "docker logs n8n --tail 300 | grep -A 8 -E 'onboarding-status|carriers-list'"
+```
+
+If logs show "workflow not registered" → import + activate:
+
+```bash
+ssh vps "cd ~/crystallux-deploy && git pull && \
+  for f in clx-mga-insurance-onboarding-status-v1.json \
+           clx-mga-insurance-onboarding-curriculum-seed-v1.json \
+           clx-mga-insurance-onboarding-advance-v1.json \
+           clx-mga-insurance-onboarding-completion-v1.json \
+           clx-mga-insurance-carriers-list-v1.json \
+           clx-mga-insurance-carrier-seed-digital-friendly-v1.json; do \
+    docker exec n8n n8n import:workflow --input=/data/workflows/api/insurance-mga/\$f; \
+  done"
+```
+
+Then activate each in the n8n UI. After activating the `*-seed-*` workflows, **hit each seed webhook once** from a terminal (with `INTERNAL_EMAIL_SECRET`) to populate `onboarding_curriculum` and `mga_carriers` rows.
+
+**Verify after activation:**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  -H "Content-Type: application/json" \
+  -H "Origin: https://mga.crystallux.org" \
+  https://automation.crystallux.org/webhook/mga/insurance/onboarding-status \
+  -d '{}'
+# Expect: 401 (no session token) — proves the webhook is registered and reaches the auth gate.
+```
+
+---
+
+## 0g. Tier-1 workflow activation list (added 2026-05-16)
+
+Per Mary's 2026-05-16 brief, the following workflows must be active for the platform's core flows. None will be auto-activated from this repo — per CLAUDE.md, activation is Mary's manual step on the n8n VPS. Listed here so the set survives context compaction.
+
+| Workflow | Purpose | Status check |
+|---|---|---|
+| `clx-auth-validate-session-v1` | Session gate for every dashboard | ✓ confirmed active (returns 401 JSON) |
+| `clx-auth-login-v1` | Magic-link login | Verify in n8n UI |
+| `clx-mga-insurance-lead-capture-v1` | MGA marketing form submit | Required before `insurance.crystallux.org/contact.html` works |
+| `clx-mga-insurance-advisor-onboarding-start-v1` | Advisor onboarding entry | Required for new advisor signups |
+| `clx-mga-insurance-onboarding-status-v1` | Advisor onboarding read | See 0h above (currently 500-ing) |
+| `clx-mga-insurance-onboarding-curriculum-seed-v1` | Seed 30-day curriculum (one-shot) | Hit once after activation |
+| `clx-mga-insurance-onboarding-advance-v1` | Advance a curriculum day | Needs status workflow live first |
+| `clx-mga-insurance-onboarding-completion-v1` | Day 30 sign-off | Needs status workflow live first |
+| `clx-mga-insurance-carriers-list-v1` | MGA carrier roster read | See 0h above |
+| `clx-mga-insurance-carrier-seed-digital-friendly-v1` | Seed 8 default carriers (one-shot) | Hit once after activation |
+| `clx-admin-onboarding-pipeline-v1` | Admin onboarding board feed | Confirm exactly one active copy |
+| `clx-carriers-status-check-v1` | Admin Carriers status (cron Mon 08:00) | See blockers entry 0f |
+| `clx-carriers-update-v1` | Admin Carriers row update | See blockers entry 0f |
+| Sentinel workflows (~21) | Health / cost / security / remediation | See blockers entry 0d |
+
+**Duplicate cleanup** (mentioned in Mary's brief — also a manual VPS step):
+- `CLX - Admin Onboarding Pipeline v1` — 3 copies reported; keep newest, delete the older two via the n8n UI (Workflows → Sort by updated → delete duplicates).
+- `CLX - Advisor Onboarding Start` — 2 copies; keep newest.
+- `CLX - Onboarding Completion` — 2 copies; keep newest.
+
+I will not touch the workflow JSONs in this repo for these — the duplicates are server-side n8n state, not source files.
+
+---
+
 ## 0f. Carrier ops console — activation steps (added 2026-05-15)
 
 Carrier-management section at `admin.crystallux.org/pages/carriers/*` is BUILT but DORMANT. Activation steps:
