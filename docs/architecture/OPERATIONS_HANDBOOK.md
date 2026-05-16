@@ -1636,6 +1636,48 @@ SELECT/INSERT/UPDATE/DELETE from client-scoped tables.
 Each new panel is a scaffold with placeholder cards until data
 wiring ships in a future pass.
 
+### Split-dashboards role allowlist (admin / client / MGA / insurer)
+
+Section 26 above describes the legacy single-page `dashboard/`. The
+split dashboards (`admin-dashboard/`, `client-dashboard/`,
+`insurance-mga-dashboard/`, `insurer-dashboard/`) use a wider role
+set, gated client-side by `clxAuth.require(roleOrArray)` in each
+`shared/auth.js`.
+
+Roles actually referenced in page `require()` calls (keep this list
+in sync when adding a new role to a page):
+
+| Role | Where used | Notes |
+|---|---|---|
+| `admin` | All admin-dashboard pages; allowed on most MGA + content pages | Mary's role. |
+| `client` | All non-content client-dashboard pages | Tenant principal. |
+| `team_member` | (none yet — recognized by client-dashboard auth.js) | Teammate scoped by client_id. |
+| `supervisor` | client-dashboard training pages | Training oversight. |
+| `mga_principal` | insurance-mga-dashboard principal + advisor pages | MGA owner. |
+| `compliance_officer` | insurance-mga-dashboard principal pages | Compliance gate. |
+| `advisor` | insurance-mga-dashboard advisor pages | LLQP advisor. |
+| `sub_agent` | insurance-mga-dashboard advisor pages | Advisor's sub-agent. |
+| `client_admin` | client-dashboard content pages | Tenant admin (content). |
+| `client_user` | client-dashboard content pages | Non-admin tenant user (content). |
+| `insurer_user` | insurer-dashboard | Insurer portal user. |
+
+`clxAuth.require()` accepts either a string (single role) or an
+array (allowlist). Both admin- and client-dashboard auth.js used to
+silently fail array calls — pages like `pages/sentinel.html`,
+`pages/carriers/*.html`, and the MGA shared pages that called
+`require(['admin'])` always failed the `!==` check and bounced to
+login. Fixed in this session: the role check is now
+`allowed.indexOf(user.role) === -1`, matching the MGA dashboard's
+existing pattern.
+
+When adding a new page:
+- Prefer the array form (`require(['admin'])`) even when only one
+  role is allowed — easier to extend later, and matches the
+  established pattern in carriers / sentinel / content pages.
+- The role check is UI gating only. The webhook serving the page's
+  data must re-check authorization server-side; never trust
+  `localStorage.clx_user_role`.
+
 ### Audit + decommission
 
 - All access attempts through `clx-verify-dashboard-access-v1` log

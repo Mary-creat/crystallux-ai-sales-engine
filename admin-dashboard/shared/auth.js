@@ -8,8 +8,24 @@
      localStorage.clx_session_token     opaque 64-char token
      localStorage.clx_session_expires   ISO8601 string (informational)
      localStorage.clx_user_email
-     localStorage.clx_user_role         'admin' | 'client' | 'team_member'
+     localStorage.clx_user_role         see role inventory below
      localStorage.clx_user_client_id    UUID or empty
+
+   Role inventory (what pages actually call `require()` with — keep in
+   sync when adding a new role to a page):
+     admin              — Mary; full operational access to admin shell
+     client             — tenant user on app.crystallux.org
+     team_member        — tenant teammate (same shell as client, scoped by client_id)
+     supervisor         — training oversight (client-side training pages)
+     mga_principal      — MGA dashboard principal view
+     compliance_officer — MGA compliance gate
+     advisor            — LLQP advisor (MGA dashboard)
+     sub_agent          — advisor's sub-agent (MGA dashboard)
+     client_admin       — admin within a client tenant (content pages)
+     client_user        — non-admin user within a client tenant (content pages)
+   `require()` accepts either a single role string ('admin') or an
+   array (['admin','mga_principal']); the array form is preferred for
+   pages shared across role sets.
 
    Note on role enforcement:
      The role is also re-checked on every API call by the n8n webhook
@@ -88,7 +104,8 @@
 
   /**
    * Page gate. Call as the first thing in <body>:
-   *   <script>clxAuth.require('admin')</script>
+   *   <script>clxAuth.require('admin')</script>          single role
+   *   <script>clxAuth.require(['admin','mga_principal'])</script>  allowlist
    * Hides the page (visibility:hidden via <html data-clx-gate>) until
    * the session is confirmed. On success the body becomes visible and
    * `clxAuth.user` is populated. On failure → redirect.
@@ -104,7 +121,8 @@
       document.head.appendChild(s);
     }
     return validate().then(function (user) {
-      if (role && user.role !== role) {
+      var allowed = role ? (Array.isArray(role) ? role : [role]) : null;
+      if (allowed && allowed.indexOf(user.role) === -1) {
         if (user.role === 'client') return redirectWrongRole();
         return redirectToLogin('wrong-role');
       }

@@ -8,6 +8,11 @@
        server-side webhook still re-derives client_id from session,
        but having it client-side avoids extra round-trips for
        link generation, etc.)
+
+   `require()` accepts either a single role string ('client') or an
+   array (['client_admin','client_user','admin']); see the role
+   inventory comment in admin-dashboard/shared/auth.js for the full
+   set of roles the pages call this with.
    =================================================================== */
 
 (function (global) {
@@ -80,7 +85,8 @@
       document.head.appendChild(s);
     }
     return validate().then(function (user) {
-      if (role && user.role !== role) {
+      var allowed = role ? (Array.isArray(role) ? role : [role]) : null;
+      if (allowed && allowed.indexOf(user.role) === -1) {
         if (user.role === 'admin') return redirectAdmin();
         return redirectToLogin('wrong-role');
       }
