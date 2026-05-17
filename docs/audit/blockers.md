@@ -6,6 +6,50 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0j. 7 MGA calculator workflows have no auth error path (added 2026-05-16)
+
+While fixing `carriers-list` to reject unauthenticated requests properly, a sweep of `workflows/api/insurance-mga/` found 16 workflows with the same "missing IF Bad early-return" bug. Nine are patched in this commit (`carriers-list` + 8 siblings — all use the same Webhook → Extract → Validate Session → Check (Role|Session) → IF OK → Respond OK/4xx skeleton, fix was mechanical). The 7 LLQP **calculator workflows are a different shape entirely** — they have NO error path at all:
+
+```
+Webhook → Extract → Validate Session → Calculate → Respond
+```
+
+No IF check, no Respond 4xx node. When called without a token, `Extract` produces `{_unauthorized:true, status:401}` but nothing acts on it — `Validate Session` is called regardless, errors out (or returns junk), and `Calculate` runs against malformed input. Depending on `responseMode`, the webhook returns HTTP 200 with calculator output (data leak) or HTTP 500.
+
+Affected files:
+- `clx-mga-insurance-calculator-business-key-person-v1.json`
+- `clx-mga-insurance-calculator-dependent-support-v1.json`
+- `clx-mga-insurance-calculator-education-v1.json`
+- `clx-mga-insurance-calculator-final-expenses-v1.json`
+- `clx-mga-insurance-calculator-income-replacement-v1.json`
+- `clx-mga-insurance-calculator-mortgage-debt-v1.json`
+- `clx-mga-insurance-calculator-total-needs-v1.json`
+
+**Fix shape** (each needs 3 changes, not 2):
+1. Insert an `IF Bad` node after Extract — same JSON as in the patched 9
+2. Insert a new `Respond 4xx` node (none exists) — clone from `clx-mga-insurance-onboarding-status-v1.json`
+3. Insert an `IF OK` between `Validate Session` and `Calculate` (currently the calculator runs even if validate-session returned `{ok:false}` — there's no check that the session is actually valid)
+4. Rewire: `Extract → IF Bad`, IF Bad-true → Respond 4xx, IF Bad-false → Validate Session, Validate Session → IF OK, IF OK-true → Calculate, IF OK-false → Respond 4xx
+
+This is roughly 30 minutes per workflow if scripted with the same pattern. Holding the fix because:
+- Risk of getting the IF OK condition wrong (need to check the `validate_session` RPC response shape; calculator workflows don't have a Check Session node to copy from)
+- These workflows are all dormant — no live exposure yet
+- They should be fixed in one focused commit with explicit verification, not bundled with the mechanical 9-workflow sweep
+
+**Verification once fix lands** (and after Mary re-imports each on the VPS):
+```bash
+for w in business-key-person dependent-support education final-expenses \
+         income-replacement mortgage-debt total-needs; do
+  printf "%-30s " "$w"
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+    -H "Content-Type: application/json" -H "Origin: https://mga.crystallux.org" \
+    "https://automation.crystallux.org/webhook/mga/insurance/calculator-$w" -d '{}'
+done
+# Expect 401 for every line.
+```
+
+---
+
 ## 0i. Cloudflare CDN serving stale admin /shared/* cache (added 2026-05-16)
 
 **The auth.js fix IS deployed to the Cloudflare Pages origin** — but the CDN edge cache is still serving the pre-fix file because `admin-dashboard/_headers` sets `Cache-Control: public, max-age=86400, must-revalidate` on `/shared/*`. The edge holds the old object for up to 24 hours before it will revalidate. `must-revalidate` only kicks in after expiry; it does not force re-check inside the TTL.
