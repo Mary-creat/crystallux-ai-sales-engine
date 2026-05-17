@@ -6,6 +6,44 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0k. Updating an existing n8n workflow ≠ `import:workflow` (added 2026-05-16)
+
+**Operational gotcha discovered while applying the auth-fix commit `0699af8`.** `docker exec n8n n8n import:workflow --input=…` only INSERTS new workflows. If the workflow already exists in n8n's SQLite DB (same `id`), the command fails with `SQLITE_CONSTRAINT: workflow_entity.id`. There is no `update:workflow` CLI command in stable n8n.
+
+**Use cases vs. correct path:**
+
+| Situation | Right way |
+|---|---|
+| Brand-new workflow (never been imported here before) | `docker exec n8n n8n import:workflow --input=<file>` — works |
+| Workflow already in n8n, you have a newer JSON to ship | **n8n UI** → open the workflow → ⋮ → **Import from File** → confirm replace → save → re-activate |
+| Same as above but scripted | n8n REST API: `PATCH /rest/workflows/{id}` with the JSON body. Needs an n8n API key in the VPS, and a name→ID lookup (the JSON's `"id"` field is the file's slug, NOT n8n's internal workflow ID). |
+| Bulk replacement of many workflows | Build `scripts/n8n-update-workflow.sh` as a one-time op tool — see notes at end of this section |
+
+**For the 9 workflows in commit `0699af8`** (`carriers-list` + 8 advisor / quote / carrier siblings): all are `active: false`. Recommended ops path is **defer until the moment you activate each one**. When you open a workflow in the UI to flip its toggle, do the Import from File at the same time — 30 sec per workflow.
+
+**For the 7 calculators in 0j below:** same — they're dormant, don't update them until the structural fix lands. When that commit ships, do UI import-replace on each.
+
+**If/when bulk updates become a recurring need** (e.g. a code-mod across 50 workflows), the right tool is a shell script over the REST API:
+
+```bash
+# Sketch only — not committed yet
+curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
+  https://automation.crystallux.org/api/v1/workflows \
+  | jq -r '.data[] | select(.name == "CLX - MGA Insurance Carriers List v1") | .id'
+# → use that id in:
+curl -X PATCH -H "X-N8N-API-KEY: $N8N_API_KEY" -H "Content-Type: application/json" \
+  https://automation.crystallux.org/api/v1/workflows/<id> \
+  --data-binary @workflows/api/insurance-mga/clx-mga-insurance-carriers-list-v1.json
+```
+
+Build this only if the activation workload gets heavy enough to justify the tool. For one-off updates it's UI-faster.
+
+**Do NOT use `n8n import:workflow --separate` to work around the constraint** — that flag is for splitting a multi-workflow file, it doesn't enable updates.
+
+**Do NOT do direct SQLite UPDATEs** on `workflow_entity` unless you understand n8n's credential encryption (encrypted at rest with a key in `~/.n8n/config`; mismatching encryption keys leave credentials unreadable).
+
+---
+
 ## 0j. 7 MGA calculator workflows have no auth error path (added 2026-05-16)
 
 While fixing `carriers-list` to reject unauthenticated requests properly, a sweep of `workflows/api/insurance-mga/` found 16 workflows with the same "missing IF Bad early-return" bug. Nine are patched in this commit (`carriers-list` + 8 siblings — all use the same Webhook → Extract → Validate Session → Check (Role|Session) → IF OK → Respond OK/4xx skeleton, fix was mechanical). The 7 LLQP **calculator workflows are a different shape entirely** — they have NO error path at all:
