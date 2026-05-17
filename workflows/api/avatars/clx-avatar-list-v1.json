@@ -11,8 +11,9 @@
       "id": "al-0001",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [200, 400]
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-avatar-list-001"
     },
     {
       "parameters": {
@@ -173,6 +174,5 @@
     "Shape Response": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "tags": []
+  "settings": { "executionOrder": "v1" }
 }
