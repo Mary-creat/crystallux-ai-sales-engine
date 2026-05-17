@@ -1,0 +1,254 @@
+{
+  "name": "CLX - Avatar Router v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "avatars/route",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ar-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\n\nconst intent         = String(body.intent || '').trim();\nconst target_avatar  = body.target_avatar ? String(body.target_avatar).trim().toUpperCase() : '';\nconst vertical_hint  = body.vertical_hint ? String(body.vertical_hint).trim() : '';\nconst lead_id        = body.lead_id || null;\n\nif (!intent) return { json: { _unauthorized: true, status: 400, error: 'intent is required' } };\n\nreturn { json: { token, intent, target_avatar, vertical_hint, lead_id } };"
+      },
+      "id": "ar-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._unauthorized }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ar-0003",
+      "name": "IF Bad",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [620, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "ar-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 400],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\n\n// Carry forward routing inputs alongside the resolved user.\nconst prior = $('Extract').item.json;\nreturn { json: {\n  _ok: true,\n  user_id:        row.user_id,\n  user_role:      row.user_role,\n  intent:         prior.intent,\n  target_avatar:  prior.target_avatar,\n  vertical_hint:  prior.vertical_hint,\n  lead_id:        prior.lead_id\n} };"
+      },
+      "id": "ar-0005",
+      "name": "Check Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ar-0006",
+      "name": "IF OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1260, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the PostgREST query string for avatars.\n// Priority:\n//   1. target_avatar → eq.<name> (case-insensitive uppercase)\n//   2. vertical_hint → eq.<vertical>, AND active=eq.true (only live rows in vertical-match path)\n//   3. neither       → null filter; caller falls back to its own vertical default\n//\n// Schedule-window matching happens client-side after the query — keeps\n// the SQL simple and lets us iterate the matching rule without a migration.\n\nconst d = $input.item.json;\nlet filter = '';\nlet path   = '';\n\nif (d.target_avatar) {\n  filter = `avatar_name=eq.${encodeURIComponent(d.target_avatar)}`;\n  path = 'target_avatar';\n} else if (d.vertical_hint) {\n  filter = `business_vertical=eq.${encodeURIComponent(d.vertical_hint)}&active=eq.true`;\n  path = 'vertical_match';\n} else {\n  path = 'no_filter_fallback';\n}\n\nreturn { json: {\n  ...d,\n  _filter: filter,\n  _path:   path,\n  _should_query: filter ? true : false\n} };"
+      },
+      "id": "ar-0007",
+      "name": "Build Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1480, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/avatars?{{ $json._filter }}&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "ar-0008",
+      "name": "Query Avatars",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1700, 320],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apply schedule-window matching + pick exactly one row.\n//\n// Output contract — caller always gets a stable shape:\n//   { avatar_id: null|uuid, avatar: null|{...row}, resolved_via: 'target_avatar' | 'vertical_match' | 'vertical_default_fallback' | 'no_match', schedule_matches: bool }\n//\n// resolved_via='vertical_default_fallback' means the caller should use\n// its existing hard-coded vertical→persona lookup; we return null so\n// callers can branch cleanly on `avatar_id != null`.\n\nconst prior = $('Build Query').item.json;\nconst raw   = $input.item.json;\n// PostgREST returns an array on success; on neverError the body may be the error JSON.\nconst rows = Array.isArray(raw) ? raw : (raw && raw.data && Array.isArray(raw.data) ? raw.data : []);\n\nfunction nowInTz(tz) {\n  try { return new Date(new Date().toLocaleString('en-US', { timeZone: tz || 'America/Toronto' })); }\n  catch (e) { return new Date(); }\n}\nfunction dayKey(d) { return ['sun','mon','tue','wed','thu','fri','sat'][d.getDay()]; }\nfunction hmFromDate(d) { const h = String(d.getHours()).padStart(2,'0'); const m = String(d.getMinutes()).padStart(2,'0'); return `${h}:${m}`; }\nfunction inWindow(row) {\n  const sched = row.content_schedule || {};\n  const windows = Array.isArray(sched.broadcast_windows) ? sched.broadcast_windows : [];\n  if (!windows.length) return true; // no schedule = always-on\n  const now = nowInTz(sched.timezone);\n  const day = dayKey(now);\n  const hm  = hmFromDate(now);\n  for (const w of windows) {\n    const days = Array.isArray(w.days) ? w.days : [];\n    if (!days.includes(day)) continue;\n    const s = String(w.start || '00:00');\n    const e = String(w.end   || '23:59');\n    if (hm >= s && hm <= e) return true;\n  }\n  return false;\n}\n\nlet picked = null;\nlet schedule_matches = null;\n\nif (rows.length === 0) {\n  picked = null;\n} else if (rows.length === 1) {\n  picked = rows[0];\n  schedule_matches = inWindow(picked);\n} else {\n  // Prefer rows whose schedule window contains \"now\". If multiple match,\n  // take the one whose updated_at is oldest (round-robin freshness).\n  const inWin = rows.filter(inWindow);\n  const pool = inWin.length ? inWin : rows;\n  pool.sort((a, b) => {\n    const au = a.updated_at || a.created_at || '';\n    const bu = b.updated_at || b.created_at || '';\n    return au.localeCompare(bu);\n  });\n  picked = pool[0];\n  schedule_matches = inWindow(picked);\n}\n\nlet resolved_via;\nif (!picked && prior._path === 'no_filter_fallback') resolved_via = 'vertical_default_fallback';\nelse if (!picked) resolved_via = 'no_match';\nelse if (prior._path === 'target_avatar') resolved_via = 'target_avatar';\nelse if (prior._path === 'vertical_match') resolved_via = 'vertical_match';\nelse resolved_via = 'vertical_default_fallback';\n\nreturn { json: {\n  avatar_id:        picked ? picked.id : null,\n  avatar:           picked || null,\n  resolved_via,\n  schedule_matches: schedule_matches === null ? false : schedule_matches,\n  // Context echo for the calling workflow\n  intent:           prior.intent,\n  vertical_hint:    prior.vertical_hint,\n  target_avatar:    prior.target_avatar,\n  lead_id:          prior.lead_id\n} };"
+      },
+      "id": "ar-0009",
+      "name": "Pick Avatar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1920, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.item.json;\nreturn { json: {\n  ok: true,\n  data: {\n    avatar_id:        d.avatar_id,\n    avatar:           d.avatar,\n    resolved_via:     d.resolved_via,\n    schedule_matches: d.schedule_matches,\n    intent:           d.intent,\n    vertical_hint:    d.vertical_hint,\n    target_avatar:    d.target_avatar,\n    lead_id:          d.lead_id\n  }\n} };"
+      },
+      "id": "ar-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2140, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ar-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2360, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
+      },
+      "id": "ar-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [820, 580]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Extract", "type": "main", "index": 0 }]]
+    },
+    "Extract": {
+      "main": [[{ "node": "IF Bad", "type": "main", "index": 0 }]]
+    },
+    "IF Bad": {
+      "main": [
+        [{ "node": "Respond 4xx", "type": "main", "index": 0 }],
+        [{ "node": "Validate Session", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate Session": {
+      "main": [[{ "node": "Check Session", "type": "main", "index": 0 }]]
+    },
+    "Check Session": {
+      "main": [[{ "node": "IF OK", "type": "main", "index": 0 }]]
+    },
+    "IF OK": {
+      "main": [
+        [{ "node": "Build Query", "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Query": {
+      "main": [[{ "node": "Query Avatars", "type": "main", "index": 0 }]]
+    },
+    "Query Avatars": {
+      "main": [[{ "node": "Pick Avatar", "type": "main", "index": 0 }]]
+    },
+    "Pick Avatar": {
+      "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]]
+    },
+    "Shape Response": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
