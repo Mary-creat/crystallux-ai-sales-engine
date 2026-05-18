@@ -174,7 +174,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst industry = Array.isArray(rows) && rows.length ? rows[0] : null;\nif (!industry) return { json: { _not_found: true, status: 404, error: 'Industry not found' } };\nreturn { json: { _ok: true, industry } };"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Industry');\nconst industry = rows.length ? rows[0] : null;\nif (!industry) return { json: { _not_found: true, status: 404, error: 'Industry not found' } };\nreturn { json: { _ok: true, industry } };"
       },
       "id": "mid-0008",
       "name": "Check Industry",
@@ -249,7 +249,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const industry = $('Check Industry').item.json.industry;\nconst raw = $input.item.json;\nconst value_props = Array.isArray(raw) ? raw : [];\nreturn { json: {\n  ok: true,\n  data: { industry, value_props, value_prop_count: value_props.length }\n} };"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst industry    = $('Check Industry').item.json.industry;\nconst value_props = allOf('Query Value Props');\nreturn { json: { ok: true, data: { industry, value_props, value_prop_count: value_props.length } } };"
       },
       "id": "mid-0011",
       "name": "Shape Response",

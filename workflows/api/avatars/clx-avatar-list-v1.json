@@ -174,7 +174,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.item.json;\nconst rows = Array.isArray(raw) ? raw : [];\nreturn { json: { ok: true, data: { avatars: rows, count: rows.length } } };"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Avatars');\nreturn { json: { ok: true, data: { avatars: rows, count: rows.length } } };"
       },
       "id": "al-0008",
       "name": "Shape Response",

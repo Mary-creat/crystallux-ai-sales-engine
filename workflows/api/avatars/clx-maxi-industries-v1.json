@@ -174,7 +174,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.item.json;\nconst rows = Array.isArray(raw) ? raw : [];\n// Group by category for easier UI rendering\nconst byCategory = {};\nfor (const r of rows) {\n  const cat = r.category || 'other';\n  if (!byCategory[cat]) byCategory[cat] = [];\n  byCategory[cat].push(r);\n}\nreturn { json: {\n  ok: true,\n  data: {\n    industries:  rows,\n    by_category: byCategory,\n    count:       rows.length,\n    active_count: rows.filter(r => r.active).length\n  }\n} };"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Industries');\nconst byCategory = {};\nfor (const r of rows) {\n  const cat = r.category || 'other';\n  if (!byCategory[cat]) byCategory[cat] = [];\n  byCategory[cat].push(r);\n}\nreturn { json: {\n  ok: true,\n  data: {\n    industries:   rows,\n    by_category:  byCategory,\n    count:        rows.length,\n    active_count: rows.filter(function (r) { return r.active; }).length\n  }\n} };"
       },
       "id": "mi-0008",
       "name": "Shape Response",
