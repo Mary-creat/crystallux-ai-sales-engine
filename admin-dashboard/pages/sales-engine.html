@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sales Engine · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.se-hero { display:grid; grid-template-columns:1fr auto; gap:24px; padding:24px 28px; border:1px solid var(--border,#e5e7eb); border-radius:10px; background:linear-gradient(135deg, #0f4c81 0%, #1a6fa5 100%); color:#fff; margin-bottom:18px; }
+.se-hero-left h1 { font-size:24px; font-weight:800; margin:0; }
+.se-hero-left p { font-size:13px; opacity:0.85; margin:4px 0 0; }
+.se-hero-stats { display:flex; gap:24px; align-items:center; }
+.se-hero-stat { text-align:right; }
+.se-hero-value { font-size:28px; font-weight:800; line-height:1; }
+.se-hero-label { font-size:11px; text-transform:uppercase; letter-spacing:0.08em; opacity:0.85; margin-top:4px; }
+.se-hero-divider { width:1px; height:36px; background:rgba(255,255,255,0.25); }
+.se-refresh { display:flex; align-items:center; gap:6px; font-size:11px; opacity:0.85; padding-top:8px; border-top:1px solid rgba(255,255,255,0.18); margin-top:8px; }
+.se-refresh-dot { width:6px; height:6px; border-radius:50%; background:#86efac; animation:se-pulse 1.6s ease-in-out infinite; }
+@keyframes se-pulse { 0%,100% { opacity:1 } 50% { opacity:0.35 } }
+.se-stage-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-top:10px; }
+.se-stage { padding:12px 14px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:#fff; }
+.se-stage-label { font-size:11px; color:var(--muted,#6b7280); text-transform:uppercase; letter-spacing:0.05em; font-weight:600; }
+.se-stage-value { font-size:22px; font-weight:700; margin-top:4px; }
+.se-section { margin-top:20px; }
+.se-placeholder { padding:18px 22px; border:1px dashed var(--border,#e5e7eb); border-radius:10px; background:#fafafa; }
+.se-placeholder h3 { margin:0 0 4px; font-size:14px; font-weight:700; }
+.se-placeholder p { margin:0; font-size:13px; color:var(--muted,#6b7280); line-height:1.5; }
+.se-placeholder code { background:#f3f4f6; padding:1px 6px; border-radius:3px; font-size:11px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+.se-placeholder-list { margin:8px 0 0; padding-left:20px; }
+.se-placeholder-list li { font-size:13px; color:var(--muted,#6b7280); margin:2px 0; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+
+    <!-- Hero counters — ported from legacy dashboard/index.html lines 670-695 -->
+    <div class="se-hero">
+      <div class="se-hero-left">
+        <h1>Sales Engine</h1>
+        <p>AI-powered lead discovery, outreach &amp; booking automation. Live data, refreshed every 14 seconds.</p>
+        <div class="se-refresh">
+          <span class="se-refresh-dot"></span>
+          <span id="seRefreshTimer">Auto-refresh: 14s</span>
+        </div>
+      </div>
+      <div class="se-hero-stats">
+        <div class="se-hero-stat">
+          <div class="se-hero-value" id="seTotal">—</div>
+          <div class="se-hero-label">Total leads</div>
+        </div>
+        <div class="se-hero-divider"></div>
+        <div class="se-hero-stat">
+          <div class="se-hero-value" id="seEmailed">—</div>
+          <div class="se-hero-label">Emailed</div>
+        </div>
+        <div class="se-hero-divider"></div>
+        <div class="se-hero-stat">
+          <div class="se-hero-value" id="seBooked">—</div>
+          <div class="se-hero-label">Booked</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline by stage -->
+    <div class="clx-card se-section">
+      <div class="clx-card-head"><div class="clx-card-title">Pipeline by stage</div><div class="clx-card-sub" id="seSampleNote">Live counts across the latest 200 leads.</div></div>
+      <div id="seStageGrid" class="se-stage-grid"><div class="clx-empty"><span class="clx-spinner"></span> Loading pipeline…</div></div>
+    </div>
+
+    <!-- Live Call (Vapi) — placeholder pending workflow wire-up -->
+    <div class="clx-card se-section">
+      <div class="clx-card-head"><div class="clx-card-title">Live call</div><div class="clx-card-sub">Real-time Vapi call state. Wired in follow-up commit.</div></div>
+      <div class="se-placeholder">
+        <h3>What this will show</h3>
+        <p>Active outbound / inbound calls in flight. For each call: lead, advisor, elapsed time, current transcript chunk, and the script suggestion (if any) currently displayed on the advisor's screen.</p>
+        <p style="margin-top:8px">Data source: <code>clx-agent-voice-outbound-v1</code> + <code>clx-agent-voice-inbound-v1</code> + <code>clx-vapi-transcript-streamer-v1</code> + <code>clx-realtime-script-suggester-v1</code>. The transcript streamer writes to <code>call_event_log</code>; this panel will poll that table every 14 s.</p>
+        <p style="margin-top:8px">Activation path: Mary configures the Vapi credential in n8n + activates the four workflows above. This panel will detect the live row and start rendering.</p>
+      </div>
+    </div>
+
+    <!-- Script suggestions — placeholder pending workflow wire-up -->
+    <div class="clx-card se-section">
+      <div class="clx-card-head"><div class="clx-card-title">Script suggestions</div><div class="clx-card-sub">Closing / objection / discovery scripts surfaced in real time during an active call.</div></div>
+      <div class="se-placeholder">
+        <h3>What this will show</h3>
+        <p>The newest unresponded suggestion from <code>script_suggestion_log</code> for the active call, ranked by confidence. Advisor accepts / rejects → workflow logs back into the same table for the learning loop (<code>clx-script-learning-loop-v1</code>).</p>
+        <ul class="se-placeholder-list">
+          <li><strong>Discovery</strong> — open-ended questions for first 10 minutes</li>
+          <li><strong>Objection handling</strong> — surfaced when buy/closing signals dip</li>
+          <li><strong>Close</strong> — surfaced when buy signals spike + 15 min mark</li>
+        </ul>
+        <p style="margin-top:8px">Data source: <code>script_suggestion_log</code> + <code>closing_scripts</code> (defined in <code>db/migrations/missing-table-fixes.sql</code>).</p>
+      </div>
+    </div>
+
+    <!-- Post-call review — placeholder pending workflow wire-up -->
+    <div class="clx-card se-section">
+      <div class="clx-card-head"><div class="clx-card-title">Post-call review</div><div class="clx-card-sub">Last 20 completed calls with sentiment + closing / buy signals + script-suggestion acceptance rate.</div></div>
+      <div class="se-placeholder">
+        <h3>What this will show</h3>
+        <p>Each completed call: lead name, advisor, duration, closing_signals_detected, buy_signals_detected, script_suggestions_shown / accepted, and the analyzer's outcome tag (set by <code>clx-post-call-analyzer-v1</code>).</p>
+        <p style="margin-top:8px">Data source: <code>call_event_log</code> + <code>agent_decisions</code>. The post-call analyzer writes an outcome row within ~60 s of hang-up; this table reads back over the last 24 h.</p>
+      </div>
+    </div>
+
+  </div></main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+var REFRESH_SECONDS = 14;
+var refreshHandle = null;
+var countdownHandle = null;
+
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+  loadOnce();
+  refreshHandle = setInterval(loadOnce, REFRESH_SECONDS * 1000);
+  startCountdown();
+});
+
+// Tear down timers if the page is hidden (saves a bit of n8n traffic when
+// Mary opens 12 tabs).
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) {
+    if (refreshHandle) clearInterval(refreshHandle);
+    if (countdownHandle) clearInterval(countdownHandle);
+  } else {
+    loadOnce();
+    refreshHandle = setInterval(loadOnce, REFRESH_SECONDS * 1000);
+    startCountdown();
+  }
+});
+
+function startCountdown() {
+  var remaining = REFRESH_SECONDS;
+  var el = document.getElementById('seRefreshTimer');
+  el.textContent = 'Auto-refresh: ' + remaining + 's';
+  if (countdownHandle) clearInterval(countdownHandle);
+  countdownHandle = setInterval(function () {
+    remaining = remaining > 0 ? remaining - 1 : REFRESH_SECONDS;
+    el.textContent = 'Auto-refresh: ' + remaining + 's';
+  }, 1000);
+}
+
+async function loadOnce() {
+  var [health, leads] = await Promise.all([
+    clxApi.adminGet('system-health'),
+    clxApi.adminGet('list-leads', { limit: 200 })
+  ]);
+
+  // Hero counters — prefer system-health (already-aggregated) for total + booked,
+  // compute Emailed from the sample list since system-health doesn't expose it.
+  var total = (health.ok && health.data && health.data.total_leads != null) ? health.data.total_leads : null;
+  var booked = (health.ok && health.data && health.data.booked_this_week != null) ? health.data.booked_this_week : null;
+
+  var sample = (leads.ok && leads.data && Array.isArray(leads.data.leads)) ? leads.data.leads : [];
+
+  // "Emailed" — leads whose last_contact_channel includes 'email' OR have any non-null email-touch column.
+  // The lead schema typically uses last_contact_channel; fall back to outreach_status when missing.
+  var emailedCount = sample.filter(function (l) {
+    var c = (l.last_contact_channel || '').toLowerCase();
+    var s = (l.outreach_status || '').toLowerCase();
+    return c === 'email' || c.indexOf('email') !== -1 || s.indexOf('email') !== -1;
+  }).length;
+
+  setText('seTotal',   total  != null ? formatInt(total)  : '—');
+  setText('seBooked',  booked != null ? formatInt(booked) : '—');
+  // Emailed is a sample-of-200 count. If the sample is the full pipeline, it's exact;
+  // otherwise it's a directional indicator. Annotate with a sub note when we know it's sampled.
+  setText('seEmailed', formatInt(emailedCount));
+  var note = document.getElementById('seSampleNote');
+  if (note) {
+    note.textContent = 'Live counts. Emailed and pipeline-by-stage are computed from the latest ' + sample.length + ' leads.';
+  }
+
+  // Pipeline by stage
+  var stageGrid = document.getElementById('seStageGrid');
+  if (!sample.length) {
+    stageGrid.innerHTML = '<div class="clx-empty">No leads in the sample yet.</div>';
+  } else {
+    var byStage = {};
+    for (var i = 0; i < sample.length; i++) {
+      var stage = sample[i].pipeline_stage || sample[i].status || 'unknown';
+      byStage[stage] = (byStage[stage] || 0) + 1;
+    }
+    var keys = Object.keys(byStage).sort(function (a, b) { return byStage[b] - byStage[a]; });
+    stageGrid.innerHTML = keys.map(function (k) {
+      return '<div class="se-stage"><div class="se-stage-label">' + escapeHtml(k) + '</div><div class="se-stage-value">' + formatInt(byStage[k]) + '</div></div>';
+    }).join('');
+  }
+
+  // Reset the countdown so it visibly ticks back to 14 right after a refresh
+  startCountdown();
+}
+
+function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
+function formatInt(n) { return Number(n).toLocaleString('en-CA'); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>

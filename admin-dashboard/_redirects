@@ -14,6 +14,7 @@
 /onboarding             /pages/onboarding.html  301
 /audit-log              /pages/audit-log.html   301
 /market-intelligence    /pages/market-intelligence.html  301
+/sales-engine           /pages/sales-engine.html  301
 /sentinel               /pages/sentinel.html    301
 /carriers               /pages/carriers/overview.html  301
 /avatars                /pages/avatars.html     301
