@@ -25,4 +25,5 @@
 /lety                   /pages/avatars/lety/index.html  301
 /eaza                   /pages/avatars/eaza/index.html  301
 /ciro                   /pages/avatars/ciro/index.html  301
+/auth-check             /pages/system/auth-check.html   301
 /settings               /pages/settings.html    301

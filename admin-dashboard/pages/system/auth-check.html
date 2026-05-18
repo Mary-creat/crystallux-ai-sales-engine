@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Auth check · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .ac-grid { display:grid; gap:14px; margin-top:14px; }
+  .ac-row { padding:14px 18px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:#fff; }
+  .ac-row.ok    { border-left:4px solid #16a34a; }
+  .ac-row.warn  { border-left:4px solid #eab308; }
+  .ac-row.bad   { border-left:4px solid #dc2626; }
+  .ac-row.info  { border-left:4px solid #6b7280; }
+  .ac-head { display:flex; align-items:baseline; gap:12px; }
+  .ac-name { font-weight:600; font-size:14px; }
+  .ac-status-pill { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; padding:2px 8px; border-radius:11px; background:#f3f4f6; }
+  .ac-status-pill.ok   { background:#dcfce7; color:#166534; }
+  .ac-status-pill.bad  { background:#fee2e2; color:#b91c1c; }
+  .ac-detail { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:#6b7280; margin-top:6px; white-space:pre-wrap; word-break:break-all; }
+  .ac-diag { margin-top:18px; padding:14px 18px; border-radius:8px; background:#eff6ff; border-left:4px solid #2563eb; font-size:13px; line-height:1.55; }
+  .ac-diag code { background:#dbeafe; padding:1px 6px; border-radius:3px; font-size:11px; }
+  .ac-token { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:#6b7280; word-break:break-all; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <main class="clx-main" style="margin-left:0"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Auth diagnostic</h1>
+      <div class="clx-page-sub">No auth gate on THIS page so it loads even if your session is bouncing. Probes each webhook with your stored bearer token + summarises what's actually failing.</div>
+    </div></div>
+
+    <div id="acTokenInfo"></div>
+    <div id="acResults" class="ac-grid"></div>
+    <div id="acDiag"></div>
+  </div></main>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  var BASE = 'https://automation.crystallux.org/webhook';
+  var token = '';
+  try { token = localStorage.getItem('clx_session_token') || ''; } catch (e) {}
+  var storedExpires = '';
+  try { storedExpires = localStorage.getItem('clx_session_expires') || ''; } catch (e) {}
+
+  // ─── Token info banner ───
+  var tokenInfo = document.getElementById('acTokenInfo');
+  if (!token) {
+    tokenInfo.innerHTML =
+      '<div class="ac-row bad"><div class="ac-head"><div class="ac-name">No session token in localStorage</div></div>' +
+      '<div class="ac-detail">Log in at <a href="https://crystallux.org/login.html">crystallux.org/login</a> first, then come back to this page.</div></div>';
+    return;
+  }
+  var expiresMs = storedExpires ? Date.parse(storedExpires) : 0;
+  var nowMs = Date.now();
+  var diffMs = expiresMs - nowMs;
+  var diffStr = diffMs > 0
+    ? Math.round(diffMs / 86400000 * 10) / 10 + ' days remaining'
+    : Math.round(-diffMs / 60000) + ' minutes ago';
+  var cls = diffMs > 86400000 ? 'ok' : (diffMs > 0 ? 'warn' : 'bad');
+
+  tokenInfo.innerHTML =
+    '<div class="ac-row ' + cls + '">' +
+      '<div class="ac-head">' +
+        '<div class="ac-name">Token present (length ' + token.length + ')</div>' +
+        '<span class="ac-status-pill">stored expiry: ' + (storedExpires || '(none)') + '</span>' +
+      '</div>' +
+      '<div class="ac-detail">Locally stored expiry says <strong>' + diffStr + '</strong>. ' +
+        'This is informational only — the server is the authority. If a probe below 401s with this token, ' +
+        'either the server has revoked/aged the token OR the workflow is misreading the validate_session response.</div>' +
+      '<div class="ac-token" style="margin-top:8px">token preview: ' + escapeHtml(token.slice(0, 8)) + '…' + escapeHtml(token.slice(-4)) + '</div>' +
+    '</div>';
+
+  // ─── Probe targets ───
+  var probes = [
+    { path: '/auth/validate-session',  label: 'validate-session (canonical)',
+      note: 'Uses the defensive unwrap pattern in clx-auth-validate-session.json. If THIS 401s, the session is genuinely invalid.' },
+    { path: '/admin/list-clients',     label: '/admin/list-clients',
+      note: 'Existing admin endpoint. Works for everyone today.' },
+    { path: '/maxi/industries',        label: '/maxi/industries',
+      note: 'Avatar-tranche workflow (wfFix0001). Affected by the unwrap bug fixed in commit 2463e28 — fails until that JSON is re-imported via UI Import from File.' },
+    { path: '/avatars/list',           label: '/avatars/list',
+      note: 'Avatar-tranche workflow (wfFix0004). Same as /maxi/industries — needs commit 2463e28 to be live.' }
+  ];
+
+  var resultsEl = document.getElementById('acResults');
+  var diagEl    = document.getElementById('acDiag');
+
+  Promise.all(probes.map(function (p) {
+    return fetch(BASE + p.path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(p.path === '/admin/list-clients' ? { filters: {} } : {})
+    }).then(function (r) {
+      return r.text().then(function (txt) {
+        return { path: p.path, label: p.label, note: p.note, status: r.status, body: txt };
+      });
+    }).catch(function (e) {
+      return { path: p.path, label: p.label, note: p.note, status: 0, body: 'fetch threw: ' + (e && e.message || e) };
+    });
+  })).then(function (rows) {
+    // Render rows
+    resultsEl.innerHTML = rows.map(function (r) {
+      var cls = r.status === 200 || r.status === 201 ? 'ok'
+              : r.status === 401 ? 'bad'
+              : r.status === 0 ? 'bad'
+              : r.status >= 500 ? 'bad' : 'warn';
+      var pill = r.status === 0 ? 'NETWORK' : ('HTTP ' + r.status);
+      var pillCls = cls === 'ok' ? 'ok' : 'bad';
+      return '<div class="ac-row ' + cls + '">' +
+        '<div class="ac-head">' +
+          '<div class="ac-name">' + escapeHtml(r.label) + '</div>' +
+          '<span class="ac-status-pill ' + pillCls + '">' + pill + '</span>' +
+        '</div>' +
+        '<div class="ac-detail" style="margin-top:8px;color:#374151">' + escapeHtml(r.note) + '</div>' +
+        '<div class="ac-detail">body: ' + escapeHtml((r.body || '').slice(0, 220)) + '</div>' +
+      '</div>';
+    }).join('');
+
+    // ─── Diagnosis ───
+    var byPath = {};
+    rows.forEach(function (r) { byPath[r.path] = r; });
+    var validateOk = byPath['/auth/validate-session'] && byPath['/auth/validate-session'].status === 200;
+    var adminOk    = byPath['/admin/list-clients']     && (byPath['/admin/list-clients'].status === 200 || byPath['/admin/list-clients'].status === 201);
+    var maxiBad    = byPath['/maxi/industries']        && byPath['/maxi/industries'].status === 401;
+    var avatarsBad = byPath['/avatars/list']           && byPath['/avatars/list'].status === 401;
+
+    var msg;
+    if (validateOk && adminOk && maxiBad && avatarsBad) {
+      msg = '<strong>Diagnosis: the unwrap bug is still live in /maxi/* and /avatars/* workflows.</strong> ' +
+            'Your session is fine (validate-session 200, /admin/list-clients 200). The avatar-tranche workflows ' +
+            'are still running pre-<code>2463e28</code> code and rejecting the valid response. ' +
+            '<br><br><strong>Fix:</strong> in the n8n UI, open each of wfFix0001 / wfFix0002 / wfFix0003 / wfFix0004, ' +
+            '⋮ menu → Import from File → pick the matching JSON from <code>workflows/api/avatars/</code> in the latest ' +
+            'pull. UI matches on name so it replaces in place. Re-run this page after — all four rows should turn green.';
+    } else if (!validateOk) {
+      msg = '<strong>Diagnosis: session is actually invalid on the server side.</strong> The canonical validate-session ' +
+            'endpoint (which has the defensive unwrap pattern) also returns ' + (byPath['/auth/validate-session'] && byPath['/auth/validate-session'].status || '?') + '. ' +
+            'Log in again at <a href="https://crystallux.org/login.html">crystallux.org/login</a>, then re-test. ' +
+            'If this happens RIGHT after login, the server-side TTL or sessions table may have a separate issue.';
+    } else if (validateOk && maxiBad) {
+      msg = '<strong>Mixed result — validate-session works but /maxi/* 401s.</strong> ' +
+            'This is the unwrap-bug signature. Apply commit <code>2463e28</code> as described above.';
+    } else if (validateOk && byPath['/maxi/industries'] && byPath['/maxi/industries'].status === 200) {
+      msg = '<strong>All green from this probe.</strong> If the actual MAXI page still fails, the issue is in the page JS not the auth path — share the browser console output.';
+    } else {
+      msg = 'Inconclusive — review each row above. Patterns to look for: <br>' +
+            '· all 401 = real session expiry (re-login) <br>' +
+            '· validate-session 200 but data calls 401 = unwrap bug, apply 2463e28 <br>' +
+            '· 5xx with HTML body = n8n server-side error, check docker logs n8n';
+    }
+    diagEl.innerHTML = '<div class="ac-diag">' + msg + '</div>';
+  });
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+})();
+</script>
+</body>
+</html>
