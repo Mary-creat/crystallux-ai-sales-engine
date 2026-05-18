@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CIRO · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">CIRO — Platform Operations Manager</h1>
+      <div class="clx-page-sub">Mary's AI Chief Operating Officer. Placeholder — full build is Tranche 1.9 (separate multi-session workstream).</div>
+    </div></div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">What CIRO will do (Tranche 1.9 scope)</div></div>
+      <div class="clx-empty">
+        <ol style="text-align:left;max-width:640px;margin:12px auto;line-height:1.7">
+          <li><strong>Platform monitoring</strong> — read from Sentinel data, monitor all 7 customer-facing avatars, track per-vertical revenue, auto-restart failed workflows, auto-pause runaway cost.</li>
+          <li><strong>Communications inbox</strong> — unified across email, SMS, WhatsApp, FB Messenger, Instagram DMs, LinkedIn messages.</li>
+          <li><strong>Social automation</strong> — 8 platforms (LinkedIn, Facebook, Instagram, TikTok, YouTube, X, Threads, Pinterest). Posts + comment monitor + DM responder per platform.</li>
+          <li><strong>Content calendar</strong> — daily posts per platform with approval queue.</li>
+          <li><strong>Mary's daily brief</strong> — 8 AM email + critical-alert SMS + weekly executive summary.</li>
+          <li><strong>Human-in-the-loop</strong> — Mary approves content (or auto), handles complex inquiries; CIRO handles routine.</li>
+        </ol>
+        <p style="margin-top:14px">Estimated 12–18 hours of focused build per Mary's spec. The full scope (8 ciro_* tables + ~50 workflows) belongs to its own session series; bundling it into the current Tranche 1 would dilute focus. See <code>docs/avatars/EXTENSION_PLAN.md</code> for tranche ordering.</p>
+        <p style="margin-top:10px">Multi-tenant from day 1 — architecture supports the future "CIRO Platform" SaaS product. White-label ready.</p>
+      </div>
+    </div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+});
+</script>
+</body>
+</html>
