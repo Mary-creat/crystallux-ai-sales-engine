@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LETY · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">LETY — Education & Tutoring</h1>
+      <div class="clx-page-sub">"You got this!" K-12 + test prep + study coach. Prime hours 15:00–21:00. Placeholder — full build is Tranche 2.</div>
+    </div></div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">What LETY will surface here</div></div>
+      <div class="clx-empty">
+        <ol style="text-align:left;max-width:640px;margin:12px auto;line-height:1.7">
+          <li><strong>Subject coverage</strong> — math, sciences, English, French, IELTS / LSAT / MCAT test-prep paths.</li>
+          <li><strong>Study session log</strong> — when students engage, completion rate, weak-spot clustering per student.</li>
+          <li><strong>Parent-comms gate</strong> — under-18 protections; opt-in parent summary delivery.</li>
+          <li><strong>Curriculum sync</strong> — provincial-curriculum alignment so LETY's explanations stay on-spec.</li>
+          <li><strong>Tutor escalation</strong> — when LETY can't answer satisfactorily, route to a flesh-and-blood tutor via the agent-escalation workflow.</li>
+        </ol>
+        <p style="margin-top:14px">LETY's row in the <a href="/pages/avatars.html">Avatar registry</a> is a placeholder today. Curriculum + escalation wiring lands during Tranche 2 alongside LUMI.</p>
+      </div>
+    </div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+});
+</script>
+</body>
+</html>

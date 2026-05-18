@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EAZA · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">EAZA — Eazer Delivery Voice</h1>
+      <div class="clx-page-sub">"Eazer delivers!" 24/7 logistics B2B integration for Eazer. Placeholder — Tranche 4 (depends on Eazer API spec).</div>
+    </div></div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">What EAZA will surface here</div></div>
+      <div class="clx-empty">
+        <ol style="text-align:left;max-width:640px;margin:12px auto;line-height:1.7">
+          <li><strong>Eazer ops sync</strong> — live integration with Eazer's dispatch + tracking system (requires Eazer API spec, not yet available).</li>
+          <li><strong>Driver follow-up</strong> — post-delivery driver/customer flow, rating prompts, dispute routing.</li>
+          <li><strong>Performance bonuses</strong> — tier-based bonus calculator surfacing earned amounts per driver per period.</li>
+          <li><strong>B2B billing</strong> — Eazer-side billing for Crystallux usage of the avatar (the <code>eazer_billing</code> tables are intentionally NOT in commit 54b256d — wait for the commercial deal shape).</li>
+          <li><strong>Tier management</strong> — Bronze / Silver / Gold driver tiers with promotion/demotion thresholds.</li>
+        </ol>
+        <p style="margin-top:14px">EAZA is the only avatar gated on an external commercial integration (Eazer). The placeholder row in the <a href="/pages/avatars.html">Avatar registry</a> exists so future tranches just UPDATE the row rather than INSERT. Full build is its own multi-session workstream once Mary's Eazer deal lands the API + billing model.</p>
+        <p style="margin-top:10px">See <code>docs/avatars/EXTENSION_PLAN.md</code> Tranche 4 + the planned <code>docs/business/EAZER_INTEGRATION.md</code> requirements doc.</p>
+      </div>
+    </div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+});
+</script>
+</body>
+</html>
