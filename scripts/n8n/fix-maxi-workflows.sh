@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/n8n/fix-avatar-maxi-workflows.sh
+# scripts/n8n/fix-maxi-workflows.sh
 #
 # One-shot recovery for the 4 avatar/MAXI workflows. Run on the VPS
 # that hosts the n8n container, with the Crystallux repo checked out
@@ -20,7 +20,7 @@
 #
 # Usage (on the VPS):
 #   cd ~/crystallux-deploy && git pull
-#   bash scripts/n8n/fix-avatar-maxi-workflows.sh
+#   bash scripts/n8n/fix-maxi-workflows.sh
 #
 # Env overrides:
 #   REPO_ROOT       — repo path on the VPS (default: pwd)
@@ -196,7 +196,7 @@ for entry in "${TARGETS[@]}"; do
   done <<< "$matches"
 done
 
-# Belt + suspenders: also delete by id if rows with our NEW top-level ids
+# Belt + suspenders #1: delete by id if rows with our NEW top-level ids
 # happen to still be in the DB (e.g. residue from a failed prior import).
 # Catches the corner case where name above doesn't match (rename in DB) but
 # the id does.
@@ -204,6 +204,18 @@ for entry in "${TARGETS[@]}"; do
   IFS='|' read -r name path webhook newid <<< "$entry"
   delete_workflow "$newid"
 done
+
+# Belt + suspenders #2: bulk-delete any row whose id starts with `wfFix`
+# (Mary's renamed wfFix0001-0004 from the first import pass — they may
+# linger in workflow_entity even after UI deactivation). SQL only; this
+# pattern is hard to express through the REST API without iterating.
+if docker exec "$N8N_CONTAINER" sh -c \
+     "sqlite3 $N8N_DB_PATH \"DELETE FROM webhook_entity WHERE workflowId LIKE 'wfFix%';\" 2>/dev/null; \
+      sqlite3 $N8N_DB_PATH \"DELETE FROM workflow_entity WHERE id LIKE 'wfFix%';\"" 2>/dev/null; then
+  pass "swept wfFix%-prefix rows (if any)"
+else
+  warn "wfFix% sweep ran but couldn't confirm — check N8N_DB_PATH if duplicates persist"
+fi
 
 # ─── Phase 4 — re-import the 4 fresh JSONs ──────────────────────────────
 
