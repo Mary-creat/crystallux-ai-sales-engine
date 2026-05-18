@@ -99,7 +99,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\n\nconst prior = $('Extract').item.json;\nreturn { json: {\n  _ok: true,\n  user_id:        row.user_id,\n  user_role:      row.user_role,\n  intent:         prior.intent,\n  target_avatar:  prior.target_avatar,\n  vertical_hint:  prior.vertical_hint,\n  lead_id:        prior.lead_id\n} };"
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\n\nconst prior = $('Extract').item.json;\nreturn { json: {\n  _ok: true,\n  user_id:        row.user_id,\n  user_role:      row.user_role,\n  intent:         prior.intent,\n  target_avatar:  prior.target_avatar,\n  vertical_hint:  prior.vertical_hint,\n  lead_id:        prior.lead_id\n} };"
       },
       "id": "ar-0005",
       "name": "Check Session",

@@ -101,7 +101,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract').item.json;\nreturn { json: { _ok: true, advisor_id: row.id || row.user_id, user_role: row.user_role, review_type: i.review_type, status: i.status, priority: i.priority } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract').item.json;\nreturn { json: { _ok: true, advisor_id: row.id || row.user_id, user_role: row.user_role, review_type: i.review_type, status: i.status, priority: i.priority } };",
         "mode": "runOnceForEachItem"
       },
       "id": "ar-0004",

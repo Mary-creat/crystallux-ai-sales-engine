@@ -1,49 +1,341 @@
 {
   "name": "CLX - MGA Insurance Whitelabel Deploy v1",
   "nodes": [
-    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/whitelabel-deploy", "responseMode": "responseNode", "options": {} }, "id": "wlc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-whitelabel-deploy-001", "notes": "DEACTIVATED. admin session. Creates insurer_whitelabel_configs row. ssl_certificate_status starts as 'pending'." },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/whitelabel-deploy",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wlc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-mga-insurance-whitelabel-deploy-001",
+      "notes": "DEACTIVATED. admin session. Creates insurer_whitelabel_configs row. ssl_certificate_status starts as 'pending'."
+    },
     {
       "parameters": {
         "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nif (!body.insurer_account_id || !body.branding_config) return { json: { _empty: true, status: 400, error: 'insurer_account_id + branding_config required' } };\nreturn { json: { token, body } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "wlc-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+      "id": "wlc-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        400
+      ]
     },
-    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._unauthorized || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "wlc-0003", "name": "IF Bad", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 400] },
-    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "wlc-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst b = $('Extract').first().json.body;\nconst payload = { vertical_id: 'insurance', insurer_account_id: b.insurer_account_id, branding_config: b.branding_config, custom_domain: b.custom_domain || null, ssl_certificate_status: 'pending', feature_overrides: b.feature_overrides || {}, pricing_tier: b.pricing_tier || 'standard', contract_start_date: b.contract_start_date || null, contract_end_date: b.contract_end_date || null, monthly_fee_cents: b.monthly_fee_cents || null, active: true };\nreturn { json: { _ok: true, payload } };",
-        "mode": "runOnceForEachItem"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._unauthorized || $json._empty }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
       },
-      "id": "wlc-0005", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
+      "id": "wlc-0003",
+      "name": "IF Bad",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        400
+      ]
     },
-    { "parameters": { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" } }, "id": "wlc-0006", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1360, 400] },
     {
       "parameters": {
-        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/insurer_whitelabel_configs?on_conflict=insurer_account_id",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" } ] },
-        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
         "options": {}
       },
-      "id": "wlc-0007", "name": "Upsert Config", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1600, 320],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "id": "wlc-0004",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
-    { "parameters": { "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, whitelabel_config: row } };", "mode": "runOnceForEachItem" }, "id": "wlc-0008", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1840, 320] },
-    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 201 } }, "id": "wlc-0009", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2080, 320] },
-    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}", "options": { "responseCode": "={{ $json.status || 401 }}" } }, "id": "wlc-0010", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 200] }
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'admin role required' } };\nconst b = $('Extract').first().json.body;\nconst payload = { vertical_id: 'insurance', insurer_account_id: b.insurer_account_id, branding_config: b.branding_config, custom_domain: b.custom_domain || null, ssl_certificate_status: 'pending', feature_overrides: b.feature_overrides || {}, pricing_tier: b.pricing_tier || 'standard', contract_start_date: b.contract_start_date || null, contract_end_date: b.contract_end_date || null, monthly_fee_cents: b.monthly_fee_cents || null, active: true };\nreturn { json: { _ok: true, payload } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "wlc-0005",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wlc-0006",
+      "name": "IF OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1360,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/insurer_whitelabel_configs?on_conflict=insurer_account_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "wlc-0007",
+      "name": "Upsert Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nreturn { json: { ok: true, whitelabel_config: row } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "wlc-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "wlc-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
+      },
+      "id": "wlc-0010",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        200
+      ]
+    }
   ],
   "connections": {
-    "Webhook":         { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
-    "Extract":         { "main": [[ { "node": "IF Bad",  "type": "main", "index": 0 } ]] },
-    "IF Bad":          { "main": [ [ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Validate Session", "type": "main", "index": 0 } ] ] },
-    "Validate Session":{ "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
-    "Check Role":      { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
-    "IF OK":           { "main": [ [ { "node": "Upsert Config", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
-    "Upsert Config":   { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
-    "Shape Response":  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "IF Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Bad": {
+      "main": [
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Role": {
+      "main": [
+        [
+          {
+            "node": "IF OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF OK": {
+      "main": [
+        [
+          {
+            "node": "Upsert Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Config": {
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Response": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

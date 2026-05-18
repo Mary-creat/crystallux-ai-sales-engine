@@ -12,7 +12,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-mga-insurance-application-final-review-001",
       "notes": "DEACTIVATED. Session-token auth (advisor / mga_principal / supervisor / admin). Advisor approves a built application. Sets advisor_review_status='approved' + locked=true, then synchronously triggers compliance agent (A1.1 review_type=final_compliance). Compliance agent decision drives next: approved → submission_status='submitted' (Phase 6 carrier-API submit); requires_human_review → routed to compliance_officer queue; rejected → notify advisor + unlock for revision."
     },
@@ -25,7 +28,10 @@
       "name": "Extract Inputs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
@@ -34,7 +40,14 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
@@ -44,25 +57,49 @@
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 400],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        640,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid or expired session' } };\nconst allowed = ['advisor','mga_principal','supervisor','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: {\n  _ok: true,\n  user_id: row.id || row.user_id,\n  user_role: row.user_role,\n  policy_application_id: i.policy_application_id,\n  advisor_review_notes: i.advisor_review_notes\n} };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid or expired session' } };\nconst allowed = ['advisor','mga_principal','supervisor','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: {\n  _ok: true,\n  user_id: row.id || row.user_id,\n  user_role: row.user_role,\n  policy_application_id: i.policy_application_id,\n  advisor_review_notes: i.advisor_review_notes\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "afr-0004",
       "name": "Check Role",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 400]
+      "position": [
+        880,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
-          "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         }
       },
@@ -70,7 +107,10 @@
       "name": "IF Role OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1120, 400]
+      "position": [
+        1120,
+        400
+      ]
     },
     {
       "parameters": {
@@ -81,8 +121,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -94,8 +140,15 @@
       "name": "Mark Approved + Lock",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1380, 320],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1380,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -108,13 +161,30 @@
       "name": "Carry Application",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1620, 320]
+      "position": [
+        1620,
+        320
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
-          "conditions": [ { "id": "c1", "leftValue": "={{ $json._not_found }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._not_found }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         }
       },
@@ -122,24 +192,39 @@
       "name": "IF Not Found",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1860, 320]
+      "position": [
+        1860,
+        320
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/compliance-review' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, review_type: 'final_compliance', policy_application_id: $json.application.id, client_id: $json.application.client_id, advisor_id: $json.application.advisor_id }) }}",
-        "options": { "timeout": 60000 }
+        "options": {
+          "timeout": 60000
+        }
       },
       "id": "afr-0009",
       "name": "Trigger Final Compliance",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2100, 240],
+      "position": [
+        2100,
+        240
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -152,7 +237,10 @@
       "name": "Decide Next State",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2340, 240]
+      "position": [
+        2340,
+        240
+      ]
     },
     {
       "parameters": {
@@ -163,8 +251,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -176,8 +270,15 @@
       "name": "Apply Next State",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2580, 240],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        2580,
+        240
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -190,8 +291,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -203,8 +310,15 @@
       "name": "Audit Log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2820, 240],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        2820,
+        240
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -212,41 +326,187 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', application_id: $('Decide Next State').item.json.application_id, ai_decision: $('Decide Next State').item.json.ai_decision, submission_status: $('Decide Next State').item.json.patch.submission_status, needs_human: $('Decide Next State').item.json.needs_human }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "afr-0013",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [3060, 240]
+      "position": [
+        3060,
+        240
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || ($json._not_found ? 404 : 400) }}" }
+        "options": {
+          "responseCode": "={{ $json.status || ($json._not_found ? 404 : 400) }}"
+        }
       },
       "id": "afr-0014",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1380, 540]
+      "position": [
+        1380,
+        540
+      ]
     }
   ],
   "connections": {
-    "Webhook":                  { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
-    "Extract Inputs":           { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
-    "Validate Session":         { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
-    "Check Role":               { "main": [[ { "node": "IF Role OK", "type": "main", "index": 0 } ]] },
-    "IF Role OK":               { "main": [[ { "node": "Mark Approved + Lock", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
-    "Mark Approved + Lock":     { "main": [[ { "node": "Carry Application", "type": "main", "index": 0 } ]] },
-    "Carry Application":        { "main": [[ { "node": "IF Not Found", "type": "main", "index": 0 } ]] },
-    "IF Not Found":             { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Trigger Final Compliance", "type": "main", "index": 0 } ]] },
-    "Trigger Final Compliance": { "main": [[ { "node": "Decide Next State", "type": "main", "index": 0 } ]] },
-    "Decide Next State":        { "main": [[ { "node": "Apply Next State", "type": "main", "index": 0 } ]] },
-    "Apply Next State":         { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
-    "Audit Log":                { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Inputs": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Role": {
+      "main": [
+        [
+          {
+            "node": "IF Role OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Role OK": {
+      "main": [
+        [
+          {
+            "node": "Mark Approved + Lock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Approved + Lock": {
+      "main": [
+        [
+          {
+            "node": "Carry Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry Application": {
+      "main": [
+        [
+          {
+            "node": "IF Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Not Found": {
+      "main": [
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Final Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Final Compliance": {
+      "main": [
+        [
+          {
+            "node": "Decide Next State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Next State": {
+      "main": [
+        [
+          {
+            "node": "Apply Next State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Next State": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

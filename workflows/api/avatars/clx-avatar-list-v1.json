@@ -99,7 +99,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'Admin role required' } };\nreturn { json: { _ok: true, user_id: row.user_id } };"
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nif (row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'Admin role required' } };\nreturn { json: { _ok: true, user_id: row.user_id } };"
       },
       "id": "al-0005",
       "name": "Check Role",

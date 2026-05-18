@@ -1,30 +1,152 @@
 {
   "name": "CLX - MGA Insurance Calculator Income Replacement v1",
   "nodes": [
-    { "parameters": { "httpMethod": "POST", "path": "mga/insurance/calculator/income-replacement", "responseMode": "responseNode", "options": {} }, "id": "cir-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-calculator-income-replacement-001", "notes": "DEACTIVATED. Session-token. Educational estimate only — flagged in response." },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/calculator/income-replacement",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cir-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-mga-insurance-calculator-income-replacement-001",
+      "notes": "DEACTIVATED. Session-token. Educational estimate only — flagged in response."
+    },
     {
       "parameters": {
         "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { token, body } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "cir-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+      "id": "cir-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        400
+      ]
     },
-    { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "cir-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin','supervisor'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403 } };\nconst b = $('Extract').first().json.body;\nconst income = parseFloat(b.annual_income_cents) || 0;\nconst years  = Math.max(1, parseFloat(b.years_to_replace) || 10);\nconst inflation = parseFloat(b.inflation_rate || 0.02);\nconst returnRate = parseFloat(b.return_rate || 0.04);\nconst realRate = (1 + returnRate) / (1 + inflation) - 1;\nconst coverage = realRate <= 0 ? income * years : Math.round(income * (1 - Math.pow(1 + realRate, -years)) / realRate);\nreturn { json: { ok: true, calculator: 'income_replacement', vertical_id: 'insurance', coverage_amount_cents: coverage, inputs: { annual_income_cents: income, years_to_replace: years, inflation_rate: inflation, return_rate: returnRate }, disclaimer: 'This is an educational estimate only. Final recommendation must be reviewed and approved by a licensed advisor.' } };",
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
+      },
+      "id": "cir-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin','supervisor'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403 } };\nconst b = $('Extract').first().json.body;\nconst income = parseFloat(b.annual_income_cents) || 0;\nconst years  = Math.max(1, parseFloat(b.years_to_replace) || 10);\nconst inflation = parseFloat(b.inflation_rate || 0.02);\nconst returnRate = parseFloat(b.return_rate || 0.04);\nconst realRate = (1 + returnRate) / (1 + inflation) - 1;\nconst coverage = realRate <= 0 ? income * years : Math.round(income * (1 - Math.pow(1 + realRate, -years)) / realRate);\nreturn { json: { ok: true, calculator: 'income_replacement', vertical_id: 'insurance', coverage_amount_cents: coverage, inputs: { annual_income_cents: income, years_to_replace: years, inflation_rate: inflation, return_rate: returnRate }, disclaimer: 'This is an educational estimate only. Final recommendation must be reviewed and approved by a licensed advisor.' } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "cir-0004", "name": "Calculate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+      "id": "cir-0004",
+      "name": "Calculate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ]
     },
-    { "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": { "responseCode": 200 } }, "id": "cir-0005", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1120, 400] }
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "cir-0005",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        400
+      ]
+    }
   ],
   "connections": {
-    "Webhook":          { "main": [[ { "node": "Extract", "type": "main", "index": 0 } ]] },
-    "Extract":          { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
-    "Validate Session": { "main": [[ { "node": "Calculate", "type": "main", "index": 0 } ]] },
-    "Calculate":        { "main": [[ { "node": "Respond", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Calculate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

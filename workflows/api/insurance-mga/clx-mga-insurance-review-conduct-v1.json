@@ -2,8 +2,20 @@
   "name": "CLX - MGA Insurance Review Conduct v1",
   "nodes": [
     {
-      "parameters": { "httpMethod": "POST", "path": "mga/insurance/review-conduct", "responseMode": "responseNode", "options": {} },
-      "id": "rcd-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/review-conduct",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "rcd-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-mga-insurance-review-conduct-001",
       "notes": "DEACTIVATED. advisor session. Records the actual conduct of a policy review. Captures conducted_date/via, client_situation_changes (jsonb), coverage_still_adequate (boolean), recommendations (jsonb), outcome. AI evaluates if material change → optionally triggers a new suitability assessment via existing Part A workflow."
     },
@@ -12,108 +24,390 @@
         "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nif (!body.policy_review_id) return { json: { _empty: true, status: 400, error: 'policy_review_id required' } };\nreturn { json: { token: token, policy_review_id: body.policy_review_id, conducted_via: body.conducted_via || 'phone', client_situation_changes: body.client_situation_changes || {}, coverage_still_adequate: body.coverage_still_adequate == null ? null : !!body.coverage_still_adequate, recommendations: body.recommendations || [], outcome: body.outcome || 'coverage_unchanged', notes: String(body.notes || '').slice(0, 4000) } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "rcd-0002", "name": "Extract Inputs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+      "id": "rcd-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
-        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
-        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
       },
-      "id": "rcd-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "id": "rcd-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: { _ok: true, conductor_id: row.id || row.user_id, conductor_role: row.user_role, policy_review_id: i.policy_review_id, conducted_via: i.conducted_via, client_situation_changes: i.client_situation_changes, coverage_still_adequate: i.coverage_still_adequate, recommendations: i.recommendations, outcome: i.outcome, notes: i.notes } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','sub_agent','mga_principal','admin'];\nif (allowed.indexOf(row.user_role) < 0) return { json: { _unauthorized: true, status: 403, error: 'Role not permitted' } };\nconst i = $('Extract Inputs').item.json;\nreturn { json: { _ok: true, conductor_id: row.id || row.user_id, conductor_role: row.user_role, policy_review_id: i.policy_review_id, conducted_via: i.conducted_via, client_situation_changes: i.client_situation_changes, coverage_still_adequate: i.coverage_still_adequate, recommendations: i.recommendations, outcome: i.outcome, notes: i.notes } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "rcd-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+      "id": "rcd-0004",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ]
     },
     {
       "parameters": {
-        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
       },
-      "id": "rcd-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+      "id": "rcd-0005",
+      "name": "IF OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        400
+      ]
     },
     {
       "parameters": {
-        "method": "PATCH", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?id=eq.' + encodeURIComponent($json.policy_review_id) + '&vertical_id=eq.insurance' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=representation" } ] },
-        "sendBody": true, "specifyBody": "json",
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?id=eq.' + encodeURIComponent($json.policy_review_id) + '&vertical_id=eq.insurance' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ conducted_date: new Date().toISOString().slice(0,10), conducted_via: $json.conducted_via, client_situation_changes: $json.client_situation_changes, coverage_still_adequate: $json.coverage_still_adequate, recommendations: $json.recommendations, outcome: $json.outcome, status: 'completed' }) }}",
         "options": {}
       },
-      "id": "rcd-0006", "name": "Update Review", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 320],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
+      "id": "rcd-0006",
+      "name": "Update Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "method": "PATCH", "url": "={{ (() => { const ins = $input.item.json; const row = Array.isArray(ins) ? ins[0] : ins; return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?id=eq.' + encodeURIComponent(row.policy_application_id || '00000000-0000-0000-0000-000000000000') + '&vertical_id=eq.insurance'; })() }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
-        "sendBody": true, "specifyBody": "json",
+        "method": "PATCH",
+        "url": "={{ (() => { const ins = $input.item.json; const row = Array.isArray(ins) ? ins[0] : ins; return 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?id=eq.' + encodeURIComponent(row.policy_application_id || '00000000-0000-0000-0000-000000000000') + '&vertical_id=eq.insurance'; })() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
         "jsonBody": "={{ (() => { const today = new Date().toISOString().slice(0,10); const next = new Date(); next.setFullYear(next.getFullYear() + 1); return JSON.stringify({ last_review_date: today, next_annual_review_date: next.toISOString().slice(0,10) }); })() }}",
         "options": {}
       },
-      "id": "rcd-0007", "name": "Update Policy Last Review", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1620, 320],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "method": "POST", "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/review-documentation' }}",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, policy_review_id: $('Check Role').item.json.policy_review_id }) }}",
-        "options": { "timeout": 5000 }
+      "id": "rcd-0007",
+      "name": "Update Policy Last Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
-      "id": "rcd-0008", "name": "Trigger Documentation", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1860, 320],
-      "continueOnFail": true, "alwaysOutputData": true
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" } ] },
-        "sendBody": true, "specifyBody": "json",
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mga/insurance/review-documentation' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, policy_review_id: $('Check Role').item.json.policy_review_id }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "rcd-0008",
+      "name": "Trigger Documentation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1860,
+        320
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/regulatory_audit_log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ vertical_id: 'insurance', event_type: 'review_conducted', performed_by_user_id: $('Check Role').item.json.conductor_id, performed_by_role: $('Check Role').item.json.conductor_role, event_data: { policy_review_id: $('Check Role').item.json.policy_review_id, conducted_via: $('Check Role').item.json.conducted_via, outcome: $('Check Role').item.json.outcome, coverage_still_adequate: $('Check Role').item.json.coverage_still_adequate }, occurred_at: new Date().toISOString() }) }}",
         "options": {}
       },
-      "id": "rcd-0009", "name": "Audit Log", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2100, 320],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
+      "id": "rcd-0009",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, vertical_id: 'insurance', policy_review_id: $('Check Role').item.json.policy_review_id, status: 'completed' }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
-      "id": "rcd-0010", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2340, 320]
+      "id": "rcd-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2340,
+        320
+      ]
     },
     {
       "parameters": {
-        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 400 }}" }
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}"
+        }
       },
-      "id": "rcd-0011", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 540]
+      "id": "rcd-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1380,
+        540
+      ]
     }
   ],
   "connections": {
-    "Webhook":                    { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
-    "Extract Inputs":             { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
-    "Validate Session":           { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
-    "Check Role":                 { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
-    "IF OK":                      { "main": [[ { "node": "Update Review", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
-    "Update Review":              { "main": [[ { "node": "Update Policy Last Review", "type": "main", "index": 0 } ]] },
-    "Update Policy Last Review":  { "main": [[ { "node": "Trigger Documentation", "type": "main", "index": 0 } ]] },
-    "Trigger Documentation":      { "main": [[ { "node": "Audit Log", "type": "main", "index": 0 } ]] },
-    "Audit Log":                  { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Inputs": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Role": {
+      "main": [
+        [
+          {
+            "node": "IF OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF OK": {
+      "main": [
+        [
+          {
+            "node": "Update Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Review": {
+      "main": [
+        [
+          {
+            "node": "Update Policy Last Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Policy Last Review": {
+      "main": [
+        [
+          {
+            "node": "Trigger Documentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Documentation": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

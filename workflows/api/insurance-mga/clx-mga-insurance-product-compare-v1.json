@@ -101,7 +101,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','mga_principal','admin','supervisor','sub_agent'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403, error: 'Advisor or higher required' } };\nreturn { json: { _ok: true, product_ids: $('Extract').item.json.product_ids } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['advisor','mga_principal','admin','supervisor','sub_agent'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403, error: 'Advisor or higher required' } };\nreturn { json: { _ok: true, product_ids: $('Extract').item.json.product_ids } };",
         "mode": "runOnceForEachItem"
       },
       "id": "pc-0004",

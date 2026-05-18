@@ -2,8 +2,20 @@
   "name": "CLX - MGA Insurance Principal Overview v1",
   "nodes": [
     {
-      "parameters": { "httpMethod": "POST", "path": "mga/insurance/principal/overview", "responseMode": "responseNode", "options": {} },
-      "id": "po-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/principal/overview",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "po-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-mga-insurance-principal-overview-001",
       "notes": "DEACTIVATED. mga_principal session ONLY. Returns MGA-level KPIs: active advisor count, in-force policies count, total commission MTD/YTD, review system metrics (% on-time, % overdue, average review time), behavioral signal effectiveness."
     },
@@ -12,114 +24,436 @@
         "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { _unauthorized: true, status: 401, error: 'Missing session token' } };\nreturn { json: { token: token } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "po-0002", "name": "Extract Token", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]
+      "id": "po-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
-        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
-        "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {}
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {}
       },
-      "id": "po-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 400],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "id": "po-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nif (row.user_role !== 'mga_principal' && row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'mga_principal role required' } };\nreturn { json: { _ok: true, principal_id: row.id || row.user_id } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nif (row.user_role !== 'mga_principal' && row.user_role !== 'admin') return { json: { _unauthorized: true, status: 403, error: 'mga_principal role required' } };\nreturn { json: { _ok: true, principal_id: row.id || row.user_id } };",
         "mode": "runOnceForEachItem"
       },
-      "id": "po-0004", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 400]
+      "id": "po-0004",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ]
     },
     {
       "parameters": {
-        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "c1", "leftValue": "={{ $json._ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ], "combinator": "and" }
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
       },
-      "id": "po-0005", "name": "IF OK", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1120, 400]
+      "id": "po-0005",
+      "name": "IF OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        400
+      ]
     },
     {
       "parameters": {
-        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?user_role=eq.advisor&status=eq.active&select=id&limit=500",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?user_role=eq.advisor&status=eq.active&select=id&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "po-0006", "name": "Fetch Advisors", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
+      "id": "po-0006",
+      "name": "Fetch Advisors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?vertical_id=eq.insurance&in_force_status=eq.in_force&select=id,issued_at&limit=10000",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_applications?vertical_id=eq.insurance&in_force_status=eq.in_force&select=id,issued_at&limit=10000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "po-0007", "name": "Fetch Policies", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 340],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
+      "id": "po-0007",
+      "name": "Fetch Policies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        340
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "method": "GET", "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/commission_ledger?vertical_id=eq.insurance&mga_principal_id=eq.' + encodeURIComponent($('Check Role').item.json.principal_id) + '&select=mga_commission,advisor_commission,total_commission,created_at,payout_status&limit=10000' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/commission_ledger?vertical_id=eq.insurance&mga_principal_id=eq.' + encodeURIComponent($('Check Role').item.json.principal_id) + '&select=mga_commission,advisor_commission,total_commission,created_at,payout_status&limit=10000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "po-0008", "name": "Fetch Commissions", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 460],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
+      "id": "po-0008",
+      "name": "Fetch Commissions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        460
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "method": "GET", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?vertical_id=eq.insurance&select=status,review_type,trigger_source,due_date,conducted_date,video_engagement_status,priority&limit=10000",
-        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
-        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/policy_reviews?vertical_id=eq.insurance&select=status,review_type,trigger_source,due_date,conducted_date,video_engagement_status,priority&limit=10000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "po-0009", "name": "Fetch Reviews", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 580],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
-      "continueOnFail": true, "alwaysOutputData": true
+      "id": "po-0009",
+      "name": "Fetch Reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        580
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "parameters": { "mode": "append", "numberInputs": 4 },
-      "id": "po-0010", "name": "Merge", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [1620, 400]
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 4
+      },
+      "id": "po-0010",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1620,
+        400
+      ]
     },
     {
       "parameters": {
         "jsCode": "const allOf = function (name) { try { const items = $(name).all().map(function (i) { return i.json; }); if (items.length === 1 && Array.isArray(items[0])) return items[0]; return items; } catch (e) { return []; } };\nconst advisors = allOf('Fetch Advisors');\nconst policies = allOf('Fetch Policies');\nconst commissions = allOf('Fetch Commissions');\nconst reviews = allOf('Fetch Reviews');\nconst now = new Date();\nconst monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();\nconst yearStart = new Date(now.getFullYear(), 0, 1).toISOString();\nlet mtdMga = 0, ytdMga = 0, mtdAdvisor = 0, ytdAdvisor = 0;\nfor (const c of commissions) {\n  const m = parseInt(c.mga_commission) || 0;\n  const a = parseInt(c.advisor_commission) || 0;\n  if (c.created_at >= yearStart) { ytdMga += m; ytdAdvisor += a; }\n  if (c.created_at >= monthStart) { mtdMga += m; mtdAdvisor += a; }\n}\nconst totalReviews = reviews.length;\nconst completedReviews = reviews.filter(function (r) { return r.status === 'completed'; });\nconst overdueReviews = reviews.filter(function (r) { return r.status === 'overdue' || r.status === 'escalated'; });\nconst completedOnTime = completedReviews.filter(function (r) { return r.conducted_date && r.due_date && r.conducted_date <= r.due_date; }).length;\nconst onTimePct = completedReviews.length > 0 ? Math.round(completedOnTime / completedReviews.length * 100) : 0;\nconst overduePct = totalReviews > 0 ? Math.round(overdueReviews.length / totalReviews * 100) : 0;\nconst signalReviews = reviews.filter(function (r) { return r.trigger_source === 'behavioral_signal'; });\nconst signalEngaged = signalReviews.filter(function (r) { return r.video_engagement_status === 'viewed' || r.video_engagement_status === 'replied' || r.video_engagement_status === 'meeting_booked'; }).length;\nconst signalEffectivenessPct = signalReviews.length > 0 ? Math.round(signalEngaged / signalReviews.length * 100) : 0;\nreturn { json: { ok: true, vertical_id: 'insurance', advisors: { active_count: advisors.length }, policies: { in_force_count: policies.length }, commissions: { mtd_mga_cents: mtdMga, ytd_mga_cents: ytdMga, mtd_advisor_cents: mtdAdvisor, ytd_advisor_cents: ytdAdvisor }, reviews: { total: totalReviews, completed: completedReviews.length, overdue: overdueReviews.length, on_time_pct: onTimePct, overdue_pct: overduePct }, behavioral_intelligence: { triggered_reviews: signalReviews.length, engaged: signalEngaged, effectiveness_pct: signalEffectivenessPct } } };",
         "mode": "runOnceForAllItems"
       },
-      "id": "po-0011", "name": "Build Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1860, 400]
+      "id": "po-0011",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        400
+      ]
     },
     {
       "parameters": {
-        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
-        "options": { "responseCode": 200 }
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
       },
-      "id": "po-0012", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2100, 400]
+      "id": "po-0012",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2100,
+        400
+      ]
     },
     {
       "parameters": {
-        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 400 }}" }
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}"
+        }
       },
-      "id": "po-0013", "name": "Respond 4xx", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 760]
+      "id": "po-0013",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1380,
+        760
+      ]
     }
   ],
   "connections": {
-    "Webhook":          { "main": [[ { "node": "Extract Token", "type": "main", "index": 0 } ]] },
-    "Extract Token":    { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
-    "Validate Session": { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
-    "Check Role":       { "main": [[ { "node": "IF OK", "type": "main", "index": 0 } ]] },
-    "IF OK":            { "main": [[ { "node": "Fetch Advisors", "type": "main", "index": 0 }, { "node": "Fetch Policies", "type": "main", "index": 0 }, { "node": "Fetch Commissions", "type": "main", "index": 0 }, { "node": "Fetch Reviews", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
-    "Fetch Advisors":   { "main": [[ { "node": "Merge", "type": "main", "index": 0 } ]] },
-    "Fetch Policies":   { "main": [[ { "node": "Merge", "type": "main", "index": 1 } ]] },
-    "Fetch Commissions":{ "main": [[ { "node": "Merge", "type": "main", "index": 2 } ]] },
-    "Fetch Reviews":    { "main": [[ { "node": "Merge", "type": "main", "index": 3 } ]] },
-    "Merge":            { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
-    "Build Response":   { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Role": {
+      "main": [
+        [
+          {
+            "node": "IF OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF OK": {
+      "main": [
+        [
+          {
+            "node": "Fetch Advisors",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Policies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Commissions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Advisors": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Policies": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch Commissions": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Fetch Reviews": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }
