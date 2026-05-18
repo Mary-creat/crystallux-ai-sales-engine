@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MAXI Industries · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.mx-category-section { margin-bottom:28px; }
+.mx-category-head { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border,#e5e7eb); }
+.mx-category-title { font-size:16px; font-weight:700; }
+.mx-category-count { font-size:13px; color:var(--muted,#6b7280); }
+.mx-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+.mx-card { display:block; padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:#fff; text-decoration:none; color:inherit; transition:box-shadow 0.15s, transform 0.05s; }
+.mx-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); transform:translateY(-1px); }
+.mx-card-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.mx-emoji { font-size:22px; line-height:1; }
+.mx-name { font-weight:600; font-size:15px; }
+.mx-desc { font-size:12px; color:var(--muted,#6b7280); line-height:1.4; min-height:32px; }
+.mx-pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:600; margin-left:auto; }
+.mx-pill-active { background:#dcfce7; color:#166534; }
+.mx-pill-soon { background:#f3f4f6; color:#6b7280; }
+.mx-warn { padding:14px 16px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:13px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">MAXI Industries</h1>
+      <div class="clx-page-sub">MAXI serves SMBs across 20+ verticals. Each industry has its own value-prop matrix (8 capabilities) and content templates. Click an industry to see its detail.</div>
+    </div></div>
+
+    <div id="mxContent">
+      <div class="clx-empty"><span class="clx-spinner"></span> Loading industries…</div>
+    </div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+var CATEGORY_LABELS = {
+  home_services: 'Home services',
+  health_beauty: 'Health & beauty',
+  professional:  'Professional',
+  food:          'Food & hospitality',
+  other:         'Other'
+};
+var CATEGORY_ORDER = ['home_services','professional','health_beauty','food','other'];
+
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+  load();
+});
+
+async function load() {
+  var el = document.getElementById('mxContent');
+  var res = await clxApi.call('/maxi/industries', {});
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+
+  var d = (res.data && res.data.data) || {};
+  var industries = d.industries || [];
+  var byCategory = d.by_category || {};
+
+  if (!industries.length) {
+    el.innerHTML =
+      '<div class="mx-warn">No industries seeded. Apply the migration ' +
+      '<code>db/migrations/avatars-platform-schema.sql</code> to populate ' +
+      'the <code>maxi_industries</code> table (21 rows).</div>';
+    return;
+  }
+
+  var stats = '<div class="clx-stat-grid">' +
+    '<div class="clx-stat"><div class="clx-stat-label">Industries</div><div class="clx-stat-value">' + industries.length + '</div></div>' +
+    '<div class="clx-stat"><div class="clx-stat-label">Active</div><div class="clx-stat-value">' + (d.active_count || 0) + '</div></div>' +
+    '<div class="clx-stat"><div class="clx-stat-label">Categories</div><div class="clx-stat-value">' + Object.keys(byCategory).length + '</div></div>' +
+    '</div>';
+
+  var sections = '';
+  for (var i = 0; i < CATEGORY_ORDER.length; i++) {
+    var cat = CATEGORY_ORDER[i];
+    var rows = byCategory[cat];
+    if (!rows || !rows.length) continue;
+    sections += renderCategory(cat, rows);
+  }
+  // Any category not in CATEGORY_ORDER — render at the end
+  Object.keys(byCategory).forEach(function (cat) {
+    if (CATEGORY_ORDER.indexOf(cat) === -1) sections += renderCategory(cat, byCategory[cat]);
+  });
+
+  el.innerHTML = stats + sections;
+}
+
+function renderCategory(cat, rows) {
+  var label = CATEGORY_LABELS[cat] || cat;
+  var cards = rows.map(card).join('');
+  return '<div class="mx-category-section">' +
+    '<div class="mx-category-head">' +
+      '<div class="mx-category-title">' + esc(label) + '</div>' +
+      '<div class="mx-category-count">' + rows.length + (rows.length === 1 ? ' industry' : ' industries') + '</div>' +
+    '</div>' +
+    '<div class="mx-grid">' + cards + '</div>' +
+  '</div>';
+}
+
+function card(r) {
+  var href = '/pages/avatars/maxi/industry.html?slug=' + encodeURIComponent(r.industry_slug);
+  var pillCls = r.active ? 'mx-pill-active' : 'mx-pill-soon';
+  var pillText = r.active ? 'Active' : 'Coming';
+  return '<a class="mx-card" href="' + esc(href) + '">' +
+    '<div class="mx-card-head">' +
+      '<span class="mx-emoji" aria-hidden="true">' + esc(r.emoji || '•') + '</span>' +
+      '<div class="mx-name">' + esc(r.industry_name) + '</div>' +
+      '<span class="mx-pill ' + pillCls + '">' + pillText + '</span>' +
+    '</div>' +
+    '<div class="mx-desc">' + esc(r.description || '') + '</div>' +
+  '</a>';
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>

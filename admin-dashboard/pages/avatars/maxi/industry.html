@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MAXI Industry · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.ix-crumb { font-size:13px; color:var(--muted,#6b7280); margin-bottom:8px; }
+.ix-crumb a { color:var(--muted,#6b7280); }
+.ix-emoji { font-size:36px; line-height:1; vertical-align:middle; margin-right:8px; }
+.ix-meta-grid { display:grid; grid-template-columns:auto 1fr; gap:6px 16px; font-size:13px; margin-top:12px; }
+.ix-meta-grid dt { color:var(--muted,#6b7280); }
+.ix-meta-grid dd { margin:0; }
+.ix-capability-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; margin-top:14px; }
+.ix-cap-card { padding:16px 18px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:#fff; }
+.ix-cap-label { font-weight:600; font-size:14px; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.ix-cap-num { display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center; background:var(--ink,#10b981); color:#fff; border-radius:50%; font-size:11px; font-weight:700; }
+.ix-cap-copy { font-size:13px; color:#374151; line-height:1.5; }
+.ix-cap-copy.placeholder { color:#9ca3af; font-style:italic; }
+.ix-warn { padding:14px 16px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:13px; margin-bottom:16px; }
+.ix-active-tag { display:inline-block; padding:2px 10px; border-radius:11px; font-size:11px; font-weight:600; margin-left:8px; vertical-align:middle; }
+.ix-active-tag.on  { background:#dcfce7; color:#166534; }
+.ix-active-tag.off { background:#f3f4f6; color:#6b7280; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="ix-crumb"><a href="/pages/avatars.html">Avatars</a> · <a href="/pages/avatars/maxi/index.html">MAXI Industries</a> · <span id="ixCrumbName">…</span></div>
+    <div id="ixContent">
+      <div class="clx-empty"><span class="clx-spinner"></span> Loading industry…</div>
+    </div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+  load();
+});
+
+function getSlug() {
+  var m = window.location.search.match(/[?&]slug=([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+async function load() {
+  var el = document.getElementById('ixContent');
+  var slug = getSlug();
+  if (!slug) {
+    el.innerHTML =
+      '<div class="ix-warn">Missing <code>?slug=&lt;industry&gt;</code> URL parameter. ' +
+      '<a href="/pages/avatars/maxi/index.html">Go back to the industries grid</a>.</div>';
+    return;
+  }
+
+  var res = await clxApi.call('/maxi/industry-detail', { industry_slug: slug });
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+
+  var d = (res.data && res.data.data) || {};
+  var industry = d.industry;
+  var props    = d.value_props || [];
+  if (!industry) {
+    el.innerHTML = '<div class="ix-warn">Industry <code>' + esc(slug) + '</code> not found.</div>';
+    return;
+  }
+
+  document.title = industry.industry_name + ' · MAXI · Crystallux Admin';
+  document.getElementById('ixCrumbName').textContent = industry.industry_name;
+
+  var activeTag = industry.active
+    ? '<span class="ix-active-tag on">Active</span>'
+    : '<span class="ix-active-tag off">Coming soon</span>';
+
+  var header = '<div class="clx-page-head"><div>' +
+    '<h1 class="clx-page-title">' +
+      '<span class="ix-emoji">' + esc(industry.emoji || '•') + '</span>' +
+      esc(industry.industry_name) + activeTag +
+    '</h1>' +
+    '<div class="clx-page-sub">' + esc(industry.description || '') + '</div>' +
+    '</div></div>';
+
+  var meta = '<div class="clx-card">' +
+    '<div class="clx-card-head"><div class="clx-card-title">Metadata</div></div>' +
+    '<dl class="ix-meta-grid">' +
+      '<dt>Slug</dt><dd><code>' + esc(industry.industry_slug) + '</code></dd>' +
+      '<dt>Category</dt><dd>' + esc(industry.category) + '</dd>' +
+      '<dt>Sort order</dt><dd>' + esc(industry.sort_order) + '</dd>' +
+      '<dt>Active</dt><dd>' + (industry.active ? 'Yes' : 'No') + '</dd>' +
+      '<dt>Value props</dt><dd>' + props.length + ' configured</dd>' +
+    '</dl>' +
+  '</div>';
+
+  var caps;
+  if (!props.length) {
+    caps = '<div class="ix-warn">No capabilities defined for this industry. The schema migration seeds 8 capabilities × 21 industries automatically (commit 54b256d). If this list is empty, re-run the migration.</div>';
+  } else {
+    caps = '<div class="clx-card">' +
+      '<div class="clx-card-head"><div class="clx-card-title">8 capabilities</div><div class="clx-card-sub">' +
+        'The value-prop matrix MAXI references when pitching this industry. ' +
+        'Rows with grey copy still use the generic capability label — fill in industry_specific_copy ' +
+        'in the migration to swap in vertical-tailored language.</div></div>' +
+      '<div class="ix-capability-grid">' + props.map(capCard).join('') + '</div>' +
+    '</div>';
+  }
+
+  el.innerHTML = header + meta + caps;
+}
+
+function capCard(p, i) {
+  var hasCopy = !!(p.industry_specific_copy && p.industry_specific_copy.trim());
+  var copyHtml = hasCopy
+    ? '<div class="ix-cap-copy">' + esc(p.industry_specific_copy) + '</div>'
+    : '<div class="ix-cap-copy placeholder">No industry-specific copy yet — uses the generic label.</div>';
+  return '<div class="ix-cap-card">' +
+    '<div class="ix-cap-label"><span class="ix-cap-num">' + (i + 1) + '</span>' + esc(p.capability_label) + '</div>' +
+    copyHtml +
+  '</div>';
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>
