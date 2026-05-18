@@ -6,15 +6,16 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
-## 0l. Three /api/* webhooks returning HTML 500 (added 2026-05-18)
+## 0l. Webhooks returning HTML 500 (added 2026-05-18, expanded 2026-05-19)
 
-Mary's Tranche-1 testing report ("Network error could not display data on many pages") traces to three `/api/*` webhooks that n8n is rejecting with an HTML 500 page **before** their workflows ever execute. Same failure pattern as 0h — the workflow itself is fine, n8n's server is throwing.
+Mary's testing report flags pages that show "failed data" / "Network error" — the actual cause is n8n returning HTML 500 on specific webhooks **before** their workflows ever execute. Same failure pattern as 0h — the workflow JSON is fine, n8n's server is throwing.
 
 | Webhook | Response | Affected page(s) |
 |---|---|---|
 | `POST /webhook/api/sentinel/cost/summary` | HTTP 500, HTML body | `/pages/sentinel.html` (Costs tab) |
 | `POST /webhook/api/content/attribution-run` | HTTP 500, HTML body | `/pages/content-performance.html` (Attribution row) |
 | `POST /webhook/api/training/topics` | HTTP 500, HTML body | `/pages/training-topics.html` |
+| `POST /webhook/mga/insurance/advisor/overview` | HTTP 500, HTML body | `https://mga.crystallux.org/advisor/overview` (added 2026-05-19) |
 
 Probed from outside (no auth header) on 2026-05-18 — all three return n8n's default `<!DOCTYPE html>...Internal Server Error` page. Other /api/* endpoints in the same set (`/api/carriers/status-check`, `/api/sentinel/health/summary`, validate-session, etc.) return clean 401 JSON, so the failure is per-workflow, not n8n-wide.
 
