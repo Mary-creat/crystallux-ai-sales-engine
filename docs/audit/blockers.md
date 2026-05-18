@@ -6,6 +6,51 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0l. Three /api/* webhooks returning HTML 500 (added 2026-05-18)
+
+Mary's Tranche-1 testing report ("Network error could not display data on many pages") traces to three `/api/*` webhooks that n8n is rejecting with an HTML 500 page **before** their workflows ever execute. Same failure pattern as 0h — the workflow itself is fine, n8n's server is throwing.
+
+| Webhook | Response | Affected page(s) |
+|---|---|---|
+| `POST /webhook/api/sentinel/cost/summary` | HTTP 500, HTML body | `/pages/sentinel.html` (Costs tab) |
+| `POST /webhook/api/content/attribution-run` | HTTP 500, HTML body | `/pages/content-performance.html` (Attribution row) |
+| `POST /webhook/api/training/topics` | HTTP 500, HTML body | `/pages/training-topics.html` |
+
+Probed from outside (no auth header) on 2026-05-18 — all three return n8n's default `<!DOCTYPE html>...Internal Server Error` page. Other /api/* endpoints in the same set (`/api/carriers/status-check`, `/api/sentinel/health/summary`, validate-session, etc.) return clean 401 JSON, so the failure is per-workflow, not n8n-wide.
+
+The new MAXI + avatar webhooks all return clean 401 JSON — they are NOT in this set. Mary's "Network error on MAXI" is a separate issue (most likely the schema migrations haven't been applied yet, so the workflow hits a missing `maxi_industries` table; once `psql -f db/migrations/avatars-platform-schema.sql` runs, MAXI data should flow).
+
+**Diagnostic on the VPS:**
+
+```bash
+ssh vps "docker logs n8n --tail 300 | grep -A 8 -E \
+  'api/sentinel/cost/summary|api/content/attribution-run|api/training/topics'"
+```
+
+Look for the stack trace immediately after the inbound webhook log. Most likely causes given the pattern (same workflow shape as the MGA 500s in 0h):
+
+1. **Missing DB table or RPC** — the workflow references a Supabase table that was never migrated. Check `docs/architecture/migrations/` for a related schema file that may not have been applied.
+2. **Credential not configured** — the workflow references a credential name n8n can't resolve (e.g. an Anthropic key that wasn't seeded into n8n's credentials store).
+3. **n8n needs a restart** — sometimes credential changes / env-var changes don't take effect until the container is restarted. `docker restart n8n` is cheap to try.
+
+**After fixing the root cause, re-probe to verify:**
+
+```bash
+for ep in api/sentinel/cost/summary api/content/attribution-run api/training/topics; do
+  printf "%-35s " "$ep"
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+    -H "Content-Type: application/json" -H "Origin: https://admin.crystallux.org" \
+    "https://automation.crystallux.org/webhook/$ep" -d '{}'
+done
+# Expect 401 (auth-gated, reachable) for each.
+```
+
+Once these flip from 500 to 401, the affected pages will show "Session expired" (if Mary needs to re-log) or actual data (if her session is valid).
+
+**Side benefit shipped in 393de91:** `admin-dashboard/shared/api.js` now distinguishes HTML-500 (n8n internal error) from JSON-500 (workflow error) in the user-facing message. Future failures of this shape will tell the operator "check docker logs n8n" instead of a generic "Server error."
+
+---
+
 ## 0k. Updating an existing n8n workflow ≠ `import:workflow` (added 2026-05-16)
 
 **Operational gotcha discovered while applying the auth-fix commit `0699af8`.** `docker exec n8n n8n import:workflow --input=…` only INSERTS new workflows. If the workflow already exists in n8n's SQLite DB (same `id`), the command fails with `SQLITE_CONSTRAINT: workflow_entity.id`. There is no `update:workflow` CLI command in stable n8n.
