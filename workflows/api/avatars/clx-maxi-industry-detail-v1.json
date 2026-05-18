@@ -1,4 +1,5 @@
 {
+  "id": "clxMaxiIndustryDetailV1",
   "name": "CLX - MAXI Industry Detail v1",
   "nodes": [
     {
@@ -12,7 +13,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-maxi-industry-detail-001"
     },
     {
@@ -23,18 +27,28 @@
       "name": "Extract",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ $json._unauthorized }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -44,7 +58,10 @@
       "name": "IF Bad",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [620, 400]
+      "position": [
+        620,
+        400
+      ]
     },
     {
       "parameters": {
@@ -54,7 +71,12 @@
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
@@ -65,8 +87,15 @@
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [820, 400],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        820,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -76,18 +105,28 @@
       "name": "Check Role",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1040, 400]
+      "position": [
+        1040,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ $json._ok }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -97,7 +136,10 @@
       "name": "IF OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1260, 400]
+      "position": [
+        1260,
+        400
+      ]
     },
     {
       "parameters": {
@@ -107,7 +149,12 @@
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Accept", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
         },
         "options": {}
       },
@@ -115,8 +162,15 @@
       "name": "Query Industry",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1480, 280],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        1480,
+        280
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -126,18 +180,28 @@
       "name": "Check Industry",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1700, 280]
+      "position": [
+        1700,
+        280
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "c1",
               "leftValue": "={{ $json._ok }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -147,7 +211,10 @@
       "name": "IF Found",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1920, 280]
+      "position": [
+        1920,
+        280
+      ]
     },
     {
       "parameters": {
@@ -157,7 +224,12 @@
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Accept", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
         },
         "options": {}
       },
@@ -165,8 +237,15 @@
       "name": "Query Value Props",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2140, 200],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        2140,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -176,61 +255,192 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2360, 200]
+      "position": [
+        2360,
+        200
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($json) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "mid-0012",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2580, 200]
+      "position": [
+        2580,
+        200
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
       },
       "id": "mid-0013",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [820, 580]
+      "position": [
+        820,
+        580
+      ]
     }
   ],
   "connections": {
-    "Webhook": { "main": [[{ "node": "Extract", "type": "main", "index": 0 }]] },
-    "Extract": { "main": [[{ "node": "IF Bad", "type": "main", "index": 0 }]] },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "IF Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF Bad": {
       "main": [
-        [{ "node": "Respond 4xx", "type": "main", "index": 0 }],
-        [{ "node": "Validate Session", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Validate Session": { "main": [[{ "node": "Check Role", "type": "main", "index": 0 }]] },
-    "Check Role": { "main": [[{ "node": "IF OK", "type": "main", "index": 0 }]] },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Role": {
+      "main": [
+        [
+          {
+            "node": "IF OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF OK": {
       "main": [
-        [{ "node": "Query Industry", "type": "main", "index": 0 }],
-        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Query Industry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Query Industry": { "main": [[{ "node": "Check Industry", "type": "main", "index": 0 }]] },
-    "Check Industry": { "main": [[{ "node": "IF Found", "type": "main", "index": 0 }]] },
+    "Query Industry": {
+      "main": [
+        [
+          {
+            "node": "Check Industry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Industry": {
+      "main": [
+        [
+          {
+            "node": "IF Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF Found": {
       "main": [
-        [{ "node": "Query Value Props", "type": "main", "index": 0 }],
-        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Query Value Props",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Query Value Props": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
-    "Shape Response": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+    "Query Value Props": {
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Response": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

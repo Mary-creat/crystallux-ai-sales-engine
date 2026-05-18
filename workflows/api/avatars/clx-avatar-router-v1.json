@@ -1,4 +1,5 @@
 {
+  "id": "clxAvatarRouterV1",
   "name": "CLX - Avatar Router v1",
   "nodes": [
     {
@@ -12,7 +13,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-avatar-router-001"
     },
     {
@@ -23,7 +27,10 @@
       "name": "Extract",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
@@ -51,7 +58,10 @@
       "name": "IF Bad",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [620, 400]
+      "position": [
+        620,
+        400
+      ]
     },
     {
       "parameters": {
@@ -62,7 +72,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -74,7 +87,10 @@
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [820, 400],
+      "position": [
+        820,
+        400
+      ],
       "credentials": {
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
@@ -89,7 +105,10 @@
       "name": "Check Session",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1040, 400]
+      "position": [
+        1040,
+        400
+      ]
     },
     {
       "parameters": {
@@ -117,7 +136,10 @@
       "name": "IF OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1260, 400]
+      "position": [
+        1260,
+        400
+      ]
     },
     {
       "parameters": {
@@ -127,7 +149,10 @@
       "name": "Build Query",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1480, 320]
+      "position": [
+        1480,
+        320
+      ]
     },
     {
       "parameters": {
@@ -138,7 +163,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {
@@ -153,7 +181,10 @@
       "name": "Query Avatars",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1700, 320],
+      "position": [
+        1700,
+        320
+      ],
       "credentials": {
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
@@ -168,7 +199,10 @@
       "name": "Pick Avatar",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1920, 320]
+      "position": [
+        1920,
+        320
+      ]
     },
     {
       "parameters": {
@@ -178,7 +212,10 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2140, 320]
+      "position": [
+        2140,
+        320
+      ]
     },
     {
       "parameters": {
@@ -192,7 +229,10 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2360, 320]
+      "position": [
+        2360,
+        320
+      ]
     },
     {
       "parameters": {
@@ -206,45 +246,136 @@
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [820, 580]
+      "position": [
+        820,
+        580
+      ]
     }
   ],
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Extract", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract": {
-      "main": [[{ "node": "IF Bad", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Bad": {
       "main": [
-        [{ "node": "Respond 4xx", "type": "main", "index": 0 }],
-        [{ "node": "Validate Session", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Validate Session": {
-      "main": [[{ "node": "Check Session", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Check Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Check Session": {
-      "main": [[{ "node": "IF OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF OK": {
       "main": [
-        [{ "node": "Build Query", "type": "main", "index": 0 }],
-        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Build Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Build Query": {
-      "main": [[{ "node": "Query Avatars", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Query Avatars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Query Avatars": {
-      "main": [[{ "node": "Pick Avatar", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Pick Avatar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Pick Avatar": {
-      "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Shape Response": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
