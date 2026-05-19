@@ -1,4 +1,5 @@
 {
+  "id": "clxFileCompletenessCalculateV1",
   "name": "CLX - File Completeness Calculate v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/completeness/calculate", "responseMode": "responseNode", "options": {} }, "id": "fcc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-file-completeness-calculate-001", "notes": "DEACTIVATED. Session-token. Evaluates a single file against file_completeness_rules (platform default + vertical override + client override) and writes file_completeness_scores." },

@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceInsurerAccessAuditV1",
   "name": "CLX - MGA Insurance Insurer Access Audit v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/insurer-access-audit", "responseMode": "responseNode", "options": {} }, "id": "iaa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-insurer-access-audit-001", "notes": "DEACTIVATED. Internal. Called by every insurer-facing endpoint. Inserts into insurer_access_log. Append-only. INTERNAL_EMAIL_SECRET auth so dashboard cannot self-audit-fake." },

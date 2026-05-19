@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceContentLibrarySeedV1",
   "name": "CLX - MGA Insurance Content Library Seed v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/content-library-seed", "responseMode": "responseNode", "options": {} }, "id": "icls-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-content-library-seed-001", "notes": "DEACTIVATED. INTERNAL_EMAIL_SECRET auth. Idempotent. Seeds insurance-specific content topic templates." },

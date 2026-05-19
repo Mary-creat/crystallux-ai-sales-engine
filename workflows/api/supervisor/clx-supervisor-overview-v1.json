@@ -1,4 +1,5 @@
 {
+  "id": "clxSupervisorOverviewV1",
   "name": "CLX - Supervisor Overview v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/supervisor/overview", "responseMode": "responseNode", "options": {} }, "id": "so-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-supervisor-overview-001", "notes": "DEACTIVATED. Session-token. Universal — works for any vertical's hierarchy via team_members.reports_to_user_id. Returns direct reports + lead counts + goal progress + flags." },

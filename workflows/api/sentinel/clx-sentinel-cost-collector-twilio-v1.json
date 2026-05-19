@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelCostCollectorTwilioV1",
   "name": "CLX - Sentinel Cost Collector Twilio v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 * * *" } ] } }, "id": "sct-0001", "name": "Schedule 06:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },

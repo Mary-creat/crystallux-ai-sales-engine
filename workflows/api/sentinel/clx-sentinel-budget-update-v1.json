@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelBudgetUpdateV1",
   "name": "CLX - Sentinel Budget Update v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/budget-update", "responseMode": "responseNode", "options": {} }, "id": "sbu-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-budget-update-001", "notes": "DEACTIVATED. Admin session. Patches a sentinel_cost_budgets row by service_name." },

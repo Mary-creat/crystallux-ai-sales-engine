@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceReportAdvisorPerformanceV1",
   "name": "CLX - MGA Insurance Report Advisor Performance v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/report/advisor-performance", "responseMode": "responseNode", "options": {} }, "id": "rmp-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-report-advisor-performance-001", "notes": "DEACTIVATED. Insurer session. Returns monthly production for the insurer's carrier — policies issued, premium written, product mix, advisor breakdown. Filtered to vertical_id=insurance + insurer's carrier_id." },

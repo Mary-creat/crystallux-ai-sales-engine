@@ -1,4 +1,5 @@
 {
+  "id": "clxProductionReportGenerateV1",
   "name": "CLX - Production Report Generate v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/reports/generate", "responseMode": "responseNode", "options": {} }, "id": "prg-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-production-report-generate-001", "notes": "DEACTIVATED. Session-token or MARY_MASTER_TOKEN. Creates a production_reports row keyed to template_id + recipient. Vertical-agnostic — the template carries the vertical filter." },

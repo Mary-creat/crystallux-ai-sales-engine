@@ -1,4 +1,5 @@
 {
+  "id": "clxPreMeetingBriefingEffectivenessV1",
   "name": "CLX - Pre Meeting Briefing Effectiveness v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/briefing/effectiveness", "responseMode": "responseNode", "options": {} }, "id": "pmbe-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-pre-meeting-briefing-effectiveness-001", "notes": "DEACTIVATED. After a meeting, the team member rates briefing usefulness (0-100) + optional notes. Feeds the learning loop." },

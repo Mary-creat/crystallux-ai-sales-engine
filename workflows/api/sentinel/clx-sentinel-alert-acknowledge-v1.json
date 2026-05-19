@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelAlertAcknowledgeV1",
   "name": "CLX - Sentinel Alert Acknowledge v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/alert-acknowledge", "responseMode": "responseNode", "options": {} }, "id": "saa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-alert-acknowledge-001", "notes": "DEACTIVATED. Admin session. Marks an alert as acknowledged or resolved." },

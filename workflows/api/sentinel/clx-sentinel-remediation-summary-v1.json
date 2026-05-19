@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelRemediationSummaryV1",
   "name": "CLX - Sentinel Remediation Summary v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/remediation/summary", "responseMode": "responseNode", "options": {} }, "id": "srs-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-remediation-summary-001", "notes": "DEACTIVATED. Admin session. Returns playbooks, active blocklist, pending approvals, and last-7-days action history for the Remediation tab." },

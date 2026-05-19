@@ -1,4 +1,5 @@
 {
+  "id": "clxArchetypeSeedRealEstateV1",
   "name": "CLX - Archetype Seed Real Estate v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-real-estate", "responseMode": "responseNode", "options": {} }, "id": "asr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-real-estate-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='real_estate'." },

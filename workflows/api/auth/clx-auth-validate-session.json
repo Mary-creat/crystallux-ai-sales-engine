@@ -1,4 +1,5 @@
 {
+  "id": "clxAuthValidateSessionV1",
   "name": "CLX - Auth Validate Session v1",
   "nodes": [
     {

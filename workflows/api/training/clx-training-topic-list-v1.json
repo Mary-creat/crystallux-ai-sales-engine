@@ -1,4 +1,5 @@
 {
+  "id": "clxTrainingTopicListV1",
   "name": "CLX - Training Topic List v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/training/topics", "responseMode": "responseNode", "options": {} }, "id": "ttl-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-training-topic-list-001", "notes": "DEACTIVATED. Session-token. Returns training_topics filtered by optional vertical_id + the requesting user's training_sessions for completion status." },

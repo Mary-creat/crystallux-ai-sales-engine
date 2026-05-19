@@ -1,4 +1,5 @@
 {
+  "id": "clxFileCompletenessRulesUpdateV1",
   "name": "CLX - File Completeness Rules Update v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/completeness/rules", "responseMode": "responseNode", "options": {} }, "id": "fcr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-file-completeness-rules-update-001", "notes": "DEACTIVATED. admin/principal/supervisor only. Upserts a single file_completeness_rules row keyed by (file_type, field_name, vertical_id, client_id)." },

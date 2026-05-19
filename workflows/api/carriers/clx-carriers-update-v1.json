@@ -1,4 +1,5 @@
 {
+  "id": "clxCarriersUpdateV1",
   "name": "CLX - Carriers Update v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/carriers/update", "responseMode": "responseNode", "options": {} }, "id": "ccu-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-update-001", "notes": "DEACTIVATED. Admin session. Body: { carrier_id, appointment_status?, agent_code?, contracted_lines?, expected_commission_pct?, contact_name?, contact_email?, contact_phone?, appointment_applied_at?, appointment_approved_at?, appointment_effective_at?, appointment_terminated_at?, termination_reason?, notes? }. Whitelisted columns only. PATCH the row, return the updated record. (Mary's brief listed 4 workflows but the appointments-management page needs an update endpoint — this is the 5th.)" },

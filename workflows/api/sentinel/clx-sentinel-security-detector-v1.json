@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelSecurityDetectorV1",
   "name": "CLX - Sentinel Security Detector v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/10 * * * *" } ] } }, "id": "ssd-0001", "name": "Schedule Every 10min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },

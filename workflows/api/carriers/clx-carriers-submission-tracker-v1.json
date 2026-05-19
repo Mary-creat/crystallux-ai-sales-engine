@@ -1,4 +1,5 @@
 {
+  "id": "clxCarriersSubmissionTrackerV1",
   "name": "CLX - Carriers Submission Tracker v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/carriers/submission", "responseMode": "responseNode", "options": {} }, "id": "ccst-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-submission-tracker-001", "notes": "DEACTIVATED. Admin session. Body: { action: 'create'|'update', submission_id? (for update), carrier_id, lead_id?, advisor_id?, product_line, submission_status?, policy_number?, face_amount_cents?, annual_premium_cents?, notes? }. Status transitions: in_progress → submitted → underwriting → approved/declined → issued/not_taken/withdrawn. Auto-sets submitted_at / underwriting_decision_at / policy_issued_at based on the status the row is moving to." },

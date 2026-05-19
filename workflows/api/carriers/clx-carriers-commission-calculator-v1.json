@@ -1,4 +1,5 @@
 {
+  "id": "clxCarriersCommissionCalculatorV1",
   "name": "CLX - Carriers Commission Calculator v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/carriers/commission-calc", "responseMode": "responseNode", "options": {} }, "id": "cccc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-commission-calculator-001", "notes": "DEACTIVATED. Admin session. Body: { submission_id, override_pct? }. Reads the submission + parent carrier's expected_commission_pct, calculates first-year commission (annual_premium × commission_pct × first_year_factor), inserts or updates the carrier_commissions row with status='expected'. First-year factor defaults to 1.0 for P&C, 0.5 for term-life (Canadian convention varies; carrier-specific tuning via override_pct)." },

@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelWorkflowAutoPauseV1",
   "name": "CLX - Sentinel Workflow Auto Pause v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/auto-pause", "responseMode": "responseNode", "options": {} }, "id": "swap-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-workflow-auto-pause-001", "notes": "DEACTIVATED. Called by threshold-check when emergency budget hit. Pauses all non-essential workflow breakers, logs to sentinel_actions. Essential workflows (is_essential=true) are NEVER paused — that's by design. Auth: MARY_MASTER_TOKEN only (internal-call pattern)." },

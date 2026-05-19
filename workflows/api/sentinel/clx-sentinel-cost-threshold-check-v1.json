@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelCostThresholdCheckV1",
   "name": "CLX - Sentinel Cost Threshold Check v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 */4 * * *" } ] } }, "id": "sctc-0001", "name": "Schedule Every 4h", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },

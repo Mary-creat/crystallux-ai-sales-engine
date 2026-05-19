@@ -1,4 +1,5 @@
 {
+  "id": "clxArchetypeSeedLogisticsV1",
   "name": "CLX - Archetype Seed Logistics v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-logistics", "responseMode": "responseNode", "options": {} }, "id": "asl-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-logistics-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='logistics'." },

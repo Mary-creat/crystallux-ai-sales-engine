@@ -1,4 +1,5 @@
 {
+  "id": "clxPreMeetingBriefingGeneratorV1",
   "name": "CLX - Pre Meeting Briefing Generator v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/30 * * * *" } ] } }, "id": "pmbg-0001", "name": "Schedule Every 30m", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },

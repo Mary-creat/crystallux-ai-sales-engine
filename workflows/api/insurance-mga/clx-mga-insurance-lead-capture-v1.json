@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceLeadCaptureV1",
   "name": "CLX - MGA Insurance Lead Capture v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/lead-capture", "responseMode": "responseNode", "options": { "allowedOrigins": "https://insurance.crystallux.org,https://crystallux.org" } }, "id": "milc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-lead-capture-001", "notes": "DEACTIVATED. Public CORS endpoint for insurance.crystallux.org (Crystallux Financial Services — a division of Crystallux Inc.) marketing-site lead capture forms. No session-token auth (public); CASL consent enforced client-side + recorded server-side. Inserts a row into leads (vertical_id='insurance') and writes a regulatory_audit_log entry. Rate limiting via Cloudflare in front." },

@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelSecuritySummaryV1",
   "name": "CLX - Sentinel Security Summary v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/security/summary", "responseMode": "responseNode", "options": {} }, "id": "ssms-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-security-summary-001", "notes": "DEACTIVATED. Admin session. Aggregates last 24h security events by event_type + severity, credential rotation inventory with days_to_due, open security alerts, top offending IPs/emails for brute-force tracking. Powers admin-dashboard/pages/sentinel.html Security tab." },

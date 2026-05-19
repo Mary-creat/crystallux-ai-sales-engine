@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceReportTemplateSeedV1",
   "name": "CLX - MGA Insurance Report Template Seed v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/report-template-seed", "responseMode": "responseNode", "options": {} }, "id": "rts-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-report-template-seed-001", "notes": "DEACTIVATED. INTERNAL_EMAIL_SECRET. Seeds 6 standard insurer report templates into production_report_templates with vertical_id='insurance'." },

@@ -1,4 +1,5 @@
 {
+  "id": "clxArchetypeSeedDentalV1",
   "name": "CLX - Archetype Seed Dental v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-dental", "responseMode": "responseNode", "options": {} }, "id": "asd-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-dental-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='dental'." },

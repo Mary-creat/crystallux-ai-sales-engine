@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelActionApproveV1",
   "name": "CLX - Sentinel Action Approve v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/remediation/action-approve", "responseMode": "responseNode", "options": {} }, "id": "saa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-action-approve-001", "notes": "DEACTIVATED. Admin session. Body: { action_id, decision: 'approve' | 'reject', notes? }. On approve: reads the pending sentinel_actions row, executes its side effect (block_ip / pause_workflow / etc), flips status to 'succeeded' + human_approved=true. On reject: status='rolled_back' + result_data captures notes." },

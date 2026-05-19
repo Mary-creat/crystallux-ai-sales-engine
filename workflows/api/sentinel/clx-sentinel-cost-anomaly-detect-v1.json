@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelCostAnomalyDetectV1",
   "name": "CLX - Sentinel Cost Anomaly Detect v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 7 * * *" } ] } }, "id": "scad-0001", "name": "Schedule 07:00 Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },

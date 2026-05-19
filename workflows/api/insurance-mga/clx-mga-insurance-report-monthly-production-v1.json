@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceReportMonthlyProductionV1",
   "name": "CLX - MGA Insurance Report Monthly Production v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/report/monthly-production", "responseMode": "responseNode", "options": {} }, "id": "rmp-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-report-monthly-production-001", "notes": "DEACTIVATED. Insurer session. Returns monthly production for the insurer's carrier — policies issued, premium written, product mix, advisor breakdown. Filtered to vertical_id=insurance + insurer's carrier_id." },

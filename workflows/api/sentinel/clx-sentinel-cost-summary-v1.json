@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelCostSummaryV1",
   "name": "CLX - Sentinel Cost Summary v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/cost/summary", "responseMode": "responseNode", "options": {} }, "id": "scs-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-cost-summary-001", "notes": "DEACTIVATED. Admin session. Aggregates all dashboard data into one response: today's spend by service, MTD per service, projected month-end, budgets with %used, open alerts, recent anomalies, workflow breakers. Powers admin-dashboard/pages/sentinel.html Costs tab." },

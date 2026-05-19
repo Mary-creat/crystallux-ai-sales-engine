@@ -1,4 +1,5 @@
 {
+  "id": "clxTrainingCoachChatV1",
   "name": "CLX - Training Coach Chat v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/training/chat", "responseMode": "responseNode", "options": {} }, "id": "tcc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-training-coach-chat-001", "notes": "DEACTIVATED. Session-token. Universal coach. Reads topic context + session history, calls Claude, appends to training_sessions.session_messages." },

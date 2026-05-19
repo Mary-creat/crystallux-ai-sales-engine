@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelRemediationOrchestratorV1",
   "name": "CLX - Sentinel Remediation Orchestrator v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 * * * *" } ] } }, "id": "sro-0001", "name": "Schedule Every 5min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [180, 200] },

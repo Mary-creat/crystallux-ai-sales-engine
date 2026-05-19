@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelSecurityEventLogV1",
   "name": "CLX - Sentinel Security Event Log v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/security/event", "responseMode": "responseNode", "options": {} }, "id": "ssel-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-security-event-log-001", "notes": "DEACTIVATED. Universal POST sink for security events. Auth: MARY_MASTER_TOKEN (internal-call) — any workflow that detects a security-relevant signal posts here. Examples: failed login, expired session token, webhook auth failure, privilege denied. Writes one row to sentinel_security_events." },

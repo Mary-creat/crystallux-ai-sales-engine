@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelHealthSummaryV1",
   "name": "CLX - Sentinel Health Summary v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/sentinel/health/summary", "responseMode": "responseNode", "options": {} }, "id": "shs-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-sentinel-health-summary-001", "notes": "DEACTIVATED. Admin session. Aggregates latest sentinel_workflow_health + sentinel_endpoint_health + open health alerts + breaker status for the Sentinel Health tab. Powers admin-dashboard/pages/sentinel.html." },

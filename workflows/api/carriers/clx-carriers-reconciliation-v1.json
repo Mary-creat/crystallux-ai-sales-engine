@@ -1,4 +1,5 @@
 {
+  "id": "clxCarriersReconciliationV1",
   "name": "CLX - Carriers Reconciliation v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/carriers/reconciliation", "responseMode": "responseNode", "options": {} }, "id": "ccr-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-carriers-reconciliation-001", "notes": "DEACTIVATED. Admin session. Body: { carrier_id, period: 'YYYY-MM', statement_amount_cents, statement_url? }. Records a reconciliation, attempts to match against expected commissions for that carrier+period, computes matched/unmatched amounts, and flags status as matched/partial/discrepancy." },

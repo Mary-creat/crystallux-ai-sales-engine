@@ -1,4 +1,5 @@
 {
+  "id": "clxMgaInsuranceOnboardingCurriculumSeedV1",
   "name": "CLX - MGA Insurance Onboarding Curriculum Seed v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "mga/insurance/onboarding-curriculum-seed", "responseMode": "responseNode", "options": {} }, "id": "iocs-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-mga-insurance-onboarding-curriculum-seed-001", "notes": "DEACTIVATED. INTERNAL_EMAIL_SECRET. Seeds the 30-day insurance advisor onboarding curriculum." },

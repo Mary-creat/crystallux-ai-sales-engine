@@ -1,4 +1,5 @@
 {
+  "id": "clxSentinelCostMonthlyReportV1",
   "name": "CLX - Sentinel Cost Monthly Report v1",
   "nodes": [
     { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "30 0 1 * *" } ] } }, "id": "scmr-0001", "name": "Schedule 1st 00:30", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 200] },

@@ -1,4 +1,5 @@
 {
+  "id": "clxTrainingProgressTrackerV1",
   "name": "CLX - Training Progress Tracker v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/training/progress", "responseMode": "responseNode", "options": {} }, "id": "tpt-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-training-progress-tracker-001", "notes": "DEACTIVATED. Session-token. Aggregates training_sessions into per-category competency + suggested next topics + remediation flags." },

@@ -1,4 +1,5 @@
 {
+  "id": "clxArchetypeSeedConsultingV1",
   "name": "CLX - Archetype Seed Consulting v1",
   "nodes": [
     { "parameters": { "httpMethod": "POST", "path": "api/seed-archetypes-consulting", "responseMode": "responseNode", "options": {} }, "id": "asc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 400], "webhookId": "clx-archetype-seed-consulting-001", "notes": "DEACTIVATED. MARY_MASTER_TOKEN. Idempotent seed for niche_name='consulting'." },
