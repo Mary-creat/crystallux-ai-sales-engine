@@ -14,7 +14,7 @@
     { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "ttl-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { _ok: true, user_id: row.user_id, vertical_id: $('Extract').first().json.vertical_id } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nreturn { json: { _ok: true, user_id: row.user_id, vertical_id: $('Extract').first().json.vertical_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "ttl-0005", "name": "Check Session", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]

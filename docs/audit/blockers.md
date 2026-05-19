@@ -6,6 +6,35 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0o. Auto-unwrap bug in 23 admin-gated workflows → spurious "Session expired" 401s (added 2026-05-19)
+
+**Root cause of Mary's "Carrier page: HTTP 401 Session expired" report after the dedupe pass.** Same trap that hit the avatar tranche (memory: `n8n-httprequest-autounwrap-trap`). httpRequest 4.2 auto-unwraps single-row PostgREST responses, so `$input.item.json` for a successful `validate_session(p_token)` is the row object `{user_id, email, user_role, client_id, expires_at}` — note **no `id` field**.
+
+The broken pattern that landed in 23 workflows:
+
+```js
+const row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);
+```
+
+For a valid session: `rows = { user_id: '...', user_role: 'admin', ... }`, `rows.id` is undefined, so `row = null`, so returns 401 "Invalid session". Frontend renders any 401 as "Session expired. Please sign in again." across all three dashboards (`shared/api.js`).
+
+**Fix:** mechanical text replacement to match the canonical MAXI / MGA carriers-list pattern:
+
+```js
+const row = Array.isArray(rows) ? rows[0] : (rows && (rows.user_id || rows.id) ? rows : null);
+```
+
+Scope: 23 files, 24 sites. All 5 carriers/ workflows, all 8 sentinel/ workflows, 3 training/, 2 briefing/, 2 completeness/, 1 supervisor/, 1 reports/, 1 content/. Mary needs to UI Import-Replace these 23 — most importantly:
+
+- `workflows/api/carriers/clx-carriers-status-check-v1.json` (the page Mary reported)
+- All 4 other `workflows/api/carriers/*` (same bug, same impact)
+
+False positive (intentionally left alone): `workflows/clx-booking-v2.json` — that one's a leads-table query where `rows.id` IS correct (leads have an `id` column).
+
+**Lesson:** the canonical row-check should always be `(rows.user_id || rows.id)` when reading validate_session output. Add to the lint script next time we touch CI.
+
+---
+
 ## 0n. Workflow duplication on live n8n (added 2026-05-19)
 
 **Root cause of the "404 webhook not registered" / random behavior / lead generation failure cluster Mary diagnosed on 2026-05-19.** Many workflow names had 2-6 duplicate rows on the live n8n. Two workflows with the same webhook path collide at registration — only one wins, the others 404. Which one wins is non-deterministic across n8n restarts, so the symptoms appear random.

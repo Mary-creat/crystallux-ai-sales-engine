@@ -25,7 +25,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['admin','supervisor','mga_principal','advisor','sub_agent'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403, error: 'Insufficient role' } };\nreturn { json: { _ok: true, content_topic_id: $('Extract').first().json.content_topic_id } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401, error: 'Invalid session' } };\nconst allowed = ['admin','supervisor','mga_principal','advisor','sub_agent'];\nif (allowed.indexOf(row.user_role) === -1) return { json: { _unauthorized: true, status: 403, error: 'Insufficient role' } };\nreturn { json: { _ok: true, content_topic_id: $('Extract').first().json.content_topic_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "csw-0005", "name": "Check Role", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]

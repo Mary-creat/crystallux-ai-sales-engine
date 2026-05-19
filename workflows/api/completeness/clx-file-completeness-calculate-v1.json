@@ -14,7 +14,7 @@
     { "parameters": { "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session", "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }", "options": {} }, "id": "fcc-0004", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 400], "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } } },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && rows.id ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nconst i = $('Extract').first().json;\nreturn { json: { _ok: true, user_id: row.user_id, client_file_id: i.client_file_id, client_file_type: i.client_file_type, vertical_id: i.vertical_id, client_id: i.client_id, file_data: i.file_data } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { _unauthorized: true, status: 401 } };\nconst i = $('Extract').first().json;\nreturn { json: { _ok: true, user_id: row.user_id, client_file_id: i.client_file_id, client_file_type: i.client_file_type, vertical_id: i.vertical_id, client_id: i.client_id, file_data: i.file_data } };",
         "mode": "runOnceForEachItem"
       },
       "id": "fcc-0005", "name": "Check Session", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 400]
