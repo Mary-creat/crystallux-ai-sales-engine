@@ -9,6 +9,11 @@
   // ── Hardcoded fallback nav. Used by injectNav's catch path so the
   //    sidebar is never empty even if /shared/nav.html fetch fails OR
   //    Cloudflare Pages serves the SPA index.html as a 404 fallback.
+  //
+  //    KEEP IN SYNC with shared/nav.html. When a nav item is added or
+  //    moved there, mirror it here. Stale fallback = if the network
+  //    blip hits, Mary sees the old menu and concludes new pages don't
+  //    exist when they do.
   global.CLX_FALLBACK_NAV =
     '<div class="clx-nav-section">Admin</div>' +
     '<a class="clx-nav-item" href="/pages/overview.html"><span class="clx-nav-icon">◉</span>Overview</a>' +
@@ -16,10 +21,23 @@
     '<a class="clx-nav-item" href="/pages/leads.html"><span class="clx-nav-icon">◍</span>Leads</a>' +
     '<a class="clx-nav-item" href="/pages/workflows.html"><span class="clx-nav-icon">⚙</span>Workflows</a>' +
     '<a class="clx-nav-item" href="/pages/billing.html"><span class="clx-nav-icon">$</span>Billing</a>' +
+    '<a class="clx-nav-item" href="/pages/carriers/overview.html"><span class="clx-nav-icon">⌂</span>Carriers</a>' +
     '<div class="clx-nav-section">Platform</div>' +
+    '<a class="clx-nav-item" href="/pages/sales-engine.html"><span class="clx-nav-icon">⚡</span>Sales Engine</a>' +
     '<a class="clx-nav-item" href="/pages/onboarding.html"><span class="clx-nav-icon">◐</span>Onboarding</a>' +
-    '<a class="clx-nav-item" href="/pages/market-intelligence.html"><span class="clx-nav-icon">✦</span>Market Intelligence</a>' +
+    '<a class="clx-nav-item" href="/pages/sentinel.html"><span class="clx-nav-icon">◆</span>Sentinel</a>' +
     '<a class="clx-nav-item" href="/pages/audit-log.html"><span class="clx-nav-icon">◔</span>Audit Log</a>' +
+    '<a class="clx-nav-item" href="/pages/market-intelligence.html"><span class="clx-nav-icon">✦</span>Market Intelligence</a>' +
+    '<div class="clx-nav-section">Avatars</div>' +
+    '<a class="clx-nav-item" href="/pages/avatars.html"><span class="clx-nav-icon">◉</span>All avatars</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/ava/index.html"><span class="clx-nav-icon">A</span>AVA — Insurance</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/luxi/index.html"><span class="clx-nav-icon">★</span>LUXI — Live Commerce</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/maxi/index.html"><span class="clx-nav-icon">↗</span>MAXI — SMB Growth</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/lumi/index.html"><span class="clx-nav-icon">☾</span>LUMI — Wellness</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/luma/index.html"><span class="clx-nav-icon">☆</span>LUMA — Entertainment</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/lety/index.html"><span class="clx-nav-icon">☉</span>LETY — Education</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/eaza/index.html"><span class="clx-nav-icon">⊟</span>EAZA — Logistics</a>' +
+    '<a class="clx-nav-item" href="/pages/avatars/ciro/index.html"><span class="clx-nav-icon">⚒</span>CIRO — Ops Manager</a>' +
     '<div class="clx-nav-section">Account</div>' +
     '<a class="clx-nav-item" href="/pages/settings.html"><span class="clx-nav-icon">⚒</span>Settings</a>';
 
@@ -278,25 +296,43 @@
   // Sidebar wiring — once nav.html has been injected, mark the active
   // item by matching the current page's path.
   function wireSidebar() {
+    // Highlight the current page's nav item. Safe to re-run — adds the
+    // `.active` class idempotently. Walks every match because some pages
+    // (e.g. /pages/avatars/maxi/industry.html?slug=construction) want
+    // multiple breadcrumb-style highlights.
     var path = window.location.pathname.toLowerCase();
     document.querySelectorAll('.clx-nav-item').forEach(function (a) {
       var href = (a.getAttribute('href') || '').toLowerCase();
       if (!href) return;
-      // Match either exact or "ends-with"
       if (path.endsWith(href) || path.endsWith(href.replace(/^\.\//, ''))) {
         a.classList.add('active');
       }
     });
+
     var burger = document.getElementById('clxBurger');
     var sidebar = document.getElementById('clxSidebar');
     var backdrop = document.getElementById('clxBackdrop');
+
     function toggle() {
       if (!sidebar) return;
       var open = sidebar.classList.toggle('open');
       if (backdrop) backdrop.classList.toggle('show', open);
     }
-    if (burger) burger.addEventListener('click', toggle);
-    if (backdrop) backdrop.addEventListener('click', toggle);
+
+    // Idempotent: every page used to call this twice (once explicitly,
+    // once from injectNav's success/catch). Without this guard, each
+    // burger click toggled the drawer TWICE (open then immediately
+    // close) — making it look like the burger button didn't work.
+    // Sentinel attribute survives DOM-mutation; addEventListener is
+    // NOT idempotent, so we have to guard at the JS level.
+    if (burger && !burger.dataset.clxWired) {
+      burger.dataset.clxWired = '1';
+      burger.addEventListener('click', toggle);
+    }
+    if (backdrop && !backdrop.dataset.clxWired) {
+      backdrop.dataset.clxWired = '1';
+      backdrop.addEventListener('click', toggle);
+    }
   }
 
   // Inject nav.html into a target element. Falls back to the
