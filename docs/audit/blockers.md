@@ -6,6 +6,46 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0n. Workflow duplication on live n8n (added 2026-05-19)
+
+**Root cause of the "404 webhook not registered" / random behavior / lead generation failure cluster Mary diagnosed on 2026-05-19.** Many workflow names had 2-6 duplicate rows on the live n8n. Two workflows with the same webhook path collide at registration — only one wins, the others 404. Which one wins is non-deterministic across n8n restarts, so the symptoms appear random.
+
+**Why duplicates accumulated:**
+
+1. `n8n import:workflow` is INSERT-only. There is no `update:workflow` import path on the CLI side; the only way to update an existing workflow is via the UI's "Replace existing" checkbox on Import from File.
+2. **197 of 271 repo workflow JSONs lacked a top-level `id` field.** Without a fixed id, every import (CLI or UI without "Replace existing") creates a fresh row. We re-imported during cleanups and rebuilds; each pass added duplicates.
+
+Mary's 2026-05-19 diagnostic listed 30 duplicate rows across 11 names — examples: `CLX - Lead Research` (4 v1 + 2 v2 copies), `CLX - Lead Scoring` (5 v1 + 2 v2 copies), `CLX - Admin List Leads v1` (3 copies), `CLX - MAXI Industries List v1` (3 copies, including `wfFix0001` + `clxMaxiIndustriesV1` + a random nano-id).
+
+**Fix (this commit):**
+
+- All 197 repo JSONs received a deterministic top-level `id` (camelCase derived from name, e.g. `clxAuthValidateSessionV1`). Script: `scripts/n8n/add-top-level-ids.py`. CI hook: `python3 scripts/n8n/add-top-level-ids.py --check` returns non-zero if any JSON is missing one.
+- New dedupe tooling: `scripts/n8n/dedupe-workflows.py` (audit / deactivate / delete / verify phases) + `scripts/n8n/dedupe-all-workflows.sh` wrapper. Pre-computed plan for Mary's listed inventory: `docs/audit/WORKFLOW_DEDUPE_PLAN.md`.
+
+**Action required from Mary on the VPS (after pulling this commit):**
+
+```bash
+# 1. Audit (read-only)
+python3 scripts/n8n/dedupe-workflows.py --phase=audit
+
+# 2. Full sequenced pass (prompts before destructive steps)
+./scripts/n8n/dedupe-all-workflows.sh
+
+# 3. UI Import-from-File the 11 canonical JSONs listed in WORKFLOW_DEDUPE_PLAN.md
+#    (with "Replace existing" checked)
+
+# 4. Verify all webhooks return 401 with a body (not empty-200, not 404)
+python3 scripts/n8n/audit-webhook-endpoints.py > docs/audit/WEBHOOK_INVENTORY.md
+```
+
+**Prevention rules going forward:**
+
+1. Every workflow JSON in `workflows/**/*.json` must have a top-level `"id"` field. CI check: `python3 scripts/n8n/add-top-level-ids.py --check`.
+2. Always import via UI with "Replace existing" checked. Never use `docker exec n8n n8n import:workflow` to update an existing workflow — only to seed a fresh n8n.
+3. Re-run `audit-webhook-endpoints.py` after every workflow change pass; flag any new `NOT-ACTIVE` row that wasn't there before.
+
+---
+
 ## 0m. Validate Session httpRequest halts workflows on Supabase error → empty 200 (added 2026-05-19)
 
 **Root cause of Mary's "no data" regression across admin pages.** When the
