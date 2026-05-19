@@ -82,7 +82,13 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "dma-0004",
       "name": "Validate Session",

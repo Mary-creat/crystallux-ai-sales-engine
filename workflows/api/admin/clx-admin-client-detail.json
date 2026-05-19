@@ -1,4 +1,5 @@
 {
+  "id": "wfAdminClientDetail",
   "name": "CLX - Admin Client Detail v1",
   "nodes": [
     {
@@ -12,7 +13,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "webhookId": "clx-admin-client-detail-001"
     },
     {
@@ -24,14 +28,29 @@
       "name": "Extract Inputs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        420,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -40,7 +59,10 @@
       "name": "IF Bad Input",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [640, 300]
+      "position": [
+        640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -49,18 +71,38 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "adm-cd-0004",
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [880, 400],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        880,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -71,14 +113,29 @@
       "name": "Check Admin",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1100, 400]
+      "position": [
+        1100,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -87,7 +144,10 @@
       "name": "IF Admin OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1320, 400]
+      "position": [
+        1320,
+        400
+      ]
     },
     {
       "parameters": {
@@ -96,15 +156,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "adm-cd-0007",
       "name": "Query Client",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1560, 280],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1560,
+        280
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -115,15 +189,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "adm-cd-0008",
       "name": "Query Recent Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1560, 460],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1560,
+        460
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -134,15 +222,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "adm-cd-0009",
       "name": "Query Lead Stats",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1560, 620],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1560,
+        620
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -155,7 +257,10 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1980, 460]
+      "position": [
+        1980,
+        460
+      ]
     },
     {
       "parameters": {
@@ -167,56 +272,195 @@
       "name": "Merge Branches",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [1760, 460]
+      "position": [
+        1760,
+        460
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($json) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "adm-cd-0011",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2060, 460]
+      "position": [
+        2060,
+        460
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
       },
       "id": "adm-cd-0012",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [880, 200]
+      "position": [
+        880,
+        200
+      ]
     }
   ],
   "connections": {
-    "Webhook":            { "main": [[ { "node": "Extract Inputs",    "type": "main", "index": 0 } ]] },
-    "Extract Inputs":     { "main": [[ { "node": "IF Bad Input",       "type": "main", "index": 0 } ]] },
-    "IF Bad Input":       { "main": [
-                                     [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ],
-                                     [ { "node": "Validate Session",   "type": "main", "index": 0 } ]
-                                   ] },
-    "Validate Session":   { "main": [[ { "node": "Check Admin",        "type": "main", "index": 0 } ]] },
-    "Check Admin":        { "main": [[ { "node": "IF Admin OK",        "type": "main", "index": 0 } ]] },
-    "IF Admin OK":        { "main": [
-                                     [
-                                       { "node": "Query Client",       "type": "main", "index": 0 },
-                                       { "node": "Query Recent Leads", "type": "main", "index": 0 },
-                                       { "node": "Query Lead Stats",   "type": "main", "index": 0 }
-                                     ],
-                                     [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ]
-                                   ] },
-    "Query Client":       { "main": [[ { "node": "Merge Branches",    "type": "main", "index": 0 } ]] },
-    "Query Recent Leads": { "main": [[ { "node": "Merge Branches",    "type": "main", "index": 1 } ]] },
-    "Query Lead Stats":   { "main": [[ { "node": "Merge Branches",    "type": "main", "index": 2 } ]] },
-    "Merge Branches":     { "main": [[ { "node": "Shape Response",    "type": "main", "index": 0 } ]] },
-    "Shape Response":     { "main": [[ { "node": "Respond OK",        "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Inputs": {
+      "main": [
+        [
+          {
+            "node": "IF Bad Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Bad Input": {
+      "main": [
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Query Client",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Query Recent Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Query Lead Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Client": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Recent Leads": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Query Lead Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Branches": {
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Response": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

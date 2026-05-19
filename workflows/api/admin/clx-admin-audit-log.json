@@ -1,4 +1,5 @@
 {
+  "id": "wfAdminAuditLog",
   "name": "CLX - Admin Audit Log v1",
   "nodes": [
     {
@@ -12,7 +13,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "webhookId": "clx-admin-audit-log-001"
     },
     {
@@ -24,7 +28,10 @@
       "name": "Extract Token",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        420,
+        300
+      ]
     },
     {
       "parameters": {
@@ -33,18 +40,38 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "adm-al-0003",
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -55,14 +82,29 @@
       "name": "Check Admin",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300]
+      "position": [
+        880,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -71,7 +113,10 @@
       "name": "IF Admin OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1100, 300]
+      "position": [
+        1100,
+        300
+      ]
     },
     {
       "parameters": {
@@ -80,15 +125,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "adm-al-0006",
       "name": "Active Sessions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1340,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -99,15 +158,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "adm-al-0007",
       "name": "All Users",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 380],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1340,
+        380
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -118,15 +191,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "adm-al-0008",
       "name": "Admin Actions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 540],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1340,
+        540
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -139,7 +226,10 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1820, 380]
+      "position": [
+        1820,
+        380
+      ]
     },
     {
       "parameters": {
@@ -151,52 +241,177 @@
       "name": "Merge Branches",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [1620, 380]
+      "position": [
+        1620,
+        380
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($json) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "adm-al-0010",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1860, 380]
+      "position": [
+        1860,
+        380
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
       },
       "id": "adm-al-0011",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1340, 60]
+      "position": [
+        1340,
+        60
+      ]
     }
   ],
   "connections": {
-    "Webhook":          { "main": [[ { "node": "Extract Token",   "type": "main", "index": 0 } ]] },
-    "Extract Token":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
-    "Validate Session": { "main": [[ { "node": "Check Admin",     "type": "main", "index": 0 } ]] },
-    "Check Admin":      { "main": [[ { "node": "IF Admin OK",     "type": "main", "index": 0 } ]] },
-    "IF Admin OK":      { "main": [
-                                   [
-                                     { "node": "Active Sessions", "type": "main", "index": 0 },
-                                     { "node": "All Users",        "type": "main", "index": 0 },
-                                     { "node": "Admin Actions",    "type": "main", "index": 0 }
-                                   ],
-                                   [ { "node": "Respond 4xx",     "type": "main", "index": 0 } ]
-                                 ] },
-    "Active Sessions":  { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
-    "All Users":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
-    "Admin Actions":    { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },
-    "Merge Branches":   { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
-    "Shape Response":   { "main": [[ { "node": "Respond OK",     "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Active Sessions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "All Users",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Admin Actions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Active Sessions": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All Users": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Admin Actions": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Branches": {
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Response": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

@@ -6,6 +6,53 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0m. Validate Session httpRequest halts workflows on Supabase error → empty 200 (added 2026-05-19)
+
+**Root cause of Mary's "no data" regression across admin pages.** When the
+`Validate Session` httpRequest node in admin / MGA workflows hits a non-2xx
+response from Supabase's `validate_session(p_token)` RPC, n8n's HTTP node
+(default `options: {}`, no `neverError`) halts workflow execution. Webhook
+node in `responseMode: responseNode` then falls back to **HTTP 200 with an
+empty body** because no Respond node ever fires.
+
+Reproducible with a junk Bearer token (which DOES reach Validate Session,
+unlike the no-token case which produces an empty `token` field and Supabase
+returns a clean empty array):
+
+```bash
+# Healthy expectation:
+curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer junkjunkjunk" \
+  https://automation.crystallux.org/webhook/admin/list-leads -d '{}'
+# was returning:   HTTP 200, 0 bytes
+# now (after fix): HTTP 401, {"ok":false,"error":"Invalid or expired session"}
+```
+
+Repo-wide impact (probed 2026-05-19): 9 admin endpoints + 45 MGA endpoints
+returned empty 200 on junk token. Page JS sees `{ok: true, data: {}}` and
+renders empty — no error visible to the user.
+
+**Fix:** add `options.response.response.neverError: true` to every Validate
+Session httpRequest node. Supabase's error response then flows as data into
+the next Code node (Check Admin / Check Role / Check Session), which already
+gracefully returns `{ok: false, status: 401, error: 'Invalid or expired
+session'}` for any non-row input. IF branch fires Respond 4xx with proper
+JSON body.
+
+Both files patched as one mechanical sweep in this commit. Mary's apply
+path: UI Import-from-File for each affected workflow she's actually using
+(starting with `clx-admin-list-leads`, `clx-admin-system-health`,
+`clx-admin-audit-log` — those drive the Overview / Sales Engine / Audit
+log pages that showed empty after theme deploy).
+
+**Why this surfaced now:** the bug pre-dates the theme change in `7fb51c0`.
+Mary's symptom timing (admin pages empty after theme apply) was
+coincidence — what changed was that the new dark theme made the *page
+chrome* render before *data load*, so the empty-data state is now
+visible-but-styled instead of hidden by a longer light-theme load. The
+underlying workflows behaved identically before.
+
+---
+
 ## 0l. Webhooks returning HTML 500 (added 2026-05-18, expanded 2026-05-19)
 
 Mary's testing report flags pages that show "failed data" / "Network error" — the actual cause is n8n returning HTML 500 on specific webhooks **before** their workflows ever execute. Same failure pattern as 0h — the workflow JSON is fine, n8n's server is throwing.
