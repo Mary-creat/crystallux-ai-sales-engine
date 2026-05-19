@@ -7,28 +7,39 @@
    =================================================================== */
 
 :root {
-  /* Brand */
-  --color-brand-50:  #F8F7FF;
-  --color-brand-100: #EDE9FE;
-  --color-brand-200: #DDD6FE;
-  --color-brand-300: #C4B5FD;
-  --color-brand-400: #A78BFA;
-  --color-brand-500: #7C3AED;
-  --color-brand-600: #6D28D9;
-  --color-brand-700: #5B21B6;
+  /* ═══ Legacy dark / purple theme — ported from dashboard/ SPA ═══
+     Source values (legacy --primary, --bg, etc.) preserved verbatim
+     where named below. Token NAMES are unchanged for compatibility:
+     existing pages that reference --bg-page, --color-brand-500, etc.
+     get the new visual without any per-page edits. */
 
-  /* Neutral ramp */
-  --gray-0:   #FFFFFF;
-  --gray-50:  #FAFAFA;
-  --gray-100: #F4F4F5;
-  --gray-200: #E4E4E7;
-  --gray-300: #D4D4D8;
-  --gray-400: #A1A1AA;
-  --gray-500: #71717A;
-  --gray-600: #52525B;
-  --gray-700: #3F3F46;
-  --gray-800: #27272A;
-  --gray-900: #18181B;
+  /* Brand — purple primary (legacy --primary #7F77DD / --primary-dark #5d54b8) */
+  --color-brand-50:  #f0eefe;
+  --color-brand-100: rgba(127,119,221,0.18);   /* tinted bg for active states */
+  --color-brand-200: rgba(127,119,221,0.30);
+  --color-brand-300: #a8a2eb;
+  --color-brand-400: #9087e6;
+  --color-brand-500: #7F77DD;                   /* legacy --primary */
+  --color-brand-600: #6c64c9;
+  --color-brand-700: #5d54b8;                   /* legacy --primary-dark */
+
+  /* Accent — green-teal (legacy --secondary #1D9E75) */
+  --color-accent:      #1D9E75;
+  --color-accent-soft: rgba(29,158,117,0.18);
+
+  /* Neutral ramp — REPURPOSED for dark theme (names kept for compat;
+     "gray-0" is now the deepest bg, "gray-900" is the lightest text) */
+  --gray-0:   #0f1626;     /* deepest bg — legacy --bg-3 */
+  --gray-50:  #16213e;     /* card bg    — legacy --bg-2 */
+  --gray-100: #1e2c4d;     /* hover bg */
+  --gray-200: #2a3454;     /* border     — legacy --border */
+  --gray-300: #3a4570;     /* border strong */
+  --gray-400: #6e7896;     /* text dimmer — legacy --text-dimmer */
+  --gray-500: #8b94b3;     /* text muted */
+  --gray-600: #a8b1cc;     /* text secondary — legacy --text-dim */
+  --gray-700: #c5cce0;
+  --gray-800: #e5e9f5;
+  --gray-900: #ffffff;     /* text primary — legacy --text */
 
   /* Semantic */
   --success: #10B981;
@@ -36,9 +47,9 @@
   --error:   #EF4444;
   --info:    #3B82F6;
 
-  /* Surface tokens */
-  --bg-page:    var(--gray-50);
-  --bg-card:    var(--gray-0);
+  /* Surface tokens — point to the dark ramp */
+  --bg-page:    #1a1a2e;                /* legacy --bg */
+  --bg-card:    var(--gray-50);
   --bg-sidebar: var(--gray-0);
   --bg-hover:   var(--gray-100);
   --border:     var(--gray-200);
@@ -46,7 +57,7 @@
 
   --text-primary:   var(--gray-900);
   --text-secondary: var(--gray-600);
-  --text-muted:     var(--gray-500);
+  --text-muted:     var(--gray-400);
   --text-inverse:   var(--gray-0);
 
   /* Spacing + radius */
@@ -140,13 +151,30 @@ button { font-family: inherit; }
   display: flex; align-items: center; gap: 11px;
   padding: 9px 12px; border-radius: var(--r-sm);
   color: var(--text-secondary); font-size: 13.5px; font-weight: 500;
-  cursor: pointer; transition: background .12s, color .12s;
-  margin-bottom: 1px;
+  cursor: pointer;
+  transition: background .15s, color .15s, transform .12s;
+  margin-bottom: 2px;
+  border-left: 3px solid transparent;
+  padding-left: 9px;
 }
-.clx-nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  transform: translateX(1px);
+}
+.clx-nav-item:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: -1px;
+}
 .clx-nav-item.active {
-  background: var(--color-brand-100); color: var(--color-brand-700);
+  background: var(--color-brand-100);
+  color: var(--color-brand-300);
   font-weight: 600;
+  border-left-color: var(--color-brand-500);
+}
+.clx-nav-item.active:hover {
+  background: var(--color-brand-200);
+  color: #fff;
 }
 .clx-nav-icon {
   width: 18px; text-align: center; font-size: 14px; flex-shrink: 0;
@@ -256,10 +284,11 @@ button { font-family: inherit; }
   text-transform: uppercase; letter-spacing: 0.04em;
 }
 .clx-badge-gray   { background: var(--gray-100);  color: var(--gray-700); }
-.clx-badge-blue   { background: #DBEAFE; color: #1E40AF; }
-.clx-badge-green  { background: #D1FAE5; color: #065F46; }
-.clx-badge-yellow { background: #FEF3C7; color: #92400E; }
-.clx-badge-red    { background: #FEE2E2; color: #991B1B; }
+/* Badges — tinted backgrounds on dark theme keep them readable + on-palette */
+.clx-badge-blue   { background: rgba(59,130,246,0.18);  color: #93C5FD; }
+.clx-badge-green  { background: var(--color-accent-soft); color: #6EE7B7; }
+.clx-badge-yellow { background: rgba(245,158,11,0.18);  color: #FBBF24; }
+.clx-badge-red    { background: rgba(239,68,68,0.18);   color: #FCA5A5; }
 .clx-badge-purple { background: var(--color-brand-100); color: var(--color-brand-700); }
 
 /* Buttons */
