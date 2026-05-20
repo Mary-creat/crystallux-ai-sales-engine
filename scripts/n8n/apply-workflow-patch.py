@@ -386,6 +386,11 @@ def main():
     ap.add_argument('--api-key',
                     default=os.environ.get('N8N_API_KEY', ''),
                     help='n8n API key (X-N8N-API-KEY header) for REST DELETE.')
+    ap.add_argument('--activate', choices=['auto', 'all', 'none'], default='auto',
+                    help=('Activation policy after import. '
+                          '"auto" (default): activate if a prior copy was active OR no prior exists. '
+                          '"all": activate every imported workflow. '
+                          '"none": leave everything inactive.'))
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--no-restart', action='store_true')
     ap.add_argument('--no-probe', action='store_true')
@@ -415,12 +420,23 @@ def main():
     print(f'Files        : {len(files)}')
     print(f'Container    : {args.container}')
     print(f'Webhook base : {args.base}')
+    print(f'Activation   : {args.activate}')
     print(f'Mode         : {"DRY-RUN" if args.dry_run else "APPLY"}')
     if not args.dry_run:
         detected = detect_delete_capability(args.container, args.api_url, args.api_key)
-        print(f'Delete via   : {detected}'
-              + (f"  {DIM}(no delete mechanism — old rows stay deactivated){RESET}"
-                 if detected == 'none' else ''))
+        print(f'Delete via   : {detected}')
+        if detected == 'none':
+            print()
+            print(f'  {YELLOW}WARNING: no delete mechanism available.{RESET}')
+            print(f'  Old rows will stay deactivated but their webhook_entity entries will')
+            print(f'  remain, blocking new workflows from registering their webhooks. You')
+            print(f'  will likely see NOT-FOUND / EMPTY-200 on every probed endpoint.')
+            print()
+            print(f'  To enable proper deletion (1-minute setup):')
+            print(f'    1. n8n UI → Settings → API → Create an API key')
+            print(f'    2. export N8N_API_KEY="<the-key>"  (or add to ~/.bashrc)')
+            print(f'    3. Re-run this script.')
+            print()
     print()
 
     # Build a single name → live-rows index so we only call list:workflow once.
@@ -502,13 +518,28 @@ def main():
             results.append({'file': rel, 'status': 'import-failed'})
             continue
 
-        was_active = any_active or json_active
-        print(f'  {GREEN}✓ imported{RESET}{" (will re-activate)" if was_active else " (left inactive)"}')
+        # Decide whether to activate after import. The "preserve previous
+        # state" default was too conservative — for a NEW workflow it left
+        # things inactive, and for a workflow whose duplicates were all
+        # deactivated by the dedupe pass it left the patched version
+        # inactive too. Both produce 404 on webhook probes.
+        is_new = (len(live_matches) == 0)
+        if args.activate == 'all':
+            should_activate = True
+        elif args.activate == 'none':
+            should_activate = False
+        else:  # 'auto'
+            should_activate = any_active or json_active or is_new
+
+        print(f'  {GREEN}✓ imported{RESET}'
+              + (' (will activate)' if should_activate else ' (left inactive)')
+              + (DIM + ' [new]' + RESET if is_new else ''))
         results.append({
             'file': rel,
             'status': 'imported',
             'id': json_id,
-            'was_active': was_active,
+            'should_activate': should_activate,
+            'is_new': is_new,
             'webhook_paths': webhook_paths,
         })
         print()
@@ -517,10 +548,10 @@ def main():
     if not args.no_restart and not args.dry_run:
         restart_and_wait(args.container)
 
-    # ───── Phase 3: re-activate workflows that were active pre-patch ─────
-    to_activate = [r for r in results if r['status'] == 'imported' and r['was_active']]
+    # ───── Phase 3: activate workflows per --activate policy ─────
+    to_activate = [r for r in results if r['status'] == 'imported' and r.get('should_activate')]
     if to_activate:
-        print(f'\nActivating {len(to_activate)} workflow(s) that were active pre-patch:')
+        print(f'\nActivating {len(to_activate)} workflow(s) ({args.activate} policy):')
         for r in to_activate:
             activate(args.container, r['id'], args.dry_run)
 
@@ -568,10 +599,58 @@ def main():
                     if p['status'] not in ('HEALTHY', 'BAD-INPUT')]
         if problems:
             overall_ok = False
+            # Categorize so Mary doesn't have to guess what each tag means.
+            by_status = defaultdict(list)
+            for r, p in problems:
+                by_status[p['status']].append((r, p))
             print()
             print(f'  {YELLOW}Unhealthy probes:{RESET}')
             for r, p in problems:
                 print(f'    ⚠ {r["file"]} → /{p["path"]} → {p["status"]} (HTTP {p["code"]})')
+
+            print()
+            print(f'  {YELLOW}What each status means + how to fix:{RESET}')
+            if 'NOT-FOUND' in by_status:
+                count = len(by_status['NOT-FOUND'])
+                print(f'')
+                print(f'    NOT-FOUND ({count}) — n8n has no webhook registered at that path.')
+                print(f'      Most common cause: the imported workflow is inactive. Pass')
+                print(f'      --activate=all to force activation on every imported workflow,')
+                print(f'      OR activate them via the n8n UI manually.')
+                if _DELETE_METHOD == 'none':
+                    print(f'      ALSO POSSIBLE: webhook_entity blockage — old deactivated rows')
+                    print(f'      still occupy the path (unique constraint), blocking the new')
+                    print(f'      activation\'s webhook registration. Set N8N_API_KEY to enable')
+                    print(f'      proper deletion (see below).')
+            if 'EMPTY-200' in by_status:
+                count = len(by_status['EMPTY-200'])
+                print(f'')
+                print(f'    EMPTY-200 ({count}) — webhook routes to a deactivated/stale workflow.')
+                print(f'      The webhook_entity table still maps this path to an OLD row that')
+                print(f'      is no longer running. Need to delete the old workflow(s); only')
+                print(f'      n8n REST API DELETE or sqlite3 cleans up webhook_entity. Set')
+                print(f'      N8N_API_KEY (see below) and re-run; the script will then properly')
+                print(f'      DELETE the conflicting rows.')
+            if 'N8N-500' in by_status:
+                count = len(by_status['N8N-500'])
+                print(f'')
+                print(f'    N8N-500 ({count}) — n8n process throwing. Check `docker logs n8n')
+                print(f'      --tail 200`. Often a missing credential or DB connection issue.')
+
+            if _DELETE_METHOD == 'none' and ('NOT-FOUND' in by_status or 'EMPTY-200' in by_status):
+                print(f'')
+                print(f'  {YELLOW}═══════════════════════════════════════════════════════════{RESET}')
+                print(f'  {YELLOW}> RECOMMENDED: set up an n8n API key (one-time, ~1 minute){RESET}')
+                print(f'  {YELLOW}═══════════════════════════════════════════════════════════{RESET}')
+                print(f'    1. Open n8n UI → Settings → API → Create an API key. Copy it.')
+                print(f'    2. On the VPS:')
+                print(f'         echo \'export N8N_API_KEY="<paste-here>"\' >> ~/.bashrc')
+                print(f'         source ~/.bashrc')
+                print(f'    3. Re-run with --activate=all:')
+                print(f'         bash scripts/n8n/apply-workflow-patch.sh {os.path.relpath(folder)} \\')
+                print(f'              --no-pull --activate=all')
+                print(f'    The script header will then read "Delete via : api" and the script')
+                print(f'    will properly remove conflicting webhook_entity rows.')
 
     print()
     if overall_ok:

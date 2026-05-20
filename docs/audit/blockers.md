@@ -6,6 +6,53 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0q. webhook_entity rows from deactivated workflows block new webhook registration → NOT-FOUND / EMPTY-200 across the board (added 2026-05-19)
+
+**Hit immediately after `0p` fix shipped.** Mary's `apply-workflow-patch.sh` re-runs on the 7 broken folders + the admin folder ALL imported successfully but every probed webhook returned NOT-FOUND or EMPTY-200. Including the new `/admin/comms-log` for the CIRO viewer.
+
+**Diagnosis: TWO problems combined into one symptom.**
+
+1. **`webhook_entity` has a UNIQUE constraint on (webhook_path, http_method).** Deactivating a workflow does NOT remove its `webhook_entity` row — only proper DELETE via REST API / sqlite3 / `n8n delete:workflow` does. With `Delete via : none` (no API key, no sqlite3, no CLI delete in this n8n version), the old rows stuck around. When the script then activated a new workflow with the SAME webhook path, the INSERT into webhook_entity failed silently → the new webhook never registered → routing falls through to the old row pointing at a deactivated workflow → EMPTY-200 (workflow halts on entry) or NOT-FOUND (if even the stale row got cleaned eventually).
+
+2. **The script's `--activate=auto` default was too conservative.** It only re-activated workflows whose prior copies were active. The dedupe pass left every duplicate inactive. New workflows (no prior version) also stayed inactive. So even setting aside problem #1, every newly-imported workflow stayed inactive → NOT-FOUND on probe.
+
+**Fixes (this commit):**
+
+- New `--activate` flag with three modes:
+  - `auto` (still default): activate if prior was active OR no prior exists. This now also picks up brand-new workflows like `comms-log`.
+  - `all`: force-activate every imported workflow regardless of prior state. Recommended for patch runs.
+  - `none`: leave everything inactive.
+- Header banner now prints a yellow `WARNING: no delete mechanism available` block whenever `Delete via : none` is detected — with the exact 3-step API key setup inline. No more silent acceptance of the broken path.
+- End-of-run "Unhealthy probes" section now categorizes NOT-FOUND / EMPTY-200 / N8N-500 with specific remediation per status, AND prints the API-key-setup block again with a copy-paste re-run command.
+
+**What Mary does to actually fix the live n8n:**
+
+```
+# 1. n8n UI → Settings → API → Create an API key. Copy.
+echo 'export N8N_API_KEY="<paste>"' >> ~/.bashrc
+source ~/.bashrc
+
+# 2. Verify the script now sees the API
+python3 scripts/n8n/apply-workflow-patch.py workflows/api/admin/ --dry-run
+# Header should read: Delete via : api
+
+# 3. Re-run on every affected folder with --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/admin/         --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/sentinel/      --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/training/      --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/briefing/      --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/completeness/  --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/supervisor/    --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/reports/       --no-pull --activate=all
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/content/       --no-pull --activate=all
+```
+
+This time the script will: properly DELETE the old conflicting `workflow_entity` + `webhook_entity` rows via REST API, then import + activate each workflow so its webhook actually registers. Probes should flip to HEALTHY.
+
+`apk add sqlite` in the container does NOT work — the official n8n image runs as user `node`, no apk write access. API key is the cleanest path.
+
+---
+
 ## 0p. apply-workflow-patch.sh: sqlite3 absent in stock n8n container → import was being skipped on every file (added 2026-05-19)
 
 **What Mary hit:** Running `bash scripts/n8n/apply-workflow-patch.sh workflows/api/sentinel/` after the carriers folder worked manually. Every file in sentinel/training/briefing/completeness/supervisor/reports/content reported `delete-failed` and skipped import. Total: 35 workflows unpatched on the live n8n.
