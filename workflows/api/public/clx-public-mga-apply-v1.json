@@ -1,0 +1,178 @@
+{
+  "id": "clxPublicMgaApplyV1",
+  "name": "CLX - Public MGA Apply v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "public/mga/apply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pma-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-public-mga-apply-001",
+      "notes": "Public-facing application intake for advisor candidates AND carrier prospects. No session token. Body: { form_type: 'advisor'|'carrier', email, full_name, company?, phone?, ...form_type-specific fields }. INSERTs a row into `leads` with appropriate lead_type + sends Postmark notification to Mary."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst formType = String(body.form_type || '').toLowerCase().trim();\nconst allowed = ['advisor', 'carrier'];\nif (allowed.indexOf(formType) === -1) {\n  return { json: { ok: false, status: 400, error: 'form_type must be \"advisor\" or \"carrier\"' } };\n}\n\nconst email = String(body.email || '').trim().toLowerCase();\nconst emailRe = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (!email || !emailRe.test(email)) {\n  return { json: { ok: false, status: 400, error: 'Valid email required' } };\n}\nconst fullName = String(body.full_name || '').trim().slice(0, 200);\nif (!fullName) return { json: { ok: false, status: 400, error: 'full_name required' } };\n\n// Per form_type, gather the fields. Anything not in the small allowed\n// set goes into the notes JSON (cap at 2KB so a bot can't fill the\n// row with noise).\nfunction safeStr(v, max) { return (v == null ? '' : String(v)).trim().slice(0, max || 200); }\n\nconst extras = {};\nif (formType === 'advisor') {\n  extras.ribo_status        = safeStr(body.ribo_status,    80);\n  extras.years_licensed     = safeStr(body.years_licensed, 80);\n  extras.current_carriers   = safeStr(body.current_carriers, 500);\n  extras.book_size          = safeStr(body.book_size,      80);\n  extras.specialties        = safeStr(body.specialties,    500);\n  extras.why_crystallux     = safeStr(body.why_crystallux, 1000);\n} else {\n  extras.product_lines      = safeStr(body.product_lines,  500);\n  extras.target_markets     = safeStr(body.target_markets, 300);\n  extras.distribution_today = safeStr(body.distribution_today, 500);\n  extras.partnership_goal   = safeStr(body.partnership_goal, 1000);\n}\nconst notesStr = 'Application via ' + (body.form_source || 'web') + ':\\n' +\n  Object.keys(extras).filter(function (k) { return extras[k]; })\n        .map(function (k) { return k + ': ' + extras[k]; })\n        .join('\\n');\n\nconst leadRow = {\n  full_name:         fullName,\n  email:             email,\n  phone:             safeStr(body.phone, 40),\n  company:           safeStr(body.company, 200) || (formType === 'advisor' ? 'Independent advisor' : 'Insurance carrier'),\n  job_title:         formType === 'advisor' ? 'Insurance Advisor' : 'Carrier rep',\n  industry:          'insurance',\n  city:              safeStr(body.city, 120),\n  source:            formType === 'advisor' ? 'advisor_application' : 'carrier_inquiry',\n  lead_status:       'New Lead',\n  product_type:      'insurance',\n  lead_type:         formType === 'advisor' ? 'advisor_candidate' : 'carrier_prospect',\n  do_not_contact:    false,\n  unsubscribed:      false,\n  total_emails_sent: 0,\n  lead_score:        70,            // applications come in warm by default\n  notes:             notesStr.slice(0, 2000),\n  updated_at:        new Date().toISOString()\n};\n\nreturn { json: {\n  form_type:    formType,\n  email:        email,\n  full_name:    fullName,\n  lead_row:     leadRow,\n  notify_subject: formType === 'advisor'\n    ? '[Crystallux] New advisor application: ' + fullName\n    : '[Crystallux] New carrier inquiry: ' + (leadRow.company || fullName),\n  notify_body:    notesStr,\n  extras:       extras\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pma-0002",
+      "name": "Validate + Build",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok === false }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "pma-0003",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.lead_row) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pma-0004",
+      "name": "Insert Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Postmark notification email to Mary.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Insert Lead');\nconst v = $('Validate + Build').item.json;\nconst leadId = rows.length > 0 ? rows[0].id : null;\n\nconst esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };\nconst extrasHtml = Object.keys(v.extras || {})\n  .filter(function (k) { return v.extras[k]; })\n  .map(function (k) { return '<tr><td style=\"padding:4px 12px 4px 0;color:#6b7280;text-transform:capitalize\">' + esc(k.replace(/_/g, ' ')) + '</td><td style=\"padding:4px 0\">' + esc(v.extras[k]) + '</td></tr>'; })\n  .join('');\n\nconst html =\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#333;max-width:640px\">' +\n  '<p>New ' + (v.form_type === 'advisor' ? 'advisor application' : 'carrier inquiry') + ' just arrived.</p>' +\n  '<table style=\"border-collapse:collapse;margin:14px 0;font-size:13px\">' +\n    '<tr><td style=\"padding:4px 12px 4px 0;color:#6b7280\">Name</td><td style=\"padding:4px 0\"><strong>' + esc(v.full_name) + '</strong></td></tr>' +\n    '<tr><td style=\"padding:4px 12px 4px 0;color:#6b7280\">Email</td><td style=\"padding:4px 0\"><a href=\"mailto:' + esc(v.email) + '\">' + esc(v.email) + '</a></td></tr>' +\n    extrasHtml +\n  '</table>' +\n  (leadId ? '<p><a href=\"https://admin.crystallux.org/pages/leads.html?lead_id=' + esc(leadId) + '\" style=\"display:inline-block;padding:9px 16px;background:#7C3AED;color:#fff;border-radius:6px;text-decoration:none;font-weight:600\">Open in admin →</a></p>' : '<p style=\"color:#dc2626\">(Lead insert returned no row — check Supabase RLS / service role)</p>') +\n  '<p style=\"color:#6b7280;font-size:11px;margin-top:18px\">Lead ID: ' + esc(leadId || '(none)') + '</p>' +\n  '</div>';\n\nreturn { json: {\n  ok: !!leadId,\n  lead_id: leadId,\n  form_type: v.form_type,\n  postmark_body: {\n    From:    'info@crystallux.org',\n    To:      'info@crystallux.org',\n    Subject: v.notify_subject,\n    HtmlBody: html,\n    TextBody: 'New ' + v.form_type + ' application: ' + v.full_name + ' <' + v.email + '>\\n\\n' + v.notify_body,\n    MessageStream: 'outbound',\n    Tag: 'mga-application',\n    Metadata: { lead_id: leadId || '', form_type: v.form_type }\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pma-0005",
+      "name": "Build Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept",                 "value": "application/json" },
+            { "name": "Content-Type",           "value": "application/json" },
+            { "name": "X-Postmark-Server-Token","value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postmark_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pma-0006",
+      "name": "Notify Mary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const postmark = $input.item.json;\nconst v = $('Build Notification').first().json;\nconst sentOk = !!(postmark && postmark.MessageID);\nreturn { json: {\n  ok: v.ok,\n  lead_id: v.lead_id,\n  form_type: v.form_type,\n  notification_sent: sentOk,\n  message: v.form_type === 'advisor'\n    ? 'Thanks — your advisor application is in. Mary will reply from info@crystallux.org within 24 hours.'\n    : 'Thanks — your carrier inquiry is in. Mary will reach out from info@crystallux.org within 24 hours.'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pma-0007",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "id": "pma-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1860, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "id": "pma-0009",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 560]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Validate + Build", "type": "main", "index": 0 }]] },
+    "Validate + Build": { "main": [[{ "node": "IF Valid",         "type": "main", "index": 0 }]] },
+    "IF Valid": {
+      "main": [
+        [{ "node": "Insert Lead",   "type": "main", "index": 0 }],
+        [{ "node": "Respond Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Insert Lead":        { "main": [[{ "node": "Build Notification", "type": "main", "index": 0 }]] },
+    "Build Notification": { "main": [[{ "node": "Notify Mary",        "type": "main", "index": 0 }]] },
+    "Notify Mary":        { "main": [[{ "node": "Shape Response",     "type": "main", "index": 0 }]] },
+    "Shape Response":     { "main": [[{ "node": "Respond OK",         "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -2,4 +2,13 @@
 # Pretty URLs that rewrite to the underlying static page.
 
 # Public quote landing — emailed link looks like crystallux.org/quote/<uuid>
-/quote/*    /quote.html?id=:splat    200
+/quote/*           /quote.html?id=:splat    200
+
+# Public MGA application landings — clean URLs without .html
+/join-advisor      /join-advisor.html       200
+/join-carrier      /join-carrier.html       200
+
+# Legacy aliases mentioned in earlier emails / docs.
+# If insurance.crystallux.org or insurer.crystallux.org point at this
+# same Pages project, /join on those hosts resolves to the right form.
+/join              /join-advisor.html       200
