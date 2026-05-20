@@ -144,24 +144,131 @@ def deactivate(container, wf_id, dry_run):
     return True
 
 
-def sql_delete(container, db_path, wf_ids, dry_run):
+# Cached delete-capability detection (set once per run)
+_DELETE_METHOD = None  # one of: 'cli', 'api', 'sqlite', 'none'
+
+
+def detect_delete_capability(container, api_url, api_key):
+    """
+    Probe in order of cleanliness:
+      'cli'    n8n CLI delete:workflow (newer n8n versions)
+      'api'    REST API DELETE /workflows/:id with X-N8N-API-KEY
+      'sqlite' direct sqlite3 on the container DB
+      'none'   none available; deletes will be skipped (deactivate only)
+
+    Probes are read-only and fast; cached in _DELETE_METHOD.
+    """
+    global _DELETE_METHOD
+    if _DELETE_METHOD is not None:
+        return _DELETE_METHOD
+
+    # 1. CLI — try `n8n delete:workflow --help`. If the command is unknown,
+    # exit code is non-zero and stderr/stdout mentions "unknown" or "invalid".
+    r = dx(container, 'n8n', 'delete:workflow', '--help')
+    combined = (r.stdout + r.stderr).lower()
+    if r.returncode == 0 and 'delete:workflow' in combined:
+        _DELETE_METHOD = 'cli'
+        return _DELETE_METHOD
+
+    # 2. REST API — only if API key + URL configured
+    if api_key:
+        try:
+            check = subprocess.run(
+                ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
+                 '--max-time', '5',
+                 '-H', f'X-N8N-API-KEY: {api_key}',
+                 f'{api_url.rstrip("/")}/workflows?limit=1'],
+                capture_output=True, text=True, timeout=8,
+            )
+            code = check.stdout.strip()
+            if code.startswith('2'):
+                _DELETE_METHOD = 'api'
+                return _DELETE_METHOD
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    # 3. sqlite3 — check `which sqlite3` inside container
+    r = dx(container, 'sh', '-c', 'command -v sqlite3 || which sqlite3 2>/dev/null')
+    if r.returncode == 0 and r.stdout.strip():
+        _DELETE_METHOD = 'sqlite'
+        return _DELETE_METHOD
+
+    _DELETE_METHOD = 'none'
+    return _DELETE_METHOD
+
+
+def delete_workflow_ids(container, wf_ids, db_path, api_url, api_key, dry_run):
+    """
+    Best-effort delete. Tries the detected method; on failure does NOT
+    abort the caller — old rows just remain deactivated. Returns True if
+    everything deleted, False if anything was skipped/failed (caller may
+    log but should still proceed with import).
+    """
     if not wf_ids:
         return True
-    quoted = ', '.join("'" + w + "'" for w in wf_ids)
-    sql = (
-        f'DELETE FROM webhook_entity   WHERE workflowId IN ({quoted});\n'
-        f'DELETE FROM execution_entity WHERE workflowId IN ({quoted});\n'
-        f'DELETE FROM workflow_entity  WHERE id IN ({quoted});\n'
-    )
-    print(f'    sql-delete {len(wf_ids)} row(s): {", ".join(wf_ids)}'
+    method = detect_delete_capability(container, api_url, api_key)
+    label = f'{len(wf_ids)} row(s): {", ".join(wf_ids)}'
+
+    if method == 'none':
+        print(f'    {YELLOW}skip-delete{RESET} ({label}) — no delete mechanism '
+              f'available (no n8n delete CLI, no N8N_API_KEY, no sqlite3 in container). '
+              f'Old rows stay deactivated; import will still proceed.')
+        return False
+
+    print(f'    delete via {method} → {label}'
           + (DIM + ' (DRY)' + RESET if dry_run else ''))
     if dry_run:
         return True
-    r = dx(container, 'sqlite3', db_path, stdin=sql)
-    if r.returncode != 0:
-        print(f'      {RED}ERR{RESET}: {r.stderr.strip()}')
-        return False
-    return True
+
+    if method == 'cli':
+        ok = True
+        for wid in wf_ids:
+            r = dx(container, 'n8n', 'delete:workflow', f'--id={wid}')
+            if r.returncode != 0:
+                print(f'      {YELLOW}WARN{RESET} ({wid}): {r.stderr.strip() or r.stdout.strip()}')
+                ok = False
+        return ok
+
+    if method == 'api':
+        ok = True
+        for wid in wf_ids:
+            try:
+                r = subprocess.run(
+                    ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
+                     '--max-time', '15',
+                     '-X', 'DELETE',
+                     '-H', f'X-N8N-API-KEY: {api_key}',
+                     f'{api_url.rstrip("/")}/workflows/{wid}'],
+                    capture_output=True, text=True, timeout=18,
+                )
+                code = r.stdout.strip()
+                if not (code.startswith('2') or code == '404'):
+                    # 404 is fine (already gone); anything else is a problem
+                    print(f'      {YELLOW}WARN{RESET} ({wid}): HTTP {code}')
+                    ok = False
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                print(f'      {YELLOW}WARN{RESET} ({wid}): {e}')
+                ok = False
+        return ok
+
+    if method == 'sqlite':
+        quoted = ', '.join("'" + w + "'" for w in wf_ids)
+        sql = (
+            f'DELETE FROM webhook_entity   WHERE workflowId IN ({quoted});\n'
+            f'DELETE FROM execution_entity WHERE workflowId IN ({quoted});\n'
+            f'DELETE FROM workflow_entity  WHERE id IN ({quoted});\n'
+        )
+        r = dx(container, 'sqlite3', db_path, stdin=sql)
+        if r.returncode != 0:
+            # Could be schema mismatch (workflowId vs "workflowId") — try Postgres-quoted form
+            sql_pg = sql.replace('workflowId', '"workflowId"')
+            r2 = dx(container, 'sqlite3', db_path, stdin=sql_pg)
+            if r2.returncode != 0:
+                print(f'      {YELLOW}WARN{RESET}: {r.stderr.strip()}')
+                return False
+        return True
+
+    return False
 
 
 def import_file(container, container_path, dry_run):
@@ -272,6 +379,13 @@ def main():
     ap.add_argument('--db-path', default=DEFAULT_DB_PATH)
     ap.add_argument('--base', default=DEFAULT_BASE,
                     help='Webhook base URL for probing.')
+    ap.add_argument('--api-url',
+                    default=os.environ.get('CLX_N8N_API_URL',
+                                           'http://localhost:5678/api/v1'),
+                    help='n8n REST API base URL (used when N8N_API_KEY is set).')
+    ap.add_argument('--api-key',
+                    default=os.environ.get('N8N_API_KEY', ''),
+                    help='n8n API key (X-N8N-API-KEY header) for REST DELETE.')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--no-restart', action='store_true')
     ap.add_argument('--no-probe', action='store_true')
@@ -302,6 +416,11 @@ def main():
     print(f'Container    : {args.container}')
     print(f'Webhook base : {args.base}')
     print(f'Mode         : {"DRY-RUN" if args.dry_run else "APPLY"}')
+    if not args.dry_run:
+        detected = detect_delete_capability(args.container, args.api_url, args.api_key)
+        print(f'Delete via   : {detected}'
+              + (f"  {DIM}(no delete mechanism — old rows stay deactivated){RESET}"
+                 if detected == 'none' else ''))
     print()
 
     # Build a single name → live-rows index so we only call list:workflow once.
@@ -346,26 +465,29 @@ def main():
         print(f'  live : {len(live_matches)} workflow(s) match by name; '
               f'{sum(1 for m in live_matches if m["active"])} active')
 
-        # Deactivate any active old rows before deleting.
+        # Deactivate every same-name row. ALWAYS works via CLI (no sqlite3
+        # needed) and is what actually matters for webhook collision: only
+        # active workflows register webhooks, so a deactivated old row stops
+        # competing with the new one even if we can't delete it.
         for m in live_matches:
-            if m['active'] and not deactivate(args.container, m['id'], args.dry_run):
-                pass  # log and continue; delete will still proceed
+            if m['active']:
+                deactivate(args.container, m['id'], args.dry_run)
 
-        # Delete the different-id duplicates.
-        if other_id_dupes and not sql_delete(args.container, args.db_path,
-                                             other_id_dupes, args.dry_run):
-            print(f'  {RED}✗ delete failed{RESET}; skipping import')
-            results.append({'file': rel, 'status': 'delete-failed'})
-            continue
-        # Delete the same-id row too (n8n import:workflow on existing id fails
-        # with SQLITE_CONSTRAINT on some versions; cleaner to start fresh).
-        if same_id_present and not sql_delete(args.container, args.db_path,
-                                              [json_id], args.dry_run):
-            print(f'  {RED}✗ delete (same-id) failed{RESET}; skipping import')
-            results.append({'file': rel, 'status': 'delete-failed'})
-            continue
+        # Best-effort delete of old rows (different-id duplicates + same-id).
+        # If sqlite3 / API / CLI delete all unavailable, this returns False and
+        # we proceed anyway — the deactivated rows are harmless garbage.
+        delete_targets = list(other_id_dupes)
+        if same_id_present:
+            delete_targets.append(json_id)
+        delete_workflow_ids(
+            args.container, delete_targets, args.db_path,
+            args.api_url, args.api_key, args.dry_run,
+        )
 
-        # Copy file into container + import.
+        # Copy file into container + import. If delete was skipped AND a
+        # same-id row exists, the import will likely fail with
+        # SQLITE_CONSTRAINT — we report that clearly so Mary knows to do
+        # one UI Import-Replace for the affected file.
         container_path = f'/tmp/clx-patch-{os.path.basename(f)}'
         if not args.dry_run:
             cp = dcp(args.container, f, container_path)
@@ -374,6 +496,9 @@ def main():
                 results.append({'file': rel, 'status': 'cp-failed'})
                 continue
         if not import_file(args.container, container_path, args.dry_run):
+            if same_id_present and _DELETE_METHOD == 'none':
+                print(f'  {YELLOW}→ likely id collision; do ONE UI Import-Replace '
+                      f'for this file (id `{json_id}` already exists){RESET}')
             results.append({'file': rel, 'status': 'import-failed'})
             continue
 

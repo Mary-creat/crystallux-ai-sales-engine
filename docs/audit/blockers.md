@@ -6,6 +6,50 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0p. apply-workflow-patch.sh: sqlite3 absent in stock n8n container → import was being skipped on every file (added 2026-05-19)
+
+**What Mary hit:** Running `bash scripts/n8n/apply-workflow-patch.sh workflows/api/sentinel/` after the carriers folder worked manually. Every file in sentinel/training/briefing/completeness/supervisor/reports/content reported `delete-failed` and skipped import. Total: 35 workflows unpatched on the live n8n.
+
+**Why:** The stock `n8nio/n8n` Docker image is Alpine-based and doesn't ship sqlite3. The original script (4e37f3c) used `docker exec n8n sqlite3 …` to delete duplicate rows, which silently failed, and the script treated that failure as a blocker.
+
+But the SQL delete was only cleanup of already-deactivated duplicate rows — it wasn't a prerequisite for import. Deactivated old rows don't register webhooks, so they don't collide with the new import. Treating the delete failure as a hard blocker was a bug.
+
+**Fix (this commit):** The script now:
+
+1. Detects available delete mechanism on the first call:
+   - n8n CLI `delete:workflow` (newer n8n versions)
+   - REST API `DELETE /api/v1/workflows/:id` (if `N8N_API_KEY` env var set)
+   - sqlite3 (if installed in the container)
+   - none (gracefully degrade to deactivate-only)
+2. Always deactivates same-name workflows (CLI-only, always works).
+3. Tries to delete them via the detected method.
+4. Proceeds with import even if delete fails. Old rows stay deactivated and harmless.
+5. If a same-id row exists AND delete is unavailable AND import fails with collision: prints a clear hint that the file needs one UI Import-Replace.
+
+Mary can now re-run all 7 broken folders:
+
+```bash
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/sentinel/
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/training/  --no-pull
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/briefing/  --no-pull
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/completeness/ --no-pull
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/supervisor/ --no-pull
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/reports/   --no-pull
+bash scripts/n8n/apply-workflow-patch.sh workflows/api/content/   --no-pull
+```
+
+**Optional but cleanest:** set up an n8n API key once so the script can hard-delete duplicates instead of leaving deactivated garbage. In n8n UI → Settings → API → Generate API Key, then on the VPS:
+
+```bash
+echo 'export N8N_API_KEY=n8n_api_…'   >> ~/.bashrc
+echo 'export CLX_N8N_API_URL=http://localhost:5678/api/v1' >> ~/.bashrc
+source ~/.bashrc
+```
+
+The script picks up `N8N_API_KEY` automatically and switches `Delete via : api` (visible in the header).
+
+---
+
 ## 0o. Auto-unwrap bug in 23 admin-gated workflows → spurious "Session expired" 401s (added 2026-05-19)
 
 **Root cause of Mary's "Carrier page: HTTP 401 Session expired" report after the dedupe pass.** Same trap that hit the avatar tranche (memory: `n8n-httprequest-autounwrap-trap`). httpRequest 4.2 auto-unwraps single-row PostgREST responses, so `$input.item.json` for a successful `validate_session(p_token)` is the row object `{user_id, email, user_role, client_id, expires_at}` — note **no `id` field**.
