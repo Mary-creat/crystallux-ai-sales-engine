@@ -111,8 +111,26 @@ var STATE = {
   questions:   [],
   answers:     {},
   step:        0,
-  selectedAddons: {}
+  selectedAddons: {},
+  // Server-side draft state — populated after start_draft, used by save_step + submit
+  draft_id:     null,
+  resume_token: null,
+  saving:       false,
+  saveError:    null
 };
+
+// Generic POST helper for the multi-action endpoint
+async function callFlow(body) {
+  var token = localStorage.getItem('clx_session_token') || '';
+  var r = await fetch('https://automation.crystallux.org/webhook/admin/smart-quote/flow', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify(body || {})
+  });
+  var text = await r.text();
+  var data = null; try { data = text ? JSON.parse(text) : null; } catch (e) {}
+  return { http: r.status, ok: r.ok && data && data.ok, data: data, raw: text };
+}
 
 clxAuth.require(['admin']).then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
@@ -122,34 +140,51 @@ clxAuth.require(['admin']).then(function () {
 });
 
 async function load() {
-  var res = await clxApi.adminGet('smart-quote/flow', { /* unused — adminGet sends filters */ });
-  // adminGet wraps as { filters: ... }; we actually need a different shape for this
-  // multi-action endpoint, so call directly:
-  var token = localStorage.getItem('clx_session_token') || '';
-  var r = await fetch('https://automation.crystallux.org/webhook/admin/smart-quote/flow', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-    body: JSON.stringify({ action: 'load_template', industry_slug: INDUSTRY_SLUG })
-  });
-  var text = await r.text();
-  var data = null; try { data = text ? JSON.parse(text) : null; } catch (e) {}
-  if (!r.ok || !data || !data.ok) {
+  var res = await callFlow({ action: 'load_template', industry_slug: INDUSTRY_SLUG });
+  if (!res.ok) {
     document.getElementById('bodyContent').innerHTML = '<div class="clx-error-banner">' +
-      'Failed to load template (' + r.status + '). ' +
-      ((data && data.error) ? clxComp.escapeHtml(data.error) : 'Confirm the workflow <code>wfAdminSmartQuoteFlowV1</code> is imported + activated, and that the migration <code>db/migrations/smart-quote-schema.sql</code> has been applied.') +
+      'Failed to load template (HTTP ' + res.http + '). ' +
+      ((res.data && res.data.error) ? clxComp.escapeHtml(res.data.error) : 'Confirm the workflow <code>wfAdminSmartQuoteFlowV1</code> is imported + activated, and that the migration <code>db/migrations/smart-quote-schema.sql</code> has been applied.') +
       '</div>';
     return;
   }
-
-  STATE.template  = data.template;
-  STATE.rules     = data.pricing_rules || [];
-  STATE.addons    = data.addons || [];
+  STATE.template  = res.data.template;
+  STATE.rules     = res.data.pricing_rules || [];
+  STATE.addons    = res.data.addons || [];
   STATE.questions = Array.isArray(STATE.template.questions) ? STATE.template.questions : [];
 
   document.getElementById('pageTitle').textContent = (STATE.template.emoji || '') + ' ' + STATE.template.industry_name;
   document.getElementById('pageSub').textContent   = STATE.template.description || '';
   document.title = STATE.template.industry_name + ' · Smart Quote · Crystallux Admin';
+
+  // Create a server-side draft up-front so save_step has a row to PATCH.
+  // No email yet; the customer's email/name/etc. is collected on submit.
+  var startRes = await callFlow({ action: 'start_draft', industry_slug: INDUSTRY_SLUG });
+  if (startRes.ok && startRes.data && startRes.data.draft_id) {
+    STATE.draft_id     = startRes.data.draft_id;
+    STATE.resume_token = startRes.data.resume_token;
+  } else {
+    // Non-fatal: page still works without persistence (preview only)
+    STATE.saveError = (startRes.data && startRes.data.error) || 'Could not create server-side draft (HTTP ' + startRes.http + '). Preview will still update but progress will not be saved.';
+  }
   renderShell();
+}
+
+async function saveStep() {
+  if (!STATE.draft_id) return;  // skip silently if no draft (load_template fallback)
+  STATE.saving = true;
+  var p = computePreview();
+  var res = await callFlow({
+    action:                  'save_step',
+    draft_id:                STATE.draft_id,
+    answers:                 STATE.answers,
+    step:                    STATE.step,
+    preview_monthly_cents:   p.totalMonthly,
+    preview_total_cents:     p.totalFirstYear,
+    preview_one_time_cents:  p.addonsOneTime
+  });
+  STATE.saving = false;
+  STATE.saveError = res.ok ? null : ((res.data && res.data.error) || 'Save failed (HTTP ' + res.http + ').');
 }
 
 function renderShell() {
@@ -275,10 +310,12 @@ function onMultiChange(el) {
   updatePreview();
 }
 
-function goStep(delta) {
+async function goStep(delta) {
   var ns = STATE.step + delta;
   if (ns < 0 || ns >= STATE.questions.length) return;
   STATE.step = ns;
+  // Persist progress on every step transition (fire-and-forget; UI doesn't block)
+  saveStep().catch(function () {});
   renderShell();
 }
 
@@ -419,15 +456,64 @@ function updatePreview() {
 }
 
 async function submitQuote() {
-  // V1: server submit returns 501 (stub). We surface the computed preview
-  // in a friendly modal so Mary can see end-to-end UX even before the
-  // submit workflow lands.
-  var p = computePreview();
-  alert('Quote computed locally:\n\n' +
-    'Tier: ' + p.tier + '\n' +
-    'Monthly: ' + fmtMoney(p.totalMonthly) + '\n' +
-    'First year: ' + fmtMoney(p.totalFirstYear) + '\n\n' +
-    'Server-side submit + PDF + email = next commit.');
+  // Collect customer contact info if not already on the draft. The
+  // server's submit branch reuses what's stored on the draft + accepts
+  // overrides from this body. For V1 use a simple prompt — a proper
+  // contact-info step in the question flow is a follow-up polish.
+  if (!STATE.draft_id) {
+    alert('Cannot submit: no server draft exists. Refresh the page to create one.');
+    return;
+  }
+  var email = prompt('Customer email (the quote PDF + summary will be sent here):');
+  if (!email) return;
+  var fullName = prompt('Customer full name (optional):') || '';
+  var company  = prompt('Company name (optional):') || '';
+
+  var submitBtn = document.getElementById('submitBtn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+
+  // First save current state with the customer contact (gets stored on draft)
+  await callFlow({
+    action: 'save_step',
+    draft_id: STATE.draft_id,
+    answers: STATE.answers,
+    step:    STATE.step,
+    email:   email,
+    full_name: fullName,
+    company:  company,
+    preview_monthly_cents:   computePreview().totalMonthly,
+    preview_total_cents:     computePreview().totalFirstYear,
+    preview_one_time_cents:  computePreview().addonsOneTime
+  });
+
+  // Then submit. Server recomputes pricing authoritatively + emails the customer.
+  var addonIds = Object.keys(STATE.selectedAddons).filter(function (k) { return STATE.selectedAddons[k]; });
+  var res = await callFlow({
+    action:    'submit',
+    draft_id:  STATE.draft_id,
+    email:     email,
+    full_name: fullName,
+    company:   company,
+    addons:    addonIds
+  });
+
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit quote'; }
+
+  if (!res.ok) {
+    alert('Submit failed (HTTP ' + res.http + ').\n\n' + ((res.data && res.data.error) || res.raw || 'Unknown error.'));
+    return;
+  }
+  var d = res.data;
+  alert('✓ Quote submitted!\n\n' +
+    'Quote id: ' + (d.quote_id || '?') + '\n' +
+    'Tier: ' + (d.base_tier || '?') + '\n' +
+    'Monthly: ' + fmtMoney(d.total_monthly_cents) + '\n' +
+    'First year: ' + fmtMoney(d.total_first_year_cents) + '\n\n' +
+    (d.email_sent
+      ? 'Customer email sent to ' + email + ' via Postmark.'
+      : 'Quote saved, but customer email did NOT send (' + (d.postmark_error || 'check POSTMARK_API_TOKEN on n8n') + ').'));
+  // Return to the Estimator index so the new completed row appears
+  window.location.href = '/pages/smart-quote/index.html';
 }
 </script>
 </body>

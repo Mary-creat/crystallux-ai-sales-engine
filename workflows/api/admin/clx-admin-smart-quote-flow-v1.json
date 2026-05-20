@@ -13,20 +13,20 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 300],
+      "position": [200, 400],
       "webhookId": "clx-admin-smart-quote-flow-001",
-      "notes": "DEACTIVATED. Admin-gated multi-action endpoint for the Smart Quote question-flow page. Body: { action: 'load_template'|'start_draft'|'save_step'|'submit', industry_slug, draft_id?, answers?, ... }. V1 implements load_template only; save_step + submit return 501 to be filled in the next commit."
+      "notes": "Admin-gated multi-action endpoint for the Smart Quote question-flow page. Body: { action, industry_slug, draft_id?, answers?, email?, full_name?, company?, phone?, step?, addons?, preview_monthly_cents?, preview_total_cents? }. Actions: load_template | start_draft | save_step | submit."
     },
     {
       "parameters": {
-        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst action = String(body.action || '').toLowerCase().trim();\nconst allowed = ['load_template', 'start_draft', 'save_step', 'submit'];\nif (allowed.indexOf(action) === -1) {\n  return { json: { ok: false, status: 400, error: 'Unknown action: ' + (body.action || '(missing)') } };\n}\n\nreturn { json: {\n  token: token,\n  action: action,\n  industry_slug: String(body.industry_slug || '').trim() || null,\n  draft_id:      body.draft_id || null,\n  answers:       body.answers || null,\n  email:         body.email || null,\n  full_name:     body.full_name || null,\n  company:       body.company || null,\n  phone:         body.phone || null,\n  step:          parseInt(body.step, 10) || 0,\n  addons:        Array.isArray(body.addons) ? body.addons : []\n} };",
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst action = String(body.action || '').toLowerCase().trim();\nconst allowed = ['load_template', 'start_draft', 'save_step', 'submit'];\nif (allowed.indexOf(action) === -1) {\n  return { json: { ok: false, status: 400, error: 'Unknown action: ' + (body.action || '(missing)') } };\n}\n\nfunction safeInt(v, def) { const n = parseInt(v, 10); return isNaN(n) ? def : n; }\n\nreturn { json: {\n  token: token,\n  action: action,\n  industry_slug: String(body.industry_slug || '').trim() || null,\n  draft_id:      body.draft_id || null,\n  answers:       body.answers && typeof body.answers === 'object' ? body.answers : {},\n  email:         body.email || null,\n  full_name:     body.full_name || null,\n  company:       body.company || null,\n  phone:         body.phone || null,\n  step:          safeInt(body.step, 0),\n  addons:        Array.isArray(body.addons) ? body.addons : [],\n  preview_monthly_cents: safeInt(body.preview_monthly_cents, 0),\n  preview_total_cents:   safeInt(body.preview_total_cents, 0),\n  preview_one_time_cents: safeInt(body.preview_one_time_cents, 0)\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "asqf-0002",
       "name": "Extract Inputs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [420, 400]
     },
     {
       "parameters": {
@@ -47,7 +47,7 @@
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300],
+      "position": [640, 400],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
@@ -59,7 +59,7 @@
       "name": "Check Admin",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300]
+      "position": [880, 400]
     },
     {
       "parameters": {
@@ -76,7 +76,7 @@
       "name": "IF Admin OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1100, 300]
+      "position": [1100, 400]
     },
     {
       "parameters": {
@@ -84,7 +84,8 @@
           "values": [
             { "outputKey": "load_template", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "load_template", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
             { "outputKey": "start_draft",   "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "start_draft",   "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
-            { "outputKey": "other",         "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "load_template", "operator": { "type": "string", "operation": "notEquals" } }], "combinator": "and" } }
+            { "outputKey": "save_step",     "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "save_step",     "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
+            { "outputKey": "submit",        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "submit",        "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
           ]
         },
         "options": {}
@@ -93,7 +94,7 @@
       "name": "Switch Action",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [1340, 220]
+      "position": [1340, 400]
     },
     {
       "parameters": {
@@ -109,7 +110,7 @@
       "name": "Get Template",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 80],
+      "position": [1600, 80],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
@@ -143,7 +144,7 @@
       "name": "Get Addons",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2060, 80],
+      "position": [2040, 80],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
@@ -155,29 +156,296 @@
       "name": "Shape Load Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2300, 80]
+      "position": [2260, 80]
     },
     {
       "parameters": {
-        "jsCode": "// V1 placeholder for start_draft. Returns a stub response with an\n// in-memory draft id so the question-flow page can iterate without\n// a real backing row yet. Full save_step / submit lands in the\n// next commit which will INSERT into quote_drafts and quote_completed.\nconst x = $input.item.json;\nconst now = new Date().toISOString();\nreturn { json: {\n  ok: true,\n  draft_id: 'stub-' + Math.random().toString(36).slice(2, 11),\n  resume_token: 'stub-' + Math.random().toString(36).slice(2, 11),\n  industry_slug: x.industry_slug,\n  step: 0,\n  status: 'in_progress',\n  created_at: now,\n  note: 'V1 stub — real persistence lands in next commit (clx-admin-smart-quote-flow-v2)'\n} };",
-        "mode": "runOnceForEachItem"
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_templates?industry_slug=eq.' + encodeURIComponent($json.industry_slug) + '&select=id&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "asqf-0011",
-      "name": "Start Draft (stub)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1580, 280]
+      "name": "Resolve Template Id (start)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "// 501 for save_step + submit until the next commit fills them in.\nreturn { json: { ok: false, status: 501, error: 'Action not implemented in v1: ' + $input.item.json.action + '. Stub draft will not persist; question-flow page reads + previews locally only.' } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst tpls = allOf('Resolve Template Id (start)');\nif (tpls.length === 0) return { json: { ok: false, status: 404, error: 'Template not found for industry_slug' } };\nconst x = $('Check Admin').item.json;\n// Resume tokens: 32-hex random; used to reopen a draft from an emailed link.\nfunction tok() {\n  let s = '';\n  for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16);\n  return s;\n}\nreturn { json: {\n  body: {\n    template_id:   tpls[0].id,\n    industry_slug: x.industry_slug,\n    email:         x.email,\n    full_name:     x.full_name,\n    company:       x.company,\n    phone:         x.phone,\n    answers:       x.answers || {},\n    step:          0,\n    status:        'in_progress',\n    resume_token:  tok()\n  }\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "asqf-0012",
-      "name": "Not Implemented",
+      "name": "Build Start Body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1580, 460]
+      "position": [1820, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_drafts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0013",
+      "name": "Insert Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2040, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Insert Draft');\nif (rows.length === 0) return { json: { ok: false, status: 500, error: 'Failed to insert quote draft' } };\nconst d = rows[0];\nreturn { json: {\n  ok: true,\n  draft_id:     d.id,\n  resume_token: d.resume_token,\n  industry_slug:d.industry_slug,\n  step:         d.step || 0,\n  status:       d.status,\n  created_at:   d.created_at\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asqf-0014",
+      "name": "Shape Start Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2260, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a PATCH body for the existing draft. Stores answers + the\n// page's locally-computed preview values for fast list-page rendering.\n// SUBMIT will recompute authoritatively before producing a final quote.\nconst x = $('Check Admin').item.json;\nif (!x.draft_id) return { json: { ok: false, status: 400, error: 'save_step requires draft_id' } };\nreturn { json: {\n  draft_id: x.draft_id,\n  body: {\n    answers:               x.answers || {},\n    step:                  x.step,\n    email:                 x.email,\n    full_name:             x.full_name,\n    company:               x.company,\n    phone:                 x.phone,\n    preview_monthly_cents: x.preview_monthly_cents,\n    preview_total_cents:   x.preview_total_cents,\n    preview_one_time_cents:x.preview_one_time_cents\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asqf-0015",
+      "name": "Build Save Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 460]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_drafts?id=eq.' + $json.draft_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0016",
+      "name": "Patch Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, 460],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Patch Draft');\nif (rows.length === 0) return { json: { ok: false, status: 404, error: 'Draft not found' } };\nconst d = rows[0];\nreturn { json: {\n  ok: true,\n  draft_id:               d.id,\n  step:                   d.step,\n  preview_monthly_cents:  d.preview_monthly_cents,\n  preview_total_cents:    d.preview_total_cents,\n  preview_one_time_cents: d.preview_one_time_cents,\n  updated_at:             d.updated_at\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asqf-0017",
+      "name": "Shape Save Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2040, 460]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_drafts?id=eq.' + $json.draft_id + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0018",
+      "name": "Get Draft (submit)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_templates?id=eq.' + ($('Get Draft (submit)').item.json.template_id || '00000000-0000-0000-0000-000000000000') + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0019",
+      "name": "Get Template (submit)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_pricing_rules?template_id=eq.' + ($('Get Draft (submit)').item.json.template_id || '00000000-0000-0000-0000-000000000000') + '&active=eq.true&select=*&order=sort_order.asc' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0020",
+      "name": "Get Rules (submit)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2040, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_addons?template_id=eq.' + ($('Get Draft (submit)').item.json.template_id || '00000000-0000-0000-0000-000000000000') + '&active=eq.true&select=*&order=sort_order.asc' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0021",
+      "name": "Get Addons (submit)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2260, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Authoritative server-side pricing. Refuses to trust the client's\n// preview_*_cents values; recomputes from template + rules + addons.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst drafts    = allOf('Get Draft (submit)');\nconst templates = allOf('Get Template (submit)');\nconst rules     = allOf('Get Rules (submit)');\nconst addons    = allOf('Get Addons (submit)');\nconst inputs    = $('Check Admin').item.json;\n\nif (drafts.length === 0)    return { json: { ok: false, status: 404, error: 'Draft not found' } };\nif (templates.length === 0) return { json: { ok: false, status: 404, error: 'Template not found' } };\n\nconst draft    = drafts[0];\nconst template = templates[0];\nconst answers  = draft.answers || {};\n\n// Tier picker (matches client-side logic; keeps server authoritative)\nconst advisorCount = parseInt(answers.advisor_count, 10) || 0;\nlet tier = 'starter';\nif (advisorCount > 5  && advisorCount <= 15) tier = 'growth';\nif (advisorCount > 15)                        tier = 'scale';\nconst baseMonthly =\n  tier === 'scale'  ? template.base_scale_cents  :\n  tier === 'growth' ? template.base_growth_cents :\n                      template.base_starter_cents;\n\nfunction evalCondition(conds, ans) {\n  if (!conds || typeof conds !== 'object') return true;\n  const keys = Object.keys(conds);\n  for (let i = 0; i < keys.length; i++) {\n    const k = keys[i];\n    const rule = conds[k];\n    if (!rule || typeof rule !== 'object') continue;\n    const actual = ans[k];\n    const op = (rule.op || 'eq').toLowerCase();\n    const val = rule.value;\n    if (actual == null) return false;\n    if (op === 'eq'  && actual !== val) return false;\n    if (op === 'neq' && actual === val) return false;\n    if (op === 'lt'  && !(actual <  val)) return false;\n    if (op === 'lte' && !(actual <= val)) return false;\n    if (op === 'gt'  && !(actual >  val)) return false;\n    if (op === 'gte' && !(actual >= val)) return false;\n    if (op === 'between' && Array.isArray(val) && (actual < val[0] || actual > val[1])) return false;\n    if (op === 'in'  && Array.isArray(val) && val.indexOf(actual) === -1) return false;\n  }\n  return true;\n}\n\nconst rulesApplied = [];\nlet adjustCents = 0;\nrules.forEach(function (r) {\n  if (!evalCondition(r.conditions, answers)) return;\n  const pctAdjust = Math.round(baseMonthly * (parseFloat(r.adjust_percent) || 0) / 100);\n  const total = (r.adjust_cents || 0) + pctAdjust;\n  adjustCents += total;\n  rulesApplied.push({ rule_id: r.id, rule_name: r.rule_name, adjust_cents: total, adjust_percent: parseFloat(r.adjust_percent) || 0 });\n});\n\n// Selected addons come from the request body (Check Admin -> inputs.addons)\nconst selectedAddonIds = (inputs.addons || []).map(function (a) { return typeof a === 'string' ? a : a.id; });\nconst addonsSelected = [];\nlet addonsMonthly  = 0;\nlet addonsOneTime  = 0;\naddons.forEach(function (a) {\n  if (selectedAddonIds.indexOf(a.id) === -1) return;\n  addonsMonthly  += (a.monthly_cents  || 0);\n  addonsOneTime  += (a.one_time_cents || 0);\n  addonsSelected.push({ addon_id: a.id, addon_slug: a.addon_slug, addon_name: a.addon_name, monthly_cents: a.monthly_cents, one_time_cents: a.one_time_cents });\n});\n\nconst totalMonthly  = baseMonthly + adjustCents + addonsMonthly;\nconst totalFirstYear = totalMonthly * 12 + addonsOneTime;\n\nreturn { json: {\n  draft:           draft,\n  template:        template,\n  insert_body: {\n    draft_id:               draft.id,\n    template_id:            template.id,\n    industry_slug:          template.industry_slug,\n    client_id:              draft.client_id,\n    lead_id:                draft.lead_id,\n    email:                  draft.email || inputs.email,\n    full_name:              draft.full_name || inputs.full_name,\n    company:                draft.company || inputs.company,\n    phone:                  draft.phone || inputs.phone,\n    answers_snapshot:       answers,\n    rules_applied:          rulesApplied,\n    addons_selected:        addonsSelected,\n    base_tier:              tier,\n    base_monthly_cents:     baseMonthly,\n    total_monthly_cents:    totalMonthly,\n    total_one_time_cents:   addonsOneTime,\n    total_first_year_cents: totalFirstYear,\n    status:                 'open',\n    expires_at:             new Date(Date.now() + 30 * 86400000).toISOString()  // 30 day default\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asqf-0022",
+      "name": "Compute Quote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2480, 660]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_completed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.insert_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0023",
+      "name": "Insert Quote Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2700, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_drafts?id=eq.' + $('Compute Quote').first().json.draft.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'submitted', submitted_at: new Date().toISOString() }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0024",
+      "name": "Mark Draft Submitted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2920, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the customer-facing quote email. Inline HTML; Postmark\n// doesn't need a pre-registered template for this.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst rows = allOf('Insert Quote Completed');\nif (rows.length === 0) return { json: { ok: false, status: 500, error: 'Quote insert returned no row' } };\nconst quote = rows[0];\nconst computed = $('Compute Quote').first().json;\nconst template = computed.template;\n\nconst fmtMoney = function (cents) {\n  const v = (parseInt(cents, 10) || 0) / 100;\n  return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });\n};\n\nconst rulesList = (quote.rules_applied || []).filter(function (r) { return r.adjust_cents || r.adjust_percent; })\n  .map(function (r) { return '<li>' + r.rule_name + ': ' + (r.adjust_cents >= 0 ? '+' : '') + fmtMoney(r.adjust_cents) + '/mo</li>'; })\n  .join('');\nconst addonsList = (quote.addons_selected || [])\n  .map(function (a) { return '<li>' + a.addon_name + ' — ' + fmtMoney(a.monthly_cents) + '/mo' + (a.one_time_cents > 0 ? ' + ' + fmtMoney(a.one_time_cents) + ' setup' : '') + '</li>'; })\n  .join('');\n\nconst html =\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333;max-width:640px\">' +\n  '<p>Hi ' + (quote.full_name || 'there') + ',</p>' +\n  '<p>Here is your personalized Crystallux quote for <strong>' + (template.industry_name || quote.industry_slug) + '</strong>. ' +\n  'It is valid for 30 days from today.</p>' +\n  '<div style=\"background:#f8f7ff;border-left:4px solid #7C3AED;padding:18px 22px;margin:18px 0;border-radius:6px\">' +\n    '<div style=\"font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px\">Monthly Estimate</div>' +\n    '<div style=\"font-size:32px;font-weight:700;color:#5B21B6\">' + fmtMoney(quote.total_monthly_cents) + ' <span style=\"font-size:14px;color:#71717a;font-weight:400\">/mo</span></div>' +\n    '<div style=\"font-size:13px;color:#52525b;margin-top:4px\">First-year all-in: <strong>' + fmtMoney(quote.total_first_year_cents) + '</strong> · ' + (quote.base_tier || 'starter') + ' tier</div>' +\n  '</div>' +\n  '<p><strong>Breakdown</strong></p>' +\n  '<ul style=\"padding-left:20px\">' +\n    '<li>Base (' + (quote.base_tier || 'starter') + '): ' + fmtMoney(quote.base_monthly_cents) + '/mo</li>' +\n    rulesList +\n    (addonsList ? '<li><strong>Add-ons:</strong></li><ul>' + addonsList + '</ul>' : '') +\n  '</ul>' +\n  '<p style=\"margin-top:24px\">Reply to this email to schedule a 15-minute call, or accept the quote directly at <a href=\"https://insurance.crystallux.org/quote/' + quote.id + '\">insurance.crystallux.org/quote/' + quote.id + '</a> ' +\n  '(landing page coming in the next sprint — feel free to reply for now).</p>' +\n  '<p>Talk soon,<br><strong>Mary Akintunde · Crystallux</strong></p>' +\n  '</div>';\n\nreturn { json: {\n  quote: quote,\n  postmark_body: {\n    From: 'info@crystallux.org',\n    To: quote.email,\n    Subject: 'Your Crystallux quote — ' + (template.industry_name || quote.industry_slug),\n    HtmlBody: html,\n    MessageStream: 'outbound',\n    Tag: 'smart-quote',\n    Metadata: { quote_id: quote.id, template_id: quote.template_id, industry_slug: quote.industry_slug }\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asqf-0025",
+      "name": "Build Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3140, 660]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept",                 "value": "application/json" },
+            { "name": "Content-Type",           "value": "application/json" },
+            { "name": "X-Postmark-Server-Token","value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postmark_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0026",
+      "name": "Send Postmark",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3360, 660]
+    },
+    {
+      "parameters": {
+        "jsCode": "const postmark = $input.item.json;\nconst quote    = $('Build Email').first().json.quote;\nconst sentOk   = !!(postmark && postmark.MessageID);\n\n// Best-effort email log (mirrors what clx-email-send.json writes).\n// We don't fail the submit if email send hits an issue — the quote\n// is already persisted and Mary can resend manually.\nreturn { json: {\n  ok: true,\n  quote_id:        quote.id,\n  status:          quote.status,\n  base_tier:       quote.base_tier,\n  total_monthly_cents:    quote.total_monthly_cents,\n  total_first_year_cents: quote.total_first_year_cents,\n  email_sent:      sentOk,\n  postmark_message_id: postmark && postmark.MessageID || null,\n  postmark_error:  postmark && postmark.ErrorCode ? postmark.Message : null\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asqf-0027",
+      "name": "Shape Submit Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3580, 660]
     },
     {
       "parameters": {
@@ -185,11 +453,11 @@
         "responseBody": "={{ JSON.stringify($json) }}",
         "options": { "responseCode": 200 }
       },
-      "id": "asqf-0013",
+      "id": "asqf-0028",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2540, 280]
+      "position": [3800, 400]
     },
     {
       "parameters": {
@@ -197,11 +465,11 @@
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
         "options": { "responseCode": "={{ $json.status || 401 }}" }
       },
-      "id": "asqf-0014",
+      "id": "asqf-0029",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1340, 540]
+      "position": [1340, 800]
     }
   ],
   "connections": {
@@ -217,17 +485,33 @@
     },
     "Switch Action": {
       "main": [
-        [{ "node": "Get Template",      "type": "main", "index": 0 }],
-        [{ "node": "Start Draft (stub)","type": "main", "index": 0 }],
-        [{ "node": "Not Implemented",   "type": "main", "index": 0 }]
+        [{ "node": "Get Template",                "type": "main", "index": 0 }],
+        [{ "node": "Resolve Template Id (start)", "type": "main", "index": 0 }],
+        [{ "node": "Build Save Body",             "type": "main", "index": 0 }],
+        [{ "node": "Get Draft (submit)",          "type": "main", "index": 0 }]
       ]
     },
-    "Get Template":       { "main": [[{ "node": "Get Pricing Rules",   "type": "main", "index": 0 }]] },
-    "Get Pricing Rules":  { "main": [[{ "node": "Get Addons",          "type": "main", "index": 0 }]] },
-    "Get Addons":         { "main": [[{ "node": "Shape Load Response", "type": "main", "index": 0 }]] },
-    "Shape Load Response":{ "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
-    "Start Draft (stub)": { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
-    "Not Implemented":    { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] }
+    "Get Template":                { "main": [[{ "node": "Get Pricing Rules",   "type": "main", "index": 0 }]] },
+    "Get Pricing Rules":           { "main": [[{ "node": "Get Addons",          "type": "main", "index": 0 }]] },
+    "Get Addons":                  { "main": [[{ "node": "Shape Load Response", "type": "main", "index": 0 }]] },
+    "Shape Load Response":         { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
+    "Resolve Template Id (start)": { "main": [[{ "node": "Build Start Body",    "type": "main", "index": 0 }]] },
+    "Build Start Body":            { "main": [[{ "node": "Insert Draft",        "type": "main", "index": 0 }]] },
+    "Insert Draft":                { "main": [[{ "node": "Shape Start Response","type": "main", "index": 0 }]] },
+    "Shape Start Response":        { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
+    "Build Save Body":             { "main": [[{ "node": "Patch Draft",         "type": "main", "index": 0 }]] },
+    "Patch Draft":                 { "main": [[{ "node": "Shape Save Response", "type": "main", "index": 0 }]] },
+    "Shape Save Response":         { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
+    "Get Draft (submit)":          { "main": [[{ "node": "Get Template (submit)","type": "main", "index": 0 }]] },
+    "Get Template (submit)":       { "main": [[{ "node": "Get Rules (submit)",  "type": "main", "index": 0 }]] },
+    "Get Rules (submit)":          { "main": [[{ "node": "Get Addons (submit)", "type": "main", "index": 0 }]] },
+    "Get Addons (submit)":         { "main": [[{ "node": "Compute Quote",       "type": "main", "index": 0 }]] },
+    "Compute Quote":               { "main": [[{ "node": "Insert Quote Completed","type": "main", "index": 0 }]] },
+    "Insert Quote Completed":      { "main": [[{ "node": "Mark Draft Submitted","type": "main", "index": 0 }]] },
+    "Mark Draft Submitted":        { "main": [[{ "node": "Build Email",         "type": "main", "index": 0 }]] },
+    "Build Email":                 { "main": [[{ "node": "Send Postmark",       "type": "main", "index": 0 }]] },
+    "Send Postmark":               { "main": [[{ "node": "Shape Submit Response","type": "main", "index": 0 }]] },
+    "Shape Submit Response":       { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false
