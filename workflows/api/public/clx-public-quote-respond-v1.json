@@ -1,0 +1,194 @@
+{
+  "id": "clxPublicQuoteRespondV1",
+  "name": "CLX - Public Quote Respond v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "public/quote/respond",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pqr-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-public-quote-respond-001",
+      "notes": "Public-facing. NO session token; quote_id UUID is the authorization. Customer accepts or declines. Allowed transitions: open|sent|viewed -> accepted|declined. Idempotent for repeat clicks on the same response."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst qid  = String(body.quote_id || '').trim();\nconst resp = String(body.response || '').trim().toLowerCase();\nconst declineReason = (body.decline_reason || '').toString().slice(0, 500) || null;\nif (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qid)) {\n  return { json: { ok: false, status: 400, error: 'Invalid quote_id format' } };\n}\nif (resp !== 'accepted' && resp !== 'declined') {\n  return { json: { ok: false, status: 400, error: 'response must be \"accepted\" or \"declined\"' } };\n}\nreturn { json: { quote_id: qid, response: resp, decline_reason: declineReason } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pqr-0002",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok === false }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "pqr-0003",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_completed?id=eq.' + $json.quote_id + '&select=id,status,expires_at,email,full_name,total_monthly_cents,total_first_year_cents&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pqr-0004",
+      "name": "Fetch Quote",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Quote');\nconst inp  = $('Validate Input').item.json;\nif (rows.length === 0) {\n  return { json: { ok: false, status: 404, error: 'Quote not found' } };\n}\nconst q = rows[0];\n// Expired check\nconst expired = q.expires_at && new Date(q.expires_at).getTime() < Date.now();\nif (expired) return { json: { ok: false, status: 410, error: 'Quote has expired' } };\n\n// Idempotency: same response repeated → return current state ok=true.\nif (q.status === inp.response) {\n  return { json: { ok: true, idempotent: true, quote_id: q.id, status: q.status, total_monthly_cents: q.total_monthly_cents, total_first_year_cents: q.total_first_year_cents } };\n}\n// Forbidden transition: anything already final (accepted/declined/expired) → no further change.\nif (q.status === 'accepted' || q.status === 'declined' || q.status === 'expired') {\n  return { json: { ok: false, status: 409, error: 'Quote already ' + q.status + '; cannot change to ' + inp.response } };\n}\nconst now = new Date().toISOString();\nconst patch = { status: inp.response };\nif (inp.response === 'accepted') {\n  patch.accepted_at  = now;\n} else {\n  patch.declined_at  = now;\n  patch.decline_reason = inp.decline_reason;\n}\nreturn { json: {\n  ok: true,\n  needs_patch: true,\n  quote_id: q.id,\n  patch: patch,\n  quote_snapshot: { email: q.email, full_name: q.full_name, total_monthly_cents: q.total_monthly_cents, total_first_year_cents: q.total_first_year_cents },\n  new_status: inp.response\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pqr-0005",
+      "name": "Decide Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.needs_patch }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "pqr-0006",
+      "name": "IF Needs Patch",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 220]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_completed?id=eq.' + $json.quote_id + '&status=not.in.(accepted,declined,expired)' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pqr-0007",
+      "name": "Patch Quote",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 140],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Decide Action').first().json;\nreturn { json: {\n  ok: true,\n  quote_id: d.quote_id,\n  status: d.new_status,\n  total_monthly_cents:    d.quote_snapshot.total_monthly_cents,\n  total_first_year_cents: d.quote_snapshot.total_first_year_cents,\n  message: d.new_status === 'accepted'\n    ? 'Quote accepted. Mary (info@crystallux.org) will reach out to start onboarding.'\n    : 'Quote declined. Thanks for the feedback.'\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pqr-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1840, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "id": "pqr-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2080, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "id": "pqr-0010",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Validate Input",  "type": "main", "index": 0 }]] },
+    "Validate Input":   { "main": [[{ "node": "IF Valid",        "type": "main", "index": 0 }]] },
+    "IF Valid": {
+      "main": [
+        [{ "node": "Fetch Quote",   "type": "main", "index": 0 }],
+        [{ "node": "Respond Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Quote":    { "main": [[{ "node": "Decide Action",   "type": "main", "index": 0 }]] },
+    "Decide Action":  { "main": [[{ "node": "IF Needs Patch",  "type": "main", "index": 0 }]] },
+    "IF Needs Patch": {
+      "main": [
+        [{ "node": "Patch Quote",    "type": "main", "index": 0 }],
+        [{ "node": "Respond OK",     "type": "main", "index": 0 }]
+      ]
+    },
+    "Patch Quote":    { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response": { "main": [[{ "node": "Respond OK",     "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

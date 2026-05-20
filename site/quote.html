@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Your Crystallux Quote</title>
+<meta name="description" content="Your Crystallux platform quote. Review, accept, or decline." />
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .q-page { max-width: 760px; margin: 60px auto; padding: 0 24px; font-family: Inter, system-ui, sans-serif; color: #1a1a1a; }
+  .q-back { display: inline-flex; align-items: center; gap: 6px; color: #6b7280; font-size: 13px; text-decoration: none; margin-bottom: 18px; }
+  .q-back:hover { color: #1a1a1a; }
+  .q-title { font-size: 30px; font-weight: 700; line-height: 1.25; margin: 0 0 8px; }
+  .q-subtitle { color: #6b7280; font-size: 15px; margin-bottom: 32px; }
+  .q-status-banner { display:inline-flex; align-items:center; gap:8px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 12px; }
+  .q-status-banner.open      { background:#dbeafe; color:#1e40af; }
+  .q-status-banner.sent      { background:#e0e7ff; color:#3730a3; }
+  .q-status-banner.viewed    { background:#fef3c7; color:#92400e; }
+  .q-status-banner.accepted  { background:#dcfce7; color:#166534; }
+  .q-status-banner.declined  { background:#fee2e2; color:#991b1b; }
+  .q-status-banner.expired   { background:#f3f4f6; color:#52525b; }
+
+  .q-pricing-card { background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%); color: #fff; padding: 36px 32px; border-radius: 16px; margin-bottom: 28px; }
+  .q-tier-pill { display:inline-block; padding:4px 12px; border-radius:999px; background:rgba(255,255,255,0.15); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:14px; }
+  .q-monthly { font-size: 48px; font-weight: 800; line-height: 1; margin: 0; }
+  .q-monthly-suffix { font-size: 18px; opacity: 0.85; font-weight: 500; }
+  .q-year-total { margin-top: 12px; font-size: 14px; opacity: 0.9; }
+  .q-year-total strong { font-weight: 700; }
+
+  .q-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 22px 26px; margin-bottom: 18px; }
+  .q-section-h { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+  .q-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+  .q-row:last-child { border-bottom: none; }
+  .q-row strong { font-weight: 500; color: #4b5563; }
+  .q-row .v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #1a1a1a; }
+  .q-row.total { padding-top: 14px; margin-top: 8px; border-top: 2px solid #7C3AED; border-bottom: none; font-weight: 600; font-size: 15px; }
+
+  .q-addon { padding: 10px 12px; margin-top: 8px; background: #f9fafb; border-radius: 6px; font-size: 13px; }
+  .q-addon-name { font-weight: 600; }
+  .q-addon-desc { color: #6b7280; font-size: 12px; margin-top: 2px; }
+  .q-addon-price { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #4b5563; margin-top: 4px; }
+
+  .q-actions { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  .q-btn { padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .q-btn-primary { background: #7C3AED; color: #fff; }
+  .q-btn-primary:hover { background: #6D28D9; }
+  .q-btn-secondary { background: #fff; color: #4b5563; border: 1px solid #d1d5db; }
+  .q-btn-secondary:hover { background: #f9fafb; }
+  .q-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .q-result-box { padding: 22px 26px; border-radius: 10px; margin-top: 28px; }
+  .q-result-box.accepted { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
+  .q-result-box.declined { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+  .q-result-box.expired  { background: #f3f4f6; border: 1px solid #d1d5db; color: #4b5563; }
+  .q-result-box h2 { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
+  .q-result-box p  { font-size: 14px; line-height: 1.55; margin: 0; }
+
+  .q-print { margin-top: 18px; font-size: 13px; color: #6b7280; }
+  .q-print a { color: #7C3AED; text-decoration: none; }
+  .q-print a:hover { text-decoration: underline; }
+  @media print {
+    .q-back, .q-actions, .q-print { display: none !important; }
+    .q-page { margin: 0; padding: 20px; }
+    .q-pricing-card { background: #fff !important; color: #1a1a1a !important; border: 2px solid #7C3AED; }
+  }
+</style>
+</head>
+<body>
+
+<header class="clx-header">
+  <div class="clx-header-inner">
+    <a href="index.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux</a>
+    <div class="clx-header-cta">
+      <a href="book.html" class="clx-btn clx-btn-secondary">Book a call</a>
+    </div>
+  </div>
+</header>
+
+<div class="q-page">
+  <a href="index.html" class="q-back">‹ crystallux.org</a>
+  <div id="content"><div style="padding:60px 0;text-align:center;color:#6b7280">Loading your quote…</div></div>
+</div>
+
+<script>
+(function () {
+  // Extract quote_id from query string OR from path /quote/<id>
+  function getQuoteId() {
+    var qs = new URLSearchParams(window.location.search);
+    var fromQs = qs.get('id') || qs.get('quote_id');
+    if (fromQs) return fromQs;
+    var m = window.location.pathname.match(/\/quote\/([0-9a-f-]+)/i);
+    return m ? m[1] : null;
+  }
+
+  function fmtMoney(cents) {
+    if (cents == null) return '—';
+    var v = (parseInt(cents, 10) || 0) / 100;
+    return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  var STATE = { quote: null, busy: false };
+  var quoteId = getQuoteId();
+
+  if (!quoteId) {
+    document.getElementById('content').innerHTML =
+      '<div style="padding:40px 0;text-align:center"><h2>Quote ID missing</h2>' +
+      '<p>This page expects a quote ID in the URL. Use the link from your email, or ' +
+      '<a href="book.html" style="color:#7C3AED">book a call</a> to get one.</p></div>';
+    return;
+  }
+
+  // ─── Fetch ───
+  fetch('https://automation.crystallux.org/webhook/public/quote/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quote_id: quoteId })
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      var d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {}
+      return { http: r.status, ok: r.ok && d && d.ok, data: d, raw: t };
+    });
+  }).then(function (res) {
+    if (!res.ok) {
+      var msg = (res.data && res.data.error) || 'Could not load this quote (HTTP ' + res.http + ').';
+      document.getElementById('content').innerHTML =
+        '<div style="padding:40px 0;text-align:center"><h2>' + esc(msg) + '</h2>' +
+        '<p style="color:#6b7280;margin-top:10px">If you think this is a mistake, reply to the email this link came from.</p></div>';
+      return;
+    }
+    STATE.quote = res.data.quote;
+    render();
+  }).catch(function (e) {
+    document.getElementById('content').innerHTML =
+      '<div style="padding:40px 0;text-align:center"><h2>Network error</h2>' +
+      '<p style="color:#6b7280">' + esc(String(e && e.message || e)) + '</p></div>';
+  });
+
+  function render() {
+    var q = STATE.quote;
+    var html = '';
+    html += '<div class="q-status-banner ' + esc(q.status) + '">' + esc(q.status) + '</div>';
+    html += '<h1 class="q-title">Your ' + esc(q.industry_name) + ' quote</h1>';
+    html += '<div class="q-subtitle">' + esc(q.full_name || 'Hi there') +
+            (q.company ? ' · ' + esc(q.company) : '') + ' · ' +
+            'Quote #' + esc(q.id.slice(0, 8)) + '</div>';
+
+    // Big pricing card
+    html += '<div class="q-pricing-card">';
+    html += '<span class="q-tier-pill">' + esc(q.base_tier) + ' tier</span>';
+    html += '<div class="q-monthly">' + fmtMoney(q.total_monthly_cents) +
+            ' <span class="q-monthly-suffix">/month</span></div>';
+    html += '<div class="q-year-total">First-year all-in: <strong>' +
+            fmtMoney(q.total_first_year_cents) + '</strong>';
+    if (q.total_one_time_cents > 0) {
+      html += ' &nbsp; (includes ' + fmtMoney(q.total_one_time_cents) + ' one-time setup)';
+    }
+    html += '</div></div>';
+
+    // Breakdown
+    html += '<div class="q-section">';
+    html += '<div class="q-section-h">Breakdown</div>';
+    html += '<div class="q-row"><strong>Base (' + esc(q.base_tier) + ' tier)</strong><span class="v">' + fmtMoney(q.base_monthly_cents) + '/mo</span></div>';
+    (q.rules_applied || []).forEach(function (r) {
+      if (r.adjust_cents) {
+        var v = (r.adjust_cents >= 0 ? '+' : '') + fmtMoney(r.adjust_cents) + '/mo';
+        html += '<div class="q-row"><strong>' + esc(r.rule_name) + '</strong><span class="v">' + v + '</span></div>';
+      }
+    });
+    (q.addons_selected || []).forEach(function (a) {
+      var line = fmtMoney(a.monthly_cents) + '/mo' + (a.one_time_cents > 0 ? ' + ' + fmtMoney(a.one_time_cents) + ' setup' : '');
+      html += '<div class="q-row"><strong>+ ' + esc(a.addon_name) + '</strong><span class="v">' + line + '</span></div>';
+    });
+    html += '<div class="q-row total"><strong>Total monthly</strong><span class="v">' + fmtMoney(q.total_monthly_cents) + '/mo</span></div>';
+    html += '</div>';
+
+    // What's included
+    if ((q.addons_selected || []).length) {
+      html += '<div class="q-section">';
+      html += '<div class="q-section-h">Selected add-ons</div>';
+      (q.addons_selected).forEach(function (a) {
+        html += '<div class="q-addon">';
+        html += '<div class="q-addon-name">' + esc(a.addon_name) + '</div>';
+        html += '<div class="q-addon-price">' + fmtMoney(a.monthly_cents) + '/mo' + (a.one_time_cents > 0 ? ' + ' + fmtMoney(a.one_time_cents) + ' setup' : '') + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Validity
+    if (q.expires_at && !q.expired) {
+      var exp = new Date(q.expires_at).toLocaleDateString('en-CA', { dateStyle: 'long' });
+      html += '<div class="q-print">Valid until ' + esc(exp) + '.</div>';
+    }
+
+    // Actions (or result if final)
+    if (q.status === 'accepted') {
+      html += '<div class="q-result-box accepted">' +
+              '<h2>✓ Accepted</h2>' +
+              '<p>Thank you. Mary will reach out from info@crystallux.org within 24 hours to start onboarding.</p>' +
+              '</div>';
+    } else if (q.status === 'declined') {
+      html += '<div class="q-result-box declined">' +
+              '<h2>Declined</h2>' +
+              '<p>Got it. If you change your mind, reply to the email this link came from.</p>' +
+              '</div>';
+    } else if (q.expired) {
+      html += '<div class="q-result-box expired">' +
+              '<h2>This quote has expired</h2>' +
+              '<p>Reply to the original email or <a href="book.html" style="color:#7C3AED">book a call</a> for an updated quote.</p>' +
+              '</div>';
+    } else {
+      html += '<div class="q-actions">';
+      html += '<button class="q-btn q-btn-primary" id="acceptBtn">Accept this quote</button>';
+      html += '<button class="q-btn q-btn-secondary" id="declineBtn">Decline</button>';
+      html += '</div>';
+    }
+
+    html += '<div class="q-print" style="margin-top:24px"><a href="javascript:window.print()">Print this quote</a> · ' +
+            'Questions? Reply to your email or <a href="book.html">book a call</a>.</div>';
+
+    document.getElementById('content').innerHTML = html;
+    var acc = document.getElementById('acceptBtn');
+    var dec = document.getElementById('declineBtn');
+    if (acc) acc.addEventListener('click', function () { respond('accepted'); });
+    if (dec) dec.addEventListener('click', function () {
+      var reason = prompt('Mind sharing why? (optional — helps us improve)');
+      respond('declined', reason || '');
+    });
+  }
+
+  function respond(action, declineReason) {
+    if (STATE.busy) return;
+    STATE.busy = true;
+    var acc = document.getElementById('acceptBtn');
+    var dec = document.getElementById('declineBtn');
+    if (acc) acc.disabled = true;
+    if (dec) dec.disabled = true;
+    if (acc && action === 'accepted') acc.textContent = 'Submitting…';
+
+    fetch('https://automation.crystallux.org/webhook/public/quote/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_id: STATE.quote.id, response: action, decline_reason: declineReason })
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {}
+        return { http: r.status, ok: r.ok && d && d.ok, data: d };
+      });
+    }).then(function (res) {
+      STATE.busy = false;
+      if (!res.ok) {
+        alert('Sorry — could not submit: ' + ((res.data && res.data.error) || ('HTTP ' + res.http)));
+        if (acc) acc.disabled = false;
+        if (dec) dec.disabled = false;
+        if (acc && action === 'accepted') acc.textContent = 'Accept this quote';
+        return;
+      }
+      // Refresh state from server-confirmed response
+      STATE.quote.status = res.data.status || action;
+      if (action === 'accepted') STATE.quote.accepted_at = new Date().toISOString();
+      else                       STATE.quote.declined_at = new Date().toISOString();
+      render();
+    }).catch(function (e) {
+      STATE.busy = false;
+      alert('Network error: ' + (e && e.message || e));
+    });
+  }
+})();
+</script>
+</body>
+</html>

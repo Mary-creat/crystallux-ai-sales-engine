@@ -1,0 +1,5 @@
+# Cloudflare Pages redirect rules (Netlify-format).
+# Pretty URLs that rewrite to the underlying static page.
+
+# Public quote landing — emailed link looks like crystallux.org/quote/<uuid>
+/quote/*    /quote.html?id=:splat    200
