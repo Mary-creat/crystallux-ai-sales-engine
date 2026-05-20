@@ -6,6 +6,40 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0t. WS1 reactivation — known prerequisites Mary must check (added 2026-05-20)
+
+Workstream 1 reactivates Phase 1-9 of the Sales Engine. Two prerequisites for the workflows to actually produce + deliver leads end-to-end, NOT in the workflow JSONs themselves:
+
+1. **`clients` table rows must have `calendly_link`, `client_name`, `notification_email`, and `active=true` for each tenant Phase 9 should fire bookings for.** The booking workflow now reads `lead.email` as recipient (no longer hardcoded test inbox — fixed in this commit) and embeds `calendly_link` into the email. A NULL calendly_link falls back to the placeholder URL.
+
+2. **n8n credential name `Supabase Crystallux` vs `Supabase Crystallux Custom`.** The Phase 1-9 workflows reference the older `Supabase Crystallux` credential (httpHeaderAuth). The newer admin / MGA workflows use `Supabase Crystallux Custom` (httpCustomAuth). If Mary's n8n only has the Custom credential configured, the Phase 1-9 imports will fail credential resolution. Action: confirm both exist OR rename in n8n to keep the legacy phase workflows working.
+
+3. **`CLX_BOOKING_TEST_INBOX` env var (NEW)**. Booking now respects this env var as an override: when set, all booking emails route there instead of the lead. Unset = production behavior (sends to lead.email). Use during dry-runs.
+
+**WS1 changes shipping in this commit:**
+
+- `clx-city-scan-discovery.json` — added 5 insurance industry queries (carrier, advisor, broker, MGA); each lead now carries `lead_type` (carrier_prospect | advisor_candidate | smb); `website` + `place_id` propagated to the lead row.
+- `clx-campaign-router-v2.json` — added `carrier_partnership` and `advisor_recruitment` campaigns under `campaigns.insurance`; routing logic now honors `lead_type` override (carrier_prospect → carrier_partnership; advisor_candidate → advisor_recruitment) regardless of Phase 4's `recommended_campaign_type`. `limit=25` → `limit=100` per run to address handbook's 1-in-30 throughput claim.
+- `clx-booking-v2.json` — recipient changed from hardcoded test inbox `adesholaakintunde+clxtest@gmail.com` to `lead.email` (with `CLX_BOOKING_TEST_INBOX` env override for safe testing). Empty `lead.email` now sets `_booking_send_skipped: true` instead of sending to a hardcoded mailbox.
+
+**Activation command for Mary (after `git pull`):**
+
+```bash
+bash scripts/n8n/emergency-recover-webhooks.sh workflows/api/admin/ \
+                                                workflows/api/avatars/ \
+                                                workflows/  # picks up the 10 phase JSONs
+```
+
+The `--activate=all` (default in emergency-recover) will set every imported workflow active. After it lands, verify via:
+
+```bash
+docker exec n8n n8n list:workflow --active=true | grep -iE "clx-(b2c|lead-research|lead-scoring|business-signal|campaign-router|outreach|follow-up|booking|city-scan)"
+```
+
+Expected: 10 phase workflows + apollo enrichment all active.
+
+---
+
 ## 0s. Emergency recovery left 36/69 endpoints still 404 — orphan webhook_entity + missing final restart (added 2026-05-20)
 
 After the first `emergency-recover-webhooks.sh` run cleaned 80 duplicate rows + activated 69 canonical workflows, Mary's probe showed **33 endpoints HEALTHY, 36 still NOT-FOUND**. Two latent bugs:
