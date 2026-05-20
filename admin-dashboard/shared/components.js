@@ -40,6 +40,7 @@
     '<a class="clx-nav-item" href="/pages/avatars/ciro/index.html"><span class="clx-nav-icon">⚒</span>CIRO — Ops Manager</a>' +
     '<div class="clx-nav-section">CIRO</div>' +
     '<a class="clx-nav-item" href="/pages/ciro/communications.html"><span class="clx-nav-icon">✉</span>Communications</a>' +
+    '<a class="clx-nav-item" href="/pages/ciro/alerts.html"><span class="clx-nav-icon">⚠</span>Alerts</a>' +
     '<div class="clx-nav-section">Smart Quote</div>' +
     '<a class="clx-nav-item" href="/pages/smart-quote/index.html"><span class="clx-nav-icon">$</span>Estimator</a>' +
     '<div class="clx-nav-section">Diagnostics</div>' +

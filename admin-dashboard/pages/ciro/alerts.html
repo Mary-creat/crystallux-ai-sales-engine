@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alerts · CIRO · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .a-type-section { margin-bottom:28px; }
+  .a-type-head { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border,#e5e7eb); }
+  .a-type-emoji { font-size:18px; }
+  .a-type-title { font-size:16px; font-weight:700; }
+  .a-type-count { font-size:13px; color:var(--text-muted,#6b7280); }
+  .a-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+  .a-card { padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:var(--bg-card,#fff); cursor:pointer; transition:box-shadow 0.15s, transform 0.05s, border-color 0.15s; }
+  .a-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); transform:translateY(-1px); border-color:var(--color-brand-400,#A78BFA); }
+  .a-card.critical  { border-left:4px solid #dc2626; }
+  .a-card.warning   { border-left:4px solid #f59e0b; }
+  .a-card.info      { border-left:4px solid #2563eb; }
+  .a-card.emergency { border-left:4px solid #991b1b; background:#fef2f2; }
+  .a-card.acknowledged, .a-card.resolved { opacity: 0.62; }
+
+  .a-card-title { font-weight:600; font-size:14px; line-height:1.35; margin-bottom:6px; padding-right:8px; }
+  .a-card-msg   { font-size:12px; color:var(--text-muted,#71717a); line-height:1.45; min-height:18px; }
+  .a-card-meta  { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+
+  .a-pill { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; padding:1px 7px; border-radius:10px; }
+  .a-pill.critical  { background:#fee2e2; color:#991b1b; }
+  .a-pill.warning   { background:#fef3c7; color:#92400e; }
+  .a-pill.info      { background:#dbeafe; color:#1e40af; }
+  .a-pill.emergency { background:#991b1b; color:#fff; }
+  .a-pill.open         { background:#fef3c7; color:#92400e; }
+  .a-pill.acknowledged { background:#dbeafe; color:#1e40af; }
+  .a-pill.resolved     { background:#dcfce7; color:#166534; }
+  .a-pill.suppressed   { background:#f3f4f6; color:#52525b; }
+
+  /* Detail slide-over */
+  .a-detail-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; }
+  .a-detail-backdrop.open { display:block; }
+  .a-detail-panel { position:fixed; right:0; top:0; bottom:0; width:min(620px, 95vw); background:var(--bg-card,#fff); border-left:1px solid var(--border,#e5e7eb); z-index:201; padding:24px 28px; overflow-y:auto; box-shadow:-8px 0 24px rgba(0,0,0,0.12); transform:translateX(100%); transition:transform 0.18s ease; }
+  .a-detail-backdrop.open .a-detail-panel { transform:translateX(0); }
+  .a-detail-close { position:absolute; top:14px; right:18px; cursor:pointer; font-size:22px; line-height:1; color:var(--text-muted,#6b7280); border:none; background:transparent; }
+  .a-detail-h { font-size:18px; font-weight:700; margin-bottom:6px; padding-right:36px; }
+  .a-detail-meta { color:var(--text-muted,#6b7280); font-size:12px; margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap; }
+  .a-detail-msg  { font-size:14px; color:var(--text-primary,#18181b); margin-bottom:18px; line-height:1.5; }
+  .a-detail-section { margin-top:18px; }
+  .a-detail-section-h { font-size:11px; font-weight:600; color:var(--text-muted,#71717a); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+  .a-detail-json { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:var(--text-primary,#18181b); background:var(--bg-hover,#f9fafb); border:1px solid var(--border,#e5e7eb); padding:10px 12px; border-radius:6px; white-space:pre-wrap; word-break:break-all; max-height:340px; overflow:auto; }
+  .a-filter-row { display:flex; gap:10px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">CIRO alerts</h1>
+        <div class="clx-page-sub">Hot lead alerts + calendar conflict warnings, written by the CIRO cron workflows. Acknowledge from the <a href="/pages/sentinel.html">main Sentinel page</a> for now.</div>
+      </div>
+      <div class="a-filter-row">
+        <select id="typeFilter" class="clx-select" style="width:160px">
+          <option value="all">All types</option>
+          <option value="hot_lead">Hot leads</option>
+          <option value="calendar_conflict">Calendar conflicts</option>
+        </select>
+        <select id="statusFilter" class="clx-select" style="width:140px">
+          <option value="open" selected>Open</option>
+          <option value="acknowledged">Acknowledged</option>
+          <option value="resolved">Resolved</option>
+          <option value="all">All statuses</option>
+        </select>
+        <select id="severityFilter" class="clx-select" style="width:140px">
+          <option value="all">All severities</option>
+          <option value="critical">Critical</option>
+          <option value="warning">Warning</option>
+          <option value="info">Info</option>
+        </select>
+        <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
+      </div>
+    </div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="alertsContent"></div>
+  </div></main>
+</div>
+
+<!-- Detail slide-over -->
+<div class="a-detail-backdrop" id="detailBackdrop">
+  <div class="a-detail-panel" id="detailPanel" onclick="event.stopPropagation()">
+    <button class="a-detail-close" id="detailClose" aria-label="Close">×</button>
+    <div class="a-detail-h" id="detailTitle"></div>
+    <div class="a-detail-meta" id="detailMeta"></div>
+    <div class="a-detail-msg" id="detailMsg"></div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
+<script>
+var TYPE_LABELS = {
+  hot_lead:           { label: 'Hot leads',          emoji: '🔥' },
+  calendar_conflict:  { label: 'Calendar conflicts', emoji: '⏱️' },
+  other:              { label: 'Other CIRO alerts',  emoji: '•'  }
+};
+
+var STATE = { alerts: [], byType: {}, counts: {} };
+
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('kpiGrid').insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('alertsContent').innerHTML = '<div class="clx-empty"><span class="clx-spinner"></span> Loading alerts…</div>';
+  load();
+  document.getElementById('typeFilter').addEventListener('change', load);
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('severityFilter').addEventListener('change', load);
+  document.getElementById('refreshBtn').addEventListener('click', load);
+  document.getElementById('detailBackdrop').addEventListener('click', closeDetail);
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
+});
+
+async function load() {
+  var filters = {
+    alert_type: document.getElementById('typeFilter').value,
+    status:     document.getElementById('statusFilter').value,
+    severity:   document.getElementById('severityFilter').value
+  };
+  var res = await clxApi.adminGet('ciro/alerts', filters);
+  if (!res.ok) { clxApi.renderError(document.getElementById('alertsContent'), res); return; }
+  STATE.alerts = (res.data && res.data.alerts)   || [];
+  STATE.byType = (res.data && res.data.by_type)  || {};
+  STATE.counts = (res.data && res.data.counts)   || {};
+  renderKpis();
+  render();
+}
+
+function renderKpis() {
+  var c = STATE.counts;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'Total in view',  value: c.total || 0,    icon: 'bell',           variant: 'leads' },
+    { label: 'Open',           value: c.open || 0,     icon: 'alert-circle',   variant: c.open > 0 ? 'danger' : 'activity' },
+    { label: 'Critical',       value: c.critical || 0, icon: 'alert-triangle', variant: c.critical > 0 ? 'danger' : 'activity' },
+    { label: 'Acknowledged',   value: c.acknowledged || 0, icon: 'check-circle', variant: 'revenue' }
+  ]);
+}
+
+function render() {
+  var el = document.getElementById('alertsContent');
+  if (!STATE.alerts.length) {
+    el.innerHTML = '<div class="clx-empty">No CIRO alerts match these filters. ' +
+      'The cron workflows <code>clxCiroHotLeadAlertV1</code> + <code>clxCiroCalendarConflictV1</code> ' +
+      'write to <code>sentinel_alerts</code> automatically — confirm both are active in n8n.</div>';
+    return;
+  }
+  var typeKeys = ['hot_lead','calendar_conflict','other'];
+  var html = '';
+  typeKeys.forEach(function (k) {
+    var rows = STATE.byType[k] || [];
+    if (!rows.length) return;
+    var info = TYPE_LABELS[k] || TYPE_LABELS.other;
+    html += '<div class="a-type-section">';
+    html += '<div class="a-type-head">';
+    html += '<span class="a-type-emoji">' + info.emoji + '</span>';
+    html += '<div class="a-type-title">' + clxComp.escapeHtml(info.label) + '</div>';
+    html += '<div class="a-type-count">' + rows.length + (rows.length === 1 ? ' alert' : ' alerts') + '</div>';
+    html += '</div>';
+    html += '<div class="a-grid">';
+    rows.forEach(function (a) {
+      var cls = clxComp.escapeHtml(a.severity || 'info') + (a.status === 'acknowledged' || a.status === 'resolved' ? ' ' + a.status : '');
+      html += '<div class="a-card ' + cls + '" data-id="' + clxComp.escapeHtml(a.id) + '">';
+      html += '<div class="a-card-title">' + clxComp.escapeHtml(a.title) + '</div>';
+      html += '<div class="a-card-msg">' + clxComp.escapeHtml((a.message || '').slice(0, 160) + ((a.message || '').length > 160 ? '…' : '')) + '</div>';
+      html += '<div class="a-card-meta">';
+      html += '<span class="a-pill ' + clxComp.escapeHtml(a.severity || 'info')   + '">' + clxComp.escapeHtml(a.severity || 'info') + '</span>';
+      html += '<span class="a-pill ' + clxComp.escapeHtml(a.status   || 'open')  + '">' + clxComp.escapeHtml(a.status || 'open')   + '</span>';
+      html += '<span style="font-size:11px;color:var(--text-muted,#71717a)">' + clxComp.escapeHtml(clxComp.relativeTime(a.triggered_at)) + '</span>';
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.a-card').forEach(function (c) {
+    c.addEventListener('click', function () { openDetail(c.dataset.id); });
+  });
+}
+
+function openDetail(alertId) {
+  var a = STATE.alerts.filter(function (x) { return x.id === alertId; })[0];
+  if (!a) return;
+  document.getElementById('detailTitle').textContent = a.title;
+  var meta = [];
+  meta.push(a.severity || 'info');
+  meta.push(a.status   || 'open');
+  meta.push(a.alert_type || 'other');
+  meta.push('triggered ' + clxComp.relativeTime(a.triggered_at));
+  document.getElementById('detailMeta').innerHTML = meta.map(function (m) {
+    return '<span>' + clxComp.escapeHtml(m) + '</span>';
+  }).join(' · ');
+  document.getElementById('detailMsg').textContent = a.message || '(no message)';
+
+  var html = '';
+  if (a.details && Object.keys(a.details).length) {
+    html += '<div class="a-detail-section"><div class="a-detail-section-h">Details</div>';
+    html += '<div class="a-detail-json">' + clxComp.escapeHtml(JSON.stringify(a.details, null, 2)) + '</div>';
+    html += '</div>';
+
+    // Special-case: hot_lead details carry a lead_id — link straight into the leads page filter
+    if (a.alert_type === 'hot_lead' && a.details.lead_id) {
+      html += '<div class="a-detail-section">';
+      html += '<a class="clx-btn clx-btn-primary" href="/pages/leads.html?lead_id=' + encodeURIComponent(a.details.lead_id) + '">Open this lead</a>';
+      if (a.details.client_id) {
+        html += ' <a class="clx-btn clx-btn-secondary" href="/pages/client-detail.html?id=' + encodeURIComponent(a.details.client_id) + '" style="margin-left:8px">View client</a>';
+      }
+      html += '</div>';
+    }
+    if (a.alert_type === 'calendar_conflict' && a.details.booking_a && a.details.booking_b) {
+      html += '<div class="a-detail-section"><div class="a-detail-section-h">Conflicting bookings</div>';
+      html += '<div style="font-size:13px">A: ' + clxComp.escapeHtml(a.details.booking_a.scheduled_at) + ' (' + (a.details.booking_a.duration_minutes || 30) + ' min)</div>';
+      html += '<div style="font-size:13px">B: ' + clxComp.escapeHtml(a.details.booking_b.scheduled_at) + ' (' + (a.details.booking_b.duration_minutes || 30) + ' min)</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted,#71717a);margin-top:6px">Gap: ' + (a.details.gap_minutes || 0) + ' min (buffer needed: ' + (a.details.buffer_minutes || 15) + ' min)</div>';
+      html += '</div>';
+    }
+  }
+  html += '<div class="a-detail-section" style="margin-top:24px">';
+  html += '<div class="a-detail-section-h">Acknowledge / resolve</div>';
+  html += '<div style="font-size:13px;color:var(--text-muted,#71717a)">Use the <a href="/pages/sentinel.html" style="color:var(--color-brand-500,#7C3AED)">Sentinel page</a> to acknowledge or resolve this alert. ' +
+          'A dedicated CIRO acknowledge action is on the follow-up commit list.</div>';
+  html += '</div>';
+  document.getElementById('detailContent').innerHTML = html;
+  document.getElementById('detailBackdrop').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailBackdrop').classList.remove('open');
+}
+</script>
+</body>
+</html>

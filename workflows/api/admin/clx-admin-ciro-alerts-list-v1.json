@@ -1,0 +1,150 @@
+{
+  "id": "wfAdminCiroAlertsListV1",
+  "name": "CLX - Admin CIRO Alerts List v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/ciro/alerts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "acal-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-ciro-alerts-list-001",
+      "notes": "DEACTIVATED. Admin-gated. Returns sentinel_alerts filtered to module_name='ciro' — surfaces hot_lead + calendar_conflict alerts written by the CIRO cron workflows. Body filters: { alert_type?, status?, severity?, since?, limit? }."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst f = body.filters || {};\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 100, 1), 500);\nconst sinceIso = f.since || null;\n\nconst qs = ['select=id,module_name,alert_type,severity,title,message,details,status,triggered_at,acknowledged_at,acknowledged_by,resolved_at,resolution_notes,aggregation_key']\n  .concat([\n    'module_name=eq.ciro',\n    'order=triggered_at.desc',\n    'limit=' + limit\n  ]);\nif (sinceIso) qs.push('triggered_at=gte.' + encodeURIComponent(sinceIso));\nif (f.alert_type && f.alert_type !== 'all') qs.push('alert_type=eq.' + encodeURIComponent(f.alert_type));\nif (f.status && f.status !== 'all') qs.push('status=eq.' + encodeURIComponent(f.status));\nif (f.severity && f.severity !== 'all') qs.push('severity=eq.' + encodeURIComponent(f.severity));\n\nreturn { json: { token: token, qs: qs.join('&'), filters: f } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acal-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "acal-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst x = $('Extract Inputs').item.json;\nreturn { json: { ok: true, qs: x.qs, filters: x.filters } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acal-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "acal-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts?' + $json.qs }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "acal-0006",
+      "name": "Query Alerts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Alerts');\n\n// Group by alert_type so the page can render per-type sections\nconst byType = {};\nconst byStatus = {};\nconst bySeverity = {};\nrows.forEach(function (a) {\n  const t = a.alert_type || 'other';\n  if (!byType[t]) byType[t] = [];\n  byType[t].push(a);\n  byStatus[a.status || 'open']    = (byStatus[a.status || 'open']    || 0) + 1;\n  bySeverity[a.severity || 'info']= (bySeverity[a.severity || 'info']|| 0) + 1;\n});\n\nreturn { json: {\n  ok: true,\n  alerts: rows,\n  by_type: byType,\n  by_status: byStatus,\n  by_severity: bySeverity,\n  counts: {\n    total:        rows.length,\n    open:         byStatus.open || 0,\n    acknowledged: byStatus.acknowledged || 0,\n    resolved:     byStatus.resolved || 0,\n    critical:     bySeverity.critical || 0,\n    warning:      bySeverity.warning || 0,\n    info:         bySeverity.info || 0\n  },\n  filters: $('Check Admin').item.json.filters\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "acal-0007",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "acal-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1840, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "acal-0009",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Inputs",   "type": "main", "index": 0 }]] },
+    "Extract Inputs":   { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [{ "node": "Query Alerts", "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Query Alerts":   { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response": { "main": [[{ "node": "Respond OK",     "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
