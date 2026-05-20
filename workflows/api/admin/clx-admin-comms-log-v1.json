@@ -1,0 +1,238 @@
+{
+  "id": "wfAdminCommsLogV1",
+  "name": "CLX - Admin Comms Log v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/comms-log",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "acl-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-comms-log-001",
+      "notes": "DEACTIVATED. Admin-gated. Unions messages_sent + outreach_log + email_log into a single timeline of every outbound/inbound communication, filtered by client_id/lead_id/channel/since."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst f = body.filters || {};\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 100, 1), 500);\nconst sinceIso = f.since || null; // ISO-8601; optional\n\n// Build a PostgREST query string for each source table. Filters that\n// don't apply to a given table (e.g. client_id on email_log) are\n// silently dropped — that's reconciled in Shape Response.\nfunction qsBase(orderCol) {\n  const parts = ['order=' + orderCol + '.desc', 'limit=' + limit];\n  if (sinceIso) parts.push(orderCol + '=gte.' + encodeURIComponent(sinceIso));\n  return parts;\n}\n\n// messages_sent: sms / whatsapp / voice / video_link / email writer target.\n// Columns: id,lead_id,client_id,channel,direction,content,status,external_id,\n//          sent_at,delivered_at,read_at,replied_at,error_message,cost_cents.\nconst qsMessages = ['select=id,lead_id,client_id,channel,direction,content,status,external_id,sent_at,delivered_at,read_at,replied_at,error_message,cost_cents']\n  .concat(qsBase('sent_at'));\nif (f.client_id) qsMessages.push('client_id=eq.' + encodeURIComponent(f.client_id));\nif (f.lead_id)   qsMessages.push('lead_id=eq.'   + encodeURIComponent(f.lead_id));\nif (f.channel && f.channel !== 'all') qsMessages.push('channel=eq.' + encodeURIComponent(f.channel));\n\n// outreach_log: cross-channel state log (linkedin / whatsapp campaign / video-ready / voice).\n// Columns: id,lead_id,client_id,channel,channel_status,subject,message_excerpt,sent_at,metadata.\nconst qsOutreach = ['select=id,lead_id,client_id,channel,channel_status,subject,message_excerpt,sent_at,metadata']\n  .concat(qsBase('sent_at'));\nif (f.client_id) qsOutreach.push('client_id=eq.' + encodeURIComponent(f.client_id));\nif (f.lead_id)   qsOutreach.push('lead_id=eq.'   + encodeURIComponent(f.lead_id));\nif (f.channel && f.channel !== 'all') qsOutreach.push('channel=eq.' + encodeURIComponent(f.channel));\n\n// email_log: Postmark email writer target. No lead_id / client_id columns.\n// Columns: id,template_alias,to_email,postmark_message_id,postmark_error_code,sent_at.\n// Skipped when client_id/lead_id filter set unless caller explicitly\n// wants the email channel; otherwise it would just return noise.\nconst skipEmailLog = (f.client_id || f.lead_id) && f.channel !== 'email' && f.channel !== 'all' && f.channel;\nconst qsEmail = ['select=id,template_alias,to_email,postmark_message_id,postmark_error_code,sent_at']\n  .concat(qsBase('sent_at'));\n\nreturn { json: {\n  token: token,\n  qs_messages: qsMessages.join('&'),\n  qs_outreach: qsOutreach.join('&'),\n  qs_email:    qsEmail.join('&'),\n  skip_email:  !!skipEmailLog,\n  filters:     f,\n  limit:       limit\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acl-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "acl-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst inputs = $('Extract Inputs').item.json;\nreturn { json: { ok: true, qs_messages: inputs.qs_messages, qs_outreach: inputs.qs_outreach, qs_email: inputs.qs_email, skip_email: inputs.skip_email, filters: inputs.filters, limit: inputs.limit } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acl-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "acl-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/messages_sent?' + $json.qs_messages }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "continueOnFail": true }
+      },
+      "id": "acl-0006",
+      "name": "Query messages_sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 160],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log?' + $json.qs_outreach }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "continueOnFail": true }
+      },
+      "id": "acl-0007",
+      "name": "Query outreach_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_log?' + $json.qs_email }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "continueOnFail": true }
+      },
+      "id": "acl-0008",
+      "name": "Query email_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 440],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Canonical allOf() — collapses n8n's array-split + auto-unwrap on\n// multi-row PostgREST responses back to a single array.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    // Single-row auto-unwrap: object with table columns -> wrap in array.\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0])) {\n      const o = items[0];\n      if (o.id || o.sent_at) return [o];\n    }\n    return items.filter(function (x) { return x && (x.id || x.sent_at); });\n  } catch (e) { return []; }\n};\n\nconst inputs   = $('Extract Inputs').item.json;\nconst filters  = inputs.filters || {};\nconst limit    = inputs.limit || 100;\n\nconst messages = allOf('Query messages_sent');\nconst outreach = allOf('Query outreach_log');\nconst emails   = inputs.skip_email ? [] : allOf('Query email_log');\n\n// Normalize all three sources to a unified shape so the frontend\n// renders one table without per-source branching.\nfunction excerpt(s, n) {\n  if (!s) return '';\n  s = String(s);\n  if (s.length <= n) return s;\n  return s.slice(0, n).trim() + '…';\n}\n\nconst normMsg = function (r) {\n  return {\n    source:          'messages_sent',\n    id:              r.id,\n    channel:         r.channel || 'unknown',\n    direction:       r.direction || 'outbound',\n    subject:         null,\n    content:         r.content || '',\n    content_excerpt: excerpt(r.content, 140),\n    lead_id:         r.lead_id || null,\n    client_id:       r.client_id || null,\n    recipient:       null,\n    status:          r.status || 'unknown',\n    sent_at:         r.sent_at,\n    delivered_at:    r.delivered_at || null,\n    read_at:         r.read_at || null,\n    replied_at:      r.replied_at || null,\n    error_message:   r.error_message || null,\n    cost_cents:      typeof r.cost_cents === 'number' ? r.cost_cents : null,\n    external_id:     r.external_id || null\n  };\n};\n\nconst normOut = function (r) {\n  return {\n    source:          'outreach_log',\n    id:              r.id,\n    channel:         r.channel || 'unknown',\n    direction:       'outbound',\n    subject:         r.subject || null,\n    content:         r.message_excerpt || '',\n    content_excerpt: excerpt(r.message_excerpt, 140),\n    lead_id:         r.lead_id || null,\n    client_id:       r.client_id || null,\n    recipient:       null,\n    status:          r.channel_status || 'sent',\n    sent_at:         r.sent_at,\n    delivered_at:    null,\n    read_at:         null,\n    replied_at:      null,\n    error_message:   null,\n    cost_cents:      null,\n    external_id:     null,\n    metadata:        r.metadata || null\n  };\n};\n\nconst normEm = function (r) {\n  const failed = !!r.postmark_error_code;\n  return {\n    source:          'email_log',\n    id:              r.id,\n    channel:         'email',\n    direction:       'outbound',\n    subject:         r.template_alias || null,\n    content:         r.template_alias || '',\n    content_excerpt: r.template_alias || '',\n    lead_id:         null,\n    client_id:       null,\n    recipient:       r.to_email || null,\n    status:          failed ? 'failed' : 'sent',\n    sent_at:         r.sent_at,\n    delivered_at:    null,\n    read_at:         null,\n    replied_at:      null,\n    error_message:   r.postmark_error_code || null,\n    cost_cents:      null,\n    external_id:     r.postmark_message_id || null\n  };\n};\n\nconst all = [].concat(\n  messages.map(normMsg),\n  outreach.map(normOut),\n  emails.map(normEm)\n);\n\n// Sort newest first; cap at the user-requested limit (each source was\n// already capped at limit, so worst case here is 3*limit before slice).\nall.sort(function (a, b) {\n  const ta = a.sent_at ? new Date(a.sent_at).getTime() : 0;\n  const tb = b.sent_at ? new Date(b.sent_at).getTime() : 0;\n  return tb - ta;\n});\nconst rows = all.slice(0, limit);\n\n// Per-channel counts for the KPI strip on the frontend.\nconst byChannel = {};\nfor (const r of all) byChannel[r.channel] = (byChannel[r.channel] || 0) + 1;\nconst byStatus = {};\nfor (const r of all) byStatus[r.status] = (byStatus[r.status] || 0) + 1;\n\nreturn { json: {\n  ok: true,\n  count_returned: rows.length,\n  count_total:    all.length,\n  by_channel:     byChannel,\n  by_status:      byStatus,\n  filters:        filters,\n  note:           inputs.skip_email\n                    ? 'email_log filtered out — no client_id/lead_id columns on that table'\n                    : null,\n  rows:           rows\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "acl-0009",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "acl-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1840, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "acl-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 580]
+    }
+  ],
+  "connections": {
+    "Webhook":              { "main": [[{ "node": "Extract Inputs",     "type": "main", "index": 0 }]] },
+    "Extract Inputs":       { "main": [[{ "node": "Validate Session",   "type": "main", "index": 0 }]] },
+    "Validate Session":     { "main": [[{ "node": "Check Admin",        "type": "main", "index": 0 }]] },
+    "Check Admin":          { "main": [[{ "node": "IF Admin OK",        "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [
+          { "node": "Query messages_sent", "type": "main", "index": 0 },
+          { "node": "Query outreach_log",  "type": "main", "index": 0 },
+          { "node": "Query email_log",     "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond 4xx", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Query messages_sent":  { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Query outreach_log":   { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Query email_log":      { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":       { "main": [[{ "node": "Respond OK",    "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

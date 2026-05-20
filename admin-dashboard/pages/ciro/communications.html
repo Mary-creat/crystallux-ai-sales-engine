@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Communications · CIRO · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .clx-comms-row { cursor: pointer; }
+  .clx-comms-detail {
+    background: var(--bg-elevated, #1a1a2e);
+    padding: 14px 18px;
+    border-top: 1px solid var(--border, #2a2a4a);
+    font-size: 13px;
+  }
+  .clx-comms-detail pre {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    background: var(--bg-code, #0f1626);
+    border-radius: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text, #e6e7f0);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    max-height: 240px; overflow: auto;
+  }
+  .clx-comms-timeline { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+  .clx-comms-timeline span { display: inline-flex; align-items: center; gap: 4px; }
+  .clx-comms-channel { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">Communications</h1>
+        <div class="clx-page-sub">Every outbound message across every channel — email, SMS, WhatsApp, LinkedIn, voice. Click a row to see the full content + delivery timeline.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <select id="channelFilter" class="clx-select" style="width:160px">
+          <option value="all">All channels</option>
+          <option value="email">Email</option>
+          <option value="sms">SMS</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="linkedin">LinkedIn</option>
+          <option value="voice">Voice</option>
+          <option value="video_link">Video link</option>
+        </select>
+        <select id="sinceFilter" class="clx-select" style="width:140px">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="0">All time</option>
+        </select>
+        <select id="limitFilter" class="clx-select" style="width:120px">
+          <option value="100" selected>100 rows</option>
+          <option value="250">250 rows</option>
+          <option value="500">500 rows</option>
+        </select>
+        <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
+      </div>
+    </div>
+
+    <div id="clientFilterPanel" class="clx-card" style="display:none;padding:12px 16px;margin-bottom:16px;font-size:13px;">
+      <span style="color:var(--text-muted)">Filtered to client:</span>
+      <strong id="clientFilterId" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace"></strong>
+      <a href="/pages/ciro/communications.html" style="margin-left:10px;color:var(--color-brand-500);font-size:12px">Clear filter</a>
+    </div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="commsTable"></div>
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
+<script>
+var CHANNEL_ICONS = {
+  email:      'mail',
+  sms:        'message-square',
+  whatsapp:   'message-circle',
+  linkedin:   'briefcase',
+  voice:      'phone',
+  video_link: 'video'
+};
+
+var STATUS_VARIANTS = {
+  sent:      'activity',
+  pending:   'activity',
+  delivered: 'bookings',
+  read:      'bookings',
+  replied:   'revenue',
+  failed:    'danger',
+  bounced:   'danger'
+};
+
+var __rows = [];
+
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+
+  // ?client_id=X (linked from client detail page) or ?lead_id=X
+  var params = new URLSearchParams(window.location.search);
+  var clientId = params.get('client_id');
+  if (clientId) {
+    document.getElementById('clientFilterPanel').style.display = 'block';
+    document.getElementById('clientFilterId').textContent = clientId;
+  }
+
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('kpiGrid').insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card">' +
+      '<span class="clx-skeleton" style="width:50%;height:10px"></span>' +
+      '<div style="height:10px"></div>' +
+      '<span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('commsTable').innerHTML = clxComp.skeleton(8, 6);
+
+  load();
+  document.getElementById('channelFilter').addEventListener('change', load);
+  document.getElementById('sinceFilter').addEventListener('change', load);
+  document.getElementById('limitFilter').addEventListener('change', load);
+  document.getElementById('refreshBtn').addEventListener('click', load);
+});
+
+function isoNDaysAgo(n) {
+  var d = new Date(Date.now() - n * 86400000);
+  return d.toISOString();
+}
+
+async function load() {
+  var channel  = document.getElementById('channelFilter').value;
+  var sinceDays = parseInt(document.getElementById('sinceFilter').value, 10);
+  var limit    = parseInt(document.getElementById('limitFilter').value, 10) || 100;
+  var params   = new URLSearchParams(window.location.search);
+  var clientId = params.get('client_id');
+  var leadId   = params.get('lead_id');
+
+  var filters = { limit: limit };
+  if (channel && channel !== 'all') filters.channel = channel;
+  if (sinceDays > 0)                filters.since   = isoNDaysAgo(sinceDays);
+  if (clientId)                     filters.client_id = clientId;
+  if (leadId)                       filters.lead_id   = leadId;
+
+  var res = await clxApi.adminGet('comms-log', filters);
+  var el  = document.getElementById('commsTable');
+  if (!res.ok) { clxApi.renderError(el, res); return; }
+  __rows = (res.data && res.data.rows) || [];
+  renderKpis(res.data || {});
+  renderTable();
+}
+
+function renderKpis(payload) {
+  var rows = __rows;
+  var byChannel = payload.by_channel || {};
+  var byStatus  = payload.by_status  || {};
+
+  var total     = rows.length;
+  var emailCount    = byChannel.email    || 0;
+  var smsWappCount  = (byChannel.sms     || 0) + (byChannel.whatsapp || 0);
+  var linkedinCount = byChannel.linkedin || 0;
+  var failedCount   = (byStatus.failed   || 0) + (byStatus.bounced  || 0);
+
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'In view',          value: total,         icon: 'activity',       variant: 'leads'    },
+    { label: 'Email',            value: emailCount,    icon: 'mail',           variant: 'activity' },
+    { label: 'SMS + WhatsApp',   value: smsWappCount,  icon: 'message-square', variant: 'bookings' },
+    { label: 'Failed / bounced', value: failedCount,   icon: 'alert-triangle', variant: failedCount > 0 ? 'danger' : 'revenue' }
+  ]);
+}
+
+function fmtChannel(channel) {
+  var ic = CHANNEL_ICONS[channel] || 'send';
+  return '<span class="clx-comms-channel">' + clxComp.icon(ic, 'sm') + clxComp.escapeHtml(channel || '—') + '</span>';
+}
+
+function fmtStatus(status) {
+  var variant = STATUS_VARIANTS[status] || 'activity';
+  return '<span class="clx-badge clx-badge-' + variant + '">' + clxComp.escapeHtml(status || '—') + '</span>';
+}
+
+function fmtRecipient(r) {
+  if (r.recipient) return clxComp.escapeHtml(r.recipient);
+  if (r.client_id) {
+    return '<a href="/pages/client-detail.html?id=' + encodeURIComponent(r.client_id) +
+      '" style="color:var(--color-brand-500);font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">client:' +
+      clxComp.escapeHtml(r.client_id.slice(0, 8)) + '…</a>';
+  }
+  if (r.lead_id) {
+    return '<span style="font-size:12px;color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">lead:' +
+      clxComp.escapeHtml(r.lead_id.slice(0, 8)) + '…</span>';
+  }
+  return '<span style="color:var(--text-muted)">—</span>';
+}
+
+function renderTable() {
+  var el = document.getElementById('commsTable');
+  if (!__rows.length) {
+    clxComp.renderEmpty(el, 'No communications match these filters.', 'inbox');
+    return;
+  }
+  // Build table HTML manually so we can attach click-to-expand handlers.
+  var html = '<table class="clx-table"><thead><tr>' +
+    '<th>Sent</th><th>Channel</th><th>Direction</th><th>To</th>' +
+    '<th>Subject / preview</th><th>Status</th>' +
+    '</tr></thead><tbody>';
+  __rows.forEach(function (r, i) {
+    html += '<tr class="clx-comms-row" data-idx="' + i + '">' +
+      '<td>' + clxComp.escapeHtml(clxComp.formatDateTime(r.sent_at) || '—') + '</td>' +
+      '<td>' + fmtChannel(r.channel) + '</td>' +
+      '<td><span class="clx-badge clx-badge-' + (r.direction === 'inbound' ? 'bookings' : 'activity') + '">' +
+            clxComp.escapeHtml(r.direction || '—') + '</span></td>' +
+      '<td>' + fmtRecipient(r) + '</td>' +
+      '<td><div style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+            (r.subject ? '<strong>' + clxComp.escapeHtml(r.subject) + '</strong> · ' : '') +
+            clxComp.escapeHtml(r.content_excerpt || '—') + '</div></td>' +
+      '<td>' + fmtStatus(r.status) + '</td>' +
+    '</tr>' +
+    '<tr class="clx-comms-detail-row" data-idx="' + i + '" style="display:none"><td colspan="6">' + buildDetail(r) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  // Attach click handlers
+  el.querySelectorAll('.clx-comms-row').forEach(function (tr) {
+    tr.addEventListener('click', function () {
+      var idx = tr.dataset.idx;
+      var detail = el.querySelector('.clx-comms-detail-row[data-idx="' + idx + '"]');
+      if (!detail) return;
+      detail.style.display = detail.style.display === 'none' ? 'table-row' : 'none';
+    });
+  });
+}
+
+function buildDetail(r) {
+  var timelineParts = [];
+  if (r.sent_at)      timelineParts.push('<span>📤 sent ' + clxComp.escapeHtml(clxComp.relativeTime(r.sent_at)) + '</span>');
+  if (r.delivered_at) timelineParts.push('<span>📬 delivered ' + clxComp.escapeHtml(clxComp.relativeTime(r.delivered_at)) + '</span>');
+  if (r.read_at)      timelineParts.push('<span>👁 read ' + clxComp.escapeHtml(clxComp.relativeTime(r.read_at)) + '</span>');
+  if (r.replied_at)   timelineParts.push('<span>↩️ replied ' + clxComp.escapeHtml(clxComp.relativeTime(r.replied_at)) + '</span>');
+
+  var html = '<div class="clx-comms-detail">';
+  html += '<div class="clx-comms-timeline">' + (timelineParts.join('') || '<span style="color:var(--text-muted)">No delivery timestamps captured</span>') + '</div>';
+  if (r.error_message) {
+    html += '<div style="margin-top:8px;color:var(--color-danger,#e57373);font-size:12px">⚠ ' + clxComp.escapeHtml(r.error_message) + '</div>';
+  }
+  if (typeof r.cost_cents === 'number') {
+    html += '<div style="margin-top:4px;color:var(--text-muted);font-size:12px">Cost: $' + (r.cost_cents / 100).toFixed(4) + '</div>';
+  }
+  if (r.external_id) {
+    html += '<div style="margin-top:4px;color:var(--text-muted);font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">Provider ref: ' + clxComp.escapeHtml(r.external_id) + '</div>';
+  }
+  html += '<div style="margin-top:10px;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">Content (source: ' + clxComp.escapeHtml(r.source) + ')</div>';
+  html += '<pre>' + clxComp.escapeHtml(r.content || '(no content stored)') + '</pre>';
+  html += '</div>';
+  return html;
+}
+</script>
+</body>
+</html>
