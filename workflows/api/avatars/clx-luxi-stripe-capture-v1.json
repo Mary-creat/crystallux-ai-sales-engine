@@ -1,0 +1,192 @@
+{
+  "id": "clxLuxiStripeCaptureV1",
+  "name": "CLX - LUXI Stripe Capture v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 1 }
+          ]
+        }
+      },
+      "id": "lsc-0001",
+      "name": "Schedule (every 1 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auction_payment_holds?status=eq.authorized&select=id,bid_id,auction_id,stripe_payment_intent_id,amount_cents,auction_bids(id,status,auction_id,amount_cents,auctions(id,status,winning_bid_id))&order=authorized_at.asc&limit=50",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lsc-0002",
+      "name": "Fetch Authorized Holds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 400],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify every authorized hold into one of three actions:\n//   capture   → bid won + auction closed_sold → capture the PaymentIntent\n//   release   → bid is outbid/forfeited/runner_up → cancel the PaymentIntent\n//   skip      → auction still open or bid still active; come back later\n//\n// The embedded auction_bids + auctions arrive via PostgREST resource\n// embedding (the `?select=...,auction_bids(...,auctions(...))` query).\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst holds = allOf('Fetch Authorized Holds');\nif (holds.length === 0) {\n  return [{ json: { _no_work: true, ts: new Date().toISOString() } }];\n}\n\nconst out = [];\nfor (const h of holds) {\n  const bid = h.auction_bids || null;\n  const auction = bid && bid.auctions ? bid.auctions : null;\n  if (!bid || !auction) {\n    out.push({ json: { hold_id: h.id, action: 'skip', reason: 'embedded bid/auction missing', stripe_payment_intent_id: h.stripe_payment_intent_id, amount_cents: h.amount_cents } });\n    continue;\n  }\n  const bidWon  = bid.status === 'won' && auction.status === 'closed_sold' && auction.winning_bid_id === bid.id;\n  const release = (bid.status === 'outbid' || bid.status === 'forfeited' || bid.status === 'runner_up' || bid.status === 'rejected');\n  if (bidWon) {\n    out.push({ json: { hold_id: h.id, action: 'capture', stripe_payment_intent_id: h.stripe_payment_intent_id, amount_cents: h.amount_cents, bid_id: bid.id, auction_id: auction.id } });\n  } else if (release) {\n    out.push({ json: { hold_id: h.id, action: 'release', stripe_payment_intent_id: h.stripe_payment_intent_id, amount_cents: h.amount_cents, bid_id: bid.id, auction_id: auction.id, bid_status: bid.status } });\n  } else {\n    // Still in-flight — leave for next tick\n  }\n}\n\nif (out.length === 0) return [{ json: { _no_work: true, ts: new Date().toISOString(), examined: holds.length } }];\nreturn out;"
+      },
+      "id": "lsc-0003",
+      "name": "Classify Holds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1",
+            "leftValue": "={{ $json._no_work }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "lsc-0004",
+      "name": "IF Has Work",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "outputKey": "capture", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "capture", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
+            { "outputKey": "release", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "release", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
+          ]
+        },
+        "options": {}
+      },
+      "id": "lsc-0005",
+      "name": "Capture or Release",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.stripe_payment_intent_id + '/capture' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" },
+            { "name": "Content-Type",  "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ 'amount_to_capture=' + $json.amount_cents }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lsc-0006",
+      "name": "Stripe Capture",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.stripe_payment_intent_id + '/cancel' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" },
+            { "name": "Content-Type",  "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "cancellation_reason=duplicate",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lsc-0007",
+      "name": "Stripe Cancel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Inspect Stripe response, build the PATCH body for auction_payment_holds.\nconst input = $input.item.json;\nconst stripe = input;\nconst hold_id = $('Classify Holds').itemMatching($itemIndex).json.hold_id;\nconst action  = $('Classify Holds').itemMatching($itemIndex).json.action;\nconst pi_id   = $('Classify Holds').itemMatching($itemIndex).json.stripe_payment_intent_id;\n\nconst stripeStatus = stripe && stripe.status ? stripe.status : null;\nconst stripeErr    = stripe && stripe.error ? (stripe.error.message || stripe.error.code) : null;\n\nlet newStatus, completedField, failureReason = null;\nif (action === 'capture') {\n  if (stripeStatus === 'succeeded') {\n    newStatus = 'captured'; completedField = 'captured_at';\n  } else {\n    newStatus = 'failed'; completedField = 'captured_at';\n    failureReason = stripeErr || ('Stripe capture returned status: ' + (stripeStatus || 'unknown'));\n  }\n} else {\n  // release\n  if (stripeStatus === 'canceled') {\n    newStatus = 'released'; completedField = 'released_at';\n  } else {\n    newStatus = 'failed'; completedField = 'released_at';\n    failureReason = stripeErr || ('Stripe cancel returned status: ' + (stripeStatus || 'unknown'));\n  }\n}\n\nconst patchBody = { status: newStatus };\npatchBody[completedField] = new Date().toISOString();\nif (failureReason) patchBody.failure_reason = failureReason;\n\nreturn { json: { hold_id: hold_id, action: action, payment_intent_id: pi_id, stripe_status: stripeStatus, new_status: newStatus, patch_body: patchBody } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lsc-0008",
+      "name": "Build Hold Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auction_payment_holds?id=eq.' + $json.hold_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lsc-0009",
+      "name": "Patch Hold",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1840, 400],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule (every 1 min)": { "main": [[{ "node": "Fetch Authorized Holds", "type": "main", "index": 0 }]] },
+    "Fetch Authorized Holds": { "main": [[{ "node": "Classify Holds",         "type": "main", "index": 0 }]] },
+    "Classify Holds":         { "main": [[{ "node": "IF Has Work",            "type": "main", "index": 0 }]] },
+    "IF Has Work": {
+      "main": [
+        [{ "node": "Capture or Release", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Capture or Release": {
+      "main": [
+        [{ "node": "Stripe Capture", "type": "main", "index": 0 }],
+        [{ "node": "Stripe Cancel",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Stripe Capture": { "main": [[{ "node": "Build Hold Update", "type": "main", "index": 0 }]] },
+    "Stripe Cancel":  { "main": [[{ "node": "Build Hold Update", "type": "main", "index": 0 }]] },
+    "Build Hold Update": { "main": [[{ "node": "Patch Hold", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

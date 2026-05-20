@@ -1,0 +1,241 @@
+{
+  "id": "clxLuxiBidParserV1",
+  "name": "CLX - LUXI Bid Parser v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "luxi/bid-parse",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "lbp-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-luxi-bid-parser-001",
+      "notes": "Internal-secret-gated. Accepts a bid intent from any source (tiktok_comment / facebook_comment / instagram_dm / web_form / sms / whatsapp), parses the raw text for a numeric amount, validates against the auction's min_increment + current high, and INSERTs into auction_bids. Outbid logic for the previous high bidder is handled here too. Body: { auction_id, source_platform, source_comment_id?, raw_input, bidder_trust_id }."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Internal-secret auth: a poller / monitor workflow calls this endpoint.\n// No session token. Auth via shared secret in `X-Internal-Secret` header,\n// compared to $env.INTERNAL_BID_PARSER_SECRET. If unset, refuse all\n// traffic (fail-closed).\nconst headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst incoming = headers['x-internal-secret'] || headers['X-Internal-Secret'] || '';\nconst expected = $env.INTERNAL_BID_PARSER_SECRET || '';\nif (!expected || incoming !== expected) {\n  return { json: { ok: false, status: 401, error: 'Missing or invalid X-Internal-Secret' } };\n}\n\nconst auctionId = String(body.auction_id || '').trim();\nconst source    = String(body.source_platform || '').trim().toLowerCase();\nconst rawInput  = String(body.raw_input || '').trim();\nconst bidderTrustId = String(body.bidder_trust_id || '').trim() || null;\nconst sourceCommentId = body.source_comment_id || null;\n\nif (!auctionId) return { json: { ok: false, status: 400, error: 'auction_id required' } };\nif (!source)    return { json: { ok: false, status: 400, error: 'source_platform required' } };\nif (!rawInput)  return { json: { ok: false, status: 400, error: 'raw_input required (the original comment / message text)' } };\nif (!bidderTrustId) return { json: { ok: false, status: 400, error: 'bidder_trust_id required — resolve the bidder before calling this endpoint' } };\n\nconst allowedSources = ['tiktok_comment','facebook_comment','instagram_dm','web_form','sms','whatsapp'];\nif (allowedSources.indexOf(source) === -1) {\n  return { json: { ok: false, status: 400, error: 'invalid source_platform; must be one of: ' + allowedSources.join(', ') } };\n}\n\n// Parse amount: tolerate variations like 'BID 50', 'bid $50', '$50', '50',\n// 'I bid 50.00', 'BIDDING 100'. Strip non-numeric except '.', take the\n// first numeric token. Convert dollars -> cents.\nconst match = rawInput.replace(/[,]/g, '').match(/(\\$\\s*)?(\\d+(?:\\.\\d{1,2})?)/);\nif (!match) {\n  return { json: { ok: false, status: 400, error: 'Could not parse a numeric amount from raw_input: ' + rawInput.slice(0, 100) } };\n}\nconst amountDollars = parseFloat(match[2]);\nif (isNaN(amountDollars) || amountDollars <= 0) {\n  return { json: { ok: false, status: 400, error: 'Parsed amount is zero or negative: ' + match[2] } };\n}\nconst amountCents = Math.round(amountDollars * 100);\n\nreturn { json: {\n  auction_id:       auctionId,\n  source_platform:  source,\n  source_comment_id:sourceCommentId,\n  raw_input:        rawInput,\n  bidder_trust_id:  bidderTrustId,\n  amount_cents:     amountCents\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lbp-0002",
+      "name": "Auth + Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok === false }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "lbp-0003",
+      "name": "IF Parsed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auctions?id=eq.' + $json.auction_id + '&select=id,status,current_high_bid_cents,current_high_bid_id,min_increment_cents,reserve_price_cents,scheduled_close_at&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lbp-0004",
+      "name": "Fetch Auction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate bid against auction state. Decide whether to:\n//   reject  → bid not allowed (auction not open, below min, etc.)\n//   accept  → insert as active; mark previous high as outbid\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst auctions = allOf('Fetch Auction');\nconst parsed   = $('Auth + Parse').item.json;\nif (auctions.length === 0) {\n  return { json: { ok: false, status: 404, error: 'Auction not found: ' + parsed.auction_id } };\n}\nconst a = auctions[0];\nif (a.status !== 'open' && a.status !== 'extended') {\n  return { json: { ok: false, status: 409, error: 'Auction is not accepting bids (status=' + a.status + ')' } };\n}\nconst currentHigh = a.current_high_bid_cents || 0;\nconst minIncrement = a.min_increment_cents || 100;\nconst minimumNext = currentHigh + minIncrement;\nif (parsed.amount_cents < minimumNext) {\n  return { json: { ok: false, status: 422, error: 'Bid too low. Current high is $' + (currentHigh/100).toFixed(2) + '; minimum next bid is $' + (minimumNext/100).toFixed(2) + '. Your bid was $' + (parsed.amount_cents/100).toFixed(2) + '.' } };\n}\n// Reserve check — but reserve typically just affects whether the auction\n// closes sold or unsold. Bidders can bid below reserve; close logic handles it.\nreturn { json: {\n  ok: true,\n  bid_body: {\n    auction_id:        parsed.auction_id,\n    bidder_trust_id:   parsed.bidder_trust_id,\n    amount_cents:      parsed.amount_cents,\n    source_platform:   parsed.source_platform,\n    source_comment_id: parsed.source_comment_id,\n    raw_input:         parsed.raw_input,\n    status:            'active'\n  },\n  previous_high_bid_id: a.current_high_bid_id || null,\n  auction_patch: {\n    current_high_bid_cents: parsed.amount_cents,\n    updated_at: new Date().toISOString()\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "lbp-0005",
+      "name": "Validate Bid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "lbp-0006",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auction_bids",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.bid_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lbp-0007",
+      "name": "Insert Bid",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// After Insert Bid: take the new bid's id, also outbid the prior high\n// (if any), and PATCH the auction's current_high_bid_id + cents.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst inserted = allOf('Insert Bid');\nconst v = $('Validate Bid').first().json;\nif (inserted.length === 0) return { json: { ok: false, status: 500, error: 'Insert returned no row' } };\nconst newBid = inserted[0];\nconst now = new Date().toISOString();\nreturn { json: {\n  ok: true,\n  bid_id: newBid.id,\n  auction_id: newBid.auction_id,\n  amount_cents: newBid.amount_cents,\n  prev_high_bid_id: v.previous_high_bid_id,\n  auction_patch_url: 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auctions?id=eq.' + newBid.auction_id,\n  auction_patch_body: { current_high_bid_cents: newBid.amount_cents, current_high_bid_id: newBid.id, updated_at: now },\n  outbid_patch_url:  v.previous_high_bid_id ? ('https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auction_bids?id=eq.' + v.previous_high_bid_id) : null,\n  outbid_patch_body: { status: 'outbid', outbid_at: now }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "lbp-0008",
+      "name": "Build Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1840, 220]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.auction_patch_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.auction_patch_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lbp-0009",
+      "name": "Patch Auction High",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2080, 140],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.outbid_patch_url || $json.auction_patch_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.outbid_patch_url ? JSON.stringify($json.outbid_patch_body) : '{}' }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lbp-0010",
+      "name": "Patch Previous Outbid",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2080, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Build Updates').first().json;\nreturn { json: {\n  ok: true,\n  bid_id: v.bid_id,\n  auction_id: v.auction_id,\n  amount_cents: v.amount_cents,\n  amount_display: '$' + (v.amount_cents/100).toFixed(2),\n  previous_outbid_id: v.prev_high_bid_id || null\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lbp-0011",
+      "name": "Shape Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2320, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "lbp-0012",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2560, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "lbp-0013",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":      { "main": [[{ "node": "Auth + Parse",  "type": "main", "index": 0 }]] },
+    "Auth + Parse": { "main": [[{ "node": "IF Parsed",     "type": "main", "index": 0 }]] },
+    "IF Parsed": {
+      "main": [
+        [{ "node": "Fetch Auction",  "type": "main", "index": 0 }],
+        [{ "node": "Respond Error",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Auction": { "main": [[{ "node": "Validate Bid", "type": "main", "index": 0 }]] },
+    "Validate Bid":  { "main": [[{ "node": "IF Valid",     "type": "main", "index": 0 }]] },
+    "IF Valid": {
+      "main": [
+        [{ "node": "Insert Bid",    "type": "main", "index": 0 }],
+        [{ "node": "Respond Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Insert Bid":           { "main": [[{ "node": "Build Updates",         "type": "main", "index": 0 }]] },
+    "Build Updates":        { "main": [[{ "node": "Patch Auction High",    "type": "main", "index": 0 }]] },
+    "Patch Auction High":   { "main": [[{ "node": "Patch Previous Outbid", "type": "main", "index": 0 }]] },
+    "Patch Previous Outbid":{ "main": [[{ "node": "Shape Success",         "type": "main", "index": 0 }]] },
+    "Shape Success":        { "main": [[{ "node": "Respond OK",            "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
