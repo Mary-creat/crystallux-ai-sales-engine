@@ -1,0 +1,133 @@
+{
+  "id": "clxCiroCalendarConflictV1",
+  "name": "CLX - CIRO Calendar Conflict Detector v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 30 }
+          ]
+        }
+      },
+      "id": "ccc-0001",
+      "name": "Schedule (every 30 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Query upcoming non-cancelled bookings in the next 14 days.\n// Buffer-aware conflict detection: any two bookings for the same\n// advisor whose [start, end+buffer) intervals overlap.\nconst windowDays   = parseInt($env.CLX_CONFLICT_WINDOW_DAYS  || '14', 10);\nconst bufferMins   = parseInt($env.CLX_CONFLICT_BUFFER_MINS  || '15',  10);\nconst nowIso       = new Date().toISOString();\nconst untilIso     = new Date(Date.now() + windowDays * 86400000).toISOString();\nconst qs = [\n  'select=id,lead_id,client_id,advisor_id,scheduled_at,duration_minutes,status,provider,meeting_link,notes',\n  'status=in.(scheduled,confirmed)',\n  'scheduled_at=gte.' + encodeURIComponent(nowIso),\n  'scheduled_at=lte.' + encodeURIComponent(untilIso),\n  'order=advisor_id.asc,scheduled_at.asc',\n  'limit=500'\n].join('&');\nreturn { json: { qs: qs, window_days: windowDays, buffer_mins: bufferMins, now_iso: nowIso } };"
+      },
+      "id": "ccc-0002",
+      "name": "Build Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/bookings?' + $json.qs }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "ccc-0003",
+      "name": "Query Bookings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 300],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect overlaps. Algorithm:\n//   1. Group bookings by advisor_id (null grouped together as 'unassigned').\n//   2. Within each group, sweep sorted-by-scheduled_at and compare each\n//      booking's [start, end + buffer) against the next bookings until\n//      one starts after this one ends — O(n*k) where k = local overlap\n//      depth (small in practice).\n// Each conflict produces a sentinel_alerts row with aggregation_key\n// containing both booking IDs sorted, so the same conflict pair only\n// alerts once per day.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst bookings = allOf('Query Bookings');\nconst meta     = $('Build Query').first().json;\nconst bufferMs = (meta.buffer_mins || 0) * 60000;\nconst todayKey = new Date().toISOString().slice(0, 10);\n\nif (bookings.length < 2) {\n  return [{ json: { _no_conflicts: true, bookings_examined: bookings.length, window_days: meta.window_days, buffer_mins: meta.buffer_mins } }];\n}\n\nconst byAdvisor = {};\nbookings.forEach(function (b) {\n  const k = b.advisor_id || 'unassigned';\n  if (!byAdvisor[k]) byAdvisor[k] = [];\n  byAdvisor[k].push(b);\n});\n\nconst conflicts = [];\n\nObject.keys(byAdvisor).forEach(function (advisorId) {\n  const list = byAdvisor[advisorId].slice().sort(function (a, b) {\n    return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();\n  });\n  for (let i = 0; i < list.length; i++) {\n    const a = list[i];\n    const aStart = new Date(a.scheduled_at).getTime();\n    const aEnd   = aStart + (a.duration_minutes || 30) * 60000;\n    const aEndWithBuffer = aEnd + bufferMs;\n    for (let j = i + 1; j < list.length; j++) {\n      const b = list[j];\n      const bStart = new Date(b.scheduled_at).getTime();\n      if (bStart >= aEndWithBuffer) break;  // sorted: no further overlaps possible\n      const isOverlap   = bStart < aEnd;\n      const isTightGap  = !isOverlap && bStart < aEndWithBuffer;\n      conflicts.push({\n        advisor_id:    advisorId === 'unassigned' ? null : advisorId,\n        booking_a:     a,\n        booking_b:     b,\n        conflict_kind: isOverlap ? 'overlap' : 'tight_gap',\n        gap_minutes:   Math.round((bStart - aEnd) / 60000)\n      });\n    }\n  }\n});\n\nif (conflicts.length === 0) {\n  return [{ json: { _no_conflicts: true, bookings_examined: bookings.length, window_days: meta.window_days, buffer_mins: meta.buffer_mins } }];\n}\n\nconst now = new Date().toISOString();\n\nreturn conflicts.map(function (c) {\n  const idPair = [c.booking_a.id, c.booking_b.id].sort();\n  const aggKey = 'conflict-' + idPair[0] + '-' + idPair[1] + '-' + todayKey;\n  const severity = c.conflict_kind === 'overlap' ? 'critical' : 'warning';\n  const aTime = new Date(c.booking_a.scheduled_at).toISOString();\n  const bTime = new Date(c.booking_b.scheduled_at).toISOString();\n  const title = (c.conflict_kind === 'overlap' ? '⚠️ Booking overlap' : '⏱️ Tight gap') +\n    ' — ' + aTime.slice(0, 16) + ' vs ' + bTime.slice(0, 16);\n  const message = c.conflict_kind === 'overlap'\n    ? 'Two bookings overlap for advisor ' + (c.advisor_id || 'unassigned') + '. Buffer = ' + meta.buffer_mins + ' min.'\n    : 'Only ' + c.gap_minutes + ' min between bookings (buffer = ' + meta.buffer_mins + ' min) for advisor ' + (c.advisor_id || 'unassigned') + '.';\n\n  return {\n    json: {\n      module_name:     'ciro',\n      alert_type:      'calendar_conflict',\n      severity:        severity,\n      title:           title.slice(0, 200),\n      message:         message.slice(0, 500),\n      details: {\n        advisor_id:     c.advisor_id,\n        conflict_kind:  c.conflict_kind,\n        gap_minutes:    c.gap_minutes,\n        buffer_minutes: meta.buffer_mins,\n        booking_a: {\n          id: c.booking_a.id, lead_id: c.booking_a.lead_id, client_id: c.booking_a.client_id,\n          scheduled_at: c.booking_a.scheduled_at, duration_minutes: c.booking_a.duration_minutes,\n          provider: c.booking_a.provider, meeting_link: c.booking_a.meeting_link, status: c.booking_a.status\n        },\n        booking_b: {\n          id: c.booking_b.id, lead_id: c.booking_b.lead_id, client_id: c.booking_b.client_id,\n          scheduled_at: c.booking_b.scheduled_at, duration_minutes: c.booking_b.duration_minutes,\n          provider: c.booking_b.provider, meeting_link: c.booking_b.meeting_link, status: c.booking_b.status\n        }\n      },\n      aggregation_key: aggKey,\n      triggered_at:    now,\n      status:          'open'\n    }\n  };\n});"
+      },
+      "id": "ccc-0004",
+      "name": "Detect Conflicts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._no_conflicts }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ccc-0005",
+      "name": "IF Conflicts",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ module_name: $json.module_name, alert_type: $json.alert_type, severity: $json.severity, title: $json.title, message: $json.message, details: $json.details, aggregation_key: $json.aggregation_key, triggered_at: $json.triggered_at, status: $json.status }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "ccc-0006",
+      "name": "Insert Conflict Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 220],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "ccc-0007",
+      "name": "No Conflicts",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1380, 400]
+    }
+  ],
+  "connections": {
+    "Schedule (every 30 min)": { "main": [[{ "node": "Build Query",      "type": "main", "index": 0 }]] },
+    "Build Query":             { "main": [[{ "node": "Query Bookings",   "type": "main", "index": 0 }]] },
+    "Query Bookings":          { "main": [[{ "node": "Detect Conflicts", "type": "main", "index": 0 }]] },
+    "Detect Conflicts":        { "main": [[{ "node": "IF Conflicts",     "type": "main", "index": 0 }]] },
+    "IF Conflicts": {
+      "main": [
+        [{ "node": "Insert Conflict Alert", "type": "main", "index": 0 }],
+        [{ "node": "No Conflicts",          "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

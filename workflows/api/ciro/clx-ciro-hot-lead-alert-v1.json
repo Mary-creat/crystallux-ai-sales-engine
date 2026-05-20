@@ -1,0 +1,133 @@
+{
+  "id": "clxCiroHotLeadAlertV1",
+  "name": "CLX - CIRO Hot Lead Alert v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 15 }
+          ]
+        }
+      },
+      "id": "chla-0001",
+      "name": "Schedule (every 15 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build PostgREST query for hot leads:\n//   - lead_score >= threshold (default 80, configurable via $env.CLX_HOT_LEAD_SCORE)\n//   - lead_status in the intent-signal set (Replied / Booking Sent / interest_detected)\n//   - updated_at within the last N hours (default 24, configurable via $env.CLX_HOT_LEAD_WINDOW_HOURS)\nconst threshold = parseInt($env.CLX_HOT_LEAD_SCORE || '80', 10);\nconst windowHrs = parseInt($env.CLX_HOT_LEAD_WINDOW_HOURS || '24', 10);\nconst sinceIso  = new Date(Date.now() - windowHrs * 3600000).toISOString();\nconst qs = [\n  'select=id,client_id,full_name,email,company,industry,city,product_type,lead_type,lead_status,lead_score,recommended_campaign_type,research_summary,likely_business_need,detected_signal,signal_confidence,assigned_to,booking_email_sent,interest_detected,updated_at,date_created',\n  'lead_score=gte.' + threshold,\n  'lead_status=in.(Replied,Booking%20Sent,Outreach%20Ready)',\n  'updated_at=gte.' + encodeURIComponent(sinceIso),\n  'order=updated_at.desc',\n  'limit=50'\n].join('&');\nreturn { json: { qs: qs, threshold: threshold, window_hrs: windowHrs, since_iso: sinceIso } };"
+      },
+      "id": "chla-0002",
+      "name": "Build Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?' + $json.qs }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "chla-0003",
+      "name": "Query Hot Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 300],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Canonical allOf() — flatten array-split / single-row-unwrap.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst leads = allOf('Query Hot Leads');\nconst meta  = $('Build Query').first().json;\n\nif (leads.length === 0) {\n  // No-op tick — return single sentinel item so downstream code doesn't crash on empty input.\n  return [{ json: { _no_hot_leads: true, threshold: meta.threshold, window_hrs: meta.window_hrs, since_iso: meta.since_iso } }];\n}\n\nconst todayKey = new Date().toISOString().slice(0, 10);\n\n// Map each lead to a sentinel_alerts INSERT body. aggregation_key uses\n// hotlead-<lead_id>-<YYYY-MM-DD> so we never raise more than one alert\n// per lead per day. Severity escalates with lead_score.\nconst now = new Date().toISOString();\n\nreturn leads.map(function (l) {\n  let severity = 'info';\n  if ((l.lead_score || 0) >= 95) severity = 'critical';\n  else if ((l.lead_score || 0) >= 90) severity = 'warning';\n\n  const reasons = [];\n  if ((l.lead_score || 0) >= meta.threshold) reasons.push('score=' + l.lead_score);\n  if (l.lead_status === 'Replied') reasons.push('replied to outreach');\n  if (l.lead_status === 'Booking Sent') reasons.push('Calendly sent — awaiting booking');\n  if (l.lead_type === 'carrier_prospect') reasons.push('carrier_prospect');\n  if (l.lead_type === 'advisor_candidate') reasons.push('advisor_candidate');\n  if (l.detected_signal) reasons.push('signal: ' + l.detected_signal);\n\n  const titlePrefix =\n    l.lead_type === 'carrier_prospect'  ? '🏢 Hot carrier' :\n    l.lead_type === 'advisor_candidate' ? '👤 Hot advisor' :\n                                          '🔥 Hot lead';\n\n  const title = titlePrefix + ' — ' + (l.company || 'Unknown') + ' (score ' + (l.lead_score || 0) + ')';\n\n  const message = (l.full_name || 'Unknown contact') +\n    (l.industry ? ' · ' + l.industry : '') +\n    (l.city ? ' · ' + l.city : '') +\n    ' — ' + reasons.join(' · ');\n\n  return {\n    json: {\n      lead_id:         l.id,\n      module_name:     'ciro',\n      alert_type:      'hot_lead',\n      severity:        severity,\n      title:           title.slice(0, 200),\n      message:         message.slice(0, 500),\n      details: {\n        lead_id:        l.id,\n        client_id:      l.client_id || null,\n        company:        l.company,\n        full_name:      l.full_name,\n        email:          l.email,\n        industry:       l.industry,\n        city:           l.city,\n        lead_score:     l.lead_score,\n        lead_status:    l.lead_status,\n        lead_type:      l.lead_type || 'smb',\n        product_type:   l.product_type,\n        detected_signal:l.detected_signal,\n        signal_confidence: l.signal_confidence,\n        recommended_campaign_type: l.recommended_campaign_type,\n        likely_business_need: l.likely_business_need,\n        assigned_to:    l.assigned_to,\n        booking_email_sent: l.booking_email_sent,\n        interest_detected:  l.interest_detected,\n        updated_at:     l.updated_at\n      },\n      aggregation_key: 'hotlead-' + l.id + '-' + todayKey,\n      triggered_at:    now,\n      status:          'open'\n    }\n  };\n});"
+      },
+      "id": "chla-0004",
+      "name": "Build Alert Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._no_hot_leads }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "chla-0005",
+      "name": "IF Hot Leads",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ module_name: $json.module_name, alert_type: $json.alert_type, severity: $json.severity, title: $json.title, message: $json.message, details: $json.details, aggregation_key: $json.aggregation_key, triggered_at: $json.triggered_at, status: $json.status }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "chla-0006",
+      "name": "Insert Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 220],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "chla-0007",
+      "name": "No Hot Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1380, 400]
+    }
+  ],
+  "connections": {
+    "Schedule (every 15 min)": { "main": [[{ "node": "Build Query",      "type": "main", "index": 0 }]] },
+    "Build Query":             { "main": [[{ "node": "Query Hot Leads",  "type": "main", "index": 0 }]] },
+    "Query Hot Leads":         { "main": [[{ "node": "Build Alert Rows", "type": "main", "index": 0 }]] },
+    "Build Alert Rows":        { "main": [[{ "node": "IF Hot Leads",     "type": "main", "index": 0 }]] },
+    "IF Hot Leads": {
+      "main": [
+        [{ "node": "Insert Alert", "type": "main", "index": 0 }],
+        [{ "node": "No Hot Leads", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
