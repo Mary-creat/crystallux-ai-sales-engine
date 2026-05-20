@@ -404,6 +404,31 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_follow_ups",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal,resolution=merge-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify((function(){\n  var rows = $('Insert Quote Completed').all().map(function(i){ return i.json; });\n  var quote = (rows.length === 1 && Array.isArray(rows[0])) ? rows[0][0] : (rows[0] || {});\n  if (!quote || !quote.id) return [];\n  var qid = quote.id;\n  var now = Date.now();\n  // 3 days, 7 days, 14 days from now. UNIQUE (quote_id, step) on the\n  // table makes this idempotent for the same quote.\n  return [\n    { quote_id: qid, step: 1, scheduled_at: new Date(now +  3 * 86400000).toISOString(), status: 'pending', message_template: 'check-in' },\n    { quote_id: qid, step: 2, scheduled_at: new Date(now +  7 * 86400000).toISOString(), status: 'pending', message_template: 'value-reinforce' },\n    { quote_id: qid, step: 3, scheduled_at: new Date(now + 14 * 86400000).toISOString(), status: 'pending', message_template: 'final-nudge' }\n  ];\n})()) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0030",
+      "name": "Seed Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3140, 460],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
         "jsCode": "// Build the customer-facing quote email. Inline HTML; Postmark\n// doesn't need a pre-registered template for this.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst rows = allOf('Insert Quote Completed');\nif (rows.length === 0) return { json: { ok: false, status: 500, error: 'Quote insert returned no row' } };\nconst quote = rows[0];\nconst computed = $('Compute Quote').first().json;\nconst template = computed.template;\n\nconst fmtMoney = function (cents) {\n  const v = (parseInt(cents, 10) || 0) / 100;\n  return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });\n};\n\nconst rulesList = (quote.rules_applied || []).filter(function (r) { return r.adjust_cents || r.adjust_percent; })\n  .map(function (r) { return '<li>' + r.rule_name + ': ' + (r.adjust_cents >= 0 ? '+' : '') + fmtMoney(r.adjust_cents) + '/mo</li>'; })\n  .join('');\nconst addonsList = (quote.addons_selected || [])\n  .map(function (a) { return '<li>' + a.addon_name + ' — ' + fmtMoney(a.monthly_cents) + '/mo' + (a.one_time_cents > 0 ? ' + ' + fmtMoney(a.one_time_cents) + ' setup' : '') + '</li>'; })\n  .join('');\n\nconst html =\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333;max-width:640px\">' +\n  '<p>Hi ' + (quote.full_name || 'there') + ',</p>' +\n  '<p>Here is your personalized Crystallux quote for <strong>' + (template.industry_name || quote.industry_slug) + '</strong>. ' +\n  'It is valid for 30 days from today.</p>' +\n  '<div style=\"background:#f8f7ff;border-left:4px solid #7C3AED;padding:18px 22px;margin:18px 0;border-radius:6px\">' +\n    '<div style=\"font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px\">Monthly Estimate</div>' +\n    '<div style=\"font-size:32px;font-weight:700;color:#5B21B6\">' + fmtMoney(quote.total_monthly_cents) + ' <span style=\"font-size:14px;color:#71717a;font-weight:400\">/mo</span></div>' +\n    '<div style=\"font-size:13px;color:#52525b;margin-top:4px\">First-year all-in: <strong>' + fmtMoney(quote.total_first_year_cents) + '</strong> · ' + (quote.base_tier || 'starter') + ' tier</div>' +\n  '</div>' +\n  '<p><strong>Breakdown</strong></p>' +\n  '<ul style=\"padding-left:20px\">' +\n    '<li>Base (' + (quote.base_tier || 'starter') + '): ' + fmtMoney(quote.base_monthly_cents) + '/mo</li>' +\n    rulesList +\n    (addonsList ? '<li><strong>Add-ons:</strong></li><ul>' + addonsList + '</ul>' : '') +\n  '</ul>' +\n  '<p style=\"margin-top:24px\">Review and accept the quote at <a href=\"https://crystallux.org/quote/' + quote.id + '\" style=\"color:#7C3AED;font-weight:600\">crystallux.org/quote/' + quote.id + '</a>, or just reply to this email to schedule a 15-minute call.</p>' +\n  '<p>Talk soon,<br><strong>Mary Akintunde · Crystallux</strong></p>' +\n  '</div>';\n\nreturn { json: {\n  quote: quote,\n  postmark_body: {\n    From: 'info@crystallux.org',\n    To: quote.email,\n    Subject: 'Your Crystallux quote — ' + (template.industry_name || quote.industry_slug),\n    HtmlBody: html,\n    MessageStream: 'outbound',\n    Tag: 'smart-quote',\n    Metadata: { quote_id: quote.id, template_id: quote.template_id, industry_slug: quote.industry_slug }\n  }\n} };",
         "mode": "runOnceForAllItems"
       },
@@ -508,7 +533,8 @@
     "Get Addons (submit)":         { "main": [[{ "node": "Compute Quote",       "type": "main", "index": 0 }]] },
     "Compute Quote":               { "main": [[{ "node": "Insert Quote Completed","type": "main", "index": 0 }]] },
     "Insert Quote Completed":      { "main": [[{ "node": "Mark Draft Submitted","type": "main", "index": 0 }]] },
-    "Mark Draft Submitted":        { "main": [[{ "node": "Build Email",         "type": "main", "index": 0 }]] },
+    "Mark Draft Submitted":        { "main": [[{ "node": "Seed Follow-ups",    "type": "main", "index": 0 }]] },
+    "Seed Follow-ups":             { "main": [[{ "node": "Build Email",         "type": "main", "index": 0 }]] },
     "Build Email":                 { "main": [[{ "node": "Send Postmark",       "type": "main", "index": 0 }]] },
     "Send Postmark":               { "main": [[{ "node": "Shape Submit Response","type": "main", "index": 0 }]] },
     "Shape Submit Response":       { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] }

@@ -1,0 +1,172 @@
+{
+  "id": "clxQuoteFollowupCronV1",
+  "name": "CLX - Quote Follow-up Cron v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 6 }
+          ]
+        }
+      },
+      "id": "qfu-0001",
+      "name": "Schedule (every 6 hours)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_follow_ups?status=eq.pending&scheduled_at=lte.now&select=id,quote_id,step,scheduled_at,message_template,quote_completed(id,email,full_name,company,industry_slug,base_tier,total_monthly_cents,total_first_year_cents,status,expires_at,quote_templates(industry_name,emoji))&order=scheduled_at.asc&limit=50",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "qfu-0002",
+      "name": "Fetch Due Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// For each due follow-up, decide whether to send (parent quote still\n// open/sent/viewed) or skip (parent already accepted/declined/expired).\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst dues = allOf('Fetch Due Follow-ups');\nif (dues.length === 0) {\n  return [{ json: { _no_work: true, ts: new Date().toISOString() } }];\n}\n\nconst fmtMoney = function (cents) {\n  const v = (parseInt(cents, 10) || 0) / 100;\n  return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });\n};\n\nconst out = [];\nfor (const fu of dues) {\n  const q = fu.quote_completed || null;\n  if (!q) {\n    out.push({ json: { _skip: true, followup_id: fu.id, reason: 'parent quote missing', patch_url: 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_follow_ups?id=eq.' + fu.id, patch_body: { status: 'skipped', sent_at: new Date().toISOString() } } });\n    continue;\n  }\n  // Skip if quote is already final (accepted/declined/expired)\n  if (q.status === 'accepted' || q.status === 'declined' || q.status === 'expired') {\n    out.push({ json: { _skip: true, followup_id: fu.id, reason: 'quote already ' + q.status, patch_url: 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_follow_ups?id=eq.' + fu.id, patch_body: { status: 'skipped', sent_at: new Date().toISOString() } } });\n    continue;\n  }\n  // Skip if expires_at has passed\n  if (q.expires_at && new Date(q.expires_at).getTime() < Date.now()) {\n    out.push({ json: { _skip: true, followup_id: fu.id, reason: 'quote expired', patch_url: 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_follow_ups?id=eq.' + fu.id, patch_body: { status: 'skipped', sent_at: new Date().toISOString() } } });\n    continue;\n  }\n\n  // Build the reminder email. Step-based copy varies in tone:\n  //   step 1 (~3 days): gentle check-in\n  //   step 2 (~7 days): value reinforcement\n  //   step 3 (~14+ days): final nudge / book a call\n  const tpl = q.quote_templates || {};\n  const industryName = tpl.industry_name || q.industry_slug;\n  let subject, intro, midline, cta;\n  if (fu.step <= 1) {\n    subject = 'Quick check-in on your Crystallux quote';\n    intro   = 'Just a friendly nudge — wanted to make sure the quote I sent you didn\\'t get buried.';\n    midline = 'No pressure at all. Take your time. The quote is valid for 30 days.';\n    cta     = 'Review the quote';\n  } else if (fu.step === 2) {\n    subject = 'Still thinking it over? Happy to answer questions.';\n    intro   = 'Hope you\\'re doing well. Realised I never asked — is there anything specific you wanted to dig into before deciding?';\n    midline = 'Most folks have questions about implementation timeline or which add-ons actually matter for their specific setup. Happy to answer either over email or on a quick 15-min call.';\n    cta     = 'Review the quote · or reply to schedule a call';\n  } else {\n    subject = 'Last note about your Crystallux quote';\n    intro   = 'Promise this is the last nudge. The quote I sent expires soon — if it\\'s a not-now, totally fair, and I won\\'t keep emailing.';\n    midline = 'If you do want to revisit later, just reply and I\\'ll regenerate a fresh quote.';\n    cta     = 'Review the quote';\n  }\n\n  const html =\n    '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333;max-width:640px\">' +\n    '<p>Hi ' + (q.full_name || 'there') + ',</p>' +\n    '<p>' + intro + '</p>' +\n    '<div style=\"background:#f8f7ff;border-left:4px solid #7C3AED;padding:18px 22px;margin:18px 0;border-radius:6px\">' +\n      '<div style=\"font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px\">Your quote</div>' +\n      '<div style=\"font-size:22px;font-weight:700;color:#5B21B6\">' + fmtMoney(q.total_monthly_cents) + ' <span style=\"font-size:13px;color:#71717a;font-weight:400\">/mo</span></div>' +\n      '<div style=\"font-size:12px;color:#52525b;margin-top:4px\">' + (q.base_tier || 'starter') + ' tier · ' + industryName + ' · first-year ' + fmtMoney(q.total_first_year_cents) + '</div>' +\n    '</div>' +\n    '<p>' + midline + '</p>' +\n    '<p style=\"margin-top:24px\"><a href=\"https://crystallux.org/quote/' + q.id + '\" style=\"display:inline-block;padding:10px 20px;background:#7C3AED;color:#fff;text-decoration:none;border-radius:6px;font-weight:600\">' + cta + '</a></p>' +\n    '<p>Talk soon,<br><strong>Mary Akintunde · Crystallux</strong></p>' +\n    '</div>';\n\n  out.push({ json: {\n    followup_id:        fu.id,\n    quote_id:           q.id,\n    step:               fu.step,\n    postmark_body: {\n      From:    'info@crystallux.org',\n      To:      q.email,\n      Subject: subject,\n      HtmlBody: html,\n      MessageStream: 'outbound',\n      Tag: 'quote-followup',\n      Metadata: { quote_id: q.id, followup_id: fu.id, step: String(fu.step) }\n    }\n  } });\n}\nreturn out;"
+      },
+      "id": "qfu-0003",
+      "name": "Build Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "outputKey": "no_work",    "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json._no_work }}",  "rightValue": true, "operator": { "type": "boolean", "operation": "equals", "singleValue": true } }], "combinator": "and" } },
+            { "outputKey": "skip",       "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json._skip }}",     "rightValue": true, "operator": { "type": "boolean", "operation": "equals", "singleValue": true } }], "combinator": "and" } },
+            { "outputKey": "send",       "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.followup_id }}", "rightValue": "",  "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } }], "combinator": "and" } }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qfu-0004",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {},
+      "id": "qfu-0005",
+      "name": "No Work",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1140, 160]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.patch_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "qfu-0006",
+      "name": "Patch Skipped",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept",                 "value": "application/json" },
+            { "name": "Content-Type",           "value": "application/json" },
+            { "name": "X-Postmark-Server-Token","value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postmark_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "qfu-0007",
+      "name": "Send Postmark",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const postmark = $input.item.json;\nconst d = $('Build Reminders').itemMatching($itemIndex).json;\nconst sentOk = !!(postmark && postmark.MessageID);\nconst body = sentOk\n  ? { status: 'sent', sent_at: new Date().toISOString(), postmark_message_id: postmark.MessageID }\n  : { status: 'pending', sent_at: null, postmark_message_id: null };\n// If postmark errored, leave status=pending so next tick retries\n// (unless ErrorCode indicates a hard failure like 406 inactive recipient).\nif (!sentOk && postmark && postmark.ErrorCode === 406) {\n  body.status = 'skipped';\n  body.sent_at = new Date().toISOString();\n}\nreturn { json: {\n  patch_url: 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_follow_ups?id=eq.' + d.followup_id,\n  patch_body: body,\n  postmark_status: sentOk ? 'sent' : 'failed',\n  postmark_error_code: postmark && postmark.ErrorCode ? postmark.ErrorCode : null,\n  postmark_message: postmark && postmark.Message ? postmark.Message : null\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "qfu-0008",
+      "name": "Build Sent Patch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 440]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.patch_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "qfu-0009",
+      "name": "Patch Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 440],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    }
+  ],
+  "connections": {
+    "Schedule (every 6 hours)": { "main": [[{ "node": "Fetch Due Follow-ups", "type": "main", "index": 0 }]] },
+    "Fetch Due Follow-ups":     { "main": [[{ "node": "Build Reminders",     "type": "main", "index": 0 }]] },
+    "Build Reminders":          { "main": [[{ "node": "Route Action",        "type": "main", "index": 0 }]] },
+    "Route Action": {
+      "main": [
+        [{ "node": "No Work",        "type": "main", "index": 0 }],
+        [{ "node": "Patch Skipped",  "type": "main", "index": 0 }],
+        [{ "node": "Send Postmark",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Postmark":    { "main": [[{ "node": "Build Sent Patch", "type": "main", "index": 0 }]] },
+    "Build Sent Patch": { "main": [[{ "node": "Patch Sent",        "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
