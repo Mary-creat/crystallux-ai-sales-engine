@@ -35,6 +35,7 @@
           <div class="clx-page-sub" id="clientSub">—</div>
         </div>
       </div>
+      <div id="clientActionBar" style="display:flex;gap:10px;flex-wrap:wrap"></div>
     </div>
     <div id="clientBody"></div>
   </div></main>
@@ -49,6 +50,11 @@ clxAuth.require('admin').then(function () {
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
   var id = new URLSearchParams(window.location.search).get('id');
   if (!id) { document.getElementById('clientBody').innerHTML = '<div class="clx-empty">No client id supplied.</div>'; return; }
+
+  // Action bar: quick deep-links into related views, scoped to this client.
+  document.getElementById('clientActionBar').innerHTML =
+    '<a class="clx-btn clx-btn-secondary" href="/pages/leads.html?client_id=' + encodeURIComponent(id) + '">Leads</a>' +
+    '<a class="clx-btn clx-btn-secondary" href="/pages/ciro/communications.html?client_id=' + encodeURIComponent(id) + '">Communications</a>';
 
   // Skeleton state
   var body = document.getElementById('clientBody');
