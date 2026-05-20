@@ -40,6 +40,9 @@
     '<a class="clx-nav-item" href="/pages/avatars/ciro/index.html"><span class="clx-nav-icon">⚒</span>CIRO — Ops Manager</a>' +
     '<div class="clx-nav-section">CIRO</div>' +
     '<a class="clx-nav-item" href="/pages/ciro/communications.html"><span class="clx-nav-icon">✉</span>Communications</a>' +
+    '<div class="clx-nav-section">Diagnostics</div>' +
+    '<a class="clx-nav-item" href="/pages/system/auth-check.html"><span class="clx-nav-icon">✓</span>Auth check</a>' +
+    '<a class="clx-nav-item" href="/pages/system/dev-console.html"><span class="clx-nav-icon">›_</span>Dev console</a>' +
     '<div class="clx-nav-section">Account</div>' +
     '<a class="clx-nav-item" href="/pages/settings.html"><span class="clx-nav-icon">⚒</span>Settings</a>';
 

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dev console · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .dc-tabs { display:flex; gap:6px; margin:0 0 18px; border-bottom:1px solid var(--border,#e4e4e7); }
+  .dc-tab { padding:10px 16px; border:none; background:transparent; color:var(--text-secondary,#52525b); cursor:pointer; font-size:14px; font-weight:500; border-bottom:2px solid transparent; }
+  .dc-tab.active { color:var(--color-brand-600,#6D28D9); border-bottom-color:var(--color-brand-500,#7C3AED); }
+  .dc-panel { display:none; }
+  .dc-panel.active { display:block; }
+  .dc-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e4e4e7); border-radius:10px; padding:16px 18px; margin-bottom:12px; }
+  .dc-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+  .dc-card-title { font-size:14px; font-weight:600; }
+  .dc-meta { font-size:12px; color:var(--text-muted,#71717a); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .dc-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .dc-btn { padding:6px 12px; font-size:12px; border-radius:6px; border:1px solid var(--border,#e4e4e7); background:#fff; cursor:pointer; color:var(--text-primary,#18181b); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+  .dc-btn:hover { background:var(--bg-hover,#f4f4f5); }
+  .dc-btn.primary { background:var(--color-brand-500,#7C3AED); color:#fff; border-color:var(--color-brand-500,#7C3AED); }
+  .dc-btn.primary:hover { background:var(--color-brand-600,#6D28D9); }
+  .dc-pill { display:inline-block; padding:2px 8px; font-size:11px; border-radius:10px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .dc-pill.healthy { background:#dcfce7; color:#166534; }
+  .dc-pill.error { background:#fee2e2; color:#991b1b; }
+  .dc-pill.warn { background:#fef3c7; color:#92400e; }
+  .dc-pill.muted { background:#f4f4f5; color:#52525b; }
+  .dc-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); }
+  .dc-page { padding:12px 14px; border:1px solid var(--border,#e4e4e7); border-radius:8px; background:#fff; display:flex; flex-direction:column; gap:8px; }
+  .dc-page-title { font-size:13px; font-weight:600; color:var(--text-primary,#18181b); }
+  .dc-page-path { font-size:11px; color:var(--text-muted,#71717a); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
+  .dc-probe-result { padding:8px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; margin-top:8px; max-height:160px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+  .dc-input { width:100%; padding:8px 10px; border:1px solid var(--border,#e4e4e7); border-radius:6px; font-size:13px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .dc-textarea { width:100%; min-height:80px; padding:8px 10px; border:1px solid var(--border,#e4e4e7); border-radius:6px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; resize:vertical; }
+  .dc-label { display:block; font-size:12px; font-weight:500; color:var(--text-secondary,#52525b); margin-bottom:4px; }
+  .dc-row { display:flex; gap:10px; align-items:flex-start; }
+  .dc-section-head { font-size:12px; font-weight:600; color:var(--text-muted,#71717a); text-transform:uppercase; letter-spacing:0.5px; margin:18px 0 8px; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">Dev Console</h1>
+        <div class="clx-page-sub">Page directory + webhook probe console + content editing helpers. Internal tooling for Mary.</div>
+      </div>
+    </div>
+
+    <div class="dc-tabs">
+      <button class="dc-tab active" data-panel="pages">Pages</button>
+      <button class="dc-tab" data-panel="probe">Workflow probe</button>
+      <button class="dc-tab" data-panel="edit">Content edit</button>
+    </div>
+
+    <!-- ─────────────────────────────────────────── PAGES ─────────────────────────────────────────── -->
+    <div class="dc-panel active" id="panel-pages">
+      <div class="dc-card">
+        <div class="dc-card-head">
+          <div class="dc-card-title">All admin pages</div>
+          <div class="dc-meta" id="pagesCount">—</div>
+        </div>
+        <div id="pagesGrid" class="dc-grid"></div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────────────────── PROBE ─────────────────────────────────────────── -->
+    <div class="dc-panel" id="panel-probe">
+      <div class="dc-card">
+        <div class="dc-card-head">
+          <div>
+            <div class="dc-card-title">Workflow webhook probe</div>
+            <div class="dc-meta" style="margin-top:4px">POST with your session token; if blank, sends junk token (expect 401 with body for HEALTHY).</div>
+          </div>
+        </div>
+        <div class="dc-row" style="margin-bottom:12px">
+          <div style="flex:1">
+            <div class="dc-label">Webhook path (e.g. <code>admin/list-leads</code>)</div>
+            <input class="dc-input" id="probePath" placeholder="admin/comms-log">
+          </div>
+          <div style="width:120px">
+            <div class="dc-label">HTTP</div>
+            <select class="dc-input" id="probeMethod">
+              <option>POST</option>
+              <option>GET</option>
+            </select>
+          </div>
+          <div style="width:140px">
+            <div class="dc-label">Auth</div>
+            <select class="dc-input" id="probeAuth">
+              <option value="real">My session</option>
+              <option value="junk">Junk Bearer</option>
+              <option value="none">No auth</option>
+            </select>
+          </div>
+        </div>
+        <div class="dc-label">Body (JSON)</div>
+        <textarea class="dc-textarea" id="probeBody" placeholder='{"filters":{"limit":5}}'>{}</textarea>
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button class="dc-btn primary" id="probeRun">Send probe</button>
+          <button class="dc-btn" id="probeClear">Clear result</button>
+        </div>
+        <div class="dc-probe-result" id="probeResult" style="display:none"></div>
+      </div>
+
+      <div class="dc-card">
+        <div class="dc-card-head">
+          <div class="dc-card-title">Quick probes (common endpoints)</div>
+        </div>
+        <div class="dc-grid" id="quickProbes"></div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────────────────── EDIT ─────────────────────────────────────────── -->
+    <div class="dc-panel" id="panel-edit">
+      <div class="dc-card">
+        <div class="dc-card-head">
+          <div>
+            <div class="dc-card-title">Content edit helpers</div>
+            <div class="dc-meta" style="margin-top:4px">Direct links to the GitHub source for editable content. Use GitHub web edit for quick changes; commit + push triggers normal CF Pages deploy.</div>
+          </div>
+        </div>
+        <div class="dc-section-head">MAXI industries</div>
+        <div class="dc-grid">
+          <div class="dc-page">
+            <div class="dc-page-title">SQL seed</div>
+            <div class="dc-page-path">db/migrations/avatar-content-seeds-maxi.sql</div>
+            <div class="dc-actions"><a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/db/migrations/avatar-content-seeds-maxi.sql">Open on GitHub</a></div>
+          </div>
+          <div class="dc-page">
+            <div class="dc-page-title">Industry list (Phase 1 discovery)</div>
+            <div class="dc-page-path">workflows/clx-city-scan-discovery.json — Build Scan List node</div>
+            <div class="dc-actions"><a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/workflows/clx-city-scan-discovery.json">Open on GitHub</a></div>
+          </div>
+        </div>
+
+        <div class="dc-section-head">AVA content templates</div>
+        <div class="dc-grid">
+          <div class="dc-page">
+            <div class="dc-page-title">AVA seed expansion (80 topics)</div>
+            <div class="dc-page-path">db/migrations/avatar-content-seeds-ava-expansion.sql</div>
+            <div class="dc-actions"><a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/db/migrations/avatar-content-seeds-ava-expansion.sql">Open on GitHub</a></div>
+          </div>
+          <div class="dc-page">
+            <div class="dc-page-title">Original AVA seed</div>
+            <div class="dc-page-path">db/migrations/avatar-content-seeds-ava.sql</div>
+            <div class="dc-actions"><a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/db/migrations/avatar-content-seeds-ava.sql">Open on GitHub</a></div>
+          </div>
+        </div>
+
+        <div class="dc-section-head">Outreach campaigns (Phase 5)</div>
+        <div class="dc-grid">
+          <div class="dc-page">
+            <div class="dc-page-title">Campaign router — campaign config table</div>
+            <div class="dc-page-path">workflows/clx-campaign-router-v2.json — Route Campaign node</div>
+            <div class="dc-actions"><a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/workflows/clx-campaign-router-v2.json">Open on GitHub</a></div>
+          </div>
+        </div>
+
+        <div class="dc-section-head">Marketing site copy</div>
+        <div class="dc-grid">
+          <div class="dc-page">
+            <div class="dc-page-title">Insurance landing</div>
+            <div class="dc-page-path">site/index.html (insurance.crystallux.org)</div>
+            <div class="dc-actions"><a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/site/index.html">Open on GitHub</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
+<script>
+// ─── Tabs ───────────────────────────────────────────────────────────────
+document.querySelectorAll('.dc-tab').forEach(function (t) {
+  t.addEventListener('click', function () {
+    document.querySelectorAll('.dc-tab').forEach(function (x) { x.classList.remove('active'); });
+    document.querySelectorAll('.dc-panel').forEach(function (x) { x.classList.remove('active'); });
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.panel).classList.add('active');
+  });
+});
+
+// ─── Static page directory (declarative; updated when nav changes) ──────
+var PAGES = [
+  { title: 'Overview',           path: '/pages/overview.html',           section: 'Admin' },
+  { title: 'Clients',            path: '/pages/clients.html',            section: 'Admin' },
+  { title: 'Leads',              path: '/pages/leads.html',              section: 'Admin' },
+  { title: 'Workflows',          path: '/pages/workflows.html',          section: 'Admin' },
+  { title: 'Billing',            path: '/pages/billing.html',            section: 'Admin' },
+  { title: 'Carriers — overview',path: '/pages/carriers/overview.html',  section: 'Carriers' },
+  { title: 'Carriers — appointments',path: '/pages/carriers/appointments.html', section: 'Carriers' },
+  { title: 'Carriers — commissions', path: '/pages/carriers/commissions.html',  section: 'Carriers' },
+  { title: 'Carriers — reconciliation',path: '/pages/carriers/reconciliation.html', section: 'Carriers' },
+  { title: 'Carriers — submissions',  path: '/pages/carriers/submissions.html',  section: 'Carriers' },
+  { title: 'Sales Engine',       path: '/pages/sales-engine.html',       section: 'Platform' },
+  { title: 'Onboarding',         path: '/pages/onboarding.html',         section: 'Platform' },
+  { title: 'Sentinel',           path: '/pages/sentinel.html',           section: 'Platform' },
+  { title: 'Audit Log',          path: '/pages/audit-log.html',          section: 'Platform' },
+  { title: 'Market Intelligence',path: '/pages/market-intelligence.html',section: 'Platform' },
+  { title: 'Avatars (all)',      path: '/pages/avatars.html',            section: 'Avatars' },
+  { title: 'AVA',                path: '/pages/avatars/ava/index.html',  section: 'Avatars' },
+  { title: 'LUXI',               path: '/pages/avatars/luxi/index.html', section: 'Avatars' },
+  { title: 'MAXI',               path: '/pages/avatars/maxi/index.html', section: 'Avatars' },
+  { title: 'LUMI / LUMA / LETY / EAZA / CIRO', path: '/pages/avatars.html', section: 'Avatars' },
+  { title: 'CIRO — Communications', path: '/pages/ciro/communications.html', section: 'CIRO' },
+  { title: 'Auth check',         path: '/pages/system/auth-check.html',  section: 'Diagnostics' },
+  { title: 'Dev console',        path: '/pages/system/dev-console.html', section: 'Diagnostics' },
+  { title: 'Settings',           path: '/pages/settings.html',           section: 'Account' }
+];
+
+function renderPages() {
+  var grid = document.getElementById('pagesGrid');
+  grid.innerHTML = '';
+  PAGES.forEach(function (p) {
+    grid.insertAdjacentHTML('beforeend',
+      '<div class="dc-page">' +
+        '<div class="dc-page-title">' + clxComp.escapeHtml(p.title) + '</div>' +
+        '<div class="dc-page-path">' + clxComp.escapeHtml(p.section) + ' · ' + clxComp.escapeHtml(p.path) + '</div>' +
+        '<div class="dc-actions">' +
+          '<a class="dc-btn primary" target="_blank" href="' + p.path + '">Open</a>' +
+          '<a class="dc-btn" target="_blank" href="https://github.com/Mary-creat/crystallux-ai-sales-engine/blob/scale-sprint-v1/admin-dashboard' + p.path + '">View source</a>' +
+        '</div>' +
+      '</div>');
+  });
+  document.getElementById('pagesCount').textContent = PAGES.length + ' pages';
+}
+
+// ─── Webhook probe ──────────────────────────────────────────────────────
+var QUICK_PROBES = [
+  { label: 'admin/list-leads',       path: 'admin/list-leads',       body: '{"filters":{"limit":1}}' },
+  { label: 'admin/list-clients',     path: 'admin/list-clients',     body: '{"filters":{"limit":1}}' },
+  { label: 'admin/system-health',    path: 'admin/system-health',    body: '{}' },
+  { label: 'admin/audit-log',        path: 'admin/audit-log',        body: '{"filters":{"limit":1}}' },
+  { label: 'admin/comms-log',        path: 'admin/comms-log',        body: '{"filters":{"limit":1}}' },
+  { label: 'admin/billing-summary',  path: 'admin/billing-summary',  body: '{}' },
+  { label: 'maxi/industries',        path: 'maxi/industries',        body: '{}' },
+  { label: 'avatars/list',           path: 'avatars/list',           body: '{}' }
+];
+
+function renderQuickProbes() {
+  var grid = document.getElementById('quickProbes');
+  QUICK_PROBES.forEach(function (q) {
+    grid.insertAdjacentHTML('beforeend',
+      '<div class="dc-page">' +
+        '<div class="dc-page-title">' + clxComp.escapeHtml(q.label) + '</div>' +
+        '<div class="dc-actions">' +
+          '<button class="dc-btn primary" data-quickprobe="' + clxComp.escapeHtml(q.path) + '" data-body=\'' + q.body + '\'>Probe</button>' +
+          '<a class="dc-btn" target="_blank" href="https://automation.crystallux.org/webhook/' + clxComp.escapeHtml(q.path) + '">URL</a>' +
+        '</div>' +
+        '<div class="dc-probe-result" data-result="' + clxComp.escapeHtml(q.path) + '" style="display:none"></div>' +
+      '</div>');
+  });
+  grid.querySelectorAll('[data-quickprobe]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var path = b.dataset.quickprobe;
+      var body = b.dataset.body || '{}';
+      var resultEl = grid.querySelector('[data-result="' + path + '"]');
+      runProbe(path, 'POST', 'real', body, resultEl);
+    });
+  });
+}
+
+async function runProbe(path, method, auth, bodyStr, resultEl) {
+  resultEl.style.display = 'block';
+  resultEl.textContent = '⏳ probing…';
+  var token = (auth === 'real') ? (localStorage.getItem('clx_session_token') || 'junk')
+            : (auth === 'junk') ? 'junk'
+            : null;
+  var headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  var opts = { method: method, headers: headers };
+  if (method !== 'GET') opts.body = bodyStr || '{}';
+  var t0 = Date.now();
+  try {
+    var r = await fetch('https://automation.crystallux.org/webhook/' + path, opts);
+    var text = await r.text();
+    var elapsed = Date.now() - t0;
+    var classify =
+      r.status === 401 && text.length > 0 ? '✓ HEALTHY' :
+      r.status === 400                     ? '✓ BAD-INPUT (active)' :
+      r.status === 200 && text.length === 0? '⚠ EMPTY-200 (Validate Session halt)' :
+      r.status === 404                     ? '✗ NOT-FOUND (workflow inactive / missing)' :
+      r.status === 500                     ? '✗ N8N-500' :
+      r.status >= 200 && r.status < 300    ? '✓ OK-' + r.status :
+      '? HTTP-' + r.status;
+    var preview = text.length > 600 ? text.slice(0, 600) + '\n…(' + text.length + ' bytes total)' : text;
+    resultEl.textContent = classify + '  (' + elapsed + 'ms, HTTP ' + r.status + ', ' + text.length + ' bytes)\n\n' + (preview || '(empty body)');
+  } catch (e) {
+    resultEl.textContent = '✗ FETCH ERROR: ' + (e && e.message ? e.message : String(e));
+  }
+}
+
+document.getElementById('probeRun').addEventListener('click', function () {
+  var path = (document.getElementById('probePath').value || '').trim().replace(/^\/+/, '').replace(/^webhook\//, '');
+  if (!path) { alert('Enter a webhook path (e.g. admin/comms-log).'); return; }
+  var method = document.getElementById('probeMethod').value;
+  var auth   = document.getElementById('probeAuth').value;
+  var body   = document.getElementById('probeBody').value;
+  runProbe(path, method, auth, body, document.getElementById('probeResult'));
+});
+document.getElementById('probeClear').addEventListener('click', function () {
+  document.getElementById('probeResult').style.display = 'none';
+  document.getElementById('probeResult').textContent = '';
+});
+
+// ─── Init ───────────────────────────────────────────────────────────────
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  renderPages();
+  renderQuickProbes();
+});
+</script>
+</body>
+</html>
