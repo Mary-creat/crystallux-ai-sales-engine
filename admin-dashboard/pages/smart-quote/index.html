@@ -188,11 +188,8 @@ function renderTemplates() {
   el.querySelectorAll('.sq-tpl').forEach(function (card) {
     card.addEventListener('click', function () {
       var slug = card.dataset.industry;
-      // Question flow page lives at /pages/smart-quote/<slug>.html.
-      // For V1 we only seed insurance_personal; falling back to a
-      // friendly notice for missing industry pages keeps the click
-      // discoverable.
-      window.location.href = '/pages/smart-quote/' + encodeURIComponent(slug) + '.html';
+      // Generic question-flow page works against any industry_slug.
+      window.location.href = '/pages/smart-quote/industry.html?industry=' + encodeURIComponent(slug);
     });
   });
 }

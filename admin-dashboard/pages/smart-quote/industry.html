@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Insurance Personal Lines · Smart Quote · Crystallux Admin</title>
+<title>Quote builder · Smart Quote · Crystallux Admin</title>
 <meta name="robots" content="noindex,nofollow">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,15 @@
 <script src="/shared/components.js"></script>
 <script src="/shared/copilot.js"></script>
 <script>
-var INDUSTRY_SLUG = 'insurance_personal';
+// Industry slug comes from URL: ?industry=<slug>
+var INDUSTRY_SLUG = (function () {
+  var p = new URLSearchParams(window.location.search);
+  return (p.get('industry') || '').trim();
+})();
+if (!INDUSTRY_SLUG) {
+  // No slug → bounce back to the index
+  window.location.replace('/pages/smart-quote/index.html');
+}
 
 var STATE = {
   template:    null,
@@ -349,22 +357,28 @@ function evaluateCondition(conds, answers) {
   return true;
 }
 
-function pickTier() {
-  // Tier picking based on advisor count (heuristic; per-template override later)
-  var n = parseInt(STATE.answers['advisor_count'], 10) || 0;
-  if (n <= 1) return 'starter';
-  if (n <= 5) return 'starter';
-  if (n <= 15) return 'growth';
-  return 'scale';
+function pickTier(adjustedMonthlyCents) {
+  // Industry-agnostic tier picker: compare adjusted monthly (base +
+  // rule adjustments) against the template's tier-base anchors. The
+  // tier label is just for display; the math is the math. Boundaries
+  // are halfway between each tier base.
+  var t = STATE.template || {};
+  var starterBase = t.base_starter_cents || 0;
+  var growthBase  = t.base_growth_cents  || 0;
+  var scaleBase   = t.base_scale_cents   || 0;
+  var v = adjustedMonthlyCents != null ? adjustedMonthlyCents : starterBase;
+  if (scaleBase  && v >= (growthBase + scaleBase) / 2) return 'scale';
+  if (growthBase && v >= (starterBase + growthBase) / 2) return 'growth';
+  return 'starter';
 }
 
 function computePreview() {
-  var tier = pickTier();
   var t = STATE.template;
-  var baseMonthly =
-    tier === 'scale' ? t.base_scale_cents :
-    tier === 'growth' ? t.base_growth_cents :
-    t.base_starter_cents;
+  // Always start from the starter base; pricing rules + tier assignment
+  // adjust upward. The tier label is derived AFTER adjustments so it
+  // reflects what the customer is actually paying, not what the page
+  // assumed before any questions were answered.
+  var baseMonthly = t.base_starter_cents || 0;
   var rulesApplied = [];
   var adjustCents = 0;
   STATE.rules.forEach(function (r) {
@@ -374,6 +388,7 @@ function computePreview() {
     adjustCents += total;
     rulesApplied.push({ name: r.rule_name, cents: total });
   });
+  var tier = pickTier(baseMonthly + adjustCents);
   var addonsMonthly = 0;
   var addonsOneTime = 0;
   var addonsSelected = [];
