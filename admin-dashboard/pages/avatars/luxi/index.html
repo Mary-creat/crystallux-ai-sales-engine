@@ -75,6 +75,7 @@
           <option value="cancelled">Cancelled</option>
         </select>
         <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
+        <button id="newAuctionBtn" class="clx-btn clx-btn-primary">+ New auction</button>
       </div>
     </div>
 
@@ -90,6 +91,60 @@
     <div class="lx-detail-h" id="detailTitle"></div>
     <div class="lx-detail-meta" id="detailMeta"></div>
     <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- ───── New auction modal ───── -->
+<div class="lx-detail-backdrop" id="createBackdrop">
+  <div class="lx-detail-panel" id="createPanel" onclick="event.stopPropagation()" style="max-width:480px">
+    <button class="lx-detail-close" id="createClose" aria-label="Close">×</button>
+    <div class="lx-detail-h">New LUXI auction</div>
+    <div class="lx-detail-meta" style="margin-bottom:18px"><span>Schedule a new item</span></div>
+    <form id="createForm" class="clx-form" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label for="newItemTitle">Item title <span style="color:#dc2626">*</span></label>
+        <input type="text" id="newItemTitle" required maxlength="200" class="clx-input" placeholder="e.g. Vintage Rolex Submariner">
+      </div>
+      <div>
+        <label for="newItemDesc">Description</label>
+        <textarea id="newItemDesc" maxlength="2000" rows="3" class="clx-input" placeholder="Condition, history, photo notes…"></textarea>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label for="newCategory">Category</label>
+          <input type="text" id="newCategory" maxlength="80" class="clx-input" placeholder="e.g. Watches">
+        </div>
+        <div style="flex:1">
+          <label for="newReserve">Reserve price ($, 0 for none)</label>
+          <input type="number" id="newReserve" min="0" step="1" value="0" class="clx-input">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label for="newOpenAt">Scheduled open <span style="color:#dc2626">*</span></label>
+          <input type="datetime-local" id="newOpenAt" required class="clx-input">
+        </div>
+        <div style="flex:1">
+          <label for="newCloseAt">Scheduled close <span style="color:#dc2626">*</span></label>
+          <input type="datetime-local" id="newCloseAt" required class="clx-input">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label for="newMinIncr">Min bid increment ($)</label>
+          <input type="number" id="newMinIncr" min="0" step="1" value="1" class="clx-input">
+        </div>
+        <div style="flex:1">
+          <label for="newSnipeWin">Anti-snipe window (sec)</label>
+          <input type="number" id="newSnipeWin" min="0" step="1" value="30" class="clx-input">
+        </div>
+      </div>
+      <div id="createError" style="color:#dc2626;font-size:13px;display:none"></div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button type="submit" class="clx-btn clx-btn-primary">Create auction</button>
+        <button type="button" id="createCancel" class="clx-btn clx-btn-secondary">Cancel</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -123,7 +178,95 @@ clxAuth.require(['admin']).then(function () {
   document.getElementById('refreshBtn').addEventListener('click', load);
   document.getElementById('detailBackdrop').addEventListener('click', closeDetail);
   document.getElementById('detailClose').addEventListener('click', closeDetail);
+
+  // ─── New auction modal handlers ───
+  var newBtn       = document.getElementById('newAuctionBtn');
+  var createBd     = document.getElementById('createBackdrop');
+  var createClose  = document.getElementById('createClose');
+  var createCancel = document.getElementById('createCancel');
+  var createForm   = document.getElementById('createForm');
+  newBtn.addEventListener('click', function () {
+    // Default open = now + 5 minutes, close = +24 hours, in the
+    // browser's local timezone so the datetime-local inputs accept it.
+    var pad = function (n) { return n < 10 ? '0'+n : ''+n; };
+    var fmt = function (d) {
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+        'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    };
+    var nowPlus5 = new Date(Date.now() + 5 * 60 * 1000);
+    var nowPlus24h = new Date(Date.now() + 24 * 3600 * 1000);
+    document.getElementById('newOpenAt').value  = fmt(nowPlus5);
+    document.getElementById('newCloseAt').value = fmt(nowPlus24h);
+    createBd.classList.add('open');
+  });
+  function closeCreate() { createBd.classList.remove('open'); document.getElementById('createError').style.display='none'; }
+  createBd.addEventListener('click', closeCreate);
+  createClose.addEventListener('click', closeCreate);
+  createCancel.addEventListener('click', closeCreate);
+  createForm.addEventListener('submit', submitCreate);
 });
+
+async function submitCreate(e) {
+  e.preventDefault();
+  var errEl = document.getElementById('createError');
+  errEl.style.display = 'none';
+  var openLocal  = document.getElementById('newOpenAt').value;
+  var closeLocal = document.getElementById('newCloseAt').value;
+  if (!openLocal || !closeLocal) { errEl.style.display='block'; errEl.textContent='Open and close times required.'; return; }
+  var body = {
+    action: 'create',
+    item_title:           document.getElementById('newItemTitle').value.trim(),
+    item_description:     document.getElementById('newItemDesc').value.trim(),
+    item_category:        document.getElementById('newCategory').value.trim(),
+    reserve_price_cents:  Math.round((parseFloat(document.getElementById('newReserve').value) || 0) * 100),
+    min_increment_cents:  Math.round((parseFloat(document.getElementById('newMinIncr').value)  || 1) * 100),
+    scheduled_open_at:    new Date(openLocal).toISOString(),
+    scheduled_close_at:   new Date(closeLocal).toISOString(),
+    anti_snipe_window_seconds: parseInt(document.getElementById('newSnipeWin').value, 10) || 30
+  };
+  var token = localStorage.getItem('clx_session_token') || '';
+  var btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    var r = await fetch('https://automation.crystallux.org/webhook/admin/luxi/auctions/manage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(body)
+    });
+    var txt = await r.text(); var d = null; try { d = JSON.parse(txt); } catch(_) {}
+    if (!r.ok || !d || !d.ok) {
+      errEl.style.display = 'block';
+      errEl.textContent = (d && d.error) || ('Create failed (HTTP ' + r.status + ').');
+      btn.disabled = false; btn.textContent = 'Create auction';
+      return;
+    }
+    document.getElementById('createBackdrop').classList.remove('open');
+    document.getElementById('createForm').reset();
+    btn.disabled = false; btn.textContent = 'Create auction';
+    load();  // refresh the dashboard
+  } catch (err) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Network error: ' + (err && err.message || err);
+    btn.disabled = false; btn.textContent = 'Create auction';
+  }
+}
+
+async function cancelAuction(auctionId) {
+  if (!confirm('Cancel this auction? It will be marked cancelled immediately and stop accepting bids.')) return;
+  var token = localStorage.getItem('clx_session_token') || '';
+  var r = await fetch('https://automation.crystallux.org/webhook/admin/luxi/auctions/manage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ action: 'cancel', auction_id: auctionId })
+  });
+  var txt = await r.text(); var d = null; try { d = JSON.parse(txt); } catch(_) {}
+  if (!r.ok || !d || !d.ok) {
+    alert('Cancel failed: ' + ((d && d.error) || ('HTTP ' + r.status)));
+    return;
+  }
+  closeDetail();
+  load();
+}
 
 function fmtMoney(cents) {
   if (cents == null) return '—';
@@ -249,6 +392,10 @@ function openDetail(auctionId) {
   if (a.winning_bid_id)    html += '<div class="lx-detail-prop"><strong>Winning bid</strong><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">' + clxComp.escapeHtml(a.winning_bid_id) + '</span></div>';
   if (a.streaming_session_id) html += '<div class="lx-detail-prop"><strong>Stream session</strong><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">' + clxComp.escapeHtml(a.streaming_session_id) + '</span></div>';
   html += '</div>';
+  // Cancel button only for scheduled / open / extended auctions
+  if (a.status === 'scheduled' || a.status === 'open' || a.status === 'extended') {
+    html += '<div class="lx-detail-section"><button class="clx-btn" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5" onclick="cancelAuction(\'' + clxComp.escapeHtml(a.id) + '\')">Cancel this auction</button></div>';
+  }
   document.getElementById('detailContent').innerHTML = html;
   document.getElementById('detailBackdrop').classList.add('open');
 }

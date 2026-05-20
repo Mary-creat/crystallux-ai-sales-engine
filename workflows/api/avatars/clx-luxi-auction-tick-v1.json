@@ -22,6 +22,35 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_tick_anti_snipe_extension",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lat-0001b",
+      "name": "Anti-Snipe Extension",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 400],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_tick_close_expired_auctions",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
@@ -41,7 +70,7 @@
       "name": "Close Expired Auctions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 400],
+      "position": [580, 400],
       "credentials": {
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
@@ -50,7 +79,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Canonical allOf() helper — n8n auto-splits multi-row PostgREST\n// responses; this collapses them back to a single array.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst rows = allOf('Close Expired Auctions');\nconst sold   = rows.filter(function (r) { return r.new_status === 'closed_sold'; });\nconst unsold = rows.filter(function (r) { return r.new_status === 'closed_unsold'; });\nconst totalCents = sold.reduce(function (s, r) { return s + (r.winning_amount_cents || 0); }, 0);\n\nreturn { json: {\n  ok: true,\n  ts: new Date().toISOString(),\n  processed_count:  rows.length,\n  sold_count:       sold.length,\n  unsold_count:     unsold.length,\n  total_won_cents:  totalCents,\n  results:          rows\n} };"
+        "jsCode": "// Canonical allOf() helper — n8n auto-splits multi-row PostgREST\n// responses; this collapses them back to a single array.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst extended = allOf('Anti-Snipe Extension');\nconst closed   = allOf('Close Expired Auctions');\nconst sold   = closed.filter(function (r) { return r.new_status === 'closed_sold'; });\nconst unsold = closed.filter(function (r) { return r.new_status === 'closed_unsold'; });\nconst totalCents = sold.reduce(function (s, r) { return s + (r.winning_amount_cents || 0); }, 0);\n\nreturn { json: {\n  ok: true,\n  ts: new Date().toISOString(),\n  extended_count:   extended.length,\n  extensions:       extended,\n  processed_count:  closed.length,\n  sold_count:       sold.length,\n  unsold_count:     unsold.length,\n  total_won_cents:  totalCents,\n  results:          closed\n} };"
       },
       "id": "lat-0003",
       "name": "Shape Response",
@@ -61,6 +90,9 @@
   ],
   "connections": {
     "Schedule (every 5 min)": {
+      "main": [[{ "node": "Anti-Snipe Extension", "type": "main", "index": 0 }]]
+    },
+    "Anti-Snipe Extension": {
       "main": [[{ "node": "Close Expired Auctions", "type": "main", "index": 0 }]]
     },
     "Close Expired Auctions": {
