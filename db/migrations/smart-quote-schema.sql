@@ -212,12 +212,69 @@ INSERT INTO quote_templates (id, industry_slug, industry_name, vertical_id, desc
   'For independent brokers and small agencies selling personal-lines insurance (auto, home, tenant). Estimate monthly Crystallux platform cost based on advisor headcount + lead volume.',
   '🛡️',
   $q$[
-    {"id":"advisor_count","label":"How many licensed advisors are on your team?","type":"number","required":true,"weight":2,"help":"Including yourself. Sub-agents and contracted advisors count."},
-    {"id":"monthly_lead_volume","label":"How many new leads do you handle per month today?","type":"number","required":true,"weight":2,"help":"Rough average across all channels."},
-    {"id":"carriers_appointed","label":"How many carriers are you appointed with?","type":"number","required":true,"weight":1},
-    {"id":"current_crm","label":"What CRM / management system do you use today?","type":"select","options":["None / spreadsheets","Applied Epic","EZLynx","HawkSoft","AMS360","Other"],"required":true,"weight":1},
-    {"id":"calling_volume","label":"Do you do outbound calling?","type":"select","options":["No","Light (under 50/week)","Moderate (50-200/week)","Heavy (200+/week)"],"required":true,"weight":1},
-    {"id":"want_video_outreach","label":"Interested in AI video personalization?","type":"select","options":["Yes — high priority","Maybe — show me a demo","Not now"],"required":false,"weight":0}
+    {
+      "id": "advisor_count",
+      "label": "How many licensed advisors are on your team?",
+      "type": "number",
+      "required": true,
+      "weight": 2,
+      "help": "Including yourself. Sub-agents and contracted advisors count."
+    },
+    {
+      "id": "monthly_lead_volume",
+      "label": "How many new leads do you handle per month today?",
+      "type": "number",
+      "required": true,
+      "weight": 2,
+      "help": "Rough average across all channels."
+    },
+    {
+      "id": "carriers_appointed",
+      "label": "How many carriers are you appointed with?",
+      "type": "number",
+      "required": true,
+      "weight": 1
+    },
+    {
+      "id": "current_crm",
+      "label": "What CRM / management system do you use today?",
+      "type": "select",
+      "options": [
+        "None / spreadsheets",
+        "Applied Epic",
+        "EZLynx",
+        "HawkSoft",
+        "AMS360",
+        "Other"
+      ],
+      "required": true,
+      "weight": 1
+    },
+    {
+      "id": "calling_volume",
+      "label": "Do you do outbound calling?",
+      "type": "select",
+      "options": [
+        "No",
+        "Light (under 50/week)",
+        "Moderate (50-200/week)",
+        "Heavy (200+/week)"
+      ],
+      "required": true,
+      "weight": 1
+    },
+    {
+      "id": "want_video_outreach",
+      "label": "Interested in AI video personalization?",
+      "type": "select",
+      "options": [
+        "Yes - high priority",
+        "Maybe - show me a demo",
+        "Not now"
+      ],
+      "required": false,
+      "weight": 0
+    }
   ]$q$::jsonb,
   'tiered', 9900, 29900, 49900, 10
 )
