@@ -242,39 +242,57 @@ def plan(repo, live):
 # ────────────────────────────────────────────────────────
 # Sidecar SQL delete
 # ────────────────────────────────────────────────────────
-def sidecar_delete(volume, ids):
+def sidecar_sql_phase(volume, ids_to_delete):
     """
     Run an Alpine sidecar with the n8n data volume mounted, install
-    sqlite3, DELETE the targeted rows from webhook_entity /
-    execution_entity / workflow_entity.
+    sqlite3, and execute the cleanup SQL:
+
+    (a) DELETE the planned duplicate workflow_entity rows + their
+        webhook_entity / execution_entity rows.
+    (b) ALWAYS clean orphan webhook_entity rows whose workflowId
+        no longer exists in workflow_entity. These orphans accumulate
+        from prior failed activations / partial deletes and silently
+        block fresh activations from registering their webhook paths
+        (unique constraint conflict). This is the fix for "33/69
+        endpoints HEALTHY post-recovery" — the 36 unhealthy ones
+        were blocked on orphan rows.
 
     Caller must ensure n8n container is STOPPED before calling, so
     we don't race with the running process on the same SQLite file.
     """
-    if not ids:
-        return True
+    statements = []
 
-    # Quote ids defensively (they're already short alnum but we don't
-    # want any embedded single-quote to break out of the SQL string).
-    safe = []
-    for i in ids:
-        if "'" in i:
-            print(f'  {RED}skip suspicious id with quote{RESET}: {i!r}')
-            continue
-        safe.append("'" + i + "'")
-    quoted = ', '.join(safe)
-    sql = (
-        f'DELETE FROM webhook_entity   WHERE workflowId IN ({quoted});\n'
-        f'DELETE FROM execution_entity WHERE workflowId IN ({quoted});\n'
-        f'DELETE FROM workflow_entity  WHERE id IN ({quoted});\n'
+    if ids_to_delete:
+        # Quote ids defensively (they're already short alnum but we don't
+        # want any embedded single-quote to break out of the SQL string).
+        safe = []
+        for i in ids_to_delete:
+            if "'" in i:
+                print(f'  {RED}skip suspicious id with quote{RESET}: {i!r}')
+                continue
+            safe.append("'" + i + "'")
+        quoted = ', '.join(safe)
+        statements.extend([
+            f'DELETE FROM webhook_entity   WHERE workflowId IN ({quoted});',
+            f'DELETE FROM execution_entity WHERE workflowId IN ({quoted});',
+            f'DELETE FROM workflow_entity  WHERE id IN ({quoted});',
+        ])
+
+    # Always: orphan cleanup. Removes webhook_entity rows pointing at
+    # workflow IDs that no longer exist in workflow_entity.
+    statements.append(
+        'DELETE FROM webhook_entity '
+        'WHERE workflowId NOT IN (SELECT id FROM workflow_entity);'
     )
 
-    # Determine the volume mount for `docker run -v ...:/data`. For
-    # named volumes, pass the name; for bind mounts, pass the host path.
-    if volume['type'] == 'volume':
-        vol_arg = f'{volume["source"]}:/data'
-    else:
-        vol_arg = f'{volume["source"]}:/data'  # bind mount; same syntax
+    # Diagnostic counts so the operator can see what got cleaned.
+    statements.append('SELECT changes();')  # rows affected by last DELETE
+    statements.append('SELECT COUNT(*) FROM webhook_entity;')
+    statements.append('SELECT COUNT(*) FROM workflow_entity;')
+
+    sql = '\n'.join(statements) + '\n'
+
+    vol_arg = f'{volume["source"]}:/data'  # same syntax for volume + bind
 
     full_sh = (
         'set -e; '
@@ -288,8 +306,18 @@ def sidecar_delete(volume, ids):
         input=sql, capture_output=True, text=True, timeout=120,
     )
     if r.returncode != 0:
-        print(f'  {RED}sidecar delete failed{RESET}: {r.stderr.strip() or r.stdout.strip()}')
+        print(f'  {RED}sidecar SQL failed{RESET}: {r.stderr.strip() or r.stdout.strip()}')
         return False
+
+    # The trailing 3 SELECTs print as 3 lines (last-DELETE changes,
+    # webhook_entity total, workflow_entity total). Show them so Mary
+    # can see what shape the DB ended up in.
+    lines = [l for l in r.stdout.strip().splitlines() if l.strip()]
+    if len(lines) >= 3:
+        orphans_cleaned, wh_total, wf_total = lines[-3], lines[-2], lines[-1]
+        print(f'  orphan webhook_entity rows cleaned: {orphans_cleaned}')
+        print(f'  webhook_entity rows remaining     : {wh_total}')
+        print(f'  workflow_entity rows remaining    : {wf_total}')
     return True
 
 
@@ -480,21 +508,20 @@ def main():
     print(f'  {GREEN}stopped{RESET}')
     print()
 
-    # 6. SIDECAR delete
-    print(f'{BOLD}Phase 2/5: sidecar delete via alpine + sqlite3{RESET}')
-    delete_ok = True
-    if p['delete_ids']:
-        delete_ok = sidecar_delete(volume, p['delete_ids'])
-        if delete_ok:
-            print(f'  {GREEN}deleted {len(p["delete_ids"])} duplicate workflow row(s){RESET}')
+    # 6. SIDECAR SQL: delete planned duplicates + clean orphan webhook_entity
+    print(f'{BOLD}Phase 2/6: sidecar SQL (delete duplicates + clean orphans){RESET}')
+    delete_ok = sidecar_sql_phase(volume, p['delete_ids'])
+    if delete_ok:
+        if p['delete_ids']:
+            print(f'  {GREEN}deleted {len(p["delete_ids"])} duplicate workflow row(s) + cleaned orphans{RESET}')
         else:
-            print(f'  {RED}delete failed — starting n8n back up anyway{RESET}')
+            print(f'  {GREEN}no planned deletes; cleaned orphans only{RESET}')
     else:
-        print(f'  {DIM}nothing to delete{RESET}')
+        print(f'  {RED}sidecar SQL failed — starting n8n back up anyway{RESET}')
     print()
 
     # 7. START n8n
-    print(f'{BOLD}Phase 3/5: start n8n + wait for ready{RESET}')
+    print(f'{BOLD}Phase 3/6: start n8n + wait for ready{RESET}')
     if not start_container(args.container):
         print(f'{RED}CRITICAL{RESET}: failed to restart n8n. Check `docker logs n8n`.')
         sys.exit(3)
@@ -506,7 +533,7 @@ def main():
     print()
 
     # 8. IMPORT missing canonical
-    print(f'{BOLD}Phase 4/5: import + activate{RESET}')
+    print(f'{BOLD}Phase 4/6: import + activate{RESET}')
     if not args.no_import:
         for w in p['import_files']:
             ok = import_workflow(args.container, w['file'], args.dry_run)
@@ -519,9 +546,23 @@ def main():
         print(f'  {tag} activate {wf_id}')
     print()
 
-    # 9. PROBE
+    # 9. FINAL RESTART — flushes the in-memory webhook map so n8n
+    # re-reads workflow_entity (with active=true now set) on boot and
+    # registers every webhook cleanly. CLI activate is unreliable at
+    # triggering in-process webhook registration on some n8n versions;
+    # the restart is the belt-and-suspenders fix.
+    if not args.dry_run:
+        print(f'{BOLD}Phase 5/6: final restart to flush webhook registrations{RESET}')
+        subprocess.run(['docker', 'restart', args.container], capture_output=True)
+        if not wait_ready(args.container, timeout=120):
+            print(f'{YELLOW}WARN{RESET}: n8n slow to come back; probe may show false NOT-FOUND')
+        else:
+            print(f'  {GREEN}n8n responsive after final restart{RESET}')
+        print()
+
+    # 10. PROBE
     if not args.no_probe:
-        print(f'{BOLD}Phase 5/5: probe webhooks{RESET}')
+        print(f'{BOLD}Phase 6/6: probe webhooks{RESET}')
         # Build set of webhook paths to probe (from requested workflows).
         paths = []
         repo_by_id = {w['id']: w for w in repo}

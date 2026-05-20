@@ -6,6 +6,40 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0s. Emergency recovery left 36/69 endpoints still 404 — orphan webhook_entity + missing final restart (added 2026-05-20)
+
+After the first `emergency-recover-webhooks.sh` run cleaned 80 duplicate rows + activated 69 canonical workflows, Mary's probe showed **33 endpoints HEALTHY, 36 still NOT-FOUND**. Two latent bugs:
+
+1. **Orphan `webhook_entity` rows** — webhook_entity rows pointing at workflowIds that no longer exist in workflow_entity (from prior partial deletes, failed activations, or UI Import-Replace operations that didn't fully cascade). They occupy webhook paths without a backing workflow. New activations targeting those same paths silently fail the unique-constraint INSERT into webhook_entity.
+
+2. **CLI `update:workflow --active=true` is unreliable for in-process webhook registration.** It sets the flag in the DB and returns exit 0, but the running n8n process doesn't always re-register the webhook in its in-memory map. n8n's boot-time registration (from workflow_entity rows with active=true) IS reliable. So a restart AFTER all activations is the deterministic fix.
+
+**Patch (this commit):**
+
+The sidecar SQL phase now ALWAYS runs an orphan-cleanup statement regardless of whether there are planned deletes:
+
+```sql
+DELETE FROM webhook_entity
+WHERE workflowId NOT IN (SELECT id FROM workflow_entity);
+```
+
+And the script gained Phase 5/6 — a final `docker restart n8n` after all activations, so n8n boots fresh with every active workflow's webhook registered cleanly.
+
+The sidecar phase also prints diagnostic counts (orphans cleaned, webhook_entity total, workflow_entity total) so the operator can see the actual DB state post-cleanup, not just trust the script's claims.
+
+**Mary re-runs:**
+
+```bash
+bash scripts/n8n/emergency-recover-webhooks.sh
+```
+
+Same command as before. Expected result: the 36 previously-404 endpoints should flip HEALTHY because:
+- their workflow's active=true was set
+- webhook_entity is clean (no orphan blocking the path)
+- final restart registered the webhooks on boot from clean state
+
+---
+
 ## 0r. Emergency recovery via Alpine sidecar (added 2026-05-19, supersedes 0q's recovery steps)
 
 When `apply-workflow-patch.sh` ran with `Delete via : none`, the dedupe pass had already deactivated old workflow rows but their `webhook_entity` entries remained — blocking new workflow activations from registering. Mary ended up with **18 of 22 endpoints returning HTTP 404** even though the import phase claimed success for every file.
