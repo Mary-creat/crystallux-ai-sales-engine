@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Insurance Personal Lines · Smart Quote · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .sq-layout { display:grid; grid-template-columns:1fr 320px; gap:24px; align-items:start; }
+  @media (max-width: 900px) { .sq-layout { grid-template-columns: 1fr; } }
+  .sq-form-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e4e4e7); border-radius:10px; padding:24px 26px; }
+  .sq-preview-card { background:var(--bg-card,#fff); border:1px solid var(--border,#e4e4e7); border-radius:10px; padding:20px 22px; position:sticky; top:80px; }
+
+  .sq-progress { display:flex; gap:6px; margin-bottom:22px; }
+  .sq-progress-dot { flex:1; height:4px; background:var(--gray-200,#e4e4e7); border-radius:2px; transition:background 0.2s; }
+  .sq-progress-dot.done   { background:var(--color-brand-500,#7C3AED); }
+  .sq-progress-dot.current{ background:var(--color-brand-300,#C4B5FD); }
+
+  .sq-question { display:none; }
+  .sq-question.active { display:block; }
+  .sq-question-label { font-size:16px; font-weight:600; margin-bottom:8px; line-height:1.4; color:var(--text-primary,#18181b); }
+  .sq-question-help { font-size:13px; color:var(--text-muted,#6b7280); margin-bottom:14px; line-height:1.5; }
+  .sq-input { width:100%; padding:10px 12px; border:1px solid var(--border,#d4d4d8); border-radius:6px; font-size:15px; font-family:inherit; }
+  .sq-input:focus { outline:none; border-color:var(--color-brand-500,#7C3AED); box-shadow:0 0 0 3px rgba(124,58,237,0.12); }
+
+  .sq-options { display:grid; gap:8px; }
+  .sq-option { display:flex; align-items:center; gap:10px; padding:11px 14px; border:1px solid var(--border,#d4d4d8); border-radius:7px; cursor:pointer; transition:border-color .12s, background .12s; }
+  .sq-option:hover { border-color:var(--color-brand-300,#C4B5FD); background:var(--bg-hover,#f4f4f5); }
+  .sq-option.selected { border-color:var(--color-brand-500,#7C3AED); background:rgba(124,58,237,0.05); }
+  .sq-option input { margin:0; }
+  .sq-option-label { font-size:14px; }
+
+  .sq-buttons { display:flex; gap:10px; margin-top:24px; padding-top:18px; border-top:1px solid var(--border,#e4e4e7); }
+  .sq-buttons .sq-spacer { flex:1; }
+
+  .sq-btn { padding:9px 18px; border:1px solid var(--border,#d4d4d8); background:#fff; border-radius:7px; font-size:14px; font-weight:500; cursor:pointer; color:var(--text-primary,#18181b); }
+  .sq-btn:hover:not(:disabled) { background:var(--bg-hover,#f4f4f5); }
+  .sq-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .sq-btn-primary { background:var(--color-brand-500,#7C3AED); color:#fff; border-color:var(--color-brand-500,#7C3AED); }
+  .sq-btn-primary:hover:not(:disabled) { background:var(--color-brand-600,#6D28D9); }
+
+  .sq-preview-title { font-size:12px; font-weight:600; color:var(--text-muted,#71717a); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; }
+  .sq-preview-tier { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; background:var(--color-brand-100,#EDE9FE); color:var(--color-brand-700,#5B21B6); margin-bottom:10px; }
+  .sq-preview-monthly { font-size:32px; font-weight:700; color:var(--text-primary,#18181b); line-height:1.1; margin-bottom:4px; }
+  .sq-preview-suffix { font-size:13px; color:var(--text-muted,#71717a); }
+  .sq-preview-breakdown { margin-top:18px; font-size:13px; }
+  .sq-preview-row { display:flex; justify-content:space-between; padding:6px 0; }
+  .sq-preview-row.subtotal { border-top:1px dashed var(--border,#e4e4e7); padding-top:10px; margin-top:10px; }
+  .sq-preview-row.total { border-top:2px solid var(--color-brand-500,#7C3AED); padding-top:12px; margin-top:12px; font-weight:600; font-size:15px; }
+  .sq-preview-row strong { font-weight:500; color:var(--text-muted,#6b7280); }
+  .sq-preview-row span { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .sq-preview-rule { font-size:12px; color:var(--text-muted,#6b7280); padding:3px 0; }
+  .sq-preview-rule.applied { color:var(--color-brand-700,#5B21B6); }
+
+  .sq-addons-list { display:grid; gap:8px; margin-top:8px; }
+  .sq-addon { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--border,#e4e4e7); border-radius:6px; cursor:pointer; transition:border-color .12s, background .12s; }
+  .sq-addon:hover { border-color:var(--color-brand-300,#C4B5FD); background:var(--bg-hover,#f4f4f5); }
+  .sq-addon.selected { border-color:var(--color-brand-500,#7C3AED); background:rgba(124,58,237,0.05); }
+  .sq-addon-info { flex:1; }
+  .sq-addon-name { font-size:13px; font-weight:600; margin-bottom:2px; }
+  .sq-addon-desc { font-size:11px; color:var(--text-muted,#71717a); line-height:1.4; }
+  .sq-addon-price { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--text-primary,#18181b); font-weight:600; white-space:nowrap; }
+
+  .sq-warn { padding:14px 16px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:13px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <a href="/pages/smart-quote/index.html" style="color:var(--text-muted,#6b7280);font-size:13px;display:inline-flex;align-items:center;gap:4px;text-decoration:none">
+          <span style="display:inline-block;width:14px">‹</span> All industries
+        </a>
+        <h1 class="clx-page-title" id="pageTitle" style="margin-top:4px">Loading…</h1>
+        <div class="clx-page-sub" id="pageSub">—</div>
+      </div>
+    </div>
+
+    <div id="bodyContent">
+      <div class="clx-empty"><span class="clx-spinner"></span> Loading template…</div>
+    </div>
+  </div></main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
+<script>
+var INDUSTRY_SLUG = 'insurance_personal';
+
+var STATE = {
+  template:    null,
+  rules:       [],
+  addons:      [],
+  questions:   [],
+  answers:     {},
+  step:        0,
+  selectedAddons: {}
+};
+
+clxAuth.require(['admin']).then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+  load();
+});
+
+async function load() {
+  var res = await clxApi.adminGet('smart-quote/flow', { /* unused — adminGet sends filters */ });
+  // adminGet wraps as { filters: ... }; we actually need a different shape for this
+  // multi-action endpoint, so call directly:
+  var token = localStorage.getItem('clx_session_token') || '';
+  var r = await fetch('https://automation.crystallux.org/webhook/admin/smart-quote/flow', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ action: 'load_template', industry_slug: INDUSTRY_SLUG })
+  });
+  var text = await r.text();
+  var data = null; try { data = text ? JSON.parse(text) : null; } catch (e) {}
+  if (!r.ok || !data || !data.ok) {
+    document.getElementById('bodyContent').innerHTML = '<div class="clx-error-banner">' +
+      'Failed to load template (' + r.status + '). ' +
+      ((data && data.error) ? clxComp.escapeHtml(data.error) : 'Confirm the workflow <code>wfAdminSmartQuoteFlowV1</code> is imported + activated, and that the migration <code>db/migrations/smart-quote-schema.sql</code> has been applied.') +
+      '</div>';
+    return;
+  }
+
+  STATE.template  = data.template;
+  STATE.rules     = data.pricing_rules || [];
+  STATE.addons    = data.addons || [];
+  STATE.questions = Array.isArray(STATE.template.questions) ? STATE.template.questions : [];
+
+  document.getElementById('pageTitle').textContent = (STATE.template.emoji || '') + ' ' + STATE.template.industry_name;
+  document.getElementById('pageSub').textContent   = STATE.template.description || '';
+  document.title = STATE.template.industry_name + ' · Smart Quote · Crystallux Admin';
+  renderShell();
+}
+
+function renderShell() {
+  if (!STATE.questions.length) {
+    document.getElementById('bodyContent').innerHTML =
+      '<div class="sq-warn">No questions configured for this template. Edit the <code>questions</code> JSONB column on this row of <code>quote_templates</code>.</div>';
+    return;
+  }
+  var dots = STATE.questions.map(function (_, i) {
+    var cls = i < STATE.step ? 'done' : i === STATE.step ? 'current' : '';
+    return '<div class="sq-progress-dot ' + cls + '"></div>';
+  }).join('');
+
+  var html =
+    '<div class="sq-layout">' +
+      '<div class="sq-form-card">' +
+        '<div class="sq-progress">' + dots + '</div>' +
+        '<div id="questionContainer">' + renderQuestion(STATE.step) + '</div>' +
+        '<div class="sq-buttons">' +
+          '<button class="sq-btn" id="prevBtn" ' + (STATE.step === 0 ? 'disabled' : '') + '>‹ Back</button>' +
+          '<div class="sq-spacer"></div>' +
+          '<span style="font-size:12px;color:var(--text-muted,#71717a);align-self:center">' +
+            (STATE.step + 1) + ' of ' + STATE.questions.length +
+          '</span>' +
+          '<div class="sq-spacer"></div>' +
+          (STATE.step < STATE.questions.length - 1
+            ? '<button class="sq-btn sq-btn-primary" id="nextBtn">Next ›</button>'
+            : '<button class="sq-btn sq-btn-primary" id="submitBtn">Submit quote</button>') +
+        '</div>' +
+      '</div>' +
+      '<div>' +
+        renderPreview() +
+        renderAddons() +
+      '</div>' +
+    '</div>';
+  document.getElementById('bodyContent').innerHTML = html;
+
+  // Wire question inputs + buttons
+  attachInputHandlers();
+  var prev = document.getElementById('prevBtn');
+  var next = document.getElementById('nextBtn');
+  var submit = document.getElementById('submitBtn');
+  if (prev)   prev.addEventListener('click', function () { goStep(-1); });
+  if (next)   next.addEventListener('click', function () { goStep(+1); });
+  if (submit) submit.addEventListener('click', submitQuote);
+  // Addon click handlers
+  document.querySelectorAll('.sq-addon').forEach(function (el) {
+    el.addEventListener('click', function () { toggleAddon(el.dataset.addonId); });
+  });
+}
+
+function renderQuestion(idx) {
+  var q = STATE.questions[idx];
+  if (!q) return '';
+  var html = '<div class="sq-question active" data-q="' + clxComp.escapeHtml(q.id) + '">';
+  html += '<div class="sq-question-label">' + clxComp.escapeHtml(q.label) + (q.required ? ' <span style="color:var(--color-brand-500,#7C3AED)">*</span>' : '') + '</div>';
+  if (q.help) html += '<div class="sq-question-help">' + clxComp.escapeHtml(q.help) + '</div>';
+
+  var cur = STATE.answers[q.id];
+
+  if (q.type === 'number' || q.type === 'text' || q.type === 'currency') {
+    var typeAttr = q.type === 'number' || q.type === 'currency' ? 'number' : 'text';
+    html += '<input class="sq-input" type="' + typeAttr + '" data-q-input="' + clxComp.escapeHtml(q.id) + '" placeholder="' + (q.type === 'number' ? '0' : 'Type your answer…') + '" value="' + (cur != null ? clxComp.escapeHtml(String(cur)) : '') + '"' + (q.type === 'number' ? ' min="0"' : '') + '>';
+  } else if (q.type === 'select' && Array.isArray(q.options)) {
+    html += '<div class="sq-options">';
+    q.options.forEach(function (opt) {
+      var sel = cur === opt ? 'selected' : '';
+      html += '<label class="sq-option ' + sel + '"><input type="radio" name="opt_' + clxComp.escapeHtml(q.id) + '" value="' + clxComp.escapeHtml(opt) + '" data-q-input="' + clxComp.escapeHtml(q.id) + '"' + (cur === opt ? ' checked' : '') + '><span class="sq-option-label">' + clxComp.escapeHtml(opt) + '</span></label>';
+    });
+    html += '</div>';
+  } else if (q.type === 'multiselect' && Array.isArray(q.options)) {
+    var arr = Array.isArray(cur) ? cur : [];
+    html += '<div class="sq-options">';
+    q.options.forEach(function (opt) {
+      var checked = arr.indexOf(opt) !== -1;
+      html += '<label class="sq-option ' + (checked ? 'selected' : '') + '"><input type="checkbox" value="' + clxComp.escapeHtml(opt) + '" data-q-input-multi="' + clxComp.escapeHtml(q.id) + '"' + (checked ? ' checked' : '') + '><span class="sq-option-label">' + clxComp.escapeHtml(opt) + '</span></label>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function attachInputHandlers() {
+  document.querySelectorAll('[data-q-input]').forEach(function (el) {
+    el.addEventListener('input',  function () { onAnswerChange(el); });
+    el.addEventListener('change', function () { onAnswerChange(el); });
+  });
+  document.querySelectorAll('[data-q-input-multi]').forEach(function (el) {
+    el.addEventListener('change', function () { onMultiChange(el); });
+  });
+}
+
+function onAnswerChange(el) {
+  var qid = el.dataset.qInput;
+  var q = STATE.questions.filter(function (x) { return x.id === qid; })[0];
+  if (!q) return;
+  var v = el.value;
+  if (q.type === 'number' || q.type === 'currency') {
+    var n = parseFloat(v);
+    STATE.answers[qid] = isNaN(n) ? null : n;
+  } else {
+    STATE.answers[qid] = v;
+  }
+  // Repaint option highlights
+  if (q.type === 'select') {
+    document.querySelectorAll('.sq-option').forEach(function (o) {
+      var input = o.querySelector('input');
+      if (input && input.dataset.qInput === qid) {
+        o.classList.toggle('selected', input.checked);
+      }
+    });
+  }
+  updatePreview();
+}
+
+function onMultiChange(el) {
+  var qid = el.dataset.qInputMulti;
+  var checked = Array.from(document.querySelectorAll('[data-q-input-multi="' + qid + '"]:checked'))
+    .map(function (x) { return x.value; });
+  STATE.answers[qid] = checked;
+  el.closest('.sq-option').classList.toggle('selected', el.checked);
+  updatePreview();
+}
+
+function goStep(delta) {
+  var ns = STATE.step + delta;
+  if (ns < 0 || ns >= STATE.questions.length) return;
+  STATE.step = ns;
+  renderShell();
+}
+
+function toggleAddon(addonId) {
+  STATE.selectedAddons[addonId] = !STATE.selectedAddons[addonId];
+  document.querySelector('[data-addon-id="' + addonId + '"]').classList.toggle('selected', !!STATE.selectedAddons[addonId]);
+  updatePreview();
+}
+
+// ─── Pricing engine (client-side V1 — submit will recompute server-side later) ───
+function evaluateCondition(conds, answers) {
+  if (!conds || typeof conds !== 'object') return true;
+  var keys = Object.keys(conds);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var rule = conds[key];
+    if (!rule || typeof rule !== 'object') continue;
+    var actual = answers[key];
+    var op = (rule.op || 'eq').toLowerCase();
+    var val = rule.value;
+    if (actual == null) return false;
+    if (op === 'eq'   && actual !== val) return false;
+    if (op === 'neq'  && actual === val) return false;
+    if (op === 'lt'   && !(actual < val)) return false;
+    if (op === 'lte'  && !(actual <= val)) return false;
+    if (op === 'gt'   && !(actual > val)) return false;
+    if (op === 'gte'  && !(actual >= val)) return false;
+    if (op === 'between' && Array.isArray(val) && (actual < val[0] || actual > val[1])) return false;
+    if (op === 'in' && Array.isArray(val) && val.indexOf(actual) === -1) return false;
+  }
+  return true;
+}
+
+function pickTier() {
+  // Tier picking based on advisor count (heuristic; per-template override later)
+  var n = parseInt(STATE.answers['advisor_count'], 10) || 0;
+  if (n <= 1) return 'starter';
+  if (n <= 5) return 'starter';
+  if (n <= 15) return 'growth';
+  return 'scale';
+}
+
+function computePreview() {
+  var tier = pickTier();
+  var t = STATE.template;
+  var baseMonthly =
+    tier === 'scale' ? t.base_scale_cents :
+    tier === 'growth' ? t.base_growth_cents :
+    t.base_starter_cents;
+  var rulesApplied = [];
+  var adjustCents = 0;
+  STATE.rules.forEach(function (r) {
+    if (!evaluateCondition(r.conditions, STATE.answers)) return;
+    var pctAdjust = Math.round(baseMonthly * (parseFloat(r.adjust_percent) || 0) / 100);
+    var total = (r.adjust_cents || 0) + pctAdjust;
+    adjustCents += total;
+    rulesApplied.push({ name: r.rule_name, cents: total });
+  });
+  var addonsMonthly = 0;
+  var addonsOneTime = 0;
+  var addonsSelected = [];
+  STATE.addons.forEach(function (a) {
+    if (!STATE.selectedAddons[a.id]) return;
+    addonsMonthly += (a.monthly_cents || 0);
+    addonsOneTime += (a.one_time_cents || 0);
+    addonsSelected.push({ id: a.id, slug: a.addon_slug, name: a.addon_name, monthly_cents: a.monthly_cents, one_time_cents: a.one_time_cents });
+  });
+  var totalMonthly = baseMonthly + adjustCents + addonsMonthly;
+  var totalFirstYear = totalMonthly * 12 + addonsOneTime;
+  return {
+    tier: tier, baseMonthly: baseMonthly, adjustCents: adjustCents,
+    addonsMonthly: addonsMonthly, addonsOneTime: addonsOneTime,
+    totalMonthly: totalMonthly, totalFirstYear: totalFirstYear,
+    rulesApplied: rulesApplied, addonsSelected: addonsSelected
+  };
+}
+
+function fmtMoney(cents) {
+  var v = (parseInt(cents) || 0) / 100;
+  return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function renderPreview() {
+  var p = computePreview();
+  var html = '<div class="sq-preview-card">';
+  html += '<div class="sq-preview-title">Live estimate</div>';
+  html += '<span class="sq-preview-tier">' + p.tier + ' tier</span>';
+  html += '<div class="sq-preview-monthly">' + fmtMoney(p.totalMonthly) + '<span class="sq-preview-suffix"> /mo</span></div>';
+  html += '<div class="sq-preview-suffix">First-year all-in: <strong>' + fmtMoney(p.totalFirstYear) + '</strong></div>';
+  html += '<div class="sq-preview-breakdown">';
+  html += '<div class="sq-preview-row"><strong>Base (' + p.tier + ')</strong><span>' + fmtMoney(p.baseMonthly) + '</span></div>';
+  if (p.rulesApplied.length) {
+    p.rulesApplied.forEach(function (r) {
+      html += '<div class="sq-preview-row"><strong>' + clxComp.escapeHtml(r.name) + '</strong><span>' + (r.cents >= 0 ? '+' : '') + fmtMoney(r.cents) + '</span></div>';
+    });
+  } else {
+    html += '<div class="sq-preview-rule">No pricing rules applied yet (answer more questions to see adjustments)</div>';
+  }
+  if (p.addonsMonthly > 0) {
+    html += '<div class="sq-preview-row"><strong>Add-ons (monthly)</strong><span>+' + fmtMoney(p.addonsMonthly) + '</span></div>';
+  }
+  if (p.addonsOneTime > 0) {
+    html += '<div class="sq-preview-row subtotal"><strong>Setup (one-time)</strong><span>' + fmtMoney(p.addonsOneTime) + '</span></div>';
+  }
+  html += '<div class="sq-preview-row total"><strong>Monthly total</strong><span>' + fmtMoney(p.totalMonthly) + '</span></div>';
+  html += '</div></div>';
+  return html;
+}
+
+function renderAddons() {
+  if (!STATE.addons.length) return '';
+  var html = '<div class="sq-preview-card" style="margin-top:14px">';
+  html += '<div class="sq-preview-title">Optional add-ons</div>';
+  html += '<div class="sq-addons-list">';
+  STATE.addons.forEach(function (a) {
+    var sel = STATE.selectedAddons[a.id] ? 'selected' : '';
+    var pricing = fmtMoney(a.monthly_cents) + '/mo';
+    if (a.one_time_cents > 0) pricing += ' + ' + fmtMoney(a.one_time_cents) + ' setup';
+    html += '<div class="sq-addon ' + sel + '" data-addon-id="' + clxComp.escapeHtml(a.id) + '">';
+    html += '<div class="sq-addon-info">';
+    html += '<div class="sq-addon-name">' + clxComp.escapeHtml(a.addon_name) + '</div>';
+    if (a.description) html += '<div class="sq-addon-desc">' + clxComp.escapeHtml(a.description) + '</div>';
+    html += '</div>';
+    html += '<div class="sq-addon-price">' + pricing + '</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+function updatePreview() {
+  // Replace just the preview column (right-side cards) without rebuilding the form
+  var existing = document.querySelector('.sq-layout > div:last-child');
+  if (existing) existing.outerHTML = '<div>' + renderPreview() + renderAddons() + '</div>';
+  document.querySelectorAll('.sq-addon').forEach(function (el) {
+    el.addEventListener('click', function () { toggleAddon(el.dataset.addonId); });
+  });
+}
+
+async function submitQuote() {
+  // V1: server submit returns 501 (stub). We surface the computed preview
+  // in a friendly modal so Mary can see end-to-end UX even before the
+  // submit workflow lands.
+  var p = computePreview();
+  alert('Quote computed locally:\n\n' +
+    'Tier: ' + p.tier + '\n' +
+    'Monthly: ' + fmtMoney(p.totalMonthly) + '\n' +
+    'First year: ' + fmtMoney(p.totalFirstYear) + '\n\n' +
+    'Server-side submit + PDF + email = next commit.');
+}
+</script>
+</body>
+</html>

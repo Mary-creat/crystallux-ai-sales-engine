@@ -1,0 +1,234 @@
+{
+  "id": "wfAdminSmartQuoteFlowV1",
+  "name": "CLX - Admin Smart Quote Flow v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/smart-quote/flow",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "asqf-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-smart-quote-flow-001",
+      "notes": "DEACTIVATED. Admin-gated multi-action endpoint for the Smart Quote question-flow page. Body: { action: 'load_template'|'start_draft'|'save_step'|'submit', industry_slug, draft_id?, answers?, ... }. V1 implements load_template only; save_step + submit return 501 to be filled in the next commit."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst action = String(body.action || '').toLowerCase().trim();\nconst allowed = ['load_template', 'start_draft', 'save_step', 'submit'];\nif (allowed.indexOf(action) === -1) {\n  return { json: { ok: false, status: 400, error: 'Unknown action: ' + (body.action || '(missing)') } };\n}\n\nreturn { json: {\n  token: token,\n  action: action,\n  industry_slug: String(body.industry_slug || '').trim() || null,\n  draft_id:      body.draft_id || null,\n  answers:       body.answers || null,\n  email:         body.email || null,\n  full_name:     body.full_name || null,\n  company:       body.company || null,\n  phone:         body.phone || null,\n  step:          parseInt(body.step, 10) || 0,\n  addons:        Array.isArray(body.addons) ? body.addons : []\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asqf-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst x = $('Extract Inputs').item.json;\nreturn { json: Object.assign({ ok: true }, x) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asqf-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "asqf-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "outputKey": "load_template", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "load_template", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
+            { "outputKey": "start_draft",   "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "start_draft",   "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
+            { "outputKey": "other",         "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "load_template", "operator": { "type": "string", "operation": "notEquals" } }], "combinator": "and" } }
+          ]
+        },
+        "options": {}
+      },
+      "id": "asqf-0006",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_templates?industry_slug=eq.' + encodeURIComponent($json.industry_slug) + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0007",
+      "name": "Get Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 80],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_pricing_rules?template_id=eq.' + ($('Get Template').item.json.id || '00000000-0000-0000-0000-000000000000') + '&active=eq.true&select=*&order=sort_order.asc' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0008",
+      "name": "Get Pricing Rules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, 80],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_addons?template_id=eq.' + ($('Get Template').item.json.id || '00000000-0000-0000-0000-000000000000') + '&active=eq.true&select=*&order=sort_order.asc' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asqf-0009",
+      "name": "Get Addons",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 80],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst tpls    = allOf('Get Template');\nconst rules   = allOf('Get Pricing Rules');\nconst addons  = allOf('Get Addons');\nif (tpls.length === 0) {\n  return { json: { ok: false, status: 404, error: 'Template not found' } };\n}\nreturn { json: {\n  ok: true,\n  template: tpls[0],\n  pricing_rules: rules,\n  addons: addons\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asqf-0010",
+      "name": "Shape Load Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2300, 80]
+    },
+    {
+      "parameters": {
+        "jsCode": "// V1 placeholder for start_draft. Returns a stub response with an\n// in-memory draft id so the question-flow page can iterate without\n// a real backing row yet. Full save_step / submit lands in the\n// next commit which will INSERT into quote_drafts and quote_completed.\nconst x = $input.item.json;\nconst now = new Date().toISOString();\nreturn { json: {\n  ok: true,\n  draft_id: 'stub-' + Math.random().toString(36).slice(2, 11),\n  resume_token: 'stub-' + Math.random().toString(36).slice(2, 11),\n  industry_slug: x.industry_slug,\n  step: 0,\n  status: 'in_progress',\n  created_at: now,\n  note: 'V1 stub — real persistence lands in next commit (clx-admin-smart-quote-flow-v2)'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asqf-0011",
+      "name": "Start Draft (stub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 501 for save_step + submit until the next commit fills them in.\nreturn { json: { ok: false, status: 501, error: 'Action not implemented in v1: ' + $input.item.json.action + '. Stub draft will not persist; question-flow page reads + previews locally only.' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asqf-0012",
+      "name": "Not Implemented",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "asqf-0013",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2540, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "asqf-0014",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Inputs",   "type": "main", "index": 0 }]] },
+    "Extract Inputs":   { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [{ "node": "Switch Action", "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [{ "node": "Get Template",      "type": "main", "index": 0 }],
+        [{ "node": "Start Draft (stub)","type": "main", "index": 0 }],
+        [{ "node": "Not Implemented",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Template":       { "main": [[{ "node": "Get Pricing Rules",   "type": "main", "index": 0 }]] },
+    "Get Pricing Rules":  { "main": [[{ "node": "Get Addons",          "type": "main", "index": 0 }]] },
+    "Get Addons":         { "main": [[{ "node": "Shape Load Response", "type": "main", "index": 0 }]] },
+    "Shape Load Response":{ "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
+    "Start Draft (stub)": { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] },
+    "Not Implemented":    { "main": [[{ "node": "Respond OK",          "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
