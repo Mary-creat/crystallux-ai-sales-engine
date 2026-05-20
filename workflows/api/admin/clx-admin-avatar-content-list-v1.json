@@ -1,0 +1,203 @@
+{
+  "id": "wfAdminAvatarContentListV1",
+  "name": "CLX - Admin Avatar Content List v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/avatar-content/list",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aacl-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-avatar-content-list-001",
+      "notes": "DEACTIVATED. Admin-gated. Returns content_topics for a named avatar (default AVA). Body filters: { avatar_name?, status?, limit? }."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst f = body.filters || {};\nconst avatarName = (f.avatar_name || 'AVA').trim();\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 200, 1), 1000);\n\n// Avatar lookup query (resolves name -> id)\nconst qsAvatar = 'select=id,avatar_name,personality,vertical_id,broadcast_window,active&avatar_name=eq.' + encodeURIComponent(avatarName) + '&limit=1';\n\n// Content topics — embed via avatars FK so we get name back in same call\nconst qsTopics = [\n  'select=id,vertical,avatar_id,topic_title,topic_description,generated_by,status,priority_score,created_at',\n  'order=priority_score.desc,created_at.desc',\n  'limit=' + limit\n].join('&');\n\nreturn { json: { token: token, qs_avatar: qsAvatar, qs_topics_base: qsTopics, avatar_name: avatarName, status_filter: f.status || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aacl-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "aacl-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst x = $('Extract Inputs').item.json;\nreturn { json: { ok: true, qs_avatar: x.qs_avatar, qs_topics_base: x.qs_topics_base, avatar_name: x.avatar_name, status_filter: x.status_filter } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aacl-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "aacl-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/avatars?' + $json.qs_avatar }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "aacl-0006",
+      "name": "Lookup Avatar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve avatar row → use its id to build the topics query.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst avatars = allOf('Lookup Avatar');\nconst x       = $('Check Admin').item.json;\nif (avatars.length === 0) {\n  return { json: { _no_avatar: true, error: 'Avatar not found: ' + x.avatar_name, status: 404 } };\n}\nconst avatar = avatars[0];\nlet qs = 'avatar_id=eq.' + avatar.id + '&' + x.qs_topics_base;\nif (x.status_filter) qs += '&status=eq.' + encodeURIComponent(x.status_filter);\nreturn { json: { qs_topics: qs, avatar: avatar } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "aacl-0007",
+      "name": "Build Topics Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json._no_avatar }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "aacl-0008",
+      "name": "IF Avatar Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1820, 220]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/content_topics?' + $json.qs_topics }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "aacl-0009",
+      "name": "Query Topics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 140],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify each topic into one of 5 streams based on the\n// vanity-UUID pattern `00000000-a0a0-NNNN-MMMM-...`. Look at the\n// 3rd UUID group (NNNN, hex) and bucket:\n//\n//   <= 0x0016  → insurance_education  (Stream 1)\n//   <= 0x0028  → advisor_recruitment  (Stream 2)\n//   <= 0x0036  → carrier_partnership  (Stream 3)\n//   <= 0x0047  → advisorassist_promo  (Stream 4)\n//   <= 0x0056  → ribo_study_coach     (Stream 5)\n//   else       → other                (catch-all)\n//\n// Topics inserted by future workflows that don't use the vanity\n// prefix fall into 'other' — fine, they'll surface in their own\n// section so Mary can still see them.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst topics = allOf('Query Topics');\nconst avatar = $('Build Topics Query').first().json.avatar;\n\nfunction streamOf(id) {\n  const m = (id || '').match(/^[0-9a-f]{8}-[0-9a-f]{4}-([0-9a-f]{4})/i);\n  if (!m) return 'other';\n  const code = parseInt(m[1], 16);\n  if (code <= 0x0016) return 'insurance_education';\n  if (code <= 0x0028) return 'advisor_recruitment';\n  if (code <= 0x0036) return 'carrier_partnership';\n  if (code <= 0x0047) return 'advisorassist_promo';\n  if (code <= 0x0056) return 'ribo_study_coach';\n  return 'other';\n}\n\nconst byStream = {\n  insurance_education: [],\n  advisor_recruitment: [],\n  carrier_partnership: [],\n  advisorassist_promo: [],\n  ribo_study_coach:    [],\n  other:               []\n};\nconst byStatus = {};\n\ntopics.forEach(function (t) {\n  const s = streamOf(t.id);\n  byStream[s].push(t);\n  byStatus[t.status || 'unknown'] = (byStatus[t.status || 'unknown'] || 0) + 1;\n});\n\n// Sort each stream's topics by priority_score desc.\nObject.keys(byStream).forEach(function (k) {\n  byStream[k].sort(function (a, b) { return (b.priority_score || 0) - (a.priority_score || 0); });\n});\n\nreturn { json: {\n  ok: true,\n  avatar: avatar,\n  topics: topics,\n  by_stream: byStream,\n  by_status: byStatus,\n  counts: {\n    total: topics.length,\n    insurance_education: byStream.insurance_education.length,\n    advisor_recruitment: byStream.advisor_recruitment.length,\n    carrier_partnership: byStream.carrier_partnership.length,\n    advisorassist_promo: byStream.advisorassist_promo.length,\n    ribo_study_coach:    byStream.ribo_study_coach.length,\n    other:               byStream.other.length\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "aacl-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2300, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "aacl-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2540, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "aacl-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[{ "node": "Extract Inputs",     "type": "main", "index": 0 }]] },
+    "Extract Inputs":     { "main": [[{ "node": "Validate Session",   "type": "main", "index": 0 }]] },
+    "Validate Session":   { "main": [[{ "node": "Check Admin",        "type": "main", "index": 0 }]] },
+    "Check Admin":        { "main": [[{ "node": "IF Admin OK",        "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [{ "node": "Lookup Avatar", "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Lookup Avatar":      { "main": [[{ "node": "Build Topics Query", "type": "main", "index": 0 }]] },
+    "Build Topics Query": { "main": [[{ "node": "IF Avatar Found",    "type": "main", "index": 0 }]] },
+    "IF Avatar Found": {
+      "main": [
+        [{ "node": "Query Topics",  "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Query Topics":       { "main": [[{ "node": "Shape Response",     "type": "main", "index": 0 }]] },
+    "Shape Response":     { "main": [[{ "node": "Respond OK",         "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

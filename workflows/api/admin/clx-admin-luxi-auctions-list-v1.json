@@ -1,0 +1,192 @@
+{
+  "id": "wfAdminLuxiAuctionsListV1",
+  "name": "CLX - Admin LUXI Auctions List v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/luxi/auctions",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "alal-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-luxi-auctions-list-001",
+      "notes": "DEACTIVATED. Admin-gated. Returns LUXI auctions + per-auction bid counts + bidder count. Body filters: { status?, since?, limit? }."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst f = body.filters || {};\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 100, 1), 500);\nconst sinceIso = f.since || null;\n\nfunction qsBase(orderCol) {\n  const parts = ['order=' + orderCol + '.desc', 'limit=' + limit];\n  if (sinceIso) parts.push(orderCol + '=gte.' + encodeURIComponent(sinceIso));\n  return parts;\n}\n\nconst qsAuctions = ['select=id,avatar_id,streaming_session_id,item_title,item_description,item_category,item_photos,reserve_price_cents,status,scheduled_open_at,actual_open_at,scheduled_close_at,actual_close_at,extensions_used,current_high_bid_cents,current_high_bid_id,min_increment_cents,winning_bid_id,seller_id,created_at,updated_at']\n  .concat(qsBase('scheduled_open_at'));\nif (f.status && f.status !== 'all') qsAuctions.push('status=eq.' + encodeURIComponent(f.status));\n\n// Bids — flat list within the window; aggregated client-side per auction\nconst qsBids = [\n  'select=id,auction_id,bidder_id,amount_cents,placed_at,status',\n  'order=placed_at.desc',\n  'limit=' + (limit * 10)\n].join('&');\n\nreturn { json: {\n  token: token,\n  qs_auctions: qsAuctions.join('&'),\n  qs_bids:     qsBids,\n  qs_avatar:   'select=id,avatar_name,personality,vertical_id,active&avatar_name=eq.LUXI&limit=1',\n  filters: f,\n  limit: limit\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alal-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "alal-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst x = $('Extract Inputs').item.json;\nreturn { json: { ok: true, qs_auctions: x.qs_auctions, qs_bids: x.qs_bids, qs_avatar: x.qs_avatar, filters: x.filters } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alal-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "alal-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auctions?' + $json.qs_auctions }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "alal-0006",
+      "name": "Query Auctions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 180],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auction_bids?' + $json.qs_bids }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "alal-0007",
+      "name": "Query Bids",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/avatars?' + $json.qs_avatar }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "alal-0008",
+      "name": "Query LUXI Avatar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 460],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst auctions = allOf('Query Auctions');\nconst bids     = allOf('Query Bids');\nconst avatars  = allOf('Query LUXI Avatar');\nconst luxi     = avatars[0] || null;\n\n// Aggregate bids per auction.\nconst bidCount = {};\nconst bidderSet = {};\nbids.forEach(function (b) {\n  if (!b.auction_id) return;\n  bidCount[b.auction_id] = (bidCount[b.auction_id] || 0) + 1;\n  if (!bidderSet[b.auction_id]) bidderSet[b.auction_id] = {};\n  if (b.bidder_id) bidderSet[b.auction_id][b.bidder_id] = true;\n});\n\n// Enrich auctions with bid counts.\nconst enriched = auctions.map(function (a) {\n  return Object.assign({}, a, {\n    bid_count:    bidCount[a.id] || 0,\n    bidder_count: bidderSet[a.id] ? Object.keys(bidderSet[a.id]).length : 0\n  });\n});\n\n// Group by status for the dashboard columns.\nconst byStatus = { scheduled: [], open: [], extended: [], closed_sold: [], closed_unsold: [], cancelled: [] };\nenriched.forEach(function (a) {\n  const s = a.status || 'scheduled';\n  if (!byStatus[s]) byStatus[s] = [];\n  byStatus[s].push(a);\n});\n\nconst now = Date.now();\nconst totalGmvCents = enriched\n  .filter(function (a) { return a.status === 'closed_sold'; })\n  .reduce(function (s, a) { return s + (a.current_high_bid_cents || 0); }, 0);\n\nreturn { json: {\n  ok: true,\n  avatar: luxi,\n  auctions: enriched,\n  by_status: byStatus,\n  counts: {\n    total:          enriched.length,\n    scheduled:      byStatus.scheduled.length,\n    live:           byStatus.open.length + byStatus.extended.length,\n    closed_sold:    byStatus.closed_sold.length,\n    closed_unsold:  byStatus.closed_unsold.length,\n    cancelled:      byStatus.cancelled.length\n  },\n  gmv_cents: totalGmvCents,\n  bids_examined: bids.length,\n  generated_at: new Date(now).toISOString()\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "alal-0009",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "alal-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1840, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "alal-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 600]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[{ "node": "Extract Inputs",   "type": "main", "index": 0 }]] },
+    "Extract Inputs":     { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session":   { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":        { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [
+          { "node": "Query Auctions",    "type": "main", "index": 0 },
+          { "node": "Query Bids",        "type": "main", "index": 0 },
+          { "node": "Query LUXI Avatar", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond 4xx", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Query Auctions":    { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Query Bids":        { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Query LUXI Avatar": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":    { "main": [[{ "node": "Respond OK",     "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

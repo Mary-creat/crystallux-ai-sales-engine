@@ -9,6 +9,40 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/layout.css">
+<style>
+.ava-stream { margin-bottom:28px; }
+.ava-stream-head { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border,#e5e7eb); }
+.ava-stream-title { font-size:16px; font-weight:700; }
+.ava-stream-emoji { font-size:18px; }
+.ava-stream-count { font-size:13px; color:var(--text-muted,#6b7280); }
+.ava-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+.ava-card { padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:var(--bg-card,#fff); cursor:pointer; transition:box-shadow 0.15s, transform 0.05s, border-color 0.15s; }
+.ava-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); transform:translateY(-1px); border-color:var(--color-brand-400,#A78BFA); }
+.ava-card-title { font-weight:600; font-size:14px; line-height:1.35; margin-bottom:6px; color:var(--text-primary,#18181b); }
+.ava-card-desc { font-size:12px; color:var(--text-muted,#71717a); line-height:1.45; }
+.ava-card-meta { display:flex; gap:8px; align-items:center; margin-top:8px; }
+.ava-priority { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; padding:1px 7px; border-radius:10px; }
+.ava-priority.hi   { background:#fee2e2; color:#991b1b; }
+.ava-priority.med  { background:#fef3c7; color:#92400e; }
+.ava-priority.lo   { background:#f3f4f6; color:#52525b; }
+.ava-status { font-size:11px; padding:1px 7px; border-radius:10px; }
+.ava-status.approved { background:#dcfce7; color:#166534; }
+.ava-status.draft    { background:#fef3c7; color:#92400e; }
+.ava-status.archived { background:#f4f4f5; color:#52525b; }
+
+/* Click-to-expand detail modal-ish */
+.ava-detail-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; }
+.ava-detail-backdrop.open { display:block; }
+.ava-detail-panel { position:fixed; right:0; top:0; bottom:0; width:min(560px, 92vw); background:var(--bg-card,#fff); border-left:1px solid var(--border,#e5e7eb); z-index:201; padding:24px 28px; overflow-y:auto; box-shadow:-8px 0 24px rgba(0,0,0,0.12); transform:translateX(100%); transition:transform 0.18s ease; }
+.ava-detail-backdrop.open .ava-detail-panel { transform:translateX(0); }
+.ava-detail-close { position:absolute; top:14px; right:18px; cursor:pointer; font-size:22px; line-height:1; color:var(--text-muted,#6b7280); border:none; background:transparent; }
+.ava-detail-h { font-size:18px; font-weight:700; margin-bottom:8px; padding-right:36px; }
+.ava-detail-meta { color:var(--text-muted,#6b7280); font-size:12px; margin-bottom:16px; display:flex; gap:10px; flex-wrap:wrap; }
+.ava-detail-body { font-size:14px; line-height:1.6; color:var(--text-primary,#18181b); white-space:pre-wrap; }
+
+.ava-filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+.ava-search { flex:1; max-width:400px; }
+</style>
 </head>
 <body>
 <header class="clx-topbar">
@@ -22,35 +56,170 @@
   <nav class="clx-sidebar" id="clxSidebar"></nav>
   <div class="clx-backdrop" id="clxBackdrop"></div>
   <main class="clx-main"><div class="clx-content">
-    <div class="clx-page-head"><div>
-      <h1 class="clx-page-title">AVA — Insurance Growth</h1>
-      <div class="clx-page-sub">"Protecting Canadian families." Insurance education + advisor recruitment + MGA revenue products. Dashboard in progress.</div>
-    </div></div>
-
-    <div class="clx-card">
-      <div class="clx-card-head"><div class="clx-card-title">What AVA will surface here</div></div>
-      <div class="clx-empty">
-        <ol style="text-align:left;max-width:640px;margin:12px auto;line-height:1.7">
-          <li><strong>Content schedule</strong> — the 24 insurance-education topics seeded in <code>db/migrations/avatar-content-seeds-ava.sql</code>, broadcast-window aware.</li>
-          <li><strong>Revenue products</strong> — AdvisorAssist subscription ($49-149/mo) + RIBO Study Coach ($29-79/mo) sales funnel + active subscriber list.</li>
-          <li><strong>Advisor pipeline</strong> — leads from LLQP-recruitment content, scored + routed.</li>
-          <li><strong>Compliance check</strong> — surfaces any AVA-rendered video flagged by <code>clx-mga-insurance-compliance-agent-v1</code> (FSRA / RIBO).</li>
-          <li><strong>HeyGen + ElevenLabs status</strong> — whether AVA's avatar IDs + voice IDs are populated in the <code>avatars</code> row.</li>
-        </ol>
-        <p style="margin-top:14px">In the meantime, AVA's row in the <a href="/pages/avatars.html">Avatar registry</a> shows the personality / schedule / compliance config. Content topics seeded; broadcast wiring pending Tranche 1.4 (script-generator extension).</p>
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">AVA — Insurance Growth</h1>
+        <div class="clx-page-sub">"Protecting Canadian families." 104 content templates across 5 streams. Click any topic to see the full script brief.</div>
+      </div>
+      <div class="ava-filters">
+        <input id="searchInput" class="clx-input ava-search" placeholder="Search topics…">
+        <select id="statusFilter" class="clx-select" style="width:140px">
+          <option value="all">All statuses</option>
+          <option value="approved">Approved</option>
+          <option value="draft">Draft</option>
+          <option value="archived">Archived</option>
+        </select>
+        <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
       </div>
     </div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="streamsContent"></div>
   </div></main>
 </div>
+
+<!-- ───── Topic detail slide-over ───── -->
+<div class="ava-detail-backdrop" id="detailBackdrop">
+  <div class="ava-detail-panel" id="detailPanel" onclick="event.stopPropagation()">
+    <button class="ava-detail-close" id="detailClose" aria-label="Close">×</button>
+    <div class="ava-detail-h" id="detailTitle"></div>
+    <div class="ava-detail-meta" id="detailMeta"></div>
+    <div class="ava-detail-body" id="detailBody"></div>
+  </div>
+</div>
+
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
 <script>
+var STREAM_LABELS = {
+  insurance_education: { label: 'Insurance education',      emoji: '🛡️', order: 1 },
+  advisor_recruitment: { label: 'Advisor recruitment',      emoji: '👤', order: 2 },
+  carrier_partnership: { label: 'Carrier partnership',      emoji: '🏢', order: 3 },
+  advisorassist_promo: { label: 'AdvisorAssist promotion',  emoji: '⚡', order: 4 },
+  ribo_study_coach:    { label: 'RIBO Study Coach',         emoji: '📚', order: 5 },
+  other:               { label: 'Other / unclassified',     emoji: '•',  order: 99 }
+};
+
+var STATE = { byStream: {}, counts: {}, avatar: null };
+
 clxAuth.require(['admin']).then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
   clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+
+  // KPI skeleton
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('kpiGrid').insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('streamsContent').innerHTML = '<div class="clx-empty"><span class="clx-spinner"></span> Loading 104 content topics…</div>';
+  load();
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('refreshBtn').addEventListener('click', load);
+  document.getElementById('searchInput').addEventListener('input', render);
+  document.getElementById('detailBackdrop').addEventListener('click', closeDetail);
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
 });
+
+async function load() {
+  var status = document.getElementById('statusFilter').value;
+  var filters = { avatar_name: 'AVA' };
+  if (status && status !== 'all') filters.status = status;
+  var res = await clxApi.adminGet('avatar-content/list', filters);
+  if (!res.ok) { clxApi.renderError(document.getElementById('streamsContent'), res); return; }
+  STATE.byStream = (res.data && res.data.by_stream) || {};
+  STATE.counts   = (res.data && res.data.counts)    || {};
+  STATE.avatar   = (res.data && res.data.avatar)    || null;
+  renderKpis();
+  render();
+}
+
+function renderKpis() {
+  var c = STATE.counts;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'Total topics',          value: c.total || 0,                icon: 'layers',       variant: 'leads' },
+    { label: 'Insurance education',   value: c.insurance_education || 0,  icon: 'shield',       variant: 'activity' },
+    { label: 'Recruitment + Carrier', value: (c.advisor_recruitment || 0) + (c.carrier_partnership || 0), icon: 'users', variant: 'bookings' },
+    { label: 'Product promo',         value: (c.advisorassist_promo || 0) + (c.ribo_study_coach || 0),    icon: 'star',  variant: 'revenue' }
+  ]);
+}
+
+function render() {
+  var el = document.getElementById('streamsContent');
+  var q  = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  var streamKeys = Object.keys(STREAM_LABELS).sort(function (a, b) { return STREAM_LABELS[a].order - STREAM_LABELS[b].order; });
+  var html = '';
+  var totalShown = 0;
+  streamKeys.forEach(function (k) {
+    var topics = STATE.byStream[k] || [];
+    if (q) topics = topics.filter(function (t) {
+      return ((t.topic_title || '') + ' ' + (t.topic_description || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    if (!topics.length) return;
+    totalShown += topics.length;
+    var info = STREAM_LABELS[k];
+    html += '<div class="ava-stream">';
+    html += '<div class="ava-stream-head">';
+    html += '<span class="ava-stream-emoji">' + info.emoji + '</span>';
+    html += '<div class="ava-stream-title">' + clxComp.escapeHtml(info.label) + '</div>';
+    html += '<div class="ava-stream-count">' + topics.length + (topics.length === 1 ? ' topic' : ' topics') + '</div>';
+    html += '</div>';
+    html += '<div class="ava-grid">';
+    topics.forEach(function (t) {
+      var pri = (t.priority_score || 0);
+      var priCls = pri >= 85 ? 'hi' : pri >= 70 ? 'med' : 'lo';
+      html += '<div class="ava-card" data-topic-id="' + clxComp.escapeHtml(t.id) + '">';
+      html += '<div class="ava-card-title">' + clxComp.escapeHtml(t.topic_title || '(untitled)') + '</div>';
+      html += '<div class="ava-card-desc">' + clxComp.escapeHtml((t.topic_description || '').slice(0, 160) + ((t.topic_description || '').length > 160 ? '…' : '')) + '</div>';
+      html += '<div class="ava-card-meta">';
+      html += '<span class="ava-priority ' + priCls + '">priority ' + pri + '</span>';
+      html += '<span class="ava-status ' + clxComp.escapeHtml(t.status || 'draft') + '">' + clxComp.escapeHtml(t.status || 'draft') + '</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  if (!html) {
+    if (q) {
+      el.innerHTML = '<div class="clx-empty">No topics match "' + clxComp.escapeHtml(q) + '". Clear search to see all.</div>';
+    } else {
+      el.innerHTML = '<div class="clx-empty">No content topics seeded for AVA yet. Apply <code>db/migrations/avatar-content-seeds-ava.sql</code> + <code>avatar-content-seeds-ava-expansion.sql</code> for 104 topics.</div>';
+    }
+    return;
+  }
+  el.innerHTML = html;
+  el.querySelectorAll('.ava-card').forEach(function (c) {
+    c.addEventListener('click', function () { openDetail(c.dataset.topicId); });
+  });
+}
+
+function openDetail(topicId) {
+  var topic = null;
+  Object.keys(STATE.byStream).forEach(function (k) {
+    if (topic) return;
+    var match = (STATE.byStream[k] || []).filter(function (t) { return t.id === topicId; })[0];
+    if (match) topic = match;
+  });
+  if (!topic) return;
+  document.getElementById('detailTitle').textContent = topic.topic_title || '(untitled)';
+  var meta = [];
+  meta.push('Priority ' + (topic.priority_score || 0));
+  meta.push('Status: ' + (topic.status || 'draft'));
+  if (topic.vertical) meta.push(topic.vertical);
+  if (topic.generated_by) meta.push('by ' + topic.generated_by);
+  if (topic.created_at) meta.push(clxComp.relativeTime(topic.created_at));
+  document.getElementById('detailMeta').innerHTML = meta.map(function (m) {
+    return '<span>' + clxComp.escapeHtml(m) + '</span>';
+  }).join(' · ');
+  document.getElementById('detailBody').textContent = topic.topic_description || '(no description)';
+  document.getElementById('detailBackdrop').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailBackdrop').classList.remove('open');
+}
 </script>
 </body>
 </html>

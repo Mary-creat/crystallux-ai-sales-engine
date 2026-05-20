@@ -9,6 +9,43 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/layout.css">
+<style>
+.lx-section { margin-bottom:28px; }
+.lx-section-head { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border,#e5e7eb); }
+.lx-section-title { font-size:16px; font-weight:700; }
+.lx-section-count { font-size:13px; color:var(--text-muted,#6b7280); }
+.lx-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+.lx-card { padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:var(--bg-card,#fff); cursor:pointer; transition:box-shadow 0.15s, transform 0.05s, border-color 0.15s; position:relative; }
+.lx-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.06); transform:translateY(-1px); border-color:var(--color-brand-400,#A78BFA); }
+.lx-card.live   { border-left:4px solid #dc2626; }
+.lx-card.sold   { border-left:4px solid #16a34a; }
+.lx-card.unsold { border-left:4px solid #9ca3af; }
+.lx-card.scheduled { border-left:4px solid #2563eb; }
+.lx-card-title { font-weight:600; font-size:14px; line-height:1.35; margin-bottom:6px; padding-right:60px; }
+.lx-card-desc { font-size:12px; color:var(--text-muted,#71717a); line-height:1.45; min-height:32px; }
+.lx-card-meta { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.lx-pill { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; padding:1px 7px; border-radius:10px; }
+.lx-pill.live { background:#fee2e2; color:#991b1b; }
+.lx-pill.scheduled { background:#dbeafe; color:#1e40af; }
+.lx-pill.sold { background:#dcfce7; color:#166534; }
+.lx-pill.unsold { background:#f3f4f6; color:#6b7280; }
+.lx-pill.cancelled { background:#fce7f3; color:#9d174d; }
+.lx-price { position:absolute; top:14px; right:16px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; font-weight:600; color:var(--color-brand-600,#6D28D9); }
+
+/* Detail slide-over (same pattern as AVA) */
+.lx-detail-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; }
+.lx-detail-backdrop.open { display:block; }
+.lx-detail-panel { position:fixed; right:0; top:0; bottom:0; width:min(600px, 95vw); background:var(--bg-card,#fff); border-left:1px solid var(--border,#e5e7eb); z-index:201; padding:24px 28px; overflow-y:auto; box-shadow:-8px 0 24px rgba(0,0,0,0.12); transform:translateX(100%); transition:transform 0.18s ease; }
+.lx-detail-backdrop.open .lx-detail-panel { transform:translateX(0); }
+.lx-detail-close { position:absolute; top:14px; right:18px; cursor:pointer; font-size:22px; line-height:1; color:var(--text-muted,#6b7280); border:none; background:transparent; }
+.lx-detail-h { font-size:18px; font-weight:700; margin-bottom:6px; padding-right:36px; }
+.lx-detail-meta { color:var(--text-muted,#6b7280); font-size:12px; margin-bottom:18px; display:flex; gap:10px; flex-wrap:wrap; }
+.lx-detail-section { margin-top:18px; }
+.lx-detail-section-h { font-size:11px; font-weight:600; color:var(--text-muted,#71717a); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.lx-detail-prop { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border,#f4f4f5); font-size:13px; }
+.lx-detail-prop strong { font-weight:500; color:var(--text-muted,#6b7280); }
+.lx-filter-row { display:flex; gap:10px; flex-wrap:wrap; }
+</style>
 </head>
 <body>
 <header class="clx-topbar">
@@ -22,35 +59,203 @@
   <nav class="clx-sidebar" id="clxSidebar"></nav>
   <div class="clx-backdrop" id="clxBackdrop"></div>
   <main class="clx-main"><div class="clx-content">
-    <div class="clx-page-head"><div>
-      <h1 class="clx-page-title">LUXI — Live Commerce</h1>
-      <div class="clx-page-sub">"Let's make a deal!" 24/7 live-auction host. Dashboard in progress.</div>
-    </div></div>
-
-    <div class="clx-card">
-      <div class="clx-card-head"><div class="clx-card-title">What LUXI will surface here</div></div>
-      <div class="clx-empty">
-        <ol style="text-align:left;max-width:640px;margin:12px auto;line-height:1.7">
-          <li><strong>Open auctions</strong> — live rows from <code>auctions</code> with current high-bid, anti-snipe state, scheduled close.</li>
-          <li><strong>Bidder trust tiers</strong> — the 4-tier anti-fraud state machine (<code>bidder_trust_scores</code>). How many bidders at each tier, fraud signals.</li>
-          <li><strong>Payment holds</strong> — outstanding Stripe PaymentIntent authorizations (<code>auction_payment_holds</code>) and capture status.</li>
-          <li><strong>Streaming sessions</strong> — past + scheduled multi-platform broadcasts (<code>avatar_streaming_sessions</code>). Runtime decision pending <code>LIVE_STREAMING_RFC.md</code>.</li>
-          <li><strong>Operator controls</strong> — pause/resume auction, manual forfeit, ban a bidder, force-release a hold.</li>
-        </ol>
-        <p style="margin-top:14px">The schema is in place from <code>db/migrations/avatars-platform-schema.sql</code>. The auction tick workflow (T1.7) + streaming runtime are the next builds. LUXI Phase 2 (consignment + inventory + comment-checkout + Stripe Connect for sellers) is its own multi-tranche workstream.</p>
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">LUXI — Live Commerce</h1>
+        <div class="clx-page-sub">Auction-driven live commerce avatar. Click an auction card to see bids + bidder details + anti-snipe extensions.</div>
+      </div>
+      <div class="lx-filter-row">
+        <select id="statusFilter" class="clx-select" style="width:160px">
+          <option value="all">All statuses</option>
+          <option value="open">Live now</option>
+          <option value="extended">Extended (anti-snipe)</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="closed_sold">Closed — sold</option>
+          <option value="closed_unsold">Closed — unsold</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
       </div>
     </div>
+
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+    <div id="auctionsContent"></div>
   </div></main>
 </div>
+
+<!-- ───── Auction detail slide-over ───── -->
+<div class="lx-detail-backdrop" id="detailBackdrop">
+  <div class="lx-detail-panel" id="detailPanel" onclick="event.stopPropagation()">
+    <button class="lx-detail-close" id="detailClose" aria-label="Close">×</button>
+    <div class="lx-detail-h" id="detailTitle"></div>
+    <div class="lx-detail-meta" id="detailMeta"></div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
 <script>
+var SECTION_ORDER = [
+  { key: 'live',          label: 'Live now',           emoji: '🔴' },
+  { key: 'scheduled',     label: 'Scheduled',          emoji: '⏰' },
+  { key: 'closed_sold',   label: 'Closed — sold',      emoji: '✓'  },
+  { key: 'closed_unsold', label: 'Closed — unsold',    emoji: '○'  },
+  { key: 'cancelled',     label: 'Cancelled',          emoji: '×'  }
+];
+
+var STATE = { auctions: [], byStatus: {}, counts: {}, gmvCents: 0, avatar: null };
+
 clxAuth.require(['admin']).then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
   clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('kpiGrid').insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('auctionsContent').innerHTML = '<div class="clx-empty"><span class="clx-spinner"></span> Loading auctions…</div>';
+  load();
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('refreshBtn').addEventListener('click', load);
+  document.getElementById('detailBackdrop').addEventListener('click', closeDetail);
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
 });
+
+function fmtMoney(cents) {
+  if (cents == null) return '—';
+  var v = (parseInt(cents) || 0) / 100;
+  return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('en-CA', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+async function load() {
+  var status = document.getElementById('statusFilter').value;
+  var filters = {};
+  if (status && status !== 'all') filters.status = status;
+  var res = await clxApi.adminGet('luxi/auctions', filters);
+  if (!res.ok) { clxApi.renderError(document.getElementById('auctionsContent'), res); return; }
+  STATE.auctions = (res.data && res.data.auctions)  || [];
+  STATE.byStatus = (res.data && res.data.by_status) || {};
+  STATE.counts   = (res.data && res.data.counts)    || {};
+  STATE.gmvCents = (res.data && res.data.gmv_cents) || 0;
+  STATE.avatar   = (res.data && res.data.avatar)    || null;
+  renderKpis();
+  render();
+}
+
+function renderKpis() {
+  var c = STATE.counts;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'Live now',      value: c.live || 0,        icon: 'radio',        variant: c.live > 0 ? 'danger' : 'leads' },
+    { label: 'Scheduled',     value: c.scheduled || 0,   icon: 'calendar',     variant: 'activity' },
+    { label: 'Sold',          value: c.closed_sold || 0, icon: 'check-circle', variant: 'revenue' },
+    { label: 'GMV (closed)',  value: fmtMoney(STATE.gmvCents), icon: 'trending-up', variant: 'bookings' }
+  ]);
+}
+
+function render() {
+  var el = document.getElementById('auctionsContent');
+  var sections = SECTION_ORDER.map(function (s) {
+    var rows;
+    if (s.key === 'live') {
+      rows = (STATE.byStatus.open || []).concat(STATE.byStatus.extended || []);
+    } else {
+      rows = STATE.byStatus[s.key] || [];
+    }
+    return Object.assign({}, s, { rows: rows });
+  });
+
+  var hasAny = sections.some(function (s) { return s.rows.length; });
+  if (!hasAny) {
+    el.innerHTML = '<div class="clx-empty">No auctions yet. Insert into the <code>auctions</code> table to seed your first LUXI auction. The cron tick (commit <code>feb7fc2</code>) will close them automatically when their <code>scheduled_close_at</code> passes.</div>';
+    return;
+  }
+
+  var html = '';
+  sections.forEach(function (s) {
+    if (!s.rows.length) return;
+    html += '<div class="lx-section">';
+    html += '<div class="lx-section-head">';
+    html += '<span style="font-size:18px">' + s.emoji + '</span>';
+    html += '<div class="lx-section-title">' + clxComp.escapeHtml(s.label) + '</div>';
+    html += '<div class="lx-section-count">' + s.rows.length + (s.rows.length === 1 ? ' auction' : ' auctions') + '</div>';
+    html += '</div>';
+    html += '<div class="lx-grid">';
+    s.rows.forEach(function (a) {
+      var cardCls = s.key === 'live' ? 'live' : (s.key === 'closed_sold' ? 'sold' : (s.key === 'closed_unsold' ? 'unsold' : 'scheduled'));
+      html += '<div class="lx-card ' + cardCls + '" data-id="' + clxComp.escapeHtml(a.id) + '">';
+      html += '<div class="lx-price">' + fmtMoney(a.current_high_bid_cents) + '</div>';
+      html += '<div class="lx-card-title">' + clxComp.escapeHtml(a.item_title || '(untitled)') + '</div>';
+      html += '<div class="lx-card-desc">' + clxComp.escapeHtml((a.item_description || '').slice(0, 130) + ((a.item_description || '').length > 130 ? '…' : '')) + '</div>';
+      html += '<div class="lx-card-meta">';
+      html += '<span class="lx-pill ' + (s.key === 'live' ? 'live' : s.key) + '">' + clxComp.escapeHtml(a.status) + '</span>';
+      html += '<span style="font-size:11px;color:var(--text-muted,#71717a)">' + a.bid_count + ' bid' + (a.bid_count === 1 ? '' : 's') + ' · ' + a.bidder_count + ' bidder' + (a.bidder_count === 1 ? '' : 's') + '</span>';
+      if (a.extensions_used > 0) {
+        html += '<span style="font-size:11px;color:#dc2626">+' + a.extensions_used + ' ext</span>';
+      }
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.lx-card').forEach(function (c) {
+    c.addEventListener('click', function () { openDetail(c.dataset.id); });
+  });
+}
+
+function openDetail(auctionId) {
+  var a = STATE.auctions.filter(function (x) { return x.id === auctionId; })[0];
+  if (!a) return;
+  document.getElementById('detailTitle').textContent = a.item_title || '(untitled)';
+  var meta = [];
+  meta.push('Status: ' + a.status);
+  meta.push(a.bid_count + ' bids');
+  meta.push(a.bidder_count + ' bidders');
+  if (a.extensions_used > 0) meta.push(a.extensions_used + ' extensions');
+  document.getElementById('detailMeta').innerHTML = meta.map(function (m) {
+    return '<span>' + clxComp.escapeHtml(m) + '</span>';
+  }).join(' · ');
+
+  var html = '';
+  if (a.item_description) {
+    html += '<div class="lx-detail-section"><div class="lx-detail-section-h">Description</div>';
+    html += '<div style="font-size:14px;line-height:1.6">' + clxComp.escapeHtml(a.item_description) + '</div></div>';
+  }
+  html += '<div class="lx-detail-section"><div class="lx-detail-section-h">Pricing</div>';
+  html += '<div class="lx-detail-prop"><strong>Current high bid</strong><span>' + fmtMoney(a.current_high_bid_cents) + '</span></div>';
+  html += '<div class="lx-detail-prop"><strong>Reserve price</strong><span>' + (a.reserve_price_cents > 0 ? fmtMoney(a.reserve_price_cents) : '(no reserve)') + '</span></div>';
+  html += '<div class="lx-detail-prop"><strong>Min increment</strong><span>' + fmtMoney(a.min_increment_cents) + '</span></div>';
+  html += '</div>';
+  html += '<div class="lx-detail-section"><div class="lx-detail-section-h">Schedule</div>';
+  html += '<div class="lx-detail-prop"><strong>Scheduled open</strong><span>' + fmtTime(a.scheduled_open_at) + '</span></div>';
+  html += '<div class="lx-detail-prop"><strong>Scheduled close</strong><span>' + fmtTime(a.scheduled_close_at) + '</span></div>';
+  if (a.actual_open_at)  html += '<div class="lx-detail-prop"><strong>Actual open</strong><span>' + fmtTime(a.actual_open_at) + '</span></div>';
+  if (a.actual_close_at) html += '<div class="lx-detail-prop"><strong>Actual close</strong><span>' + fmtTime(a.actual_close_at) + '</span></div>';
+  html += '</div>';
+  html += '<div class="lx-detail-section"><div class="lx-detail-section-h">Anti-snipe</div>';
+  html += '<div class="lx-detail-prop"><strong>Extensions used</strong><span>' + (a.extensions_used || 0) + '</span></div>';
+  html += '</div>';
+  html += '<div class="lx-detail-section"><div class="lx-detail-section-h">References</div>';
+  html += '<div class="lx-detail-prop"><strong>Auction ID</strong><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">' + clxComp.escapeHtml(a.id) + '</span></div>';
+  if (a.winning_bid_id)    html += '<div class="lx-detail-prop"><strong>Winning bid</strong><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">' + clxComp.escapeHtml(a.winning_bid_id) + '</span></div>';
+  if (a.streaming_session_id) html += '<div class="lx-detail-prop"><strong>Stream session</strong><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">' + clxComp.escapeHtml(a.streaming_session_id) + '</span></div>';
+  html += '</div>';
+  document.getElementById('detailContent').innerHTML = html;
+  document.getElementById('detailBackdrop').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailBackdrop').classList.remove('open');
+}
 </script>
 </body>
 </html>
