@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smart Quote · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .sq-templates { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-bottom:18px; }
+  .sq-tpl { padding:14px 16px; background:var(--bg-card,#fff); border:1px solid var(--border,#e4e4e7); border-radius:10px; cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
+  .sq-tpl:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,0.08); border-color:var(--color-brand-400,#A78BFA); }
+  .sq-tpl-emoji { font-size:22px; }
+  .sq-tpl-name { font-weight:600; margin-top:6px; }
+  .sq-tpl-vert { color:var(--text-muted,#71717a); font-size:11px; margin-top:2px; text-transform:uppercase; letter-spacing:0.4px; }
+  .sq-tabs { display:flex; gap:6px; margin:0 0 12px; border-bottom:1px solid var(--border,#e4e4e7); }
+  .sq-tab { padding:9px 14px; border:none; background:transparent; color:var(--text-secondary,#52525b); cursor:pointer; font-size:13px; font-weight:500; border-bottom:2px solid transparent; }
+  .sq-tab.active { color:var(--color-brand-600,#6D28D9); border-bottom-color:var(--color-brand-500,#7C3AED); }
+  .sq-panel { display:none; }
+  .sq-panel.active { display:block; }
+  .sq-status-pill { display:inline-block; padding:2px 8px; font-size:11px; border-radius:10px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .sq-status-pill.in_progress { background:#fef3c7; color:#92400e; }
+  .sq-status-pill.abandoned { background:#f4f4f5; color:#52525b; }
+  .sq-status-pill.submitted { background:#dbeafe; color:#1e40af; }
+  .sq-status-pill.open { background:#dbeafe; color:#1e40af; }
+  .sq-status-pill.sent { background:#e0e7ff; color:#3730a3; }
+  .sq-status-pill.viewed { background:#fef3c7; color:#92400e; }
+  .sq-status-pill.accepted { background:#dcfce7; color:#166534; }
+  .sq-status-pill.declined { background:#fee2e2; color:#991b1b; }
+  .sq-status-pill.expired { background:#f4f4f5; color:#52525b; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title">Smart Quote</h1>
+        <div class="clx-page-sub">Multi-industry pricing estimator. Drafts auto-save; completed quotes can be PDF-generated + emailed.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <select id="statusFilter" class="clx-select" style="width:160px">
+          <option value="all">All statuses</option>
+          <option value="in_progress">In progress</option>
+          <option value="submitted">Submitted</option>
+          <option value="open">Open</option>
+          <option value="sent">Sent</option>
+          <option value="viewed">Viewed</option>
+          <option value="accepted">Accepted</option>
+          <option value="declined">Declined</option>
+        </select>
+        <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
+      </div>
+    </div>
+
+    <!-- ───────────────────── KPI strip ───────────────────── -->
+    <div id="kpiGrid" class="clx-stat-grid"></div>
+
+    <!-- ───────────────────── Templates (start new quote) ───────────────────── -->
+    <div class="clx-card" style="padding:16px 18px;margin-bottom:18px">
+      <div class="clx-card-head" style="margin-bottom:10px">
+        <div class="clx-card-title">Start a new quote</div>
+        <div style="font-size:12px;color:var(--text-muted,#71717a)">Pick an industry → opens the question flow</div>
+      </div>
+      <div id="templatesGrid" class="sq-templates"></div>
+    </div>
+
+    <!-- ───────────────────── Drafts / Completed tabs ───────────────────── -->
+    <div class="sq-tabs">
+      <button class="sq-tab active" data-panel="drafts">Drafts</button>
+      <button class="sq-tab" data-panel="completed">Completed quotes</button>
+    </div>
+
+    <div class="sq-panel active" id="panel-drafts">
+      <div class="clx-card" style="padding:0">
+        <div id="draftsTable"></div>
+      </div>
+    </div>
+
+    <div class="sq-panel" id="panel-completed">
+      <div class="clx-card" style="padding:0">
+        <div id="completedTable"></div>
+      </div>
+    </div>
+
+  </div></main>
+</div>
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
+<script>
+var STATE = { templates: [], drafts: [], completed: [], stats: {} };
+
+document.querySelectorAll('.sq-tab').forEach(function (t) {
+  t.addEventListener('click', function () {
+    document.querySelectorAll('.sq-tab').forEach(function (x) { x.classList.remove('active'); });
+    document.querySelectorAll('.sq-panel').forEach(function (x) { x.classList.remove('active'); });
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.panel).classList.add('active');
+  });
+});
+
+clxAuth.require('admin').then(function () {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('kpiGrid').insertAdjacentHTML('beforeend',
+      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
+  }
+  document.getElementById('draftsTable').innerHTML = clxComp.skeleton(5, 5);
+  document.getElementById('completedTable').innerHTML = clxComp.skeleton(5, 6);
+  load();
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('refreshBtn').addEventListener('click', load);
+});
+
+function fmtMoney(cents) {
+  if (cents == null) return '—';
+  var v = (parseInt(cents) || 0) / 100;
+  return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function pill(status) {
+  return '<span class="sq-status-pill ' + clxComp.escapeHtml(status || '') + '">' + clxComp.escapeHtml(status || '—') + '</span>';
+}
+
+async function load() {
+  var status = document.getElementById('statusFilter').value;
+  var filters = {};
+  if (status && status !== 'all') filters.status = status;
+  var res = await clxApi.adminGet('smart-quote/list', filters);
+  var draftsEl = document.getElementById('draftsTable');
+  var completedEl = document.getElementById('completedTable');
+  if (!res.ok) {
+    clxApi.renderError(draftsEl, res);
+    completedEl.innerHTML = '';
+    return;
+  }
+  STATE.templates = (res.data && res.data.templates) || [];
+  STATE.drafts    = (res.data && res.data.drafts)    || [];
+  STATE.completed = (res.data && res.data.completed) || [];
+  STATE.stats     = (res.data && res.data.stats)     || {};
+  renderKpis();
+  renderTemplates();
+  renderDrafts();
+  renderCompleted();
+}
+
+function renderKpis() {
+  var s = STATE.stats;
+  clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
+    { label: 'Drafts in progress', value: s.drafts_in_progress || 0, icon: 'edit',        variant: 'activity' },
+    { label: 'Open quotes',        value: s.quotes_open || 0,       icon: 'mail',        variant: 'leads' },
+    { label: 'Accepted',           value: s.quotes_accepted || 0,   icon: 'check-circle',variant: 'revenue' },
+    { label: 'Monthly committed',  value: fmtMoney(s.monthly_revenue_committed_cents), icon: 'trending-up', variant: 'bookings' }
+  ]);
+}
+
+function renderTemplates() {
+  var el = document.getElementById('templatesGrid');
+  el.innerHTML = '';
+  if (!STATE.templates.length) {
+    el.innerHTML = '<div style="color:var(--text-muted,#71717a);font-size:13px">No quote templates seeded. Apply <code>db/migrations/smart-quote-schema.sql</code> to seed Insurance Personal Lines + the pricing rules.</div>';
+    return;
+  }
+  STATE.templates.forEach(function (t) {
+    if (!t.active) return;
+    el.insertAdjacentHTML('beforeend',
+      '<div class="sq-tpl" data-industry="' + clxComp.escapeHtml(t.industry_slug) + '">' +
+        '<div class="sq-tpl-emoji">' + clxComp.escapeHtml(t.emoji || '•') + '</div>' +
+        '<div class="sq-tpl-name">' + clxComp.escapeHtml(t.industry_name) + '</div>' +
+        '<div class="sq-tpl-vert">' + clxComp.escapeHtml(t.vertical_id || 'general') + '</div>' +
+      '</div>');
+  });
+  el.querySelectorAll('.sq-tpl').forEach(function (card) {
+    card.addEventListener('click', function () {
+      var slug = card.dataset.industry;
+      // Question flow page lives at /pages/smart-quote/<slug>.html.
+      // For V1 we only seed insurance_personal; falling back to a
+      // friendly notice for missing industry pages keeps the click
+      // discoverable.
+      window.location.href = '/pages/smart-quote/' + encodeURIComponent(slug) + '.html';
+    });
+  });
+}
+
+function renderDrafts() {
+  var el = document.getElementById('draftsTable');
+  if (!STATE.drafts.length) {
+    clxComp.renderEmpty(el, 'No draft quotes yet. Pick an industry above to start one.', 'inbox');
+    return;
+  }
+  clxComp.renderTable(el, STATE.drafts, [
+    { key: 'industry_slug', label: 'Industry' },
+    { key: 'email',         label: 'Email' },
+    { key: 'company',       label: 'Company' },
+    { key: 'step',          label: 'Step' },
+    { key: 'preview_monthly_cents', label: 'Preview monthly', format: function(r){ return fmtMoney(r.preview_monthly_cents); } },
+    { key: 'status',        label: 'Status', html: true, format: function(r){ return pill(r.status); } },
+    { key: 'updated_at',    label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
+  ]);
+}
+
+function renderCompleted() {
+  var el = document.getElementById('completedTable');
+  if (!STATE.completed.length) {
+    clxComp.renderEmpty(el, 'No completed quotes yet.', 'inbox');
+    return;
+  }
+  clxComp.renderTable(el, STATE.completed, [
+    { key: 'industry_slug', label: 'Industry' },
+    { key: 'email',         label: 'Email' },
+    { key: 'company',       label: 'Company' },
+    { key: 'base_tier',     label: 'Tier' },
+    { key: 'total_monthly_cents',  label: 'Monthly', format: function(r){ return fmtMoney(r.total_monthly_cents); } },
+    { key: 'total_first_year_cents', label: 'Yr1 total', format: function(r){ return fmtMoney(r.total_first_year_cents); } },
+    { key: 'status',        label: 'Status', html: true, format: function(r){ return pill(r.status); } },
+    { key: 'created_at',    label: 'Created', format: function(r){ return clxComp.relativeTime(r.created_at); } }
+  ]);
+}
+</script>
+</body>
+</html>

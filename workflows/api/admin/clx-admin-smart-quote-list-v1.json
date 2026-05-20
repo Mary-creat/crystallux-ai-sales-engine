@@ -1,0 +1,192 @@
+{
+  "id": "wfAdminSmartQuoteListV1",
+  "name": "CLX - Admin Smart Quote List v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/smart-quote/list",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "asql-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-smart-quote-list-001",
+      "notes": "DEACTIVATED. Admin-gated. Returns quote_drafts (in-progress) + quote_completed (final) for the admin Smart Quote dashboard. Optional filters: status, industry_slug, since (iso), limit."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst f = body.filters || {};\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 100, 1), 500);\nconst sinceIso = f.since || null;\n\nfunction qsBase(orderCol) {\n  const parts = ['order=' + orderCol + '.desc', 'limit=' + limit];\n  if (sinceIso) parts.push(orderCol + '=gte.' + encodeURIComponent(sinceIso));\n  return parts;\n}\n\n// Drafts: in_progress unless user explicitly asked\nconst qsDrafts = ['select=id,template_id,industry_slug,client_id,lead_id,email,full_name,company,phone,preview_monthly_cents,preview_total_cents,step,status,resume_token,created_at,updated_at']\n  .concat(qsBase('updated_at'));\nif (f.status && f.status !== 'all') qsDrafts.push('status=eq.' + encodeURIComponent(f.status));\nif (f.industry_slug) qsDrafts.push('industry_slug=eq.' + encodeURIComponent(f.industry_slug));\n\n// Completed: any status by default; status filter narrows\nconst qsCompleted = ['select=id,draft_id,template_id,industry_slug,client_id,lead_id,email,full_name,company,phone,base_tier,base_monthly_cents,total_monthly_cents,total_one_time_cents,total_first_year_cents,status,expires_at,sent_at,viewed_at,accepted_at,declined_at,decline_reason,pdf_url,created_at']\n  .concat(qsBase('created_at'));\nif (f.status && f.status !== 'all') qsCompleted.push('status=eq.' + encodeURIComponent(f.status));\nif (f.industry_slug) qsCompleted.push('industry_slug=eq.' + encodeURIComponent(f.industry_slug));\n\nreturn { json: {\n  token: token,\n  qs_drafts: qsDrafts.join('&'),\n  qs_completed: qsCompleted.join('&'),\n  qs_templates: 'select=id,industry_slug,industry_name,vertical_id,emoji,active,sort_order&order=sort_order.asc',\n  filters: f,\n  limit: limit\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asql-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asql-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst x = $('Extract Inputs').item.json;\nreturn { json: { ok: true, qs_drafts: x.qs_drafts, qs_completed: x.qs_completed, qs_templates: x.qs_templates, filters: x.filters } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "asql-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "asql-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_drafts?' + $json.qs_drafts }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asql-0006",
+      "name": "Query Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 180],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_completed?' + $json.qs_completed }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asql-0007",
+      "name": "Query Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_templates?' + $json.qs_templates }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "asql-0008",
+      "name": "Query Templates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 460],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\n\nconst drafts    = allOf('Query Drafts');\nconst completed = allOf('Query Completed');\nconst templates = allOf('Query Templates');\n\n// Stats for the KPI strip\nconst inProgress    = drafts.filter(function (d) { return d.status === 'in_progress'; }).length;\nconst abandoned     = drafts.filter(function (d) { return d.status === 'abandoned'; }).length;\nconst quotesOpen    = completed.filter(function (q) { return q.status === 'open' || q.status === 'sent' || q.status === 'viewed'; }).length;\nconst quotesAccepted = completed.filter(function (q) { return q.status === 'accepted'; }).length;\nconst quotesDeclined = completed.filter(function (q) { return q.status === 'declined'; }).length;\n\nconst totalMonthlyAccepted = completed\n  .filter(function (q) { return q.status === 'accepted'; })\n  .reduce(function (s, q) { return s + (q.total_monthly_cents || 0); }, 0);\n\nreturn { json: {\n  ok: true,\n  templates:  templates,\n  drafts:     drafts,\n  completed:  completed,\n  stats: {\n    drafts_in_progress: inProgress,\n    drafts_abandoned:   abandoned,\n    quotes_open:        quotesOpen,\n    quotes_accepted:    quotesAccepted,\n    quotes_declined:    quotesDeclined,\n    monthly_revenue_committed_cents: totalMonthlyAccepted\n  },\n  filters: $('Check Admin').item.json.filters\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "asql-0009",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "asql-0010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1840, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "asql-0011",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 600]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Inputs",   "type": "main", "index": 0 }]] },
+    "Extract Inputs":   { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [
+          { "node": "Query Drafts",    "type": "main", "index": 0 },
+          { "node": "Query Completed", "type": "main", "index": 0 },
+          { "node": "Query Templates", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond 4xx", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Query Drafts":    { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Query Completed": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Query Templates": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":  { "main": [[{ "node": "Respond OK",     "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
