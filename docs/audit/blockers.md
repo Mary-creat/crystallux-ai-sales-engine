@@ -6,6 +6,52 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0r. Emergency recovery via Alpine sidecar (added 2026-05-19, supersedes 0q's recovery steps)
+
+When `apply-workflow-patch.sh` ran with `Delete via : none`, the dedupe pass had already deactivated old workflow rows but their `webhook_entity` entries remained — blocking new workflow activations from registering. Mary ended up with **18 of 22 endpoints returning HTTP 404** even though the import phase claimed success for every file.
+
+The clean fix (`0q`) is to generate an n8n API key in the UI. That requires Mary to be able to navigate Settings → API → Create API Key, copy it, and `export N8N_API_KEY=`. **If for any reason that's not viable** (n8n version too old to surface the API page, time pressure, lost session, etc.), this script bypasses every prerequisite:
+
+```bash
+# Single command. Restarts n8n briefly (~10-20s downtime) and recovers state.
+bash scripts/n8n/emergency-recover-webhooks.sh
+```
+
+What it does, without ANY container modification or env setup:
+
+1. `git pull` (unless `--no-pull`).
+2. Indexes every workflow JSON in the requested folders (defaults to the 9 affected: admin, carriers, sentinel, training, briefing, completeness, supervisor, reports, content).
+3. Lists live workflows via `docker exec n8n n8n list:workflow`.
+4. Plans which live IDs are duplicates of repo workflow names (and not the canonical id).
+5. Locates the n8n data volume via `docker inspect`.
+6. **`docker stop n8n`** briefly.
+7. **`docker run --rm -v <volume>:/data alpine:3.18 sh -c 'apk add --no-cache sqlite && sqlite3 /data/database.sqlite ...'`** — installs sqlite3 inside a one-shot Alpine sidecar with the n8n volume mounted, then SQL-deletes the conflicting `workflow_entity` + `webhook_entity` + `execution_entity` rows. The n8n container itself is unmodified.
+8. `docker start n8n`, polls until ready.
+9. Imports any canonical workflows that don't yet exist on live.
+10. Activates every canonical id whose folder was passed in.
+11. Probes each webhook with a junk Bearer token; reports HEALTHY / NOT-FOUND / EMPTY-200 / N8N-500 with counts.
+
+Targeted use (one folder only):
+
+```bash
+bash scripts/n8n/emergency-recover-webhooks.sh workflows/api/admin/
+```
+
+Cleanup-only (no activation):
+
+```bash
+# Pass --dry-run first to preview what would change:
+python3 scripts/n8n/emergency-recover-webhooks.py --dry-run
+# Then run for real (no folder args = cleanup all duplicates, activate nothing):
+python3 scripts/n8n/emergency-recover-webhooks.py
+```
+
+Why an Alpine sidecar works when `docker exec n8n apk add sqlite` doesn't:
+
+The official n8n image runs as user `node` with no apk write access. `docker exec -u root n8n apk add` MIGHT work on some images but the n8n process holds an exclusive SQLite write-lock while running — even with sqlite3 installed in-container, the SQL DELETE would race with the live process. The sidecar approach sidesteps both problems: a separate container with its own root + a stopped n8n that's not holding the lock.
+
+---
+
 ## 0q. webhook_entity rows from deactivated workflows block new webhook registration → NOT-FOUND / EMPTY-200 across the board (added 2026-05-19)
 
 **Hit immediately after `0p` fix shipped.** Mary's `apply-workflow-patch.sh` re-runs on the 7 broken folders + the admin folder ALL imported successfully but every probed webhook returned NOT-FOUND or EMPTY-200. Including the new `/admin/comms-log` for the CIRO viewer.
