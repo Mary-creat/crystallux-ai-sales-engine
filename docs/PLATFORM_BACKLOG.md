@@ -8,7 +8,9 @@ Living list of everything in flight. Update as items complete.
 
 ## 0. In progress right now
 
-- [ ] Verify the nuke fix (confirm 404s are gone, then close the session)
+- [x] Verify the nuke fix — confirmed 2026-05-21, zero 404s, platform structurally healthy
+- [ ] **Apply `carrier-management-schema.sql`** so the Carriers Submissions page stops hanging (Mary, 30 sec in Supabase SQL Editor)
+- [ ] **Sales Engine page — wake it up.** Wire the three placeholder cards (Live Call, Script Suggestions, Post-Call Review) to their existing backend workflows + add a Recent Activity feed widget. ~1 session.
 
 ## 1. MCP AI chat widget in admin dashboard
 
