@@ -32,6 +32,45 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-21 — Nuclear reset tooling for the 19-endpoint failure (Path B)
+
+### What shipped
+- **`scripts/n8n/nuke-and-reimport.py`** + interactive `nuke-and-reimport.sh` wrapper — destructive single-command recovery for when accumulated n8n runtime state (orphan `webhook_entity`, stale `execution_entity`, failed activations) can't be fixed surgically.
+  - Pre-flight container + volume detection (reuses the proven pattern from `emergency-recover-webhooks.py`)
+  - Stop n8n → Alpine sidecar `DELETE FROM` on `webhook_entity` + `execution_entity` + `workflow_entity` in dependency order → start n8n → bulk `docker cp` of `workflows/` → per-file `n8n import:workflow` → per-id `n8n update:workflow --active=true` for the canonical activate set → final container restart to register webhooks deterministically → probe 36 key endpoints with junk Bearer token, classify as HEALTHY / BAD-INPUT / EMPTY-200 / NOT-FOUND / N8N-500 / HTTP-502
+  - Safety: refuses to run without `--confirm-destructive` (the `.sh` wrapper requires typing `NUKE` interactively); `--dry-run` prints the plan + counts without touching anything
+  - Default activate set covers admin / avatars / public / client / insurance-mga / carriers / sentinel / distribution / briefing / booking / messaging / email / reports / supervisor / training / completeness / content / video / agent / ciro / auth / goals / rebook / archetype-seeds folders. Root-level Sales Engine cron workflows stay off unless `--activate-roots` is passed.
+  - Preserves: credentials, env vars, users, API keys, Supabase data. Loses: execution history only.
+
+### What got unblocked / decided
+- After the previous session's surgical recovery still left 19 failures (7 HTTP-502 + 12 NOT-FOUND), and the repo code itself validated clean (JSON parses, topology OK, no duplicate IDs), the remaining failures are accumulated runtime state on the live n8n. Mary chose **Path B (nuclear reset)** over a per-endpoint diagnostic crawl. One-command recovery is the right shape for a fatigued, slow-system operator wrapping a multi-week build.
+- Recovery script is in-tree, idempotent, and re-runnable. If a future class of state corruption shows up, this is the tool — no more surgical-recovery scripts.
+
+### What got blocked or deferred
+- Same standing external-API blockers as 2026-05-20 (HeyGen, LinkedIn, TikTok/Meta/YouTube, ElevenLabs, Browserless, Restream).
+
+### What Mary needs to do next
+```bash
+ssh vps
+cd /root/crystallux-ai-sales-engine
+git pull origin main
+
+# Dry-run first to see the plan + counts (no destruction):
+python3 scripts/n8n/nuke-and-reimport.py --dry-run
+
+# When ready, run for real (interactive — type NUKE to confirm):
+bash scripts/n8n/nuke-and-reimport.sh
+
+# Or non-interactive:
+python3 scripts/n8n/nuke-and-reimport.py --confirm-destructive
+```
+The final phase prints a probe summary. Expect HEALTHY/BAD-INPUT for every admin + public endpoint after the run. If anything stays NOT-FOUND, that workflow either lacks a webhook node (correct) or its `path` was set wrong in JSON (rare — file an issue + I'll patch).
+
+### Open questions for next session
+- After Mary runs this and confirms all green, the next reasonable focus is the API-signup queue (LinkedIn first — free, fastest unlock).
+
+---
+
 ## 2026-05-20 — Smart Quote + LUXI commerce + AVA scheduling + MGA public intake
 
 ### What shipped
