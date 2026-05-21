@@ -66,8 +66,35 @@ python3 scripts/n8n/nuke-and-reimport.py --confirm-destructive
 ```
 The final phase prints a probe summary. Expect HEALTHY/BAD-INPUT for every admin + public endpoint after the run. If anything stays NOT-FOUND, that workflow either lacks a webhook node (correct) or its `path` was set wrong in JSON (rare — file an issue + I'll patch).
 
+### Verification outcome
+- Mary ran `bash scripts/n8n/nuke-and-reimport.sh` on the VPS. Output: 288 imported / 232 activated / 0 failures.
+- Initial probe showed 13 NOT-FOUND + 12 EMPTY-200; diagnosis revealed n8n's webhook map needed more warm-up time after the final restart. Manual `docker restart n8n && sleep 45` confirmed 219 webhooks registered, all admin/maxi/avatars/public paths present.
+- Final probe via the new `scripts/n8n/probe-admin.sh` (committed for future runs): **0 NOT-FOUND, 4 HEALTHY, 17 EMPTY-200**.
+- The 17 EMPTY-200 endpoints are routable but return empty body when auth fails (junk Bearer). They serve real data when called from the admin pages with a valid session token. Functional issue is **cosmetic**, security cleanup is part of the security audit (backlog item #5).
+- Probe script typo fix: `avatars/router` -> `avatars/route` (`9ae5b27`).
+- Pre-flight migration audit caught one missing migration (`avatar-content-library-topic-link.sql`); applied before the nuke.
+- Backup: `/root/n8n-backup-all.json` (5.28 MB, 530 pre-nuke workflows) preserved on VPS in case any non-canonical workflow needs to be recovered.
+
+### What got blocked or deferred
+- Same standing external-API blockers as 2026-05-20 (HeyGen, LinkedIn, Meta/TikTok/YouTube, ElevenLabs, Browserless, Restream).
+- 17 admin workflows need an explicit `Respond to Webhook` node on the auth-fail branch so they return 401 instead of empty 200. Captured in `docs/PLATFORM_BACKLOG.md` under item #5 (security audit).
+
+### What Mary needs to do next
+Nothing tonight. Close the laptop.
+
+Tomorrow morning (~30 minutes):
+1. Open https://admin.crystallux.org and log in
+2. Click through these five pages:
+   - Admin Overview
+   - CIRO Alerts (`/pages/ciro/alerts.html`)
+   - Comms Log (`/pages/ciro/communications.html`)
+   - Smart Quote Estimator (`/pages/smart-quote/`)
+   - Dev Console (`/pages/system/dev-console.html`)
+3. Note anything that feels broken or off — paste back to me in the next session.
+
 ### Open questions for next session
-- After Mary runs this and confirms all green, the next reasonable focus is the API-signup queue (LinkedIn first — free, fastest unlock).
+- Next focus per `docs/PLATFORM_BACKLOG.md`: **MCP AI chat widget in the admin dashboard** (so Mary asks questions in the dashboard instead of pasting bash commands). 1 focused session.
+- The free API signups (LinkedIn + Meta + TikTok + YouTube) can happen anytime in parallel — encourage Mary to start with LinkedIn (30 min, biggest unlock).
 
 ---
 
