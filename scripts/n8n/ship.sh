@@ -100,33 +100,30 @@ else
   fail "import unclear; continuing to activate anyway"
 fi
 
-# ─── 4. activate via REST API ────────────────────────────────────
+# ─── 4. activate by flipping active=1 in SQLite via Alpine sidecar ───
+# n8n CLI's `update:workflow --active=true` is deprecated in recent
+# versions and silently no-ops, returning exit 0 without changing the
+# row. We bypass the CLI and write directly to workflow_entity, then
+# restart so the webhook map reloads.
 step "4/6  Activate workflow"
-if [ -n "${N8N_API_KEY:-}" ]; then
-  ACT_HTTP=$(docker exec "$CONTAINER" sh -c "
-    apk add --no-cache curl >/dev/null 2>&1
-    curl -s -o /dev/null -w '%{http_code}' \
-      -X POST '${N8N_URL}/api/v1/workflows/${WF_ID}/activate' \
-      -H 'X-N8N-API-KEY: ${N8N_API_KEY}' \
-      -H 'Accept: application/json'
-  ")
-  if [ "$ACT_HTTP" = "200" ]; then
-    ok "activated via API"
-  else
-    say "${YELLOW}API activate returned HTTP $ACT_HTTP — falling back to CLI${RESET}"
-    docker exec "$CONTAINER" n8n update:workflow --id="$WF_ID" --active=true >/dev/null 2>&1 \
-      && ok "activated via CLI (fallback)" \
-      || fail "activation failed both ways"
-  fi
+VOLUME=$(docker inspect "$CONTAINER" --format '{{ (index .Mounts 0).Name }}' 2>/dev/null)
+if [ -z "$VOLUME" ]; then
+  fail "Could not detect n8n volume for container $CONTAINER"
+  exit 7
+fi
+ACT_OUT=$(docker run --rm -v "${VOLUME}:/data" alpine:3.18 sh -c "
+  apk add --no-cache sqlite >/dev/null 2>&1
+  sqlite3 /data/database.sqlite \"UPDATE workflow_entity SET active = 1 WHERE id = '${WF_ID}';\" 2>&1
+  echo --
+  sqlite3 /data/database.sqlite \"SELECT id, active FROM workflow_entity WHERE id = '${WF_ID}';\" 2>&1
+")
+# Output format: <update output> -- <id>|<active>
+ACT_STATE=$(echo "$ACT_OUT" | awk -F'|' '/^[a-zA-Z0-9]+\|/ { print $2 }' | head -1)
+if [ "$ACT_STATE" = "1" ]; then
+  ok "active = 1 in workflow_entity"
 else
-  say "${DIM}N8N_API_KEY not set; using CLI${RESET}"
-  CLI_OUT=$(docker exec "$CONTAINER" n8n update:workflow --id="$WF_ID" --active=true 2>&1)
-  if echo "$CLI_OUT" | grep -qi "No update flag"; then
-    fail "CLI rejected the flag. Set N8N_API_KEY in your env and re-run."
-    say "${DIM}$CLI_OUT${RESET}"
-    exit 7
-  fi
-  ok "activated via CLI"
+  fail "Could not flip active=1 (got: $ACT_OUT)"
+  exit 8
 fi
 
 # ─── 5. restart so webhooks register ─────────────────────────────
