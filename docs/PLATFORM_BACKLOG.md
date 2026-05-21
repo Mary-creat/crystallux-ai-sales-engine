@@ -10,7 +10,7 @@ Living list of everything in flight. Update as items complete.
 
 - [x] Verify the nuke fix — confirmed 2026-05-21, zero 404s, platform structurally healthy
 - [ ] **Apply `carrier-management-schema.sql`** so the Carriers Submissions page stops hanging (Mary, 30 sec in Supabase SQL Editor)
-- [ ] **Sales Engine page — wake it up.** Wire the three placeholder cards (Live Call, Script Suggestions, Post-Call Review) to their existing backend workflows + add a Recent Activity feed widget. ~1 session.
+- [x] **Sales Engine page — wake it up.** Added Today's activity grid + Recent activity feed wired to new `admin/sales-engine/activity` endpoint. Three placeholder cards collapsed into one honest "Voice operations" status panel that explains it activates automatically once Vapi traffic flows. Page now refreshes meaningful data every 14 s instead of showing static placeholders.
 - [ ] **Apply `sentinel-foundation-schema.sql`** so the Sentinel tabs (Overview / Costs / Health / Security / Remediation / Alerts) populate (Mary, 30 sec in Supabase).
 - [ ] **Add a "Communications" tab to Sentinel** showing delivery health (bounce rates, failed sends, Twilio status, WhatsApp delivery rate, Postmark spam complaints). Different data from CIRO's comms audit log. ~1 session.
 

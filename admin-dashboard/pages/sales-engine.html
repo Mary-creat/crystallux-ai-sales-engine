@@ -32,6 +32,23 @@
 .se-placeholder code { background:#f3f4f6; padding:1px 6px; border-radius:3px; font-size:11px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
 .se-placeholder-list { margin:8px 0 0; padding-left:20px; }
 .se-placeholder-list li { font-size:13px; color:var(--muted,#6b7280); margin:2px 0; }
+.today-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
+.today-cell { padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:#fff; }
+.today-cell-label { font-size:11px; color:var(--muted,#6b7280); text-transform:uppercase; letter-spacing:0.05em; font-weight:600; }
+.today-cell-value { font-size:24px; font-weight:700; margin-top:4px; color:var(--text,#0f172a); }
+.today-cell-value.muted { color:var(--muted,#6b7280); }
+.activity-feed { list-style:none; margin:0; padding:0; }
+.activity-item { display:flex; gap:12px; padding:10px 4px; border-bottom:1px solid #f1f5f9; }
+.activity-item:last-child { border-bottom:none; }
+.activity-dot { width:8px; height:8px; border-radius:50%; margin-top:7px; flex-shrink:0; }
+.activity-dot.lead { background:#0ea5e9; }
+.activity-dot.booking { background:#16a34a; }
+.activity-dot.email { background:#8b5cf6; }
+.activity-dot.outreach { background:#f59e0b; }
+.activity-dot.other { background:#9ca3af; }
+.activity-body { flex:1; min-width:0; }
+.activity-label { font-size:13px; color:var(--text,#0f172a); line-height:1.4; }
+.activity-meta { font-size:11px; color:var(--muted,#6b7280); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -81,39 +98,24 @@
       <div id="seStageGrid" class="se-stage-grid"><div class="clx-empty"><span class="clx-spinner"></span> Loading pipeline…</div></div>
     </div>
 
-    <!-- Live Call (Vapi) — placeholder pending workflow wire-up -->
+    <!-- Today's activity -->
     <div class="clx-card se-section">
-      <div class="clx-card-head"><div class="clx-card-title">Live call</div><div class="clx-card-sub">Real-time Vapi call state. Wired in follow-up commit.</div></div>
-      <div class="se-placeholder">
-        <h3>What this will show</h3>
-        <p>Active outbound / inbound calls in flight. For each call: lead, advisor, elapsed time, current transcript chunk, and the script suggestion (if any) currently displayed on the advisor's screen.</p>
-        <p style="margin-top:8px">Data source: <code>clx-agent-voice-outbound-v1</code> + <code>clx-agent-voice-inbound-v1</code> + <code>clx-vapi-transcript-streamer-v1</code> + <code>clx-realtime-script-suggester-v1</code>. The transcript streamer writes to <code>call_event_log</code>; this panel will poll that table every 14 s.</p>
-        <p style="margin-top:8px">Activation path: Mary configures the Vapi credential in n8n + activates the four workflows above. This panel will detect the live row and start rendering.</p>
-      </div>
+      <div class="clx-card-head"><div class="clx-card-title">Today</div><div class="clx-card-sub">Counts since midnight, refreshed every 14 s.</div></div>
+      <div id="seTodayGrid" class="today-grid"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
     </div>
 
-    <!-- Script suggestions — placeholder pending workflow wire-up -->
+    <!-- Recent activity -->
     <div class="clx-card se-section">
-      <div class="clx-card-head"><div class="clx-card-title">Script suggestions</div><div class="clx-card-sub">Closing / objection / discovery scripts surfaced in real time during an active call.</div></div>
-      <div class="se-placeholder">
-        <h3>What this will show</h3>
-        <p>The newest unresponded suggestion from <code>script_suggestion_log</code> for the active call, ranked by confidence. Advisor accepts / rejects → workflow logs back into the same table for the learning loop (<code>clx-script-learning-loop-v1</code>).</p>
-        <ul class="se-placeholder-list">
-          <li><strong>Discovery</strong> — open-ended questions for first 10 minutes</li>
-          <li><strong>Objection handling</strong> — surfaced when buy/closing signals dip</li>
-          <li><strong>Close</strong> — surfaced when buy signals spike + 15 min mark</li>
-        </ul>
-        <p style="margin-top:8px">Data source: <code>script_suggestion_log</code> + <code>closing_scripts</code> (defined in <code>db/migrations/missing-table-fixes.sql</code>).</p>
-      </div>
+      <div class="clx-card-head"><div class="clx-card-title">Recent activity</div><div class="clx-card-sub" id="seActivitySub">Last 15 events across leads, bookings, outreach and email.</div></div>
+      <ul id="seActivityFeed" class="activity-feed"><li class="clx-empty"><span class="clx-spinner"></span> Loading activity…</li></ul>
     </div>
 
-    <!-- Post-call review — placeholder pending workflow wire-up -->
+    <!-- Live voice / scripts / post-call panels — collapsed by default, expand when voice traffic exists -->
     <div class="clx-card se-section">
-      <div class="clx-card-head"><div class="clx-card-title">Post-call review</div><div class="clx-card-sub">Last 20 completed calls with sentiment + closing / buy signals + script-suggestion acceptance rate.</div></div>
+      <div class="clx-card-head"><div class="clx-card-title">Voice operations</div><div class="clx-card-sub">Live call / script suggestions / post-call review. Activates when voice workflows (Vapi) start writing to <code>call_event_log</code>.</div></div>
       <div class="se-placeholder">
-        <h3>What this will show</h3>
-        <p>Each completed call: lead name, advisor, duration, closing_signals_detected, buy_signals_detected, script_suggestions_shown / accepted, and the analyzer's outcome tag (set by <code>clx-post-call-analyzer-v1</code>).</p>
-        <p style="margin-top:8px">Data source: <code>call_event_log</code> + <code>agent_decisions</code>. The post-call analyzer writes an outcome row within ~60 s of hang-up; this table reads back over the last 24 h.</p>
+        <p>Three panels will populate here once voice traffic flows: <strong>Live call</strong> (transcript stream from <code>clx-vapi-transcript-streamer-v1</code>), <strong>Script suggestions</strong> (from <code>clx-realtime-script-suggester-v1</code>), and <strong>Post-call review</strong> (from <code>clx-post-call-analyzer-v1</code>). All three workflows exist; this panel currently aggregates 0 because no calls have landed yet.</p>
+        <p style="margin-top:8px">No action required. Activates automatically once Vapi is configured and a call comes in.</p>
       </div>
     </div>
 
@@ -162,9 +164,10 @@ function startCountdown() {
 }
 
 async function loadOnce() {
-  var [health, leads] = await Promise.all([
+  var [health, leads, activity] = await Promise.all([
     clxApi.adminGet('system-health'),
-    clxApi.adminGet('list-leads', { limit: 200 })
+    clxApi.adminGet('list-leads', { limit: 200 }),
+    clxApi.adminPost('sales-engine/activity', {})
   ]);
 
   // Hero counters — prefer system-health (already-aggregated) for total + booked,
@@ -208,8 +211,60 @@ async function loadOnce() {
     }).join('');
   }
 
+  // Today's activity grid
+  var todayGrid = document.getElementById('seTodayGrid');
+  if (activity && activity.ok && activity.data && activity.data.today_counts) {
+    var t = activity.data.today_counts;
+    var cells = [
+      ['New leads',  t.new_leads],
+      ['Emails',     t.emails_sent],
+      ['SMS',        t.sms_sent],
+      ['WhatsApp',   t.whatsapp],
+      ['Voice',      t.voice_calls],
+      ['Bookings',   t.bookings],
+      ['Touches',    t.total_touches]
+    ];
+    todayGrid.innerHTML = cells.map(function (c) {
+      var muted = (c[1] === 0) ? ' muted' : '';
+      return '<div class="today-cell"><div class="today-cell-label">' + escapeHtml(c[0]) + '</div><div class="today-cell-value' + muted + '">' + formatInt(c[1]) + '</div></div>';
+    }).join('');
+  } else {
+    todayGrid.innerHTML = '<div class="clx-empty">No activity yet.</div>';
+  }
+
+  // Recent activity feed
+  var feed = document.getElementById('seActivityFeed');
+  if (activity && activity.ok && activity.data && Array.isArray(activity.data.recent_activity) && activity.data.recent_activity.length) {
+    feed.innerHTML = activity.data.recent_activity.map(function (e) {
+      var dotCls = 'other';
+      if (e.kind === 'lead_created') dotCls = 'lead';
+      else if (e.kind === 'booking_created') dotCls = 'booking';
+      else if (e.kind === 'email_sent') dotCls = 'email';
+      else if (e.kind && e.kind.indexOf('outreach') === 0) dotCls = 'outreach';
+      return '<li class="activity-item">'
+        +   '<div class="activity-dot ' + dotCls + '"></div>'
+        +   '<div class="activity-body">'
+        +     '<div class="activity-label">' + escapeHtml(e.label || '') + '</div>'
+        +     '<div class="activity-meta">' + escapeHtml(timeAgo(e.ts)) + '</div>'
+        +   '</div>'
+        + '</li>';
+    }).join('');
+  } else {
+    feed.innerHTML = '<li class="clx-empty">No activity in the last sweep. As leads land and outreach fires, events appear here.</li>';
+  }
+
   // Reset the countdown so it visibly ticks back to 14 right after a refresh
   startCountdown();
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  var t = new Date(iso).getTime();
+  var diff = Math.floor((Date.now() - t) / 1000);
+  if (diff < 60)   return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff / 60)   + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
 }
 
 function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }

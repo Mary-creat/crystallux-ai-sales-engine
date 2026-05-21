@@ -1,0 +1,230 @@
+{
+  "id": "wfAdminSalesEngineActivityV1",
+  "name": "CLX - Admin Sales Engine Activity v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/sales-engine/activity",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ase-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-sales-engine-activity-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ase-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "ase-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ase-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ase-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id,company,industry,city,lead_status,date_created&order=date_created.desc&limit=15",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ase-0006",
+      "name": "Recent Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 160],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/bookings?select=id,lead_id,booking_at,channel,created_at&order=created_at.desc&limit=15",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ase-0007",
+      "name": "Recent Bookings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log?select=id,lead_id,channel,status,created_at&order=created_at.desc&limit=15",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ase-0008",
+      "name": "Recent Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_log?select=id,recipient,subject,sent_at,status&order=sent_at.desc&limit=15",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ase-0009",
+      "name": "Recent Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 640],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge recent activity from 4 sources -> today counts + last 15 events.\n// allOf() collects multi-row response items safely under both n8n auto-split\n// and non-split behaviours.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst leads     = allOf('Recent Leads');\nconst bookings  = allOf('Recent Bookings');\nconst outreach  = allOf('Recent Outreach');\nconst emails    = allOf('Recent Emails');\n\nconst startOfToday = new Date(); startOfToday.setHours(0,0,0,0);\nconst startMs = startOfToday.getTime();\n\nconst isToday = function (iso) { if (!iso) return false; var t = new Date(iso).getTime(); return t >= startMs; };\n\nconst events = [];\n\nleads.forEach(function (l) {\n  if (!l || !l.date_created) return;\n  var label = (l.company || 'Lead') + ' \\u2014 ' + (l.industry || 'unknown industry') + (l.city ? ' \\u2022 ' + l.city : '');\n  events.push({ ts: l.date_created, kind: 'lead_created', label: label, status: l.lead_status });\n});\n\nbookings.forEach(function (b) {\n  if (!b || !b.created_at) return;\n  var when = b.booking_at ? new Date(b.booking_at).toISOString().slice(0,16).replace('T',' ') : 'TBD';\n  events.push({ ts: b.created_at, kind: 'booking_created', label: 'Booking for ' + when + (b.channel ? ' (' + b.channel + ')' : ''), status: null });\n});\n\noutreach.forEach(function (o) {\n  if (!o || !o.created_at) return;\n  var ch = (o.channel || 'outreach').toLowerCase();\n  events.push({ ts: o.created_at, kind: 'outreach_' + ch, label: ch.toUpperCase() + ' sent' + (o.status ? ' \\u2014 ' + o.status : ''), status: o.status });\n});\n\nemails.forEach(function (e) {\n  if (!e || !e.sent_at) return;\n  var subj = e.subject ? (e.subject.length > 64 ? e.subject.slice(0,61) + '\\u2026' : e.subject) : '(no subject)';\n  events.push({ ts: e.sent_at, kind: 'email_sent', label: 'Email \\u2014 ' + subj + (e.recipient ? ' to ' + e.recipient : ''), status: e.status });\n});\n\nevents.sort(function (a, b) { return new Date(b.ts).getTime() - new Date(a.ts).getTime(); });\nconst recent = events.slice(0, 15);\n\nconst todayLeads    = leads.filter(function (l) { return isToday(l.date_created); }).length;\nconst todayBookings = bookings.filter(function (b) { return isToday(b.created_at); }).length;\nconst todayOutreach = outreach.filter(function (o) { return isToday(o.created_at); });\nconst todayEmails   = emails.filter(function (e) { return isToday(e.sent_at); }).length;\n\nconst byChannel = { sms: 0, whatsapp: 0, linkedin: 0, voice: 0, other: 0 };\ntodayOutreach.forEach(function (o) {\n  var c = (o.channel || '').toLowerCase();\n  if (byChannel[c] != null) byChannel[c]++; else byChannel.other++;\n});\n\nreturn { json: { ok: true, data: {\n  today_counts: {\n    new_leads:   todayLeads,\n    bookings:    todayBookings,\n    emails_sent: todayEmails,\n    sms_sent:    byChannel.sms,\n    whatsapp:    byChannel.whatsapp,\n    voice_calls: byChannel.voice,\n    total_touches: todayEmails + byChannel.sms + byChannel.whatsapp + byChannel.linkedin + byChannel.voice + byChannel.other\n  },\n  recent_activity: recent\n} } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ase-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 400]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      },
+      "id": "ase-0011",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2080, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized', status: $json.status || 401 } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "ase-0012",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 800]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Token",    "type": "main", "index": 0 }]] },
+    "Extract Token":    { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [
+          { "node": "Recent Leads",    "type": "main", "index": 0 },
+          { "node": "Recent Bookings", "type": "main", "index": 0 },
+          { "node": "Recent Outreach", "type": "main", "index": 0 },
+          { "node": "Recent Emails",   "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond Unauthorized", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Recent Leads":    { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Recent Bookings": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Recent Outreach": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Recent Emails":   { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":  { "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}
