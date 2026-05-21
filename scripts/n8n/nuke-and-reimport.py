@@ -120,7 +120,7 @@ PROBE_ENDPOINTS = [
     'admin/luxi/auctions', 'admin/luxi/auctions/manage', 'admin/luxi/place-bid',
     'admin/ciro/alerts',
     'maxi/industries', 'maxi/industry-detail',
-    'avatars/list', 'avatars/router',
+    'avatars/list', 'avatars/route',
     'api/carriers/status-check', 'api/carriers/commission-calc',
     'api/carriers/reconciliation', 'api/carriers/submission', 'api/carriers/update',
     'api/sentinel/health/summary', 'api/sentinel/security/summary',
