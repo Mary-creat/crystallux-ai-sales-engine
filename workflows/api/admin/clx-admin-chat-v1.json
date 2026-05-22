@@ -1,0 +1,173 @@
+{
+  "id": "wfAdminChatV1",
+  "name": "CLX - Admin Chat v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ach-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-chat-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst message = (body.message || '').toString().trim();\nif (!message) return { json: { ok: false, status: 400, error: 'Missing message' } };\nif (message.length > 4000) return { json: { ok: false, status: 400, error: 'Message too long (max 4000 chars)' } };\nconst history = Array.isArray(body.history) ? body.history.slice(-20) : [];\nreturn { json: { token, message, history } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ach-0002",
+      "name": "Extract Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "ach-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true, user_id: row.user_id || row.id, user_email: row.user_email || row.email } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ach-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ach-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Anthropic request body. Merge prior chat history with the\n// new user message. The system prompt anchors Claude to Crystallux\n// context so answers are grounded.\nconst inp     = $('Extract Input').first().json;\nconst message = inp.message;\nconst history = inp.history || [];\n\nconst systemPrompt = [\n  'You are the Crystallux Assistant — an in-app helper for Mary (the platform founder) and any admin user logged into the Crystallux dashboard.',\n  '',\n  'Be helpful, concise, and direct. Match the tone of a senior teammate: warm but no fluff, no marketing language, no apologies. Use plain words, not jargon. When relevant, suggest concrete next actions Mary can take in the dashboard or on her VPS.',\n  '',\n  'About the platform Mary built:',\n  '- Crystallux is a sales operating system: lead discovery (city scan), AI-driven outreach (email/SMS/WhatsApp/voice via Vapi), booking automation, post-call analysis, behavioral intelligence, and per-channel reporting.',\n  '- It is multi-vertical: Smart Quote handles 7 industries (insurance_personal, construction, dental, cleaning, restaurants, moving, beauty) plus MAXI templates for 21 SMB industries.',\n  '- Avatars: LUXI (live commerce auctions), AVA (insurance education broadcasts), MAXI (SMB growth), CIRO (operations + alerts + comms log), MGA (insurance Managing General Agency — advisor onboarding, carrier ops, compliance, suitability).',\n  '- Sentinel monitors cost, health, security, comms delivery, and can auto-pause workflows on threshold breaches.',\n  '- Frontend: Cloudflare Pages (admin / client / mga / public marketing). Backend: n8n workflows + Supabase Postgres + Postmark + Twilio + Vapi + Stripe.',\n  '',\n  'Key admin pages Mary uses:',\n  '- /pages/overview.html (KPIs)',\n  '- /pages/sales-engine.html (lead pipeline + today activity + recent events)',\n  '- /pages/sentinel.html (Overview/Costs/Health/Security/Communications/Remediation/Alerts tabs)',\n  '- /pages/ciro/communications.html (unified comms audit log)',\n  '- /pages/ciro/alerts.html (CIRO alerts feed)',\n  '- /pages/smart-quote/ (Estimator)',\n  '- /pages/avatars/luxi/ (auctions + manual bid entry)',\n  '- /pages/avatars/ava/ (broadcasts + schedule)',\n  '- /pages/carriers/ (appointments, submissions, commissions, reconciliation)',\n  '- /pages/system/dev-console.html (webhook probe + content edit links)',\n  '',\n  'Standing rules for your answers:',\n  '- If the user asks about platform status, suggest which dashboard page to look at and what they should expect to see.',\n  '- If the user asks to TAKE an action (send an email, create a booking, schedule a broadcast), explain that action execution is coming in the next chat-widget version. Today you can only answer questions and suggest commands. Be honest about that limit.',\n  '- If asked about API signups or vendor setup, refer to docs/PLATFORM_BACKLOG.md item 9 in the repo for the priority order.',\n  '- Never invent statistics, metrics, or features that do not exist. If you do not know, say so and suggest where to look.',\n  '- Never reveal internal table names or workflow IDs unless asked specifically by a technical user. Mary knows the system well enough to ask precisely; default to outcome language.',\n  '- Keep answers under 200 words unless the user asks for detail.',\n  '- No em-dashes. Use periods, commas, line breaks instead.'\n].join('\\n');\n\n// Build the messages array. Keep only role+content from history.\nconst messages = [];\nhistory.forEach(function (m) {\n  if (!m || !m.role || !m.content) return;\n  if (m.role !== 'user' && m.role !== 'assistant') return;\n  if (m.role === history[history.length - 1].role && m.content === history[history.length - 1].content) return; // dedup\n  messages.push({ role: m.role, content: String(m.content).slice(0, 4000) });\n});\nmessages.push({ role: 'user', content: message });\n\nreturn { json: {\n  payload: {\n    model: 'claude-sonnet-4-6',\n    max_tokens: 1024,\n    system: systemPrompt,\n    messages: messages\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ach-0006",
+      "name": "Build Anthropic Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": { "response": { "response": { "neverError": true } }, "timeout": 30000 }
+      },
+      "id": "ach-0007",
+      "name": "Call Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 220],
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Anthropic /v1/messages returns { content: [{ type: 'text', text: '...' }] }\n// on success, or { error: { message: '...' } } on failure.\nconst r = $input.item.json;\nif (!r || r.type === 'error' || r.error) {\n  const err = (r && (r.error && r.error.message)) || 'Claude call failed';\n  return { json: { ok: false, status: 502, error: err } };\n}\nconst textBlock = (r.content || []).find(function (c) { return c && c.type === 'text'; });\nconst text = textBlock ? textBlock.text : '';\nif (!text) {\n  return { json: { ok: false, status: 502, error: 'Empty response from Claude' } };\n}\nreturn { json: { ok: true, data: {\n  response: text,\n  model: r.model || null,\n  stop_reason: r.stop_reason || null,\n  usage: r.usage || null\n} } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ach-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Cache-Control", "value": "no-store" }]
+          }
+        }
+      },
+      "id": "ach-0009",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2120, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized', status: $json.status || 401 } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "ach-0010",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 500]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Input",    "type": "main", "index": 0 }]] },
+    "Extract Input":    { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [ { "node": "Build Anthropic Request", "type": "main", "index": 0 } ],
+        [ { "node": "Respond Unauthorized",    "type": "main", "index": 0 } ]
+      ]
+    },
+    "Build Anthropic Request": { "main": [[{ "node": "Call Claude",     "type": "main", "index": 0 }]] },
+    "Call Claude":             { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":          { "main": [[{ "node": "Respond",        "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}

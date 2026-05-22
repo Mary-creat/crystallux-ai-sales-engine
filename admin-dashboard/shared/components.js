@@ -614,6 +614,176 @@
     progressBar: progressBar,
     avatar: avatar,
     scoreBar: scoreBar,
-    sectionHead: sectionHead
+    sectionHead: sectionHead,
+    injectChat: injectChat
   };
+
+  // ───────────────────────────────────────────────────────────────
+  // Floating chat widget — Mary's MCP-style assistant. Lives bottom-right
+  // on every admin page; opens a panel that POSTs to admin/chat.
+  // v1: text Q&A. v2 adds tool execution + action confirmation.
+  // ───────────────────────────────────────────────────────────────
+  function injectChat() {
+    if (document.getElementById('clxChatRoot')) return;
+    var root = document.createElement('div');
+    root.id = 'clxChatRoot';
+    root.innerHTML = ''
+      + '<style>'
+      + '#clxChatBtn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:#0f4c81;color:#fff;border:none;cursor:pointer;box-shadow:0 6px 24px rgba(15,76,129,0.4);z-index:9998;display:flex;align-items:center;justify-content:center;transition:transform 0.15s;}'
+      + '#clxChatBtn:hover{transform:scale(1.06);}'
+      + '#clxChatBtn svg{width:24px;height:24px;}'
+      + '#clxChatPanel{position:fixed;bottom:92px;right:24px;width:380px;max-width:calc(100vw - 48px);height:560px;max-height:calc(100vh - 120px);background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,0.18);z-index:9999;display:none;flex-direction:column;overflow:hidden;}'
+      + '#clxChatPanel.open{display:flex;}'
+      + '.clx-chat-head{padding:14px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#0f4c81 0%,#1a6fa5 100%);color:#fff;}'
+      + '.clx-chat-head-title{font-size:14px;font-weight:700;}'
+      + '.clx-chat-head-sub{font-size:11px;opacity:0.85;margin-top:2px;}'
+      + '.clx-chat-close{background:none;border:none;color:#fff;cursor:pointer;font-size:20px;line-height:1;opacity:0.9;}'
+      + '.clx-chat-close:hover{opacity:1;}'
+      + '.clx-chat-body{flex:1;overflow-y:auto;padding:14px;background:#f9fafb;}'
+      + '.clx-chat-msg{margin-bottom:10px;display:flex;}'
+      + '.clx-chat-msg.user{justify-content:flex-end;}'
+      + '.clx-chat-bubble{max-width:80%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;}'
+      + '.clx-chat-msg.user .clx-chat-bubble{background:#0f4c81;color:#fff;border-bottom-right-radius:4px;}'
+      + '.clx-chat-msg.assistant .clx-chat-bubble{background:#fff;color:#0f172a;border:1px solid #e5e7eb;border-bottom-left-radius:4px;}'
+      + '.clx-chat-msg.system .clx-chat-bubble{background:#fef3c7;color:#92400e;font-size:12px;border:1px solid #fde68a;}'
+      + '.clx-chat-typing{display:inline-block;}'
+      + '.clx-chat-typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:#9ca3af;margin:0 2px;animation:clx-bounce 1.2s infinite ease-in-out;}'
+      + '.clx-chat-typing span:nth-child(2){animation-delay:0.15s;}'
+      + '.clx-chat-typing span:nth-child(3){animation-delay:0.3s;}'
+      + '@keyframes clx-bounce{0%,80%,100%{opacity:0.3;transform:translateY(0);}40%{opacity:1;transform:translateY(-4px);}}'
+      + '.clx-chat-foot{border-top:1px solid #e5e7eb;padding:10px 12px;background:#fff;}'
+      + '.clx-chat-input{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;resize:none;outline:none;min-height:40px;max-height:120px;}'
+      + '.clx-chat-input:focus{border-color:#0f4c81;}'
+      + '.clx-chat-foot-actions{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}'
+      + '.clx-chat-hint{font-size:10px;color:#6b7280;}'
+      + '.clx-chat-send{background:#0f4c81;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;}'
+      + '.clx-chat-send:disabled{background:#9ca3af;cursor:not-allowed;}'
+      + '</style>'
+      + '<button id="clxChatBtn" aria-label="Open assistant">'
+      +   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+      +     '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>'
+      +   '</svg>'
+      + '</button>'
+      + '<div id="clxChatPanel" role="dialog" aria-label="Crystallux assistant">'
+      +   '<div class="clx-chat-head">'
+      +     '<div>'
+      +       '<div class="clx-chat-head-title">Crystallux Assistant</div>'
+      +       '<div class="clx-chat-head-sub">Ask anything about your platform</div>'
+      +     '</div>'
+      +     '<button class="clx-chat-close" id="clxChatClose" aria-label="Close">&times;</button>'
+      +   '</div>'
+      +   '<div class="clx-chat-body" id="clxChatBody"></div>'
+      +   '<div class="clx-chat-foot">'
+      +     '<textarea class="clx-chat-input" id="clxChatInput" placeholder="Ask me anything…" rows="1"></textarea>'
+      +     '<div class="clx-chat-foot-actions">'
+      +       '<div class="clx-chat-hint">Press Enter to send · Shift+Enter for newline</div>'
+      +       '<button class="clx-chat-send" id="clxChatSend">Send</button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
+    document.body.appendChild(root);
+
+    var btn      = document.getElementById('clxChatBtn');
+    var panel    = document.getElementById('clxChatPanel');
+    var closeBtn = document.getElementById('clxChatClose');
+    var body     = document.getElementById('clxChatBody');
+    var input    = document.getElementById('clxChatInput');
+    var sendBtn  = document.getElementById('clxChatSend');
+
+    var history = [];
+    var sending = false;
+
+    function open() {
+      panel.classList.add('open');
+      if (!history.length) {
+        appendMsg('assistant', 'Hi Mary. I can help you understand what is happening on the platform, suggest next steps, or explain how to use features. What is on your mind?');
+      }
+      setTimeout(function () { input.focus(); }, 100);
+    }
+    function close() { panel.classList.remove('open'); }
+    btn.addEventListener('click', function () {
+      if (panel.classList.contains('open')) close(); else open();
+    });
+    closeBtn.addEventListener('click', close);
+
+    function appendMsg(role, text) {
+      history.push({ role: role, content: text });
+      var msg = document.createElement('div');
+      msg.className = 'clx-chat-msg ' + role;
+      var bub = document.createElement('div');
+      bub.className = 'clx-chat-bubble';
+      bub.textContent = text;
+      msg.appendChild(bub);
+      body.appendChild(msg);
+      body.scrollTop = body.scrollHeight;
+    }
+
+    function appendTyping() {
+      var msg = document.createElement('div');
+      msg.className = 'clx-chat-msg assistant';
+      msg.id = 'clxChatTyping';
+      var bub = document.createElement('div');
+      bub.className = 'clx-chat-bubble';
+      bub.innerHTML = '<span class="clx-chat-typing"><span></span><span></span><span></span></span>';
+      msg.appendChild(bub);
+      body.appendChild(msg);
+      body.scrollTop = body.scrollHeight;
+    }
+    function removeTyping() {
+      var t = document.getElementById('clxChatTyping');
+      if (t) t.parentNode.removeChild(t);
+    }
+
+    function send() {
+      if (sending) return;
+      var text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      appendMsg('user', text);
+      sending = true;
+      sendBtn.disabled = true;
+      appendTyping();
+      clxApi.adminPost('chat', { message: text, history: history.slice(-20) }).then(function (res) {
+        removeTyping();
+        sending = false;
+        sendBtn.disabled = false;
+        if (res.ok && res.data && res.data.response) {
+          appendMsg('assistant', res.data.response);
+        } else {
+          appendMsg('system', res.error || (res.data && res.data.error) || 'Something went wrong. Please try again.');
+        }
+      }).catch(function () {
+        removeTyping();
+        sending = false;
+        sendBtn.disabled = false;
+        appendMsg('system', 'Could not reach the assistant. Check network or n8n.');
+      });
+    }
+
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+  }
+
+  // Auto-inject after auth resolves. Each admin page calls
+  // clxAuth.require(...) which populates window.clxAuth.user; we poll
+  // briefly for that to land, then inject once. Pages that don't want the
+  // chat can set window.CLX_AUTO_CHAT = false before loading components.js.
+  if (window.CLX_AUTO_CHAT !== false) {
+    var injectTries = 0;
+    var injectTimer = setInterval(function () {
+      injectTries++;
+      if (window.clxAuth && window.clxAuth.user && window.clxAuth.user.user_role === 'admin') {
+        clearInterval(injectTimer);
+        injectChat();
+      } else if (injectTries > 20) {
+        // Stop polling after ~10 seconds; non-admin pages just don't get the widget
+        clearInterval(injectTimer);
+      }
+    }, 500);
+  }
 })(window);

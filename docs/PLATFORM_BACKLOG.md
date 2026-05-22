@@ -17,15 +17,11 @@ Living list of everything in flight. Update as items complete.
 
 ## 1. MCP AI chat widget in admin dashboard
 
-- [ ] Chat widget bottom-right of admin (Intercom-style)
-- [ ] Wired to `CLX - MCP Tool Gateway` workflow
-- [ ] 10 starter tools (list leads, search clients, fetch client detail, send email to lead, send SMS to lead, create booking, fetch quote, run report, audit endpoint, schedule avatar broadcast)
-- [ ] Conversation memory per session
-- [ ] Action confirmation for destructive operations
-- [ ] Audit log of every action taken
-- [ ] Add more tools on demand as you identify them
+- [x] **v1 chat widget shipped** — floating bottom-right button on every admin page, opens a panel that talks to Claude (Sonnet 4.6) via new `admin/chat` workflow. System prompt anchors Claude to Crystallux context. Conversation memory in-session (last 20 messages sent to Claude).
+- [ ] **v2: tool execution.** Wire up tool calls so Claude can actually DO things: list leads, search clients, fetch client detail, send email/SMS to lead, create booking, fetch quote, run report, audit endpoint, schedule avatar broadcast. Action confirmation for destructive ops. Audit log of every action taken in `admin_chat_audit_log` table.
+- [ ] **v3: persistent chat history** in `admin_chat_sessions` + `admin_chat_messages` tables so conversations survive page reload.
 
-**Why:** so you can give commands directly in the dashboard instead of running terminal commands.
+**Why:** so you can give commands directly in the dashboard instead of running terminal commands. v1 lets you ask questions; v2 lets you take actions.
 
 ## 2. DevOps Digital Employee
 
