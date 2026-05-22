@@ -60,6 +60,36 @@ CREATE TABLE IF NOT EXISTS market_signals_processed (
   updated_at               timestamptz DEFAULT now()
 );
 
+-- Defensive ADD COLUMN for tables that may already exist from earlier
+-- partial migrations. IF NOT EXISTS on CREATE TABLE only protects the
+-- first creation — subsequent column additions need ALTER.
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS raw_signal_id          uuid;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS signal_type            text;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS headline               text;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS summary                text;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS affected_regions       jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS affected_verticals     jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS messaging_angle        text;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS suggested_pain_signals jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS decay_time_days        int DEFAULT 30;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS confidence             text DEFAULT 'low';
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS source_url             text;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS claude_model_used      text;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS tokens_consumed        int DEFAULT 0;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS needs_review           boolean DEFAULT false;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS created_at             timestamptz DEFAULT now();
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS updated_at             timestamptz DEFAULT now();
+
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS source       text;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS external_id  text;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS raw_payload  jsonb;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS raw_url      text;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS fetched_at   timestamptz DEFAULT now();
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS processed    boolean DEFAULT false;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS needs_review boolean DEFAULT false;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS parse_error  text;
+ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS created_at   timestamptz DEFAULT now();
+
 DO $$ BEGIN
   ALTER TABLE market_signals_processed
     ADD CONSTRAINT msp_signal_type_check
