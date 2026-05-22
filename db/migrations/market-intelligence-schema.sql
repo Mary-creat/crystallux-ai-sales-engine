@@ -151,10 +151,21 @@ CREATE TABLE IF NOT EXISTS signal_routing_log (
   metadata              jsonb DEFAULT '{}'::jsonb
 );
 
+-- Defensive ADD COLUMN for tables that may pre-exist
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS signal_id           uuid;
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS lead_id             uuid;
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS client_id           uuid;
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS campaign_name       text;
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS outreach_multiplier numeric(4,2);
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS decision_type       text;
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS applied_at          timestamptz DEFAULT now();
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS outreach_id         uuid;
+ALTER TABLE signal_routing_log ADD COLUMN IF NOT EXISTS metadata            jsonb DEFAULT '{}'::jsonb;
+
 DO $$ BEGIN
   ALTER TABLE signal_routing_log
     ADD CONSTRAINT srl_decision_check
-    CHECK (decision_type IN ('scale_up','scale_down','message_swap','channel_boost','skip'));
+    CHECK (decision_type IS NULL OR decision_type IN ('scale_up','scale_down','message_swap','channel_boost','skip'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS idx_srl_signal_recent
@@ -178,6 +189,15 @@ CREATE TABLE IF NOT EXISTS client_signal_preferences (
   updated_at                  timestamptz DEFAULT now(),
   UNIQUE (client_id, signal_type)
 );
+
+-- Defensive ADD COLUMN for tables that may pre-exist
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS client_id                  uuid;
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS signal_type                text;
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS enabled                    boolean DEFAULT true;
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS custom_outreach_multiplier numeric(4,2);
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS custom_messaging_overlay   text;
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS created_at                 timestamptz DEFAULT now();
+ALTER TABLE client_signal_preferences ADD COLUMN IF NOT EXISTS updated_at                 timestamptz DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_csp_client
   ON client_signal_preferences(client_id, enabled);
