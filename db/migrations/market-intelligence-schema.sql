@@ -80,6 +80,28 @@ ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS needs_review      
 ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS created_at             timestamptz DEFAULT now();
 ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS updated_at             timestamptz DEFAULT now();
 
+-- Columns the existing clx-campaign-router-v2 + clx-outreach-generation-v2
+-- workflows already query against. `active` is a soft retire flag; the
+-- workflows use it to filter to currently-influencing signals. `processed_at`
+-- is the timestamp Claude classified the signal (kept distinct from
+-- created_at so analytics can separate the two). `expires_at` is computed
+-- automatically from created_at + decay_time_days.
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS active        boolean     DEFAULT true;
+ALTER TABLE market_signals_processed ADD COLUMN IF NOT EXISTS processed_at  timestamptz DEFAULT now();
+
+DO $$ BEGIN
+  ALTER TABLE market_signals_processed
+    ADD COLUMN expires_at timestamptz
+    GENERATED ALWAYS AS (created_at + (decay_time_days || ' days')::interval) STORED;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+CREATE INDEX IF NOT EXISTS idx_msp_active_expires
+  ON market_signals_processed(active, expires_at)
+  WHERE active = true;
+
+CREATE INDEX IF NOT EXISTS idx_msp_processed_at
+  ON market_signals_processed(processed_at DESC);
+
 ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS source       text;
 ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS external_id  text;
 ALTER TABLE market_signals_raw       ADD COLUMN IF NOT EXISTS raw_payload  jsonb;
@@ -163,14 +185,15 @@ CREATE INDEX IF NOT EXISTS idx_csp_client
 -- ══════════════════════════════════════════════════════════════════
 -- Convenience view: active signals (not decayed, not needs_review) ──
 -- ══════════════════════════════════════════════════════════════════
-CREATE OR REPLACE VIEW v_active_market_signals AS
+DROP VIEW IF EXISTS v_active_market_signals;
+CREATE VIEW v_active_market_signals AS
 SELECT
   msp.*,
-  (msp.created_at + (msp.decay_time_days || ' days')::interval) AS expires_at,
   EXTRACT(EPOCH FROM (now() - msp.created_at)) / 3600 AS age_hours
 FROM market_signals_processed msp
 WHERE msp.needs_review = false
-  AND now() < (msp.created_at + (msp.decay_time_days || ' days')::interval)
+  AND msp.active = true
+  AND now() < msp.expires_at
 ORDER BY msp.created_at DESC;
 
 -- ══════════════════════════════════════════════════════════════════
