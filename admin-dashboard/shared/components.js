@@ -615,8 +615,69 @@
     avatar: avatar,
     scoreBar: scoreBar,
     sectionHead: sectionHead,
-    injectChat: injectChat
+    injectChat: injectChat,
+    injectNavArrows: injectNavArrows
   };
+
+  /* ───────────────────────────────────────────────────────────────
+     Browser-style back/forward arrows in the admin topbar.
+     Injects next to the burger button. Wires history.back / history.forward
+     and disables each button when at the end of the history stack.
+     Auto-injects on DOMContentLoaded.
+     ─────────────────────────────────────────────────────────────── */
+  function injectNavArrows() {
+    var topbarLeft = document.querySelector('.clx-topbar-left');
+    if (!topbarLeft) return;
+    if (topbarLeft.querySelector('.clx-nav-arrows')) return;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'clx-nav-arrows';
+    wrap.innerHTML =
+      '<button type="button" id="clxNavBack" aria-label="Back">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
+      '</button>' +
+      '<button type="button" id="clxNavFwd" aria-label="Forward">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>' +
+      '</button>';
+
+    // Insert right after the burger (or at start if no burger)
+    var burger = topbarLeft.querySelector('.clx-burger');
+    if (burger) {
+      burger.insertAdjacentElement('afterend', wrap);
+    } else {
+      topbarLeft.insertAdjacentElement('afterbegin', wrap);
+    }
+
+    var backBtn = document.getElementById('clxNavBack');
+    var fwdBtn  = document.getElementById('clxNavFwd');
+
+    function updateState() {
+      // history.length includes the current page. If it's 1, no back possible.
+      // There is no clean API to detect forward availability; we leave it
+      // enabled and rely on the browser to no-op when there's nothing forward.
+      if (backBtn) backBtn.disabled = (history.length <= 1);
+    }
+
+    if (backBtn) backBtn.addEventListener('click', function () { history.back(); });
+    if (fwdBtn)  fwdBtn.addEventListener('click',  function () { history.forward(); });
+
+    updateState();
+    window.addEventListener('popstate', updateState);
+  }
+
+  // Auto-inject arrows once auth resolves + topbar is in DOM
+  if (window.CLX_AUTO_NAV_ARROWS !== false) {
+    var arrowTries = 0;
+    var arrowTimer = setInterval(function () {
+      arrowTries++;
+      if (document.querySelector('.clx-topbar-left')) {
+        clearInterval(arrowTimer);
+        injectNavArrows();
+      } else if (arrowTries > 20) {
+        clearInterval(arrowTimer);
+      }
+    }, 250);
+  }
 
   // ───────────────────────────────────────────────────────────────
   // Floating chat widget — Mary's MCP-style assistant. Lives bottom-right
