@@ -1,0 +1,263 @@
+{
+  "id": "wfAdminSentinelCommsHealthV1",
+  "name": "CLX - Admin Sentinel Comms Health v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/sentinel/comms/summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "sch-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-sentinel-comms-health-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sch-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "sch-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sch-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "sch-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_log?select=id,recipient,subject,sent_at,status&order=sent_at.desc&sent_at=gte.' + new Date(Date.now() - 30*86400000).toISOString() + '&limit=2000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "sch-0006",
+      "name": "Email Log 30d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 140],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/messages_sent?select=id,recipient,channel,status,sent_at,error&order=sent_at.desc&sent_at=gte.' + new Date(Date.now() - 30*86400000).toISOString() + '&limit=2000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "sch-0007",
+      "name": "Messages 30d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log?select=id,lead_id,channel,status,created_at,error_message&order=created_at.desc&created_at=gte.' + new Date(Date.now() - 30*86400000).toISOString() + '&limit=2000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "sch-0008",
+      "name": "Outreach 30d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 420],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?unsubscribed=eq.true&select=id,full_name,email,unsubscribed_at,company&order=unsubscribed_at.desc&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "sch-0009",
+      "name": "Unsubscribed Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 560],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?do_not_contact=eq.true&select=id,full_name,email,company&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "sch-0010",
+      "name": "DNC Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 700],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=count",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "sch-0011",
+      "name": "Lead Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 820],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sentinel Communications Health — aggregates delivery quality across\n// email / SMS / WhatsApp / voice channels over the last 30 days. Reports\n// per-channel delivery rate, top failures, bounce + complaint counts,\n// unsubscribe + do-not-contact totals, and a 14-day volume trend.\n//\n// Data sources:\n//   - email_log       (sent_at, status; statuses observed: sent, bounced, complained, dropped, deferred)\n//   - messages_sent   (channel, status, error; statuses: sent, delivered, failed, undelivered)\n//   - outreach_log    (channel, status, error_message)\n//   - leads.unsubscribed / leads.do_not_contact (canonical opt-out flags)\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst emails    = allOf('Email Log 30d');\nconst messages  = allOf('Messages 30d');\nconst outreach  = allOf('Outreach 30d');\nconst unsubs    = allOf('Unsubscribed Leads');\nconst dnc       = allOf('DNC Leads');\nconst leadCntRaw= allOf('Lead Count');\nconst totalLeads = (leadCntRaw[0] && leadCntRaw[0].count != null) ? Number(leadCntRaw[0].count) : null;\n\n// Helpers ---------------------------------------------------------\nconst isFailure = function (status, channel) {\n  const s = (status || '').toLowerCase();\n  if (!s) return false;\n  if (s === 'failed' || s === 'undelivered' || s === 'bounced' || s === 'dropped' || s === 'deferred' || s === 'rejected' || s === 'error') return true;\n  return false;\n};\nconst isComplaint = function (status) {\n  const s = (status || '').toLowerCase();\n  return s === 'complained' || s === 'spam' || s === 'spam_complaint';\n};\nconst isDelivered = function (status) {\n  const s = (status || '').toLowerCase();\n  return s === 'sent' || s === 'delivered' || s === 'queued' || s === 'success';\n};\n\nconst now = Date.now();\n\n// Per-channel aggregation -----------------------------------------\nconst per = { email: empty(), sms: empty(), whatsapp: empty(), voice: empty(), other: empty() };\nfunction empty() { return { sent: 0, delivered: 0, failed: 0, complaints: 0, total: 0 }; }\n\n// Email log\nemails.forEach(function (r) {\n  if (!r) return;\n  per.email.total++;\n  if (isFailure(r.status))  per.email.failed++;\n  else if (isDelivered(r.status)) per.email.delivered++;\n  if (isComplaint(r.status))      per.email.complaints++;\n});\n\n// messages_sent — channel-tagged\nmessages.forEach(function (r) {\n  if (!r) return;\n  var c = (r.channel || 'other').toLowerCase();\n  if (!per[c]) c = 'other';\n  per[c].total++;\n  if (isFailure(r.status))  per[c].failed++;\n  else if (isDelivered(r.status)) per[c].delivered++;\n});\n\n// outreach_log — channel-tagged, treat as touches\noutreach.forEach(function (r) {\n  if (!r) return;\n  var c = (r.channel || 'other').toLowerCase();\n  if (!per[c]) c = 'other';\n  per[c].total++;\n  if (isFailure(r.status))  per[c].failed++;\n  else if (isDelivered(r.status)) per[c].delivered++;\n});\n\n// Compute delivery rate per channel\nObject.keys(per).forEach(function (k) {\n  var x = per[k];\n  x.delivery_rate = x.total > 0 ? Math.round((x.delivered / x.total) * 1000) / 10 : null;\n});\n\n// Recent failures across all channels (last 10) -------------------\nconst failures = [];\nemails.forEach(function (r) {\n  if (r && isFailure(r.status)) failures.push({ ts: r.sent_at, channel: 'email', recipient: r.recipient || '(unknown)', reason: r.status, subject: r.subject });\n});\nmessages.forEach(function (r) {\n  if (r && (isFailure(r.status) || r.error)) failures.push({ ts: r.sent_at, channel: (r.channel || 'other').toLowerCase(), recipient: r.recipient || '(unknown)', reason: r.error || r.status });\n});\noutreach.forEach(function (r) {\n  if (r && (isFailure(r.status) || r.error_message)) failures.push({ ts: r.created_at, channel: (r.channel || 'other').toLowerCase(), recipient: r.lead_id || '(lead)', reason: r.error_message || r.status });\n});\nfailures.sort(function (a, b) { return new Date(b.ts).getTime() - new Date(a.ts).getTime(); });\nconst recentFailures = failures.slice(0, 10);\n\n// Spam complaints — best effort (Postmark webhook ingestion needed for live tracking)\nconst spamRecent = emails.filter(function (r) { return r && isComplaint(r.status); })\n  .slice(0, 10)\n  .map(function (r) { return { ts: r.sent_at, recipient: r.recipient, subject: r.subject }; });\n\n// Volume trend last 14 days per channel ---------------------------\nconst days = [];\nconst dayMap = {};\nfor (var i = 13; i >= 0; i--) {\n  var d = new Date(now - i * 86400000);\n  var key = d.toISOString().slice(0, 10);\n  days.push(key);\n  dayMap[key] = { date: key, email: 0, sms: 0, whatsapp: 0, voice: 0 };\n}\nfunction bump(ts, channel) {\n  if (!ts) return;\n  var k = new Date(ts).toISOString().slice(0, 10);\n  if (!dayMap[k]) return;\n  if (!dayMap[k][channel]) dayMap[k][channel] = 0;\n  dayMap[k][channel]++;\n}\nemails.forEach(function (r)   { bump(r && r.sent_at,    'email'); });\nmessages.forEach(function (r) { bump(r && r.sent_at,    ((r && r.channel) || 'other').toLowerCase()); });\noutreach.forEach(function (r) { bump(r && r.created_at, ((r && r.channel) || 'other').toLowerCase()); });\nconst trend = days.map(function (k) { return dayMap[k]; });\n\n// Opt-out posture --------------------------------------------------\nconst optout = {\n  unsubscribed: unsubs.length,\n  do_not_contact: dnc.length,\n  total_leads: totalLeads,\n  unsubscribe_rate_pct: (totalLeads && totalLeads > 0) ? Math.round((unsubs.length / totalLeads) * 10000) / 100 : null,\n  recent_unsubscribes: unsubs.slice(0, 10).map(function (l) { return { ts: l.unsubscribed_at, name: l.full_name, email: l.email, company: l.company }; })\n};\n\nreturn { json: { ok: true, data: {\n  window_days: 30,\n  per_channel: per,\n  recent_failures: recentFailures,\n  spam: {\n    complaint_count: emails.filter(function (r) { return r && isComplaint(r.status); }).length,\n    recent: spamRecent,\n    note: 'Live spam complaints require Postmark webhook ingestion. Today this column reflects only complaints that landed in email_log.status. Add Postmark webhook -> email_events table for real-time tracking.'\n  },\n  opt_out: optout,\n  trend_14d: trend\n} } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "sch-0012",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 400]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Cache-Control", "value": "no-store" }]
+          }
+        }
+      },
+      "id": "sch-0013",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2080, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized', status: $json.status || 401 } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "sch-0014",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 900]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Token",    "type": "main", "index": 0 }]] },
+    "Extract Token":    { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [
+          { "node": "Email Log 30d",      "type": "main", "index": 0 },
+          { "node": "Messages 30d",       "type": "main", "index": 0 },
+          { "node": "Outreach 30d",       "type": "main", "index": 0 },
+          { "node": "Unsubscribed Leads", "type": "main", "index": 0 },
+          { "node": "DNC Leads",          "type": "main", "index": 0 },
+          { "node": "Lead Count",         "type": "main", "index": 0 }
+        ],
+        [ { "node": "Respond Unauthorized", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Email Log 30d":       { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Messages 30d":        { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Outreach 30d":        { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Unsubscribed Leads":  { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "DNC Leads":           { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Lead Count":          { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":      { "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}

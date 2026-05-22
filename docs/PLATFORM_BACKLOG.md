@@ -12,7 +12,8 @@ Living list of everything in flight. Update as items complete.
 - [ ] **Apply `carrier-management-schema.sql`** so the Carriers Submissions page stops hanging (Mary, 30 sec in Supabase SQL Editor)
 - [x] **Sales Engine page — wake it up.** Added Today's activity grid + Recent activity feed wired to new `admin/sales-engine/activity` endpoint. Three placeholder cards collapsed into one honest "Voice operations" status panel that explains it activates automatically once Vapi traffic flows. Page now refreshes meaningful data every 14 s instead of showing static placeholders.
 - [ ] **Apply `sentinel-foundation-schema.sql`** so the Sentinel tabs (Overview / Costs / Health / Security / Remediation / Alerts) populate (Mary, 30 sec in Supabase).
-- [ ] **Add a "Communications" tab to Sentinel** showing delivery health (bounce rates, failed sends, Twilio status, WhatsApp delivery rate, Postmark spam complaints). Different data from CIRO's comms audit log. ~1 session.
+- [x] **Sentinel Communications tab** — 7th tab "Communications" with delivery rate by channel, recent failures, unsubscribe + DNC posture with rate, spam complaints (with note that live tracking needs Postmark webhook), and 14-day volume trend per channel. New workflow `wfAdminSentinelCommsHealthV1` aggregates email_log + messages_sent + outreach_log + leads opt-out flags.
+- [ ] **Postmark webhook ingestion** for live spam complaints + bounce events into a new `email_events` table (follow-up to Sentinel Comms; surfaces real-time spam tracking instead of best-effort email_log scan).
 
 ## 1. MCP AI chat widget in admin dashboard
 

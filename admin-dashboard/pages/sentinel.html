@@ -55,6 +55,7 @@
     <button data-tab="costs">Costs</button>
     <button data-tab="health">Health</button>
     <button data-tab="security">Security</button>
+    <button data-tab="comms">Communications</button>
     <button data-tab="remediation">Remediation</button>
     <button data-tab="alerts">Alerts</button>
   </div>
@@ -84,6 +85,30 @@
     <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Top offenders — failed-auth events (24h)</div></div><div id="securityOffendersTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
     <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Credential rotation inventory</div><div class="clx-card-sub">After rotating a credential, click "Mark rotated" to slide next-due forward.</div></div><div id="securityCredsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
     <div class="clx-card"><div class="clx-card-head"><div class="clx-card-title">Open security alerts</div></div><div id="securityAlertsTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div></div>
+  </div>
+
+  <div id="pane-comms" class="tab-pane">
+    <div class="clx-stat-grid" id="commsStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading delivery health…</div></div>
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Delivery rate by channel — last 30 days</div><div class="clx-card-sub">Delivered vs failed across email, SMS, WhatsApp, voice. Higher is better; aim for &gt; 95% on email + SMS.</div></div>
+      <div id="commsChannelTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Recent failures (last 10)</div><div class="clx-card-sub">Each row shows when + which channel + why.</div></div>
+      <div id="commsFailuresTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Opt-out posture</div><div class="clx-card-sub">Unsubscribe + do-not-contact totals. Unsubscribe rate above 2% is a content-quality signal — investigate the recent campaigns.</div></div>
+      <div id="commsOptoutBox"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Spam complaints</div><div class="clx-card-sub" id="commsSpamSub">Live spam tracking requires a Postmark webhook → email_events table integration. Today shows complaints already logged.</div></div>
+      <div id="commsSpamBox"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Volume trend — last 14 days</div><div class="clx-card-sub">Per-day send count by channel. Dips indicate workflow failure; spikes indicate campaigns.</div></div>
+      <div id="commsTrendTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
   </div>
 
   <div id="pane-remediation" class="tab-pane">
@@ -124,11 +149,13 @@
       document.getElementById('pane-'+tab).classList.add('active');
       if (tab === 'health' && !_healthLoaded) { _healthLoaded = true; loadHealth(); }
       if (tab === 'security' && !_securityLoaded) { _securityLoaded = true; loadSecurity(); }
+      if (tab === 'comms' && !_commsLoaded) { _commsLoaded = true; loadComms(); }
       if (tab === 'remediation' && !_remediationLoaded) { _remediationLoaded = true; loadRemediation(); }
     });
   });
   var _securityLoaded = false;
   var _remediationLoaded = false;
+  var _commsLoaded = false;
 
   // Cached summary response so the Alerts tab can render from the same fetch.
   var _summary = null;
@@ -692,6 +719,165 @@
     });
     html += '</tbody></table><div style="font-size:12px;color:#6b7280;margin-top:8px;">Use the unified <strong>Alerts</strong> tab to acknowledge or resolve these.</div>';
     document.getElementById('securityAlertsTable').innerHTML = html;
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // COMMUNICATIONS HEALTH (delivery + opt-out + spam)
+  // ═════════════════════════════════════════════════════════════════
+  function loadComms(){
+    clxApi.renderLoading(document.getElementById('commsStats'), 'Loading delivery health…');
+    clxApi.adminPost('sentinel/comms/summary', {}).then(function(res){
+      if (!res.ok) {
+        clxApi.renderError(document.getElementById('commsStats'), res);
+        return;
+      }
+      var d = res.data || {};
+      renderCommsStats(d);
+      renderCommsChannels(d);
+      renderCommsFailures(d);
+      renderCommsOptout(d);
+      renderCommsSpam(d);
+      renderCommsTrend(d);
+    });
+  }
+
+  function renderCommsStats(d){
+    var per = d.per_channel || {};
+    var totalSent = 0, totalFailed = 0;
+    Object.keys(per).forEach(function(k){ totalSent += per[k].total || 0; totalFailed += per[k].failed || 0; });
+    var rate = totalSent > 0 ? Math.round(((totalSent - totalFailed) / totalSent) * 1000) / 10 : null;
+    var optout = d.opt_out || {};
+    var stats = [
+      { label: 'Total touches (30d)',     value: clxApi.formatInt(totalSent) },
+      { label: 'Overall delivery rate',   value: rate != null ? (rate + '%') : '—' },
+      { label: 'Failures (30d)',          value: clxApi.formatInt(totalFailed) },
+      { label: 'Unsubscribed',            value: clxApi.formatInt(optout.unsubscribed || 0) },
+      { label: 'Do-not-contact',          value: clxApi.formatInt(optout.do_not_contact || 0) },
+      { label: 'Spam complaints',         value: clxApi.formatInt((d.spam || {}).complaint_count || 0) }
+    ];
+    document.getElementById('commsStats').innerHTML = stats.map(function(s){
+      return '<div class="clx-stat"><div class="clx-stat-label">'+s.label+'</div><div class="clx-stat-value">'+s.value+'</div></div>';
+    }).join('');
+  }
+
+  function renderCommsChannels(d){
+    var per = d.per_channel || {};
+    var channels = ['email', 'sms', 'whatsapp', 'voice', 'other'];
+    var rows = channels.filter(function(c){ return (per[c] && per[c].total > 0); }).map(function(c){
+      var x = per[c];
+      var rate = x.delivery_rate != null ? x.delivery_rate : null;
+      var bar = '';
+      if (rate != null) {
+        var barColor = rate >= 95 ? '#16a34a' : (rate >= 85 ? '#eab308' : '#dc2626');
+        bar = '<div class="bar-wrap"><div class="bar-fill" style="width:'+rate+'%;background:'+barColor+';"></div></div>';
+      }
+      return '<tr>'
+        + '<td><strong>'+c.toUpperCase()+'</strong></td>'
+        + '<td>'+clxApi.formatInt(x.total)+'</td>'
+        + '<td>'+clxApi.formatInt(x.delivered)+'</td>'
+        + '<td>'+clxApi.formatInt(x.failed)+'</td>'
+        + '<td style="min-width:160px;">'+(rate != null ? (rate + '%') : '—')+bar+'</td>'
+        + '</tr>';
+    }).join('');
+    if (!rows) {
+      clxApi.renderEmpty(document.getElementById('commsChannelTable'), 'No channel traffic in the last 30 days.');
+      return;
+    }
+    document.getElementById('commsChannelTable').innerHTML =
+      '<table class="clx-table"><thead><tr><th>Channel</th><th>Total</th><th>Delivered</th><th>Failed</th><th>Delivery rate</th></tr></thead><tbody>'
+      + rows + '</tbody></table>';
+  }
+
+  function renderCommsFailures(d){
+    var failures = d.recent_failures || [];
+    if (!failures.length) {
+      clxApi.renderEmpty(document.getElementById('commsFailuresTable'), 'No delivery failures in the last 30 days. Healthy.');
+      return;
+    }
+    var rows = failures.map(function(f){
+      return '<tr>'
+        + '<td style="font-size:11px;color:#6b7280;">'+(f.ts ? new Date(f.ts).toISOString().slice(0,16).replace('T',' ') : '—')+'</td>'
+        + '<td><span class="pill pill-info">'+(f.channel || '?')+'</span></td>'
+        + '<td>'+(f.recipient || '—')+'</td>'
+        + '<td style="color:#b91c1c;">'+(f.reason || '—')+'</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('commsFailuresTable').innerHTML =
+      '<table class="clx-table"><thead><tr><th>When</th><th>Channel</th><th>Recipient</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function renderCommsOptout(d){
+    var o = d.opt_out || {};
+    var rateColor = (o.unsubscribe_rate_pct != null && o.unsubscribe_rate_pct > 2) ? '#b91c1c' : '#166534';
+    var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">'
+      + '<div><div class="clx-stat-label">Unsubscribed leads</div><div class="clx-stat-value">'+clxApi.formatInt(o.unsubscribed || 0)+'</div></div>'
+      + '<div><div class="clx-stat-label">Do-not-contact</div><div class="clx-stat-value">'+clxApi.formatInt(o.do_not_contact || 0)+'</div></div>'
+      + '<div><div class="clx-stat-label">Total leads</div><div class="clx-stat-value">'+clxApi.formatInt(o.total_leads || 0)+'</div></div>'
+      + '<div><div class="clx-stat-label">Unsubscribe rate</div><div class="clx-stat-value" style="color:'+rateColor+';">'+(o.unsubscribe_rate_pct != null ? (o.unsubscribe_rate_pct + '%') : '—')+'</div></div>'
+      + '</div>';
+    var recent = o.recent_unsubscribes || [];
+    if (recent.length) {
+      html += '<div style="font-size:13px;font-weight:600;color:#374151;margin-top:14px;margin-bottom:6px;">Recent unsubscribes (last 10)</div>'
+        + '<table class="clx-table"><thead><tr><th>When</th><th>Name</th><th>Email</th><th>Company</th></tr></thead><tbody>'
+        + recent.map(function(r){
+            return '<tr><td style="font-size:11px;color:#6b7280;">'+(r.ts ? new Date(r.ts).toISOString().slice(0,16).replace('T',' ') : '—')+'</td><td>'+(r.name || '—')+'</td><td>'+(r.email || '—')+'</td><td>'+(r.company || '—')+'</td></tr>';
+          }).join('')
+        + '</tbody></table>';
+    }
+    document.getElementById('commsOptoutBox').innerHTML = html;
+  }
+
+  function renderCommsSpam(d){
+    var s = d.spam || {};
+    var recent = s.recent || [];
+    var note = s.note ? '<div style="font-size:12px;color:#6b7280;margin-top:8px;font-style:italic;">'+s.note+'</div>' : '';
+    if (!recent.length) {
+      document.getElementById('commsSpamBox').innerHTML =
+        '<div class="clx-empty">No spam complaints in the last 30 days.</div>' + note;
+      return;
+    }
+    var rows = recent.map(function(r){
+      return '<tr>'
+        + '<td style="font-size:11px;color:#6b7280;">'+(r.ts ? new Date(r.ts).toISOString().slice(0,16).replace('T',' ') : '—')+'</td>'
+        + '<td>'+(r.recipient || '—')+'</td>'
+        + '<td>'+(r.subject || '—')+'</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('commsSpamBox').innerHTML =
+      '<table class="clx-table"><thead><tr><th>When</th><th>Recipient</th><th>Subject</th></tr></thead><tbody>' + rows + '</tbody></table>' + note;
+  }
+
+  function renderCommsTrend(d){
+    var trend = d.trend_14d || [];
+    if (!trend.length) {
+      clxApi.renderEmpty(document.getElementById('commsTrendTable'), 'No volume to chart yet.');
+      return;
+    }
+    // Find peak for bar scaling
+    var peak = 1;
+    trend.forEach(function(row){
+      ['email','sms','whatsapp','voice'].forEach(function(c){
+        if ((row[c] || 0) > peak) peak = row[c];
+      });
+    });
+    var rows = trend.map(function(row){
+      var emailW   = Math.round(((row.email    || 0) / peak) * 100);
+      var smsW     = Math.round(((row.sms      || 0) / peak) * 100);
+      var waW      = Math.round(((row.whatsapp || 0) / peak) * 100);
+      var voiceW   = Math.round(((row.voice    || 0) / peak) * 100);
+      function sparkCell(width, count, color) {
+        return '<td style="min-width:120px;"><div class="trend-bar-cell"><span class="trend-spark" style="width:'+Math.max(width,0)+'%;background:'+color+';"></span><span style="font-size:11px;color:#6b7280;">'+clxApi.formatInt(count)+'</span></div></td>';
+      }
+      return '<tr>'
+        + '<td style="font-size:12px;color:#6b7280;">'+row.date+'</td>'
+        + sparkCell(emailW, row.email || 0,    '#8b5cf6')
+        + sparkCell(smsW,   row.sms || 0,      '#0ea5e9')
+        + sparkCell(waW,    row.whatsapp || 0, '#16a34a')
+        + sparkCell(voiceW, row.voice || 0,    '#f59e0b')
+        + '</tr>';
+    }).join('');
+    document.getElementById('commsTrendTable').innerHTML =
+      '<table class="clx-table"><thead><tr><th>Date</th><th>Email</th><th>SMS</th><th>WhatsApp</th><th>Voice</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   // ═════════════════════════════════════════════════════════════════
