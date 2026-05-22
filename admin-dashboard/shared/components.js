@@ -692,13 +692,23 @@
 
     var history = [];
     var sending = false;
+    var historyLoaded = false;
 
     function open() {
       panel.classList.add('open');
-      if (!history.length) {
-        appendMsg('assistant', 'Hi Mary. I can help you understand what is happening on the platform, suggest next steps, or explain how to use features. What is on your mind?');
-      }
       setTimeout(function () { input.focus(); }, 100);
+      if (historyLoaded) return;
+      historyLoaded = true;
+      // Load persisted history from server. Empty -> greeting.
+      clxApi.adminPost('chat/history', {}).then(function (res) {
+        if (res.ok && res.data && Array.isArray(res.data.messages) && res.data.messages.length) {
+          res.data.messages.forEach(function (m) { appendMsg(m.role, m.content); });
+        } else {
+          appendMsg('assistant', 'Hi Mary. I can help you understand what is happening on the platform, suggest next steps, or explain how to use features. What is on your mind?');
+        }
+      }).catch(function () {
+        appendMsg('assistant', 'Hi Mary. I can help you understand what is happening on the platform, suggest next steps, or explain how to use features. What is on your mind?');
+      });
     }
     function close() { panel.classList.remove('open'); }
     btn.addEventListener('click', function () {
@@ -743,7 +753,7 @@
       sending = true;
       sendBtn.disabled = true;
       appendTyping();
-      clxApi.adminPost('chat', { message: text, history: history.slice(-20) }).then(function (res) {
+      clxApi.adminPost('chat', { message: text }).then(function (res) {
         removeTyping();
         sending = false;
         sendBtn.disabled = false;

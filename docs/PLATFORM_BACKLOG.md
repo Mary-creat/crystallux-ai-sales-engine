@@ -17,9 +17,9 @@ Living list of everything in flight. Update as items complete.
 
 ## 1. MCP AI chat widget in admin dashboard
 
-- [x] **v1 chat widget shipped** — floating bottom-right button on every admin page, opens a panel that talks to Claude (Sonnet 4.6) via new `admin/chat` workflow. System prompt anchors Claude to Crystallux context. Conversation memory in-session (last 20 messages sent to Claude).
-- [ ] **v2: tool execution.** Wire up tool calls so Claude can actually DO things: list leads, search clients, fetch client detail, send email/SMS to lead, create booking, fetch quote, run report, audit endpoint, schedule avatar broadcast. Action confirmation for destructive ops. Audit log of every action taken in `admin_chat_audit_log` table.
-- [ ] **v3: persistent chat history** in `admin_chat_sessions` + `admin_chat_messages` tables so conversations survive page reload.
+- [x] **v1 chat widget shipped** — floating bottom-right button on every admin page, opens a panel that talks to Claude (Sonnet 4.6) via `admin/chat` workflow. System prompt anchors Claude to Crystallux context.
+- [x] **v3 persistent chat history shipped** — `admin_chat_sessions` + `admin_chat_messages` tables + `find_or_create_active_chat_session` RPC. v2 chat workflow persists every message; new `admin/chat/history` endpoint loads the conversation on widget open. Sessions auto-resume for 7 days then a fresh session starts.
+- [ ] **v2: tool execution.** Wire up tool calls so Claude can actually DO things: list leads, search clients, fetch client detail, send email/SMS to lead, create booking, fetch quote, run report, audit endpoint, schedule avatar broadcast. Action confirmation for destructive ops. Audit log via `admin_chat_messages.tool_calls` JSONB.
 
 **Why:** so you can give commands directly in the dashboard instead of running terminal commands. v1 lets you ask questions; v2 lets you take actions.
 
