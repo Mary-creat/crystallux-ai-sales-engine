@@ -100,30 +100,72 @@ else
   fail "import unclear; continuing to activate anyway"
 fi
 
-# ─── 4. activate by flipping active=1 in SQLite via Alpine sidecar ───
-# n8n CLI's `update:workflow --active=true` is deprecated in recent
-# versions and silently no-ops, returning exit 0 without changing the
-# row. We bypass the CLI and write directly to workflow_entity, then
-# restart so the webhook map reloads.
-step "4/6  Activate workflow"
+# ─── 4. activate + register webhook via Alpine sidecar ───────────
+# n8n CLI's `update:workflow --active=true` is deprecated and silently
+# no-ops. We bypass the CLI: UPDATE workflow_entity.active=1 AND
+# INSERT the webhook_entity row n8n would normally create on activate.
+# The webhook_entity row is what makes n8n's runtime webhook map route
+# /webhook/<path> requests to this workflow.
+step "4/6  Activate workflow + register webhook"
 VOLUME=$(docker inspect "$CONTAINER" --format '{{ (index .Mounts 0).Name }}' 2>/dev/null)
 if [ -z "$VOLUME" ]; then
   fail "Could not detect n8n volume for container $CONTAINER"
   exit 7
 fi
+
+# Extract webhook node config from JSON (path, method, node name, webhookId)
+if command -v jq >/dev/null 2>&1; then
+  WH_PATH=$(jq -r '.nodes[] | select(.type=="n8n-nodes-base.webhook") | .parameters.path' "$WF_PATH" | head -1)
+  WH_METHOD=$(jq -r '.nodes[] | select(.type=="n8n-nodes-base.webhook") | .parameters.httpMethod // "GET"' "$WF_PATH" | head -1)
+  WH_NODE=$(jq -r '.nodes[] | select(.type=="n8n-nodes-base.webhook") | .name' "$WF_PATH" | head -1)
+  WH_ID=$(jq -r '.nodes[] | select(.type=="n8n-nodes-base.webhook") | .webhookId // empty' "$WF_PATH" | head -1)
+else
+  WH_PATH=$(grep -m1 '"path":' "$WF_PATH" | sed -E 's/[^"]*"path"[^"]*"([^"]+)".*/\1/')
+  WH_METHOD=$(grep -m1 '"httpMethod":' "$WF_PATH" | sed -E 's/[^"]*"httpMethod"[^"]*"([^"]+)".*/\1/')
+  WH_NODE="Webhook"
+  WH_ID=$(grep -m1 '"webhookId":' "$WF_PATH" | sed -E 's/[^"]*"webhookId"[^"]*"([^"]+)".*/\1/')
+fi
+[ -z "$WH_METHOD" ] && WH_METHOD="GET"
+WH_METHOD_UP=$(echo "$WH_METHOD" | tr '[:lower:]' '[:upper:]')
+
+# pathLength = number of '/' segments. "admin/sales-engine/activity" = 3
+if [ -n "$WH_PATH" ]; then
+  PATH_LEN=$(echo "$WH_PATH" | awk -F'/' '{ print NF }')
+else
+  PATH_LEN=0
+fi
+
+# Build SQL: update active flag, then INSERT-OR-REPLACE webhook_entity
+SQL="UPDATE workflow_entity SET active = 1 WHERE id = '${WF_ID}';"
+if [ -n "$WH_PATH" ]; then
+  SQL="${SQL} INSERT OR REPLACE INTO webhook_entity (workflowId, webhookPath, method, node, webhookId, pathLength) VALUES ('${WF_ID}', '${WH_PATH}', '${WH_METHOD_UP}', '${WH_NODE}', '${WH_ID}', ${PATH_LEN});"
+fi
+
 ACT_OUT=$(docker run --rm -v "${VOLUME}:/data" alpine:3.18 sh -c "
   apk add --no-cache sqlite >/dev/null 2>&1
-  sqlite3 /data/database.sqlite \"UPDATE workflow_entity SET active = 1 WHERE id = '${WF_ID}';\" 2>&1
+  sqlite3 /data/database.sqlite \"${SQL}\" 2>&1
   echo --
   sqlite3 /data/database.sqlite \"SELECT id, active FROM workflow_entity WHERE id = '${WF_ID}';\" 2>&1
+  echo --
+  sqlite3 /data/database.sqlite \"SELECT webhookPath FROM webhook_entity WHERE workflowId = '${WF_ID}';\" 2>&1
 ")
-# Output format: <update output> -- <id>|<active>
 ACT_STATE=$(echo "$ACT_OUT" | awk -F'|' '/^[a-zA-Z0-9]+\|/ { print $2 }' | head -1)
+HOOK_ROW=$(echo "$ACT_OUT" | awk '/^[a-z]+\// { print; exit }')
+
 if [ "$ACT_STATE" = "1" ]; then
   ok "active = 1 in workflow_entity"
 else
   fail "Could not flip active=1 (got: $ACT_OUT)"
   exit 8
+fi
+if [ -n "$WH_PATH" ]; then
+  if [ -n "$HOOK_ROW" ]; then
+    ok "webhook_entity row: $HOOK_ROW ($WH_METHOD_UP)"
+  else
+    fail "webhook_entity INSERT failed (path=$WH_PATH method=$WH_METHOD_UP)"
+    say "${DIM}$ACT_OUT${RESET}"
+    exit 9
+  fi
 fi
 
 # ─── 5. restart so webhooks register ─────────────────────────────
@@ -139,17 +181,11 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 
 # extra grace for webhook map to register
-say "${DIM}giving webhook map 15 s to load…${RESET}"
-sleep 15
+say "${DIM}giving webhook map 30 s to load…${RESET}"
+sleep 30
 
 # ─── 6. probe the webhook ────────────────────────────────────────
 step "6/6  Probe webhook"
-# Read the workflow's webhook path from the JSON
-if command -v jq >/dev/null 2>&1; then
-  WH_PATH=$(jq -r '.nodes[] | select(.type=="n8n-nodes-base.webhook") | .parameters.path' "$WF_PATH" | head -1)
-else
-  WH_PATH=$(grep -m1 '"path":' "$WF_PATH" | sed -E 's/[^"]*"path"[^"]*"([^"]+)".*/\1/')
-fi
 if [ -n "$WH_PATH" ]; then
   PROBE_URL="https://automation.crystallux.org/webhook/${WH_PATH}"
   CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$PROBE_URL" \
