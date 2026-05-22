@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Products | Crystallux</title>
+<meta name="description" content="The Crystallux product line. Seven products that run different parts of your sales operation. Buy one, buy them all, or buy the platform that runs them together." />
+<meta name="author" content="Crystallux Inc.">
+<link rel="canonical" href="https://crystallux.org/products/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://crystallux.org/products/">
+<meta property="og:title" content="Products | Crystallux">
+<meta property="og:description" content="Seven products. One sales operating system.">
+<meta property="og:image" content="https://crystallux.org/assets/og-image.png">
+<meta property="og:site_name" content="Crystallux">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com; frame-src https://calendly.com; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+.products-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; margin:32px 0; }
+.product-card { padding:24px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; transition:transform 0.15s, box-shadow 0.15s; }
+.product-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.08); }
+.product-card-head { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
+.product-emoji { font-size:32px; line-height:1; }
+.product-name { font-size:20px; font-weight:800; color:#0f172a; margin:0 0 4px 0; }
+.product-tag { font-size:12px; font-weight:600; color:#0f4c81; text-transform:uppercase; letter-spacing:0.05em; }
+.product-summary { font-size:14px; color:#475569; line-height:1.55; margin:8px 0 14px; }
+.product-features { font-size:13px; color:#475569; margin:0 0 16px; padding-left:18px; }
+.product-features li { margin-bottom:4px; }
+.product-cta { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:#0f4c81; text-decoration:none; }
+.product-cta:hover { text-decoration:underline; }
+.products-cta { background:#0f4c81; color:#fff; padding:32px; border-radius:12px; margin:48px 0; text-align:center; }
+.products-cta h2 { color:#fff; margin:0 0 8px 0; font-size:24px; }
+.products-cta p { color:#fff; opacity:0.9; margin:0 0 18px 0; }
+.products-cta a { display:inline-block; padding:12px 28px; background:#fff; color:#0f4c81; border-radius:8px; font-weight:700; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<header class="clx-header">
+  <div class="clx-header-inner">
+    <a href="/" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux</a>
+    <nav class="clx-nav">
+      <a href="/features.html">Features</a>
+      <a href="/products/" class="active">Products</a>
+      <a href="/how-it-works.html">How it works</a>
+      <a href="/industries/">Industries</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/about.html">About</a>
+    </nav>
+    <div class="clx-header-cta">
+      <a href="/book.html" class="clx-btn clx-btn-secondary">Book a demo</a>
+      <a href="/login.html" class="clx-btn clx-btn-primary">Sign in</a>
+    </div>
+    <button class="clx-burger" aria-label="Menu">☰</button>
+  </div>
+</header>
+
+<main>
+  <section class="clx-hero" style="text-align:center; padding:60px 20px 32px;">
+    <div style="max-width:780px; margin:0 auto;">
+      <h1 style="font-size:42px; font-weight:800; margin:0 0 12px 0; line-height:1.15;">The Crystallux product line.</h1>
+      <p style="font-size:18px; color:#475569; line-height:1.5; max-width:620px; margin:0 auto;">Seven products that run different parts of your sales operation. Buy one, buy them all, or buy the platform that runs them together.</p>
+    </div>
+  </section>
+
+  <section style="max-width:1100px; margin:0 auto; padding:0 20px 60px;">
+
+    <div class="products-grid">
+
+      <!-- Smart Quote -->
+      <a href="/products/smart-quote.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">📋</div>
+          <div>
+            <div class="product-tag">Smart Quote</div>
+            <h3 class="product-name">Industry-aware estimator</h3>
+          </div>
+        </div>
+        <p class="product-summary">Multi-industry quote builder that turns a customer questionnaire into a priced estimate, an email, and a booked job. Seven verticals out of the box.</p>
+        <ul class="product-features">
+          <li>7 industries seeded (insurance, construction, dental, cleaning, restaurants, moving, beauty)</li>
+          <li>Server-side pricing engine with addons + rules per vertical</li>
+          <li>Public quote landing pages, accept/decline flow, follow-up cron</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+      <!-- LUXI -->
+      <a href="/products/luxi.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">💎</div>
+          <div>
+            <div class="product-tag">LUXI</div>
+            <h3 class="product-name">Live commerce auctions</h3>
+          </div>
+        </div>
+        <p class="product-summary">Run live auctions across TikTok, Instagram, and Facebook. Auto-register bidders, anti-snipe extension, Stripe capture on win, manual bid entry when needed.</p>
+        <ul class="product-features">
+          <li>SHA-256 bidder identity hash across platforms</li>
+          <li>Anti-snipe extension + multi-extension support</li>
+          <li>Stripe PaymentIntent capture on winning bid</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+      <!-- AVA -->
+      <a href="/products/ava.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">🎓</div>
+          <div>
+            <div class="product-tag">AVA</div>
+            <h3 class="product-name">Insurance education broadcaster</h3>
+          </div>
+        </div>
+        <p class="product-summary">Schedule and broadcast educational content across every platform. 104 topics seeded, AI video render, multi-platform publishing, engagement tracking.</p>
+        <ul class="product-features">
+          <li>104 insurance topics seeded across 5 streams</li>
+          <li>HeyGen video render + multi-platform publish (FB / IG / LinkedIn / TikTok / X / YouTube)</li>
+          <li>Comment monitoring + auto-reply pipeline</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+      <!-- MAXI -->
+      <a href="/products/maxi.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">🌱</div>
+          <div>
+            <div class="product-tag">MAXI</div>
+            <h3 class="product-name">SMB growth across 21 industries</h3>
+          </div>
+        </div>
+        <p class="product-summary">Pre-built playbooks for 21 small-business verticals. Vertical-specific pain signals, outreach copy, and pricing benchmarks ready on day one.</p>
+        <ul class="product-features">
+          <li>21 industry templates with niche overlays</li>
+          <li>Per-vertical pain signals and value propositions</li>
+          <li>Behavioral archetype learning per industry</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+      <!-- CIRO -->
+      <a href="/products/ciro.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">🧭</div>
+          <div>
+            <div class="product-tag">CIRO</div>
+            <h3 class="product-name">Operations specialist</h3>
+          </div>
+        </div>
+        <p class="product-summary">The AI ops manager. Unified communications log, hot-lead alerts, calendar conflict detection, daily briefings, and auto-DM on LinkedIn.</p>
+        <ul class="product-features">
+          <li>Unified comms audit log (email + SMS + WhatsApp + voice)</li>
+          <li>Hot lead alerts when score crosses 80</li>
+          <li>Calendar conflict + tight-gap detection</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+      <!-- MGA -->
+      <a href="/products/mga.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">🛡️</div>
+          <div>
+            <div class="product-tag">MGA</div>
+            <h3 class="product-name">Insurance MGA operations</h3>
+          </div>
+        </div>
+        <p class="product-summary">The full Managing General Agency stack. Advisor onboarding, carrier appointments, compliance scoring, suitability interviews, commission reconciliation, white-label portals.</p>
+        <ul class="product-features">
+          <li>23 Canadian carriers pre-modeled + appointment lifecycle</li>
+          <li>AI-pre-screened compliance (KYC, suitability, replacement)</li>
+          <li>White-label portal per insurer partner</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+      <!-- Sales Engine -->
+      <a href="/products/sales-engine.html" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="product-card-head">
+          <div class="product-emoji">⚙️</div>
+          <div>
+            <div class="product-tag">Sales Engine</div>
+            <h3 class="product-name">12-phase lead-to-booking pipeline</h3>
+          </div>
+        </div>
+        <p class="product-summary">The flagship platform. City-scan lead discovery, Apollo enrichment, AI-authored outreach across 6 channels, reply ingestion, booking automation. The full operating system.</p>
+        <ul class="product-features">
+          <li>City-scan + B2C discovery + email scraper for lead sourcing</li>
+          <li>6-channel outreach (email, SMS, WhatsApp, LinkedIn, voice, video)</li>
+          <li>Market Intelligence layer auto-tunes campaign multipliers</li>
+        </ul>
+        <div class="product-cta">Learn more &rarr;</div>
+      </a>
+
+    </div>
+
+    <div class="products-cta">
+      <h2>Not sure which one to start with?</h2>
+      <p>A 20-minute call. I will look at your operation and tell you which product moves the needle first.</p>
+      <a href="/book.html">Book a demo</a>
+    </div>
+
+  </section>
+</main>
+
+<footer style="background:#0f172a; color:#94a3b8; padding:32px 20px; text-align:center; font-size:13px;">
+  <p>&copy; Crystallux Inc. | <a href="/privacy.html" style="color:#cbd5e1;">Privacy</a> | <a href="/terms.html" style="color:#cbd5e1;">Terms</a> | <a href="/contact.html" style="color:#cbd5e1;">Contact</a></p>
+</footer>
+
+<script src="/assets/site.js"></script>
+</body>
+</html>

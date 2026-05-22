@@ -12,3 +12,14 @@
 # If insurance.crystallux.org or insurer.crystallux.org point at this
 # same Pages project, /join on those hosts resolves to the right form.
 /join              /join-advisor.html       200
+
+# Product pages — pretty URLs without the .html extension.
+/products              /products/index.html         200
+/products/             /products/index.html         200
+/products/smart-quote  /products/smart-quote.html   200
+/products/luxi         /products/luxi.html          200
+/products/ava          /products/ava.html           200
+/products/maxi         /products/maxi.html          200
+/products/ciro         /products/ciro.html          200
+/products/mga          /products/mga.html           200
+/products/sales-engine /products/sales-engine.html  200
