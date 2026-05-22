@@ -117,7 +117,7 @@ Combined COO + CMO duties. One report, one digital employee, covering business +
 
 **Why:** the concern about leaked internal info is valid and unaudited.
 
-## 8. Standalone product pages (monetization layer)
+## 8. Standalone product pages (monetization layer) — DONE
 
 - [ ] Public product page for Smart Quote (`/products/smart-quote`)
 - [ ] Public product page for LUXI (`/products/luxi`)
