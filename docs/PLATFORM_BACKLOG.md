@@ -22,7 +22,9 @@ Living list of everything in flight. Update as items complete.
 
 - [x] **v1 chat widget shipped** — floating bottom-right button on every admin page, opens a panel that talks to Claude (Sonnet 4.6) via `admin/chat` workflow. System prompt anchors Claude to Crystallux context.
 - [x] **v3 persistent chat history shipped** — `admin_chat_sessions` + `admin_chat_messages` tables + `find_or_create_active_chat_session` RPC. v2 chat workflow persists every message; new `admin/chat/history` endpoint loads the conversation on widget open. Sessions auto-resume for 7 days then a fresh session starts.
-- [ ] **v2: tool execution.** Wire up tool calls so Claude can actually DO things: list leads, search clients, fetch client detail, send email/SMS to lead, create booking, fetch quote, run report, audit endpoint, schedule avatar broadcast. Action confirmation for destructive ops. Audit log via `admin_chat_messages.tool_calls` JSONB.
+- [x] **v3 tool execution shipped (read-only).** New `wfAdminChatV3` defines 10 tools matching the MCP Tool Gateway surface (check_system_health, check_pipeline_health, get_pipeline_stats, list_leads, get_lead, research_lead, score_lead, update_lead_status, scan_city, get_execution_stats). Claude calls tools via the MCP gateway, results feed back into a multi-turn conversation (up to 3 iterations). Tool calls logged to `admin_chat_messages.tool_calls`. Requires `MCP_API_KEY` + `ANTHROPIC_API_KEY` env vars in n8n container.
+- [ ] **v3 write-action confirmation flow.** Currently the 10 tools include update_lead_status (a write). Add a confirmation pattern: workflow returns `pending_action` when Claude wants to write; frontend shows modal; user confirms; second call executes. Prevents accidental destructive ops.
+- [ ] **More tools.** Add: send_email_to_lead, send_sms_to_lead, create_booking, schedule_avatar_broadcast, get_market_signals, get_comms_log, audit_endpoint. Expand the MCP Tool Gateway's `validTools` list to match.
 
 **Why:** so you can give commands directly in the dashboard instead of running terminal commands. v1 lets you ask questions; v2 lets you take actions.
 
