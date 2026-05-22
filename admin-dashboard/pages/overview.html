@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Overview · Crystallux Admin</title>
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -44,14 +44,20 @@
         <div class="clx-card">
           <div class="clx-card-head">
             <div class="clx-card-title">Leads created · last 30 days</div>
+            <div class="clx-card-sub">Daily volume with trend line.</div>
           </div>
-          <div id="leadTrend" style="min-height:120px"></div>
+          <div style="position:relative;height:200px;margin-top:8px">
+            <canvas id="leadTrendChart"></canvas>
+          </div>
         </div>
         <div class="clx-card">
           <div class="clx-card-head">
             <div class="clx-card-title">Leads by status</div>
+            <div class="clx-card-sub">Pipeline distribution.</div>
           </div>
-          <div id="leadDonut" style="min-height:120px;display:flex;align-items:center;gap:18px;flex-wrap:wrap"></div>
+          <div style="position:relative;height:200px;margin-top:8px">
+            <canvas id="leadDonutChart"></canvas>
+          </div>
         </div>
       </div>
 
@@ -91,6 +97,7 @@
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
+<script src="/shared/charts.js"></script>
 <script src="/shared/copilot.js"></script>
 <script>
 clxAuth.require('admin').then(function (user) {
@@ -108,8 +115,7 @@ clxAuth.require('admin').then(function (user) {
       '<span class="clx-skeleton" style="width:40%;height:24px"></span>' +
       '</div>');
   }
-  document.getElementById('leadTrend').innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center"><span class="clx-skeleton" style="width:90%;height:60px"></span></div>';
-  document.getElementById('leadDonut').innerHTML = '<span class="clx-skeleton" style="width:120px;height:120px;border-radius:50%"></span><div style="flex:1"><span class="clx-skeleton" style="width:60%;height:12px;display:block;margin-bottom:8px"></span><span class="clx-skeleton" style="width:50%;height:12px;display:block;margin-bottom:8px"></span><span class="clx-skeleton" style="width:40%;height:12px;display:block"></span></div>';
+  // Chart canvases render empty then animate in once Chart.js loads — no skeleton needed.
   document.getElementById('workflowList').innerHTML = clxComp.skeleton(5, 3);
   document.getElementById('recentLeads').innerHTML = clxComp.skeleton(5, 3);
   document.getElementById('onboardingStrip').innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
@@ -146,31 +152,29 @@ async function loadOverview() {
     clxApi.renderError(grid, health);
   }
 
-  var trendEl = document.getElementById('leadTrend');
-  var donutEl = document.getElementById('leadDonut');
   if (leads30.ok && Array.isArray(leads30.data && leads30.data.leads)) {
     var leadList = leads30.data.leads;
     var buckets = bucketByDay(leadList, 30);
-    var totalNew = buckets.reduce(function(a,b){ return a+b; }, 0);
-    trendEl.innerHTML = '<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">' + totalNew + ' lead' + (totalNew===1?'':'s') + ' added in last 30 days</div>' +
-      clxComp.sparkline(buckets, { width: 600, height: 80 });
+    var labels30 = bucketLabels(30);
+
+    clxCharts.line('leadTrendChart', {
+      labels: labels30,
+      datasets: [{ label: 'Leads created', data: buckets }]
+    });
 
     var statusCounts = {};
     leadList.forEach(function(l){
-      var s = (l.lead_status || 'unknown').toLowerCase();
+      var s = (l.lead_status || l.status || 'unknown').toLowerCase();
       statusCounts[s] = (statusCounts[s]||0) + 1;
     });
-    var slices = Object.keys(statusCounts).map(function(k){
-      return { label: k, value: statusCounts[k] };
-    }).sort(function(a,b){ return b.value - a.value; });
-    if (slices.length) {
-      donutEl.innerHTML = clxComp.donut(slices, { centerLabel: leadList.length, centerSub: 'leads' }) +
-        '<div style="flex:1;min-width:160px">' + clxComp.donutLegend(slices) + '</div>';
-    } else {
-      clxComp.renderEmpty(donutEl, 'No leads yet', 'inbox');
-    }
+    var statusKeys = Object.keys(statusCounts).sort(function(a,b){ return statusCounts[b] - statusCounts[a]; });
+    clxCharts.donut('leadDonutChart', {
+      labels: statusKeys,
+      values: statusKeys.map(function(k){ return statusCounts[k]; })
+    });
   } else {
-    clxApi.renderError(trendEl, leads30);
+    var trendEl = document.getElementById('leadTrendChart');
+    if (trendEl) clxApi.renderError(trendEl.parentElement, leads30);
     donutEl.innerHTML = '';
   }
 
@@ -245,6 +249,18 @@ async function loadOverview() {
   } else {
     clxApi.renderError(obEl, onboarding);
   }
+}
+
+function bucketLabels(days) {
+  var labels = [];
+  var d = new Date();
+  for (var i = days - 1; i >= 0; i--) {
+    var t = new Date(d.getTime() - i * 86400000);
+    var mm = String(t.getMonth() + 1).padStart(2, '0');
+    var dd = String(t.getDate()).padStart(2, '0');
+    labels.push(mm + '/' + dd);
+  }
+  return labels;
 }
 
 function bucketByDay(leads, days) {

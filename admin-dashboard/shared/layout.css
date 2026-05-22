@@ -7,7 +7,7 @@
    =================================================================== */
 
 :root {
-  /* Brand */
+  /* Brand — Crystallux purple ramp (kept for identity continuity) */
   --color-brand-50:  #F8F7FF;
   --color-brand-100: #EDE9FE;
   --color-brand-200: #DDD6FE;
@@ -17,18 +17,24 @@
   --color-brand-600: #6D28D9;
   --color-brand-700: #5B21B6;
 
-  /* Neutral ramp */
+  /* Accent — emerald for success + positive movement */
+  --color-accent-100: #DCFCE7;
+  --color-accent-300: #86EFAC;
+  --color-accent-500: #10B981;
+  --color-accent-700: #047857;
+
+  /* Neutral ramp — slate (slightly cooler than zinc, feels more "premium B2B") */
   --gray-0:   #FFFFFF;
-  --gray-50:  #FAFAFA;
-  --gray-100: #F4F4F5;
-  --gray-200: #E4E4E7;
-  --gray-300: #D4D4D8;
-  --gray-400: #A1A1AA;
-  --gray-500: #71717A;
-  --gray-600: #52525B;
-  --gray-700: #3F3F46;
-  --gray-800: #27272A;
-  --gray-900: #18181B;
+  --gray-50:  #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;
+  --gray-300: #CBD5E1;
+  --gray-400: #94A3B8;
+  --gray-500: #64748B;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1E293B;
+  --gray-900: #0F172A;
 
   /* Semantic */
   --success: #10B981;
@@ -49,6 +55,19 @@
   --text-muted:     var(--gray-500);
   --text-inverse:   var(--gray-0);
 
+  /* Elevation — subtle, layered shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.10), 0 4px 12px rgba(15, 23, 42, 0.06);
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
   /* Spacing + radius */
   --r-sm: 6px;
   --r-md: 10px;
@@ -59,6 +78,31 @@
   --sidebar-w: 240px;
   --topbar-h:  60px;
   --content-max: 1400px;
+}
+
+/* Global motion baseline — every interactive element gets a soft transition */
+a, button, .clx-btn, .clx-card, .clx-nav-item,
+.clx-stat-card, .tab-pane, .clx-stat,
+.clx-table tr, .clx-pill, .clx-badge,
+[role="button"], [data-clickable] {
+  transition:
+    background-color var(--motion-base) var(--ease-out),
+    border-color     var(--motion-base) var(--ease-out),
+    color            var(--motion-base) var(--ease-out),
+    box-shadow       var(--motion-base) var(--ease-out),
+    transform        var(--motion-fast) var(--ease-out),
+    opacity          var(--motion-base) var(--ease-out);
+}
+
+/* Lift on hover for cards + buttons */
+.clx-card:hover { box-shadow: var(--shadow-md); }
+.clx-btn:hover, .clx-stat-card:hover { transform: translateY(-1px); }
+.clx-btn:active { transform: translateY(0); }
+.clx-nav-item:hover { background: var(--bg-hover); }
+
+/* Reduce motion when the user prefers it */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
