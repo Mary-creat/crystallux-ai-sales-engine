@@ -1,0 +1,199 @@
+{
+  "id": "wfAdminMarketIntelligenceV1",
+  "name": "CLX - Admin Market Intelligence v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/market-intelligence/summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ami-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-market-intelligence-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ami-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "ami-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ami-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ami-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/v_active_market_signals?select=*&order=created_at.desc&limit=50",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ami-0006",
+      "name": "Active Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 160],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?select=source,processed,needs_review,fetched_at&fetched_at=gte.' + new Date(Date.now() - 7*86400000).toISOString() + '&limit=2000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ami-0007",
+      "name": "Ingestion Stats 7d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_routing_log?select=decision_type,outreach_multiplier,campaign_name,applied_at&applied_at=gte.' + new Date(Date.now() - 7*86400000).toISOString() + '&order=applied_at.desc&limit=200' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "ami-0008",
+      "name": "Routing Log 7d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shape the market-intelligence dashboard response.\n// - active_signals: currently-influencing signals (not decayed, not needs_review)\n// - by_type: counts by signal_type\n// - by_vertical: counts by affected vertical\n// - ingestion_stats: per-source poll volume + processed rate\n// - routing_impact: outreach multipliers applied + decision counts\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst signals = allOf('Active Signals');\nconst ingest  = allOf('Ingestion Stats 7d');\nconst routing = allOf('Routing Log 7d');\n\n// By signal_type\nconst byType = {};\nsignals.forEach(function (s) {\n  if (!s || !s.signal_type) return;\n  byType[s.signal_type] = (byType[s.signal_type] || 0) + 1;\n});\n\n// By vertical (affected_verticals is an array of {vertical, impact, outreach_multiplier, ...})\nconst byVertical = {};\nsignals.forEach(function (s) {\n  const av = Array.isArray(s.affected_verticals) ? s.affected_verticals : [];\n  av.forEach(function (v) {\n    if (!v || !v.vertical) return;\n    if (!byVertical[v.vertical]) byVertical[v.vertical] = { count: 0, top_multiplier: 1.0 };\n    byVertical[v.vertical].count++;\n    const m = Number(v.outreach_multiplier) || 1.0;\n    if (m > byVertical[v.vertical].top_multiplier) byVertical[v.vertical].top_multiplier = m;\n  });\n});\n\n// By region\nconst byRegion = {};\nsignals.forEach(function (s) {\n  const regs = Array.isArray(s.affected_regions) ? s.affected_regions : [];\n  regs.forEach(function (r) {\n    if (!r) return;\n    const key = String(r).slice(0, 80);\n    byRegion[key] = (byRegion[key] || 0) + 1;\n  });\n});\n\n// Per-source ingestion stats\nconst bySource = {};\ningest.forEach(function (r) {\n  if (!r || !r.source) return;\n  if (!bySource[r.source]) bySource[r.source] = { total: 0, processed: 0, needs_review: 0 };\n  bySource[r.source].total++;\n  if (r.processed)    bySource[r.source].processed++;\n  if (r.needs_review) bySource[r.source].needs_review++;\n});\nObject.keys(bySource).forEach(function (k) {\n  const s = bySource[k];\n  s.processed_rate_pct = s.total > 0 ? Math.round((s.processed / s.total) * 100) : null;\n});\n\n// Routing impact\nconst routingByDecision = {};\nlet outreachSends7d = 0;\nrouting.forEach(function (r) {\n  if (!r) return;\n  const k = r.decision_type || 'unknown';\n  routingByDecision[k] = (routingByDecision[k] || 0) + 1;\n  outreachSends7d++;\n});\n\n// Recent activity timeline (top 20 signals by recency)\nconst recent = signals.slice(0, 20).map(function (s) {\n  return {\n    id: s.id,\n    headline: s.headline,\n    signal_type: s.signal_type,\n    confidence: s.confidence,\n    age_hours: s.age_hours ? Math.round(s.age_hours) : null,\n    decay_time_days: s.decay_time_days,\n    affected_verticals: s.affected_verticals,\n    affected_regions: s.affected_regions,\n    messaging_angle: s.messaging_angle,\n    source_url: s.source_url\n  };\n});\n\nreturn { json: { ok: true, data: {\n  totals: {\n    active_signals: signals.length,\n    sources_polled_7d: Object.keys(bySource).length,\n    signals_ingested_7d: ingest.length,\n    routing_decisions_7d: routing.length\n  },\n  by_type: byType,\n  by_vertical: byVertical,\n  by_region: byRegion,\n  by_source: bySource,\n  routing_by_decision: routingByDecision,\n  recent_signals: recent\n} } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "ami-0009",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Cache-Control", "value": "no-store" }]
+          }
+        }
+      },
+      "id": "ami-0010",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2080, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized', status: $json.status || 401 } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "ami-0011",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 700]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract Token",    "type": "main", "index": 0 }]] },
+    "Extract Token":    { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [
+          { "node": "Active Signals",      "type": "main", "index": 0 },
+          { "node": "Ingestion Stats 7d",  "type": "main", "index": 0 },
+          { "node": "Routing Log 7d",      "type": "main", "index": 0 }
+        ],
+        [ { "node": "Respond Unauthorized", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Active Signals":     { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Ingestion Stats 7d": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Routing Log 7d":     { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response":     { "main": [[{ "node": "Respond",        "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}

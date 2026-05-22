@@ -9,6 +9,38 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/layout.css">
+<style>
+.mi-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
+.mi-grid-3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+.mi-signal { padding:14px 16px; border:1px solid var(--border,#e5e7eb); border-radius:8px; margin-bottom:10px; background:#fff; }
+.mi-signal-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px; }
+.mi-signal-title { font-size:14px; font-weight:700; color:var(--text,#0f172a); }
+.mi-signal-meta { font-size:11px; color:var(--muted,#6b7280); display:flex; gap:10px; align-items:center; }
+.mi-signal-summary { font-size:13px; color:var(--muted,#6b7280); line-height:1.45; margin-top:4px; }
+.mi-signal-tags { margin-top:8px; display:flex; flex-wrap:wrap; gap:4px; }
+.mi-tag { font-size:11px; padding:2px 8px; border-radius:11px; background:#f1f5f9; color:#475569; font-weight:600; }
+.mi-tag-vertical { background:#dbeafe; color:#1e40af; }
+.mi-tag-region   { background:#dcfce7; color:#166534; }
+.mi-tag-multiplier { background:#fef3c7; color:#92400e; }
+.mi-pill-type { font-size:11px; padding:2px 8px; border-radius:11px; font-weight:600; }
+.mi-pill-natural_disaster { background:#fee2e2; color:#b91c1c; }
+.mi-pill-economic         { background:#fef3c7; color:#b45309; }
+.mi-pill-regulatory       { background:#e0e7ff; color:#3730a3; }
+.mi-pill-seasonal         { background:#fce7f3; color:#9d174d; }
+.mi-pill-news_event       { background:#dbeafe; color:#1e40af; }
+.mi-pill-trend            { background:#dcfce7; color:#166534; }
+.mi-pill-political        { background:#f3e8ff; color:#6b21a8; }
+.mi-pill-technological    { background:#cffafe; color:#0e7490; }
+.mi-conf { font-size:11px; padding:1px 6px; border-radius:9px; font-weight:600; }
+.mi-conf-high   { background:#dcfce7; color:#166534; }
+.mi-conf-medium { background:#fef3c7; color:#b45309; }
+.mi-conf-low    { background:#f1f5f9; color:#475569; }
+.mi-bar { height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden; margin-top:4px; }
+.mi-bar-fill { height:100%; background:#0f4c81; transition:width 0.3s; }
+@media (max-width:900px) {
+  .mi-grid-2, .mi-grid-3 { grid-template-columns:1fr !important; }
+}
+</style>
 </head>
 <body>
 <header class="clx-topbar">
@@ -22,97 +54,200 @@
   <nav class="clx-sidebar" id="clxSidebar"></nav>
   <div class="clx-backdrop" id="clxBackdrop"></div>
   <main class="clx-main"><div class="clx-content">
+
     <div class="clx-page-head"><div>
       <h1 class="clx-page-title">Market Intelligence</h1>
-      <div class="clx-page-sub">Signals processed, vertical activity, intelligence-tier health.</div>
+      <div class="clx-page-sub">External signal feed driving dynamic campaign scaling. Active signals adjust outreach multipliers + messaging per vertical and region.</div>
     </div></div>
-    <div class="clx-stat-grid" id="miStats"></div>
 
-    <div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
-      <div class="clx-card" style="padding:0">
-        <div class="clx-card-head" style="padding:16px 18px 0"><div class="clx-card-title">Active signals</div></div>
-        <div id="miTable"></div>
+    <div class="clx-stat-grid" id="miStats">
+      <div class="clx-empty"><span class="clx-spinner"></span> Loading market signals…</div>
+    </div>
+
+    <div class="mi-grid-2">
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Signal mix — by type</div><div class="clx-card-sub">What kind of events the platform is currently responding to.</div></div>
+        <div id="miByType"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
       </div>
       <div class="clx-card">
-        <div class="clx-card-head"><div class="clx-card-title">Severity mix</div></div>
-        <div id="miDonut" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;min-height:140px"></div>
+        <div class="clx-card-head"><div class="clx-card-title">Vertical impact</div><div class="clx-card-sub">Top outreach multiplier active per vertical right now.</div></div>
+        <div id="miByVertical"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
       </div>
     </div>
+
+    <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Active signals (live feed)</div><div class="clx-card-sub" id="miSignalsSub">Most recent first. Decays automatically per signal's `decay_time_days`.</div></div>
+      <div id="miSignalsList"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
+
+    <div class="mi-grid-2" style="margin-top:18px;">
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Ingestion sources — last 7 days</div><div class="clx-card-sub">Per-source poll volume + Claude classification rate.</div></div>
+        <div id="miBySource"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+      </div>
+      <div class="clx-card">
+        <div class="clx-card-head"><div class="clx-card-title">Routing impact — last 7 days</div><div class="clx-card-sub">Decisions where a market signal changed outreach behavior.</div></div>
+        <div id="miRouting"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+      </div>
+    </div>
+
   </div></main>
 </div>
-<style>@media (max-width:900px){.clx-two-col{grid-template-columns:1fr !important}}</style>
 <script src="/shared/auth.js"></script>
 <script src="/shared/api.js"></script>
 <script src="/shared/components.js"></script>
-<script src="/shared/copilot.js"></script>
 <script>
-clxAuth.require('admin').then(function () {
+clxAuth.require(['admin']).then(function (user) {
+  if (!user) return;
   clxComp.injectNav(document.getElementById('clxSidebar'));
   clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
-
-  var stats = document.getElementById('miStats');
-  for (var i = 0; i < 5; i++) {
-    stats.insertAdjacentHTML('beforeend',
-      '<div class="clx-stat-card"><span class="clx-skeleton" style="width:50%;height:10px"></span><div style="height:10px"></div><span class="clx-skeleton" style="width:40%;height:24px"></span></div>');
-  }
-  document.getElementById('miTable').innerHTML = clxComp.skeleton(6, 4);
-  document.getElementById('miDonut').innerHTML = '<span class="clx-skeleton" style="width:120px;height:120px;border-radius:50%"></span>';
-
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
   load();
+  setInterval(load, 60000);
 });
-async function load() {
-  var res = await clxApi.adminGet('market-intelligence');
-  var el = document.getElementById('miTable');
-  if (!res.ok) { clxApi.renderError(el, res); return; }
-  var d = res.data || {};
-  clxComp.renderStatGrid(document.getElementById('miStats'), [
-    { label: 'Raw signals (24h)', value: d.raw_24h        != null ? d.raw_24h        : '—',
-      icon: 'activity', variant: 'leads' },
-    { label: 'Processed (24h)',   value: d.processed_24h  != null ? d.processed_24h  : '—',
-      icon: 'sparkles', variant: 'activity' },
-    { label: 'Active signals',    value: d.active_signals != null ? d.active_signals : '—',
-      icon: 'alert-triangle', variant: 'errors' },
-    { label: 'Intelligence subs', value: d.intel_subs     != null ? d.intel_subs     : '—',
-      icon: 'eye', variant: 'bookings' },
-    { label: 'Tokens used (mtd)', value: d.tokens_mtd     != null ? d.tokens_mtd.toLocaleString() : '—',
-      icon: 'layers', variant: 'revenue' }
-  ]);
 
-  var rows = d.signals || [];
-  var donutEl = document.getElementById('miDonut');
-  if (!rows.length) {
-    clxComp.renderEmpty(el, 'No active signals right now.', 'sparkles');
-    clxComp.renderEmpty(donutEl, 'No data yet', 'pie-chart');
+async function load() {
+  var res = await clxApi.adminPost('market-intelligence/summary', {});
+  if (!res.ok) {
+    clxApi.renderError(document.getElementById('miStats'), res);
     return;
   }
+  var d = res.data || {};
+  renderStats(d);
+  renderByType(d);
+  renderByVertical(d);
+  renderSignals(d);
+  renderBySource(d);
+  renderRouting(d);
+}
 
-  // Severity donut
-  var sevCounts = {};
-  rows.forEach(function(r){
-    var s = (r.severity || 'unknown').toLowerCase();
-    sevCounts[s] = (sevCounts[s]||0) + 1;
-  });
-  var sevColors = { critical: '#EF4444', high: '#F97316', medium: '#F59E0B', low: '#10B981', unknown: '#A1A1AA' };
-  var slices = Object.keys(sevCounts).map(function(k){
-    return { label: k, value: sevCounts[k], color: sevColors[k] };
-  }).sort(function(a,b){ return b.value - a.value; });
-  donutEl.innerHTML = clxComp.donut(slices, { centerLabel: rows.length, centerSub: 'signals' }) +
-    '<div style="flex:1;min-width:140px">' + clxComp.donutLegend(slices) + '</div>';
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(n){ return Number(n || 0).toLocaleString('en-CA'); }
 
-  // Signals table with severity color + pulse on critical
-  clxComp.renderTable(el, rows, [
-    { key: 'signal_type',         label: 'Type' },
-    { key: 'affected_verticals',  label: 'Verticals', format: function(r){
-        return Array.isArray(r.affected_verticals) ? r.affected_verticals.join(', ') : (r.affected_verticals || '—');
-      } },
-    { key: 'severity',            label: 'Severity', html: true, format: function(r){
-        var s = (r.severity || '').toLowerCase();
-        var pulse = s === 'critical' ? ' --pulse' : '';
-        return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.severity) + pulse + '">' + clxComp.escapeHtml(r.severity || '—') + '</span>';
-      } },
-    { key: 'expires_at',          label: 'Expires', format: function(r){ return clxComp.formatDateTime(r.expires_at); } },
-    { key: 'processed_at',        label: 'Processed', format: function(r){ return clxComp.relativeTime(r.processed_at); } }
-  ]);
+function renderStats(d) {
+  var t = d.totals || {};
+  document.getElementById('miStats').innerHTML = [
+    ['Active signals',          fmt(t.active_signals)],
+    ['Signals ingested (7d)',   fmt(t.signals_ingested_7d)],
+    ['Sources polled (7d)',     fmt(t.sources_polled_7d)],
+    ['Routing decisions (7d)',  fmt(t.routing_decisions_7d)]
+  ].map(function(c){
+    return '<div class="clx-stat"><div class="clx-stat-label">'+c[0]+'</div><div class="clx-stat-value">'+c[1]+'</div></div>';
+  }).join('');
+}
+
+function renderByType(d) {
+  var byType = d.by_type || {};
+  var keys = Object.keys(byType).sort(function(a,b){ return byType[b] - byType[a]; });
+  if (!keys.length) {
+    document.getElementById('miByType').innerHTML = '<div class="clx-empty">No active signals yet. The ingestion workflow runs hourly once API credentials are configured.</div>';
+    return;
+  }
+  var total = keys.reduce(function(s,k){ return s + byType[k]; }, 0);
+  document.getElementById('miByType').innerHTML = keys.map(function(k){
+    var n = byType[k];
+    var pct = total > 0 ? Math.round((n / total) * 100) : 0;
+    return '<div style="margin-bottom:10px;">'
+      + '<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
+      +   '<span class="mi-pill-type mi-pill-' + k + '">' + esc(k.replace(/_/g, ' ')) + '</span>'
+      +   '<span style="font-size:12px;color:#6b7280;">' + n + ' (' + pct + '%)</span>'
+      + '</div>'
+      + '<div class="mi-bar"><div class="mi-bar-fill" style="width:' + pct + '%"></div></div>'
+      + '</div>';
+  }).join('');
+}
+
+function renderByVertical(d) {
+  var byVert = d.by_vertical || {};
+  var keys = Object.keys(byVert).sort(function(a,b){ return byVert[b].top_multiplier - byVert[a].top_multiplier; });
+  if (!keys.length) {
+    document.getElementById('miByVertical').innerHTML = '<div class="clx-empty">No vertical impact yet.</div>';
+    return;
+  }
+  document.getElementById('miByVertical').innerHTML =
+    '<table class="clx-table"><thead><tr><th>Vertical</th><th>Active signals</th><th>Top multiplier</th></tr></thead><tbody>'
+    + keys.map(function(k){
+        var x = byVert[k];
+        var color = x.top_multiplier >= 2 ? '#b91c1c' : (x.top_multiplier >= 1.3 ? '#b45309' : '#166534');
+        return '<tr>'
+          + '<td><strong>' + esc(k) + '</strong></td>'
+          + '<td>' + x.count + '</td>'
+          + '<td><span style="color:' + color + ';font-weight:700;">' + x.top_multiplier.toFixed(2) + 'x</span></td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+}
+
+function renderSignals(d) {
+  var signals = d.recent_signals || [];
+  document.getElementById('miSignalsSub').textContent =
+    signals.length + (signals.length === 1 ? ' signal' : ' signals') + ' currently active. Decays automatically per signal\'s decay_time_days.';
+  var el = document.getElementById('miSignalsList');
+  if (!signals.length) {
+    el.innerHTML = '<div class="clx-empty">No active signals. Once `clx-signal-ingestion-v1` runs against configured sources, signals appear here within an hour.</div>';
+    return;
+  }
+  el.innerHTML = signals.map(function(s){
+    var verticals = Array.isArray(s.affected_verticals)
+      ? s.affected_verticals.map(function(v){
+          var mx = (v.outreach_multiplier && v.outreach_multiplier !== 1.0) ? ' (' + v.outreach_multiplier.toFixed(2) + 'x)' : '';
+          return '<span class="mi-tag mi-tag-vertical">' + esc(v.vertical) + mx + '</span>';
+        }).join('')
+      : '';
+    var regions = Array.isArray(s.affected_regions)
+      ? s.affected_regions.map(function(r){ return '<span class="mi-tag mi-tag-region">' + esc(r) + '</span>'; }).join('')
+      : '';
+    var ageLabel = s.age_hours != null ? (s.age_hours < 24 ? s.age_hours + 'h ago' : Math.round(s.age_hours / 24) + 'd ago') : '';
+    return '<div class="mi-signal">'
+      + '<div class="mi-signal-head">'
+      +   '<div class="mi-signal-title">' + esc(s.headline || '(no headline)') + '</div>'
+      +   '<div class="mi-signal-meta">'
+      +     '<span class="mi-pill-type mi-pill-' + (s.signal_type || 'news_event') + '">' + esc((s.signal_type || 'news_event').replace(/_/g, ' ')) + '</span>'
+      +     '<span class="mi-conf mi-conf-' + (s.confidence || 'low') + '">' + esc(s.confidence || 'low') + '</span>'
+      +     '<span>' + ageLabel + '</span>'
+      +   '</div>'
+      + '</div>'
+      + (s.messaging_angle ? '<div class="mi-signal-summary"><strong>Outreach angle:</strong> ' + esc(s.messaging_angle) + '</div>' : '')
+      + '<div class="mi-signal-tags">' + verticals + regions + '</div>'
+      + (s.source_url ? '<div style="margin-top:6px;font-size:11px;"><a href="' + esc(s.source_url) + '" target="_blank" rel="noopener" style="color:#6b7280;">Source ↗</a></div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function renderBySource(d) {
+  var bySrc = d.by_source || {};
+  var keys = Object.keys(bySrc).sort();
+  if (!keys.length) {
+    document.getElementById('miBySource').innerHTML = '<div class="clx-empty">No ingestion in the last 7 days. Schedule trigger may be off or API credentials missing.</div>';
+    return;
+  }
+  document.getElementById('miBySource').innerHTML =
+    '<table class="clx-table"><thead><tr><th>Source</th><th>Polled</th><th>Processed</th><th>Rate</th></tr></thead><tbody>'
+    + keys.map(function(k){
+        var x = bySrc[k];
+        return '<tr>'
+          + '<td><code style="font-size:11px;">' + esc(k) + '</code></td>'
+          + '<td>' + fmt(x.total) + '</td>'
+          + '<td>' + fmt(x.processed) + (x.needs_review ? ' <span style="color:#b45309;font-size:11px;">+' + x.needs_review + ' review</span>' : '') + '</td>'
+          + '<td>' + (x.processed_rate_pct != null ? x.processed_rate_pct + '%' : '—') + '</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+}
+
+function renderRouting(d) {
+  var by = d.routing_by_decision || {};
+  var keys = Object.keys(by);
+  if (!keys.length) {
+    document.getElementById('miRouting').innerHTML = '<div class="clx-empty">No signal-driven routing decisions yet. Campaign router consults market_signals_processed on each outbound send; once leads flow through with active signals, decisions log here.</div>';
+    return;
+  }
+  document.getElementById('miRouting').innerHTML =
+    '<table class="clx-table"><thead><tr><th>Decision</th><th>Count</th></tr></thead><tbody>'
+    + keys.map(function(k){
+        return '<tr><td><strong>' + esc(k.replace(/_/g, ' ')) + '</strong></td><td>' + fmt(by[k]) + '</td></tr>';
+      }).join('')
+    + '</tbody></table>';
 }
 </script>
 </body>
