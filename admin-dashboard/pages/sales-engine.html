@@ -202,7 +202,7 @@ async function loadOnce() {
   } else {
     var byStage = {};
     for (var i = 0; i < sample.length; i++) {
-      var stage = sample[i].pipeline_stage || sample[i].status || 'unknown';
+      var stage = sample[i].pipeline_stage || sample[i].lead_status || sample[i].status || 'unknown';
       byStage[stage] = (byStage[stage] || 0) + 1;
     }
     var keys = Object.keys(byStage).sort(function (a, b) { return byStage[b] - byStage[a]; });
