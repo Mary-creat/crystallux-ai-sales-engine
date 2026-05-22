@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
 <style>
-  /* Local form styles — kept inline to avoid bloating the global stylesheet
+  /* Local form styles. kept inline to avoid bloating the global stylesheet
      for what is a small auth-only surface. Mirrors the design tokens
      defined in assets/site.css. */
   .auth-shell{max-width:420px;margin:80px auto;padding:0 20px}
@@ -149,7 +149,7 @@
     var form = $('loginForm');
     var magic = $('magicBtn');
     if (!form) {
-      // Should never happen — the script tag is below the form.
+      // Should never happen. the script tag is below the form.
       // Surface visibly rather than failing silently.
       setMsg('Login form failed to initialize. Reload the page.');
       return;
@@ -212,7 +212,7 @@
             body: JSON.stringify({ email: email })
           });
           await res.json().catch(function(){ return {}; });
-          // 200 always — the API does not leak account existence.
+          // 200 always. the API does not leak account existence.
           try { sessionStorage.setItem('clx_magic_email', email); } catch (e) {}
           window.location.href = '/magic-link-sent.html';
         } catch (err) {
@@ -230,7 +230,7 @@
   // wait for DOMContentLoaded. Without this guard, a single
   // null-deref at attach time prevents preventDefault() from ever
   // running, the form does its native GET submit, and the page reloads
-  // with the user's password in the URL bar — the symptom that
+  // with the user's password in the URL bar. the symptom that
   // motivated this rewrite.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', attach);

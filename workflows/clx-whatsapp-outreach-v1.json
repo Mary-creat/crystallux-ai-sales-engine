@@ -20,7 +20,7 @@
         200,
         300
       ],
-      "notes": "DEACTIVATED — do not turn on until Twilio WhatsApp Business API is provisioned, at least one approved template is live, TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_WA_NUMBER are in .env, and the Twilio WhatsApp n8n credential is created. See docs/architecture/OPERATIONS_HANDBOOK.md §14.2."
+      "notes": "DEACTIVATED. do not turn on until Twilio WhatsApp Business API is provisioned, at least one approved template is live, TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_WA_NUMBER are in .env, and the Twilio WhatsApp n8n credential is created. See docs/architecture/OPERATIONS_HANDBOOK.md §14.2."
     },
     {
       "parameters": {
@@ -41,7 +41,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX WhatsApp Outreach v1 — Resolve input\n// Schedule Trigger = batch mode (downstream pulls Campaign Assigned +\n// preferred_channel=whatsapp). Manual Webhook = single-lead mode.\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
+        "jsCode": "// CLX WhatsApp Outreach v1. Resolve input\n// Schedule Trigger = batch mode (downstream pulls Campaign Assigned +\n// preferred_channel=whatsapp). Manual Webhook = single-lead mode.\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-wa-0003",
@@ -80,7 +80,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX WhatsApp Outreach v1 — Normalize + preflight gates\n// Skip gates:\n//   1. lead row missing\n//   2. preferred_channel is not 'whatsapp'\n//   3. no mobile / direct phone\n//   4. already attempted WhatsApp\n\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nif (String(lead.preferred_channel || '').toLowerCase() !== 'whatsapp') {\n  return { json: { _skip: true, skip_reason: 'preferred_channel_mismatch', lead_id: lead.id } };\n}\nconst phone = lead.mobile_phone || lead.direct_phone || null;\nif (!phone) {\n  return { json: { _skip: true, skip_reason: 'no_phone_number', lead_id: lead.id, client_id: lead.client_id || null } };\n}\nconst attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\nif (attempted.includes('whatsapp')) {\n  return { json: { _skip: true, skip_reason: 'already_attempted_whatsapp', lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, send_to_phone: phone } };",
+        "jsCode": "// CLX WhatsApp Outreach v1. Normalize + preflight gates\n// Skip gates:\n//   1. lead row missing\n//   2. preferred_channel is not 'whatsapp'\n//   3. no mobile / direct phone\n//   4. already attempted WhatsApp\n\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nif (String(lead.preferred_channel || '').toLowerCase() !== 'whatsapp') {\n  return { json: { _skip: true, skip_reason: 'preferred_channel_mismatch', lead_id: lead.id } };\n}\nconst phone = lead.mobile_phone || lead.direct_phone || null;\nif (!phone) {\n  return { json: { _skip: true, skip_reason: 'no_phone_number', lead_id: lead.id, client_id: lead.client_id || null } };\n}\nconst attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\nif (attempted.includes('whatsapp')) {\n  return { json: { _skip: true, skip_reason: 'already_attempted_whatsapp', lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, send_to_phone: phone } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-wa-0005",
@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX WhatsApp Outreach v1 — Daily-cap gate\n// Default Twilio template-message pacing caps the shared pool at 100/day.\n// We cap at 90 to keep buffer for retries and follow-ups in the same day.\n\nconst lead = $('Normalize Lead').first().json;\nif (lead._skip) return { json: lead };\n\nconst used = Number($input.item.json) || 0;\nconst CAP = 90;\n\nif (used >= CAP) {\n  return { json: { _skip: true, skip_reason: 'whatsapp_daily_cap_exceeded', sends_today: used, cap: CAP, lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, sends_today: used, cap: CAP } };",
+        "jsCode": "// CLX WhatsApp Outreach v1. Daily-cap gate\n// Default Twilio template-message pacing caps the shared pool at 100/day.\n// We cap at 90 to keep buffer for retries and follow-ups in the same day.\n\nconst lead = $('Normalize Lead').first().json;\nif (lead._skip) return { json: lead };\n\nconst used = Number($input.item.json) || 0;\nconst CAP = 90;\n\nif (used >= CAP) {\n  return { json: { _skip: true, skip_reason: 'whatsapp_daily_cap_exceeded', sends_today: used, cap: CAP, lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, sends_today: used, cap: CAP } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-wa-0007",
@@ -217,7 +217,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX WhatsApp Outreach v1 — Compose message\n// Twilio WhatsApp opening messages must use an approved template. We\n// build a short opener string that the Twilio send-step will pass as the\n// template's Body parameter. Keep it compact; WhatsApp truncates long\n// opening messages and the template limit is ~1024 chars.\n\nconst lead = $input.item.json;\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst vp = lead.campaign_value_proposition || 'help companies automate their sales process';\nconst cta = lead.campaign_call_to_action || 'Can I send you a quick 2-min video?';\n\nconst message_text = `Hi ${firstName}, this is Mary from Crystallux. We ${vp}. ${cta}`.slice(0, 900);\n\nreturn {\n  json: {\n    ...lead,\n    message_text\n  }\n};",
+        "jsCode": "// CLX WhatsApp Outreach v1. Compose message\n// Twilio WhatsApp opening messages must use an approved template. We\n// build a short opener string that the Twilio send-step will pass as the\n// template's Body parameter. Keep it compact; WhatsApp truncates long\n// opening messages and the template limit is ~1024 chars.\n\nconst lead = $input.item.json;\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst vp = lead.campaign_value_proposition || 'help companies automate their sales process';\nconst cta = lead.campaign_call_to_action || 'Can I send you a quick 2-min video?';\n\nconst message_text = `Hi ${firstName}, this is Mary from Crystallux. We ${vp}. ${cta}`.slice(0, 900);\n\nreturn {\n  json: {\n    ...lead,\n    message_text\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-wa-0010",
@@ -274,11 +274,11 @@
       ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "notes": "TODO: (1) Configure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WA_NUMBER in .env. (2) Create n8n credential named exactly `Twilio WhatsApp` (Basic Auth: username=Account SID, password=Auth Token). (3) Replace `TWILIO_ACCOUNT_SID_PLACEHOLDER` in the URL and `TWILIO_WA_NUMBER_PLACEHOLDER` in the From body param with real values. (4) Bind this node to the Twilio WhatsApp credential. Until configured, this node fails auth — workflow catches the error downstream and logs WHATSAPP_SEND_FAILED."
+      "notes": "TODO: (1) Configure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WA_NUMBER in .env. (2) Create n8n credential named exactly `Twilio WhatsApp` (Basic Auth: username=Account SID, password=Auth Token). (3) Replace `TWILIO_ACCOUNT_SID_PLACEHOLDER` in the URL and `TWILIO_WA_NUMBER_PLACEHOLDER` in the From body param with real values. (4) Bind this node to the Twilio WhatsApp credential. Until configured, this node fails auth. workflow catches the error downstream and logs WHATSAPP_SEND_FAILED."
     },
     {
       "parameters": {
-        "jsCode": "// CLX WhatsApp Outreach v1 — Parse Twilio response\n// Twilio returns JSON with { sid, status, error_code, error_message } on\n// the Messages.json endpoint. A successful send has status='queued' or\n// 'sent' and no error_code. Anything else is treated as a send failure.\n\nconst resp = $input.item.json || {};\nconst lead = $('Compose Message').first().json;\n\nconst status = resp.status || null;\nconst ok = !!(resp.sid && !resp.error_code && ['queued', 'sent', 'delivered', 'accepted'].includes(String(status).toLowerCase()));\nconst error_message = ok ? null : (resp.error_message || resp.message || JSON.stringify(resp).slice(0, 500));\n\nreturn {\n  json: {\n    ...lead,\n    twilio_ok: ok,\n    twilio_sid: resp.sid || null,\n    twilio_status: status,\n    twilio_error: error_message\n  }\n};",
+        "jsCode": "// CLX WhatsApp Outreach v1. Parse Twilio response\n// Twilio returns JSON with { sid, status, error_code, error_message } on\n// the Messages.json endpoint. A successful send has status='queued' or\n// 'sent' and no error_code. Anything else is treated as a send failure.\n\nconst resp = $input.item.json || {};\nconst lead = $('Compose Message').first().json;\n\nconst status = resp.status || null;\nconst ok = !!(resp.sid && !resp.error_code && ['queued', 'sent', 'delivered', 'accepted'].includes(String(status).toLowerCase()));\nconst error_message = ok ? null : (resp.error_message || resp.message || JSON.stringify(resp).slice(0, 500));\n\nreturn {\n  json: {\n    ...lead,\n    twilio_ok: ok,\n    twilio_sid: resp.sid || null,\n    twilio_status: status,\n    twilio_error: error_message\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-wa-0012",
@@ -372,7 +372,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX WhatsApp Outreach v1 — Prep lead update\n// Appends whatsapp to channels_attempted and bumps lead_status on send\n// success. On failure, lead_status stays Campaign Assigned so the router\n// can re-route on the next tick (e.g., fall back to email).\n\nconst parsed = $('Parse Twilio Response').first().json;\nconst lead = $('Compose Message').first().json;\n\nconst attempted = Array.isArray(lead.channels_attempted) ? [...lead.channels_attempted] : [];\nif (!attempted.includes('whatsapp')) attempted.push('whatsapp');\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    channels_attempted: attempted,\n    last_channel_attempted: 'whatsapp',\n    last_channel_attempted_at: new Date().toISOString(),\n    lead_status: parsed.twilio_ok ? 'Outreach Sent' : 'Campaign Assigned'\n  }\n};\n\nreturn { json: { ...parsed, rpc_body: JSON.stringify(body) } };",
+        "jsCode": "// CLX WhatsApp Outreach v1. Prep lead update\n// Appends whatsapp to channels_attempted and bumps lead_status on send\n// success. On failure, lead_status stays Campaign Assigned so the router\n// can re-route on the next tick (e.g., fall back to email).\n\nconst parsed = $('Parse Twilio Response').first().json;\nconst lead = $('Compose Message').first().json;\n\nconst attempted = Array.isArray(lead.channels_attempted) ? [...lead.channels_attempted] : [];\nif (!attempted.includes('whatsapp')) attempted.push('whatsapp');\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    channels_attempted: attempted,\n    last_channel_attempted: 'whatsapp',\n    last_channel_attempted_at: new Date().toISOString(),\n    lead_status: parsed.twilio_ok ? 'Outreach Sent' : 'Campaign Assigned'\n  }\n};\n\nreturn { json: { ...parsed, rpc_body: JSON.stringify(body) } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-wa-0015",

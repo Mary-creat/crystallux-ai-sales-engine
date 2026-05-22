@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Contact — Crystallux for Insurers</title>
+<title>Contact. Crystallux for Insurers</title>
 <link rel="stylesheet" href="/shared.css">
 </head><body>
 <header class="site"><div class="brand"><span class="mark">C</span>Crystallux</div><nav><a href="/index.html">Home</a><a href="/capabilities.html">Capabilities</a><a href="/compliance.html">Compliance</a><a href="/case-study.html">Case Study</a><a href="/api-docs.html">API</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a></nav></header>
@@ -31,7 +31,7 @@
     out.textContent = 'Sending…';
     // POSTs to the existing lead-intake endpoint (universal). Falls back to mailto on network failure.
     fetch('https://automation.crystallux.org/webhook/auth/lead-intake', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
-      .then(function(){ out.textContent = 'Thanks — we will be in touch within 2 business days.'; e.target.reset(); })
+      .then(function(){ out.textContent = 'Thanks. we will be in touch within 2 business days.'; e.target.reset(); })
       .catch(function(){ out.innerHTML = 'Network error. Please email us directly at <a href="mailto:partnerships@crystallux.org">partnerships@crystallux.org</a>.'; });
   });
 })();

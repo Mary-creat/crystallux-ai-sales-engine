@@ -20,7 +20,7 @@
         200,
         300
       ],
-      "notes": "DEACTIVATED — do not turn on until (1) VAPI_API_KEY is in .env, (2) Vapi n8n credential is created, (3) the Vapi Assistant is set up with a voice provider, (4) the Twilio SIP trunk is pointed at Vapi and the phoneNumberId is recorded, and (5) the DNCL check function (check_dncl_status) has been replaced with a real CRTC lookup. See docs/architecture/OPERATIONS_HANDBOOK.md §14.3."
+      "notes": "DEACTIVATED. do not turn on until (1) VAPI_API_KEY is in .env, (2) Vapi n8n credential is created, (3) the Vapi Assistant is set up with a voice provider, (4) the Twilio SIP trunk is pointed at Vapi and the phoneNumberId is recorded, and (5) the DNCL check function (check_dncl_status) has been replaced with a real CRTC lookup. See docs/architecture/OPERATIONS_HANDBOOK.md §14.3."
     },
     {
       "parameters": {
@@ -41,7 +41,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — Resolve input\n// Schedule Trigger = batch mode (downstream pulls Campaign Assigned +\n// preferred_channel=voice). Manual Webhook = single-lead mode.\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
+        "jsCode": "// CLX Voice Outreach v1. Resolve input\n// Schedule Trigger = batch mode (downstream pulls Campaign Assigned +\n// preferred_channel=voice). Manual Webhook = single-lead mode.\n\nconst input = $input.item.json;\nconst leadId = (input.body && input.body.lead_id) || input.lead_id || null;\n\nreturn {\n  json: {\n    lead_id: leadId,\n    mode: leadId ? 'single' : 'batch'\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0003",
@@ -80,7 +80,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — Normalize + preflight gates\n// Skip gates:\n//   1. lead row missing\n//   2. preferred_channel is not 'voice'\n//   3. no callable phone number (direct_phone or mobile_phone)\n//   4. already attempted voice on this lead\n\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nif (String(lead.preferred_channel || '').toLowerCase() !== 'voice') {\n  return { json: { _skip: true, skip_reason: 'preferred_channel_mismatch', lead_id: lead.id } };\n}\nconst phone = lead.direct_phone || lead.mobile_phone || null;\nif (!phone) {\n  return { json: { _skip: true, skip_reason: 'no_phone_number', lead_id: lead.id, client_id: lead.client_id || null } };\n}\nconst attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\nif (attempted.includes('voice')) {\n  return { json: { _skip: true, skip_reason: 'already_attempted_voice', lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\n// Normalise phone to E.164-ish digits only (Vapi will accept +NNNNNNN).\nconst digits = String(phone).replace(/[^0-9]/g, '');\nconst e164 = '+' + digits;\n\nreturn { json: { ...lead, dial_phone: e164 } };",
+        "jsCode": "// CLX Voice Outreach v1. Normalize + preflight gates\n// Skip gates:\n//   1. lead row missing\n//   2. preferred_channel is not 'voice'\n//   3. no callable phone number (direct_phone or mobile_phone)\n//   4. already attempted voice on this lead\n\nconst rows = $input.item.json;\nconst lead = Array.isArray(rows) ? rows[0] : rows;\n\nif (!lead || !lead.id) {\n  return { json: { _skip: true, skip_reason: 'lead_not_found' } };\n}\nif (String(lead.preferred_channel || '').toLowerCase() !== 'voice') {\n  return { json: { _skip: true, skip_reason: 'preferred_channel_mismatch', lead_id: lead.id } };\n}\nconst phone = lead.direct_phone || lead.mobile_phone || null;\nif (!phone) {\n  return { json: { _skip: true, skip_reason: 'no_phone_number', lead_id: lead.id, client_id: lead.client_id || null } };\n}\nconst attempted = Array.isArray(lead.channels_attempted) ? lead.channels_attempted : [];\nif (attempted.includes('voice')) {\n  return { json: { _skip: true, skip_reason: 'already_attempted_voice', lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\n// Normalise phone to E.164-ish digits only (Vapi will accept +NNNNNNN).\nconst digits = String(phone).replace(/[^0-9]/g, '');\nconst e164 = '+' + digits;\n\nreturn { json: { ...lead, dial_phone: e164 } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0005",
@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — Daily-cap gate\n// 50/day/client in the migration; cap at 45 to leave headroom for retries\n// and manual test calls on the same day.\n\nconst lead = $('Normalize Lead').first().json;\nif (lead._skip) return { json: lead };\n\nconst used = Number($input.item.json) || 0;\nconst CAP = 45;\n\nif (used >= CAP) {\n  return { json: { _skip: true, skip_reason: 'voice_daily_cap_exceeded', calls_today: used, cap: CAP, lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, calls_today: used, cap: CAP } };",
+        "jsCode": "// CLX Voice Outreach v1. Daily-cap gate\n// 50/day/client in the migration; cap at 45 to leave headroom for retries\n// and manual test calls on the same day.\n\nconst lead = $('Normalize Lead').first().json;\nif (lead._skip) return { json: lead };\n\nconst used = Number($input.item.json) || 0;\nconst CAP = 45;\n\nif (used >= CAP) {\n  return { json: { _skip: true, skip_reason: 'voice_daily_cap_exceeded', calls_today: used, cap: CAP, lead_id: lead.id, client_id: lead.client_id || null } };\n}\n\nreturn { json: { ...lead, calls_today: used, cap: CAP } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0007",
@@ -181,7 +181,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — DNCL gate\n// check_dncl_status returns boolean — true means 'call allowed', false\n// means the phone is on the Do-Not-Call List. On false, short-circuit\n// with a VOICE_DNCL_BLOCKED skip so scan_errors fires the configured\n// critical alert (migration §8).\n\nconst lead = $('Daily Cap Gate').first().json;\nif (lead._skip) return { json: lead };\n\nconst allowed = $input.item.json;\nconst allowedBool = allowed === true || allowed === 'true';\n\nif (!allowedBool) {\n  return { json: { _skip: true, skip_reason: 'voice_dncl_blocked', lead_id: lead.id, client_id: lead.client_id || null, dial_phone: lead.dial_phone } };\n}\n\nreturn { json: lead };",
+        "jsCode": "// CLX Voice Outreach v1. DNCL gate\n// check_dncl_status returns boolean. true means 'call allowed', false\n// means the phone is on the Do-Not-Call List. On false, short-circuit\n// with a VOICE_DNCL_BLOCKED skip so scan_errors fires the configured\n// critical alert (migration §8).\n\nconst lead = $('Daily Cap Gate').first().json;\nif (lead._skip) return { json: lead };\n\nconst allowed = $input.item.json;\nconst allowedBool = allowed === true || allowed === 'true';\n\nif (!allowedBool) {\n  return { json: { _skip: true, skip_reason: 'voice_dncl_blocked', lead_id: lead.id, client_id: lead.client_id || null, dial_phone: lead.dial_phone } };\n}\n\nreturn { json: lead };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0009",
@@ -293,7 +293,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — Compose script\n// Interpolates {city}, {company}, {first_name} placeholders into the\n// voice_script_template from the niche overlay. Falls back to a generic\n// opener if the niche has no template seeded.\n\nconst lead = $('DNCL Gate').first().json;\nconst overlayRows = $input.item.json;\nconst overlay = Array.isArray(overlayRows) ? overlayRows[0] : overlayRows;\n\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst fallback = `Hi, this is Mary from Crystallux. I work with ${lead.industry || 'businesses'} in ${lead.city || 'your area'} and I have a quick opportunity to share. Can I send you a Calendly link to grab 20 minutes this week?`;\n\nconst template = (overlay && overlay.voice_script_template) || fallback;\n\nconst first_message = template\n  .replace(/\\{city\\}/g, lead.city || 'your area')\n  .replace(/\\{company\\}/g, lead.company || 'your company')\n  .replace(/\\{first_name\\}/g, firstName);\n\nreturn {\n  json: {\n    ...lead,\n    first_message\n  }\n};",
+        "jsCode": "// CLX Voice Outreach v1. Compose script\n// Interpolates {city}, {company}, {first_name} placeholders into the\n// voice_script_template from the niche overlay. Falls back to a generic\n// opener if the niche has no template seeded.\n\nconst lead = $('DNCL Gate').first().json;\nconst overlayRows = $input.item.json;\nconst overlay = Array.isArray(overlayRows) ? overlayRows[0] : overlayRows;\n\nconst firstName = (lead.full_name || '').split(' ')[0] || 'there';\nconst fallback = `Hi, this is Mary from Crystallux. I work with ${lead.industry || 'businesses'} in ${lead.city || 'your area'} and I have a quick opportunity to share. Can I send you a Calendly link to grab 20 minutes this week?`;\n\nconst template = (overlay && overlay.voice_script_template) || fallback;\n\nconst first_message = template\n  .replace(/\\{city\\}/g, lead.city || 'your area')\n  .replace(/\\{company\\}/g, lead.company || 'your company')\n  .replace(/\\{first_name\\}/g, firstName);\n\nreturn {\n  json: {\n    ...lead,\n    first_message\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0013",
@@ -339,7 +339,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — Parse Vapi response\n// Vapi returns { id, status, ... } on success. A 200 with id is enough to\n// mark the call as queued; actual outcome arrives via the result webhook.\n\nconst resp = $input.item.json || {};\nconst lead = $('Compose Script').first().json;\n\nconst call_id = resp.id || null;\nconst ok = !!call_id;\nconst error_message = ok ? null : (resp.message || resp.error || JSON.stringify(resp).slice(0, 500));\n\nreturn {\n  json: {\n    ...lead,\n    vapi_ok: ok,\n    vapi_call_id: call_id,\n    vapi_error: error_message\n  }\n};",
+        "jsCode": "// CLX Voice Outreach v1. Parse Vapi response\n// Vapi returns { id, status, ... } on success. A 200 with id is enough to\n// mark the call as queued; actual outcome arrives via the result webhook.\n\nconst resp = $input.item.json || {};\nconst lead = $('Compose Script').first().json;\n\nconst call_id = resp.id || null;\nconst ok = !!call_id;\nconst error_message = ok ? null : (resp.message || resp.error || JSON.stringify(resp).slice(0, 500));\n\nreturn {\n  json: {\n    ...lead,\n    vapi_ok: ok,\n    vapi_call_id: call_id,\n    vapi_error: error_message\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0015",
@@ -433,7 +433,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Voice Outreach v1 — Prep lead update\n// Appends voice to channels_attempted. On initiate success, lead_status\n// becomes 'Call Initiated' (the voice-result webhook later flips this\n// to 'Replied' if the call outcome indicates consent to follow up).\n\nconst parsed = $('Parse Vapi Response').first().json;\nconst lead = $('Compose Script').first().json;\n\nconst attempted = Array.isArray(lead.channels_attempted) ? [...lead.channels_attempted] : [];\nif (!attempted.includes('voice')) attempted.push('voice');\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    channels_attempted: attempted,\n    last_channel_attempted: 'voice',\n    last_channel_attempted_at: new Date().toISOString(),\n    lead_status: parsed.vapi_ok ? 'Call Initiated' : 'Campaign Assigned'\n  }\n};\n\nreturn { json: { ...parsed, rpc_body: JSON.stringify(body) } };",
+        "jsCode": "// CLX Voice Outreach v1. Prep lead update\n// Appends voice to channels_attempted. On initiate success, lead_status\n// becomes 'Call Initiated' (the voice-result webhook later flips this\n// to 'Replied' if the call outcome indicates consent to follow up).\n\nconst parsed = $('Parse Vapi Response').first().json;\nconst lead = $('Compose Script').first().json;\n\nconst attempted = Array.isArray(lead.channels_attempted) ? [...lead.channels_attempted] : [];\nif (!attempted.includes('voice')) attempted.push('voice');\n\nconst body = {\n  p_lead_id: lead.id,\n  p_fields: {\n    channels_attempted: attempted,\n    last_channel_attempted: 'voice',\n    last_channel_attempted_at: new Date().toISOString(),\n    lead_status: parsed.vapi_ok ? 'Call Initiated' : 'Campaign Assigned'\n  }\n};\n\nreturn { json: { ...parsed, rpc_body: JSON.stringify(body) } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-vo-0018",

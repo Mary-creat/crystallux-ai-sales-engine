@@ -98,7 +98,7 @@
   }
 
   function fmtMoney(cents) {
-    if (cents == null) return '—';
+    if (cents == null) return '-';
     var v = (parseInt(cents, 10) || 0) / 100;
     return '$' + v.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
@@ -233,7 +233,7 @@
     var dec = document.getElementById('declineBtn');
     if (acc) acc.addEventListener('click', function () { respond('accepted'); });
     if (dec) dec.addEventListener('click', function () {
-      var reason = prompt('Mind sharing why? (optional — helps us improve)');
+      var reason = prompt('Mind sharing why? (optional. helps us improve)');
       respond('declined', reason || '');
     });
   }
@@ -259,7 +259,7 @@
     }).then(function (res) {
       STATE.busy = false;
       if (!res.ok) {
-        alert('Sorry — could not submit: ' + ((res.data && res.data.error) || ('HTTP ' + res.http)));
+        alert('Sorry. could not submit: ' + ((res.data && res.data.error) || ('HTTP ' + res.http)));
         if (acc) acc.disabled = false;
         if (dec) dec.disabled = false;
         if (acc && action === 'accepted') acc.textContent = 'Accept this quote';
