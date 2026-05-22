@@ -88,16 +88,66 @@ if [ -z "$WF_ID" ] || [ "$WF_ID" = "null" ]; then
 fi
 ok "id: $WF_ID"
 
-# ─── 3. copy + import ────────────────────────────────────────────
-step "3/6  Import into n8n"
-docker cp "$WF_PATH" "$CONTAINER:/tmp/ship.json" >/dev/null 2>&1 \
-  || { fail "docker cp failed (container $CONTAINER running?)"; exit 6; }
-IMPORT_OUT=$(docker exec "$CONTAINER" n8n import:workflow --input=/tmp/ship.json 2>&1)
-if echo "$IMPORT_OUT" | grep -qiE "successfully imported|imported workflow"; then
-  ok "imported"
+# ─── 3. import OR update ─────────────────────────────────────────
+# If the workflow already exists (same id), use REST API PUT to update
+# it in place. Otherwise use n8n import:workflow CLI to insert. This
+# means re-running ship.sh on the same file always reflects the
+# repo state without any manual UI work.
+step "3/6  Import or update workflow"
+PUBLIC_BASE="${CLX_N8N_PUBLIC_URL:-https://automation.crystallux.org}"
+
+EXISTS_HTTP=000
+if [ -n "${N8N_API_KEY:-}" ]; then
+  EXISTS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X GET "${PUBLIC_BASE}/api/v1/workflows/${WF_ID}" \
+    -H "X-N8N-API-KEY: ${N8N_API_KEY}" \
+    -H "Accept: application/json")
+fi
+
+if [ "$EXISTS_HTTP" = "200" ]; then
+  # Workflow exists, update via REST API PUT. The PUT endpoint expects
+  # only name + nodes + connections + settings — not the full export.
+  PUT_BODY=$(python3 -c "
+import json, sys
+d = json.load(open('${WF_PATH}', encoding='utf-8'))
+out = {
+    'name': d.get('name'),
+    'nodes': d.get('nodes', []),
+    'connections': d.get('connections', {}),
+    'settings': d.get('settings', {'executionOrder': 'v1'})
+}
+print(json.dumps(out))
+" 2>/dev/null)
+  if [ -z "$PUT_BODY" ]; then
+    fail "Could not build PUT body (python3 + json missing?)"
+    exit 6
+  fi
+  PUT_HTTP=$(curl -s -o /tmp/ship_put.json -w "%{http_code}" \
+    -X PUT "${PUBLIC_BASE}/api/v1/workflows/${WF_ID}" \
+    -H "X-N8N-API-KEY: ${N8N_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$PUT_BODY")
+  if [ "$PUT_HTTP" = "200" ]; then
+    ok "updated existing workflow via REST API (was already in n8n)"
+  else
+    say "${YELLOW}REST PUT returned HTTP ${PUT_HTTP}; falling back to CLI import${RESET}"
+    [ -f /tmp/ship_put.json ] && say "${DIM}$(cat /tmp/ship_put.json | head -c 300)${RESET}"
+    docker cp "$WF_PATH" "$CONTAINER:/tmp/ship.json" >/dev/null 2>&1
+    docker exec "$CONTAINER" n8n import:workflow --input=/tmp/ship.json >/dev/null 2>&1 \
+      && ok "imported via CLI fallback" \
+      || fail "both REST PUT and CLI import failed"
+  fi
 else
-  printf "  ${DIM}%s${RESET}\n" "$IMPORT_OUT"
-  fail "import unclear; continuing to activate anyway"
+  # New workflow, use CLI import (only path that creates with our chosen id)
+  docker cp "$WF_PATH" "$CONTAINER:/tmp/ship.json" >/dev/null 2>&1 \
+    || { fail "docker cp failed (container $CONTAINER running?)"; exit 6; }
+  IMPORT_OUT=$(docker exec "$CONTAINER" n8n import:workflow --input=/tmp/ship.json 2>&1)
+  if echo "$IMPORT_OUT" | grep -qiE "successfully imported|imported workflow"; then
+    ok "imported (new workflow)"
+  else
+    printf "  ${DIM}%s${RESET}\n" "$IMPORT_OUT"
+    fail "import unclear; continuing to activate anyway"
+  fi
 fi
 
 # ─── 4. activate workflow ────────────────────────────────────────
