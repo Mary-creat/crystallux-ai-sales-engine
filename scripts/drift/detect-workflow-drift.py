@@ -308,17 +308,23 @@ def detect_drift(repo, n8n):
                 'details': {'message': 'Content hash differs between repo and n8n'}
             })
         elif r['active'] != n['active']:
-            drift.append({
-                'workflow_id': wid,
-                'workflow_name': r['name'] or n['name'],
-                'drift_type': 'active_diff',
-                'repo_hash': r['hash'],
-                'n8n_hash': n['hash'],
-                'repo_active': r['active'],
-                'n8n_active': n['active'],
-                'repo_path': r['path'],
-                'details': {'message': 'Active flag differs: repo=' + str(r['active']) + ' n8n=' + str(n['active'])}
-            })
+            # CLAUDE.md rule: "Dormant by default — new workflows ship inactive;
+            # Mary activates per demo path." So repo=False / n8n=True is the
+            # expected steady-state, not drift. Only flag the inverse: repo
+            # expected the workflow to be active but n8n has it off.
+            if r['active'] is True and n['active'] is False:
+                drift.append({
+                    'workflow_id': wid,
+                    'workflow_name': r['name'] or n['name'],
+                    'drift_type': 'active_diff',
+                    'repo_hash': r['hash'],
+                    'n8n_hash': n['hash'],
+                    'repo_active': r['active'],
+                    'n8n_active': n['active'],
+                    'repo_path': r['path'],
+                    'details': {'message': 'Repo expected active=true, n8n has it inactive — needs activation'}
+                })
+            # else: repo=False, n8n=True — Mary's standing rule, ignored
 
     return drift
 
