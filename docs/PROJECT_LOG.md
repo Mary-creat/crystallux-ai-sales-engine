@@ -32,6 +32,24 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-23 (pt 2) — Postmark webhook ingestion: spam + bounces go live
+
+Closed the placeholder on the Comms tab — spam tracking has been "best-effort scan of email_log.status" since the Comms tab shipped. Now it's a live Postmark webhook stream.
+
+### What shipped
+- `db/migrations/email-events-schema.sql` — `email_events` table with type/subtype/recipient/subject/tag/stream/raw_payload + 6 indexes (incl. partial indexes on spam_complaint + bounce for the hot path).
+- `workflows/api/webhooks/clx-webhook-postmark-events-v1.json` — receiver workflow. Validates `X-Postmark-Webhook-Token` against `$env.POSTMARK_WEBHOOK_TOKEN`, normalizes Postmark RecordType → our event_type enum (Delivery/Bounce/SpamComplaint/Open/Click/SubscriptionChange/other), inserts into `email_events`, always acks 200 so Postmark doesn't retry on transient Supabase blips.
+- `clx-admin-sentinel-comms-health-v1.json` — two new fetches (`Spam Events 30d` + `Bounce Events 30d`) wired through the fan-out. Shape Response now prefers email_events when present and falls back to the old email_log scan so the panel keeps rendering before the webhook is configured. New `bounces` block in the payload (total + by_subtype + recent).
+- `admin-dashboard/pages/sentinel.html` — new Bounces card with subtype breakdown; Spam card sub-note now flips between `live` (pill-up) and `not live` (pill-info) pills depending on data source.
+
+### What got blocked or deferred
+- Live data depends on Mary doing the Postmark UI config + setting the env var + restarting n8n. Until then the cards keep working off the email_log scan (no regression).
+
+### What Mary needs to do next
+- Apply migration, set env var, import + activate workflow, configure Postmark webhook URL + custom header, re-import comms-health workflow. Step-by-step in `docs/audit/blockers.md` §0v.
+
+---
+
 ## 2026-05-23 — Vendor-health wired into the Sentinel Communications tab
 
 Short follow-up session on top of yesterday's self-healing layer (4 commits ending `69e6119`). The vendor-health monitor was writing snapshots every 15 min but the data was only surfaced via the alert it raised at the 30%/10-call threshold. Wired the latest snapshot into the existing Comms tab so the live vendor circuit shows alongside the trailing 30-day delivery rate.

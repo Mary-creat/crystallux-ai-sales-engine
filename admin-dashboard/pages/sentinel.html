@@ -106,6 +106,10 @@
       <div id="commsSpamBox"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
     </div>
     <div class="clx-card">
+      <div class="clx-card-head"><div class="clx-card-title">Bounces (last 30 days)</div><div class="clx-card-sub" id="commsBounceSub">Hard / soft / transient bounces from the Postmark webhook stream.</div></div>
+      <div id="commsBounceBox"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
+    </div>
+    <div class="clx-card">
       <div class="clx-card-head"><div class="clx-card-title">Volume trend — last 14 days</div><div class="clx-card-sub">Per-day send count by channel. Dips indicate workflow failure; spikes indicate campaigns.</div></div>
       <div id="commsTrendTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
     </div>
@@ -737,6 +741,7 @@
       renderCommsFailures(d);
       renderCommsOptout(d);
       renderCommsSpam(d);
+      renderCommsBounces(d);
       renderCommsTrend(d);
     });
   }
@@ -862,6 +867,14 @@
   function renderCommsSpam(d){
     var s = d.spam || {};
     var recent = s.recent || [];
+    var sub = document.getElementById('commsSpamSub');
+    if (sub) {
+      if (s.source === 'postmark_webhook') {
+        sub.innerHTML = 'Live stream from the Postmark webhook (email_events). <span class="pill pill-up" style="margin-left:4px;">live</span>';
+      } else {
+        sub.innerHTML = 'Best-effort scan of email_log.status. <span class="pill pill-info" style="margin-left:4px;">not live</span> — activate clx-webhook-postmark-events-v1 + point Postmark Webhooks at /webhook/postmark/events to enable live tracking.';
+      }
+    }
     var note = s.note ? '<div style="font-size:12px;color:#6b7280;margin-top:8px;font-style:italic;">'+s.note+'</div>' : '';
     if (!recent.length) {
       document.getElementById('commsSpamBox').innerHTML =
@@ -877,6 +890,38 @@
     }).join('');
     document.getElementById('commsSpamBox').innerHTML =
       '<table class="clx-table"><thead><tr><th>When</th><th>Recipient</th><th>Subject</th></tr></thead><tbody>' + rows + '</tbody></table>' + note;
+  }
+
+  function renderCommsBounces(d){
+    var b = d.bounces || {};
+    var recent = b.recent || [];
+    var sub = document.getElementById('commsBounceSub');
+    if (sub) {
+      if (b.source === 'postmark_webhook') {
+        var bySubtype = b.by_subtype || {};
+        var subtypeLine = Object.keys(bySubtype).map(function(k){ return clxApi.formatInt(bySubtype[k])+' '+k; }).join(' · ');
+        sub.innerHTML = 'Live stream from the Postmark webhook (email_events). <span class="pill pill-up" style="margin-left:4px;">live</span>'
+          + (subtypeLine ? '<div style="font-size:11px;color:#6b7280;margin-top:4px;">'+esc(subtypeLine)+'</div>' : '');
+      } else {
+        sub.innerHTML = 'Not live yet — activate clx-webhook-postmark-events-v1 + point Postmark Webhooks at /webhook/postmark/events. <span class="pill pill-info" style="margin-left:4px;">not live</span>';
+      }
+    }
+    if (!recent.length) {
+      document.getElementById('commsBounceBox').innerHTML =
+        '<div class="clx-empty">No bounce events in the last 30 days.</div>';
+      return;
+    }
+    var rows = recent.map(function(r){
+      return '<tr>'
+        + '<td style="font-size:11px;color:#6b7280;">'+(r.ts ? new Date(r.ts).toISOString().slice(0,16).replace('T',' ') : '—')+'</td>'
+        + '<td><span class="pill pill-info">'+esc(r.subtype || 'Bounce')+'</span></td>'
+        + '<td>'+(r.recipient || '—')+'</td>'
+        + '<td>'+(r.subject || '—')+'</td>'
+        + '<td style="font-size:11px;color:#6b7280;">'+(r.reason ? esc(r.reason).slice(0,140) : '—')+'</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('commsBounceBox').innerHTML =
+      '<table class="clx-table"><thead><tr><th>When</th><th>Type</th><th>Recipient</th><th>Subject</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   function renderCommsTrend(d){

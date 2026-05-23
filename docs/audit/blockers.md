@@ -6,6 +6,42 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0v. Postmark webhook ingestion (added 2026-05-23)
+
+New `email_events` table + `clx-webhook-postmark-events-v1` workflow turn the Sentinel Comms spam + bounce panels into live streams (today they read email_log.status as best-effort).
+
+**Mary action — three steps, none depend on each other:**
+
+1. **Apply the migration:**
+   ```bash
+   cd /tmp/clx-latest && git pull && psql "$DATABASE_URL" -f db/migrations/email-events-schema.sql
+   ```
+
+2. **Set the shared-secret env var on the n8n host**, then restart the container so n8n picks it up:
+   ```bash
+   echo 'POSTMARK_WEBHOOK_TOKEN=<long-random-token-you-generate>' >> /opt/n8n/.env
+   docker restart n8n
+   ```
+   Generate with: `openssl rand -hex 32`.
+
+3. **Import + activate the workflow** (UI Import-Replace per `[[n8n-workflow-update-gotcha]]`):
+   - File: `workflows/api/webhooks/clx-webhook-postmark-events-v1.json`
+   - Activate after import.
+   - Webhook URL is `https://automation.crystallux.org/webhook/webhook/postmark/events` (n8n prefixes the path with `/webhook`).
+
+4. **Configure Postmark** (Server Settings > Webhooks):
+   - Add a webhook for each event type you want: Delivery, Bounce, Open, Click, SpamComplaint, SubscriptionChange.
+   - URL: the one from step 3.
+   - Under "Custom HTTP headers": add `X-Postmark-Webhook-Token` = the token from step 2.
+
+5. **Re-import** `clx-admin-sentinel-comms-health-v1.json` — Comms tab now has Spam Events + Bounce Events fetches. Without re-importing it still works (falls back to email_log scan); after re-import the spam + bounce cards flip to "live" pills.
+
+6. **Purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` so the new Bounces card renders.
+
+Verify by sending a test email from Postmark and watching `email_events` populate within ~5 sec.
+
+---
+
 ## 0u. Sentinel Comms tab now reads vendor-health (added 2026-05-23)
 
 `clx-admin-sentinel-comms-health-v1.json` gained a 7th fetch node (`Vendor Health Latest`) that reads the most recent `sentinel_vendor_health` snapshot per vendor (last 30 min) and returns it under `data.vendor_health.by_channel`. The Comms tab per-channel table now renders Vendor + Circuit (60 min) columns alongside the trailing 30-day delivery rate.

@@ -1,0 +1,131 @@
+{
+  "id": "wfWebhookPostmarkEventsV1",
+  "name": "CLX - Webhook Postmark Events v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/postmark/events",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wpe-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-webhook-postmark-events-001",
+      "notes": "Public POST receiver for Postmark webhooks. Postmark sends one RecordType per request. Auth: require header X-Postmark-Webhook-Token = $env.POSTMARK_WEBHOOK_TOKEN. Configure under Postmark server settings > Webhooks > Custom HTTP headers."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate the shared-secret header. Postmark webhooks are unauthenticated\n// by default; we require a custom header that Mary configures in the\n// Postmark UI under Webhooks > Custom HTTP headers. The expected value\n// lives in $env.POSTMARK_WEBHOOK_TOKEN on the n8n host.\nconst headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst expected = ($env && $env.POSTMARK_WEBHOOK_TOKEN) || '';\nconst supplied = headers['x-postmark-webhook-token'] || headers['X-Postmark-Webhook-Token'] || '';\n\nif (!expected) {\n  return { json: { ok: false, status: 500, error: 'POSTMARK_WEBHOOK_TOKEN env var not set on n8n host' } };\n}\nif (supplied !== expected) {\n  return { json: { ok: false, status: 401, error: 'Invalid or missing webhook token' } };\n}\n\n// Normalize Postmark RecordType -> our event_type enum.\nconst RECORD_TO_TYPE = {\n  Delivery:           'delivery',\n  Bounce:             'bounce',\n  SpamComplaint:      'spam_complaint',\n  Open:               'open',\n  Click:              'click',\n  SubscriptionChange: 'subscription_change'\n};\nconst recordType = body.RecordType || '';\nconst eventType = RECORD_TO_TYPE[recordType] || 'other';\n\n// Postmark ships ReceivedAt for most types, BouncedAt for Bounce,\n// ChangedAt for SubscriptionChange. Pick the most specific timestamp\n// the event provides.\nconst receivedAt = body.ReceivedAt || body.BouncedAt || body.DeliveredAt\n  || body.ChangedAt || body.ReceivedAtUtc || new Date().toISOString();\n\n// Bounce has a Type (HardBounce, SoftBounce, Transient, DnsError, etc.)\n// and a TypeCode. Keep the human-readable Type as our subtype.\nconst bounceSubtype = (recordType === 'Bounce') ? (body.Type || null) : null;\n\nconst row = {\n  event_type:          eventType,\n  bounce_subtype:      bounceSubtype,\n  postmark_message_id: body.MessageID || body.MessageId || null,\n  recipient:           body.Recipient || body.Email || (body.To && Array.isArray(body.To) ? (body.To[0] && body.To[0].Email) : (body.To || null)),\n  from_email:          body.From || null,\n  subject:             body.Subject || null,\n  tag:                 body.Tag || null,\n  message_stream:      body.MessageStream || null,\n  description:         body.Description || null,\n  details:             body.Details || null,\n  server_id:           body.ServerID != null ? String(body.ServerID) : null,\n  received_at:         receivedAt,\n  raw_payload:         body,\n  metadata:            body.Metadata || {}\n};\n\nreturn { json: { ok: true, status: 200, row: row, record_type: recordType, event_type: eventType } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "wpe-0002",
+      "name": "Validate + Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wpe-0003",
+      "name": "IF Auth OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" },
+            { "name": "Prefer",       "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "wpe-0004",
+      "name": "Insert Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Always ack 200 to Postmark even if the insert errored — Postmark\n// retries with backoff if we 5xx, but we'd rather lose one event than\n// hammer a Supabase outage. The insert node is continueOnFail; pull its\n// status here for the response body.\nconst v = $('Validate + Normalize').item.json;\nconst insert = $input.item ? $input.item.json : {};\nconst insertedOk = !(insert && (insert.error || insert.message === 'error' || insert.code));\nreturn { json: {\n  ok: insertedOk,\n  event_type: v.event_type,\n  record_type: v.record_type,\n  inserted: insertedOk,\n  insert_error: insertedOk ? null : (insert.error || insert.message || JSON.stringify(insert).slice(0, 300))\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "wpe-0005",
+      "name": "Shape Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [{ "name": "Cache-Control", "value": "no-store" }]
+          }
+        }
+      },
+      "id": "wpe-0006",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1380, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized', status: $json.status || 401 } }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "wpe-0007",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 540]
+    }
+  ],
+  "connections": {
+    "Webhook":             { "main": [[{ "node": "Validate + Normalize", "type": "main", "index": 0 }]] },
+    "Validate + Normalize":{ "main": [[{ "node": "IF Auth OK",           "type": "main", "index": 0 }]] },
+    "IF Auth OK": {
+      "main": [
+        [ { "node": "Insert Event",         "type": "main", "index": 0 } ],
+        [ { "node": "Respond Unauthorized", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Insert Event":  { "main": [[{ "node": "Shape Success", "type": "main", "index": 0 }]] },
+    "Shape Success": { "main": [[{ "node": "Respond 200",   "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}
