@@ -123,8 +123,8 @@ def load_repo_workflows(repo_root):
     return out
 
 
-def load_n8n_workflows(api_key):
-    """Page through /api/v1/workflows and return {id: {...}}"""
+def load_n8n_workflows_via_api(api_key):
+    """Try REST API first. Returns ({}, error_str) on failure so caller can fall back."""
     if not api_key:
         return {}, 'N8N_API_KEY not set'
     out = {}
@@ -156,6 +156,79 @@ def load_n8n_workflows(api_key):
         if not cursor or page > 50:
             break
     return out, None
+
+
+def load_n8n_workflows_via_cli(container='n8n'):
+    """Fallback: use `n8n export:workflow --all` via docker exec.
+    More robust than the REST API because it does not need an API key
+    with listing permissions. The repo source-of-truth pattern Mary
+    already uses everywhere else."""
+    import subprocess
+    tmp_in_container = '/tmp/clx-drift-export'
+    out = {}
+    try:
+        # Clean any prior export
+        subprocess.run(['docker', 'exec', container, 'rm', '-rf', tmp_in_container],
+                       capture_output=True, timeout=15)
+        # Export all workflows as a folder of JSON files
+        r = subprocess.run(
+            ['docker', 'exec', container, 'n8n', 'export:workflow', '--all',
+             '--output=' + tmp_in_container, '--separate'],
+            capture_output=True, text=True, timeout=120
+        )
+        if r.returncode != 0:
+            return out, 'n8n CLI export failed: ' + (r.stderr.strip() or r.stdout.strip())[:300]
+        # List the files
+        r = subprocess.run(
+            ['docker', 'exec', container, 'ls', tmp_in_container],
+            capture_output=True, text=True, timeout=15
+        )
+        if r.returncode != 0:
+            return out, 'docker exec ls failed: ' + r.stderr.strip()
+        files = [f for f in r.stdout.strip().split('\n') if f.endswith('.json')]
+        # Read each file
+        for fname in files:
+            r = subprocess.run(
+                ['docker', 'exec', container, 'cat', tmp_in_container + '/' + fname],
+                capture_output=True, text=True, timeout=30
+            )
+            if r.returncode != 0:
+                continue
+            try:
+                wf = json.loads(r.stdout)
+            except Exception:
+                continue
+            wf_id = wf.get('id')
+            if not wf_id:
+                continue
+            out[wf_id] = {
+                'id': wf_id,
+                'name': wf.get('name'),
+                'active': bool(wf.get('active')),
+                'hash': hash_workflow(wf),
+            }
+        # Cleanup
+        subprocess.run(['docker', 'exec', container, 'rm', '-rf', tmp_in_container],
+                       capture_output=True, timeout=15)
+        return out, None
+    except FileNotFoundError:
+        return out, 'docker command not found (run on the VPS, not inside the container)'
+    except subprocess.TimeoutExpired:
+        return out, 'docker exec timed out'
+    except Exception as e:
+        return out, 'cli error: ' + str(e)
+
+
+def load_n8n_workflows(api_key, prefer_cli=False):
+    """Try REST API first (unless --via-cli forced), fall back to docker exec CLI."""
+    if not prefer_cli:
+        out, err = load_n8n_workflows_via_api(api_key)
+        if not err:
+            return out, None
+        # API didn't work, log + fall back
+        print(f'  {YELLOW}REST API failed ({err}). Falling back to docker exec CLI...{RESET}',
+              file=sys.stderr)
+    return load_n8n_workflows_via_cli()
 
 
 # ───────────────────────────────────────────────────────────────────
@@ -255,6 +328,7 @@ def main():
     ap.add_argument('--repo', default=REPO_DEFAULT)
     ap.add_argument('--dry-run', action='store_true', help='Detect + print, do not write to Supabase')
     ap.add_argument('--json',    action='store_true', help='Machine-readable JSON output')
+    ap.add_argument('--via-cli', action='store_true', help='Skip REST API, use docker exec n8n CLI directly')
     args = ap.parse_args()
 
     start = time.time()
@@ -262,7 +336,7 @@ def main():
     service_key  = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
     repo = load_repo_workflows(args.repo)
-    n8n, err = load_n8n_workflows(api_key)
+    n8n, err = load_n8n_workflows(api_key, prefer_cli=args.via_cli)
     if err:
         print(f'{RED}n8n fetch failed:{RESET} {err}', file=sys.stderr)
         sys.exit(2)
