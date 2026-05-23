@@ -1,0 +1,161 @@
+{
+  "id": "wfSentinelWebhookHealthProbeV1",
+  "name": "CLX - Sentinel Webhook Health Probe v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 30 }
+          ]
+        }
+      },
+      "id": "swh-0001",
+      "name": "Every 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "Runs every 30 minutes. Probes 11 curated critical webhook endpoints. Fires sentinel_alerts when any return 404 (the canonical 'webhook not registered' failure mode). Emails Mary immediately when 3+ endpoints are down — that's a sign the n8n webhook map needs a restart."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Probe 11 curated critical webhook endpoints with junk Bearer.\n// Healthy responses are 401 (auth gate rejecting) or 400 (input gate).\n// 200 is acceptable too — means workflow ran and returned empty for\n// the junk Bearer (cosmetic only). 404 is the failure we care about:\n// it means the webhook is not registered in n8n's runtime map.\n//\n// Uses this.helpers.httpRequest to issue probes from inside the\n// workflow execution context. Times each probe at 8s max.\nconst PUBLIC_BASE = $env.CLX_WEBHOOK_BASE || 'https://automation.crystallux.org/webhook';\n\nconst ENDPOINTS = [\n  'admin/list-leads',\n  'admin/comms-log',\n  'admin/system-health',\n  'admin/workflow-status',\n  'admin/sales-engine/activity',\n  'admin/chat',\n  'admin/market-intelligence/summary',\n  'admin/sentinel/comms/summary',\n  'admin/ciro/alerts',\n  'public/quote/fetch',\n  'public/mga/apply'\n];\n\nasync function probe(path) {\n  try {\n    const r = await this.helpers.httpRequest({\n      method: 'POST',\n      url: PUBLIC_BASE + '/' + path,\n      headers: {\n        'Authorization': 'Bearer junk',\n        'Content-Type': 'application/json'\n      },\n      body: '{}',\n      timeout: 8000,\n      returnFullResponse: true,\n      ignoreHttpStatusErrors: true\n    });\n    const code = r.statusCode || r.status || 0;\n    return { path: path, code: code, ok: code !== 404 };\n  } catch (e) {\n    // Network error or timeout — treat as unhealthy but distinguish from 404\n    return { path: path, code: 0, ok: false, error: (e.message || String(e)).slice(0, 200) };\n  }\n}\n\nconst boundProbe = probe.bind(this);\nconst results = [];\nfor (const p of ENDPOINTS) {\n  results.push(await boundProbe(p));\n}\n\nconst unhealthy = results.filter(function (r) { return !r.ok; });\nconst notFound  = results.filter(function (r) { return r.code === 404; });\nconst errors    = results.filter(function (r) { return r.code === 0; });\nconst healthy   = results.filter(function (r) { return r.ok; });\n\nconst severity = notFound.length >= 3 ? 'critical' : (notFound.length > 0 ? 'warning' : 'info');\nconst should_email = severity === 'critical';\n\nreturn { json: {\n  timestamp: new Date().toISOString(),\n  total_probed: results.length,\n  healthy_count:    healthy.length,\n  unhealthy_count:  unhealthy.length,\n  not_found_count:  notFound.length,\n  network_error_count: errors.length,\n  severity: severity,\n  should_alert: unhealthy.length > 0,\n  should_email: should_email,\n  results: results,\n  unhealthy_list: unhealthy\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "swh-0002",
+      "name": "Probe Endpoints",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.should_alert }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "swh-0003",
+      "name": "IF Unhealthy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.item.json;\nconst paths = (r.unhealthy_list || []).map(function (u) { return u.path + ' (' + u.code + ')'; }).join(', ');\n\nreturn { json: {\n  sentinel_alert_row: {\n    module_name: 'health_monitoring',\n    alert_type: 'webhook_health_probe',\n    severity: r.severity,\n    title: r.not_found_count >= 3\n      ? 'Webhook routing degraded — ' + r.not_found_count + ' endpoints returning 404'\n      : (r.not_found_count > 0\n          ? r.not_found_count + ' webhook(s) not registered'\n          : r.unhealthy_count + ' webhook(s) unhealthy'),\n    message: 'Probed ' + r.total_probed + ' endpoints. ' + r.healthy_count + ' healthy, ' + r.not_found_count + ' returning 404, ' + r.network_error_count + ' network errors. Affected: ' + paths,\n    details: { results: r.results, unhealthy_list: r.unhealthy_list },\n    status: 'open',\n    aggregation_key: 'webhook_health_probe'\n  },\n  meta: {\n    should_email: r.should_email,\n    not_found_count: r.not_found_count,\n    paths_short: paths\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "swh-0004",
+      "name": "Build Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sentinel_alert_row) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "swh-0005",
+      "name": "Persist Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1240, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $('Build Alert').first().json.meta.should_email }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "swh-0006",
+      "name": "IF Critical",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1240, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Probe Endpoints').first().json;\nconst maryEmail = $env.MARY_EMAIL || 'adesholaakintunde@gmail.com';\nconst fromAddr  = $env.POSTMARK_FROM || 'mary@crystallux.org';\n\nconst affected = (ctx.unhealthy_list || []).map(function (u) {\n  return '<li style=\"margin:4px 0;font-family:ui-monospace,Menlo,monospace;font-size:12px;\">' +\n    '<code>' + u.path + '</code> ' +\n    '<span style=\"color:' + (u.code === 404 ? '#dc2626' : '#b45309') + ';font-weight:700;\">HTTP ' + u.code + '</span>' +\n    (u.error ? '<br><span style=\"color:#94a3b8;font-size:11px;\">' + u.error + '</span>' : '') +\n  '</li>';\n}).join('');\n\nconst htmlBody = '<div style=\"font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:620px;\">' +\n  '<div style=\"padding:20px 24px;background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);color:#fff;border-radius:8px 8px 0 0;\">' +\n    '<div style=\"font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85;\">Crystallux Sentinel</div>' +\n    '<div style=\"font-size:22px;font-weight:800;margin-top:6px;\">Webhook routing degraded</div>' +\n  '</div>' +\n  '<div style=\"padding:24px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;\">' +\n    '<p style=\"margin:0 0 12px;font-size:15px;line-height:1.6;\">' +\n      '<strong>' + ctx.not_found_count + ' of ' + ctx.total_probed + '</strong> critical webhook endpoints returned 404 in the last probe. This means n8n\\'s webhook map needs a refresh.' +\n    '</p>' +\n    '<p style=\"margin:0 0 8px;font-size:13px;color:#64748b;\">Affected endpoints:</p>' +\n    '<ul style=\"margin:0 0 16px;padding:0;list-style:none;background:#f8fafc;padding:12px 16px;border-radius:6px;\">' + affected + '</ul>' +\n    '<p style=\"margin:0 0 12px;font-size:14px;line-height:1.6;\"><strong>Recommended action:</strong></p>' +\n    '<pre style=\"background:#0f172a;color:#fff;padding:14px;border-radius:6px;font-size:12px;line-height:1.5;margin:0;\">docker restart n8n</pre>' +\n    '<p style=\"margin:12px 0 0;font-size:13px;color:#64748b;\">Wait 30s after restart, then the next probe (within 30 min) should show recovery. If it still fails, run <code>bash scripts/n8n/nuke-and-reimport.sh</code> on the VPS as the recovery escalation.</p>' +\n    '<p style=\"margin:20px 0 0;font-size:11px;color:#94a3b8;\">Probed at ' + ctx.timestamp + ' &middot; <a href=\"https://admin.crystallux.org/pages/sentinel.html\" style=\"color:#dc2626;\">Open Sentinel dashboard</a></p>' +\n  '</div>' +\n  '</div>';\n\nreturn { json: {\n  postmark_payload: {\n    From: fromAddr,\n    To: maryEmail,\n    Subject: '[CRITICAL] ' + ctx.not_found_count + ' webhook(s) returning 404 - n8n needs restart',\n    HtmlBody: htmlBody,\n    TextBody: ctx.not_found_count + ' webhook(s) returning 404. Run docker restart n8n. Affected: ' + (ctx.unhealthy_list || []).map(function (u) { return u.path; }).join(', '),\n    MessageStream: 'outbound'\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "swh-0007",
+      "name": "Build Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postmark_payload) }}",
+        "options": { "response": { "response": { "neverError": true } }, "timeout": 30000 }
+      },
+      "id": "swh-0008",
+      "name": "Postmark Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 360],
+      "credentials": { "httpHeaderAuth": { "name": "Postmark Server" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Every 30 min":      { "main": [[{ "node": "Probe Endpoints", "type": "main", "index": 0 }]] },
+    "Probe Endpoints":   { "main": [[{ "node": "IF Unhealthy",    "type": "main", "index": 0 }]] },
+    "IF Unhealthy": {
+      "main": [
+        [ { "node": "Build Alert", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "Build Alert":       { "main": [[{ "node": "Persist Alert",   "type": "main", "index": 0 }, { "node": "IF Critical", "type": "main", "index": 0 }]] },
+    "IF Critical": {
+      "main": [
+        [ { "node": "Build Email", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "Build Email":       { "main": [[{ "node": "Postmark Send",   "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}
