@@ -69,7 +69,22 @@ step() { printf "\n${BOLD}%s${RESET}\n" "$*"; }
 # ─── preflight ───────────────────────────────────────────────────
 step "0/6  Preflight"
 [ -d "$REPO" ] || { fail "Repo not at $REPO (override with CLX_REPO)"; exit 3; }
-[ -n "${DATABASE_URL:-}" ] || { fail "DATABASE_URL not set"; exit 3; }
+
+# DATABASE_URL + N8N_API_KEY usually live in /opt/n8n/.env on the VPS,
+# not in the SSH shell. If they're not exported, source them from the
+# env file before failing the preflight. Bash uses `set -a` to export
+# every var the sourced file defines.
+if [ -z "${DATABASE_URL:-}" ] || [ -z "${N8N_API_KEY:-}" ]; then
+  if [ -r "$N8N_ENV_FILE" ]; then
+    say "${DIM}sourcing $N8N_ENV_FILE for DATABASE_URL + N8N_API_KEY${RESET}"
+    set -a
+    # shellcheck disable=SC1090
+    . "$N8N_ENV_FILE"
+    set +a
+  fi
+fi
+
+[ -n "${DATABASE_URL:-}" ] || { fail "DATABASE_URL not set (not in shell, not in $N8N_ENV_FILE)"; exit 3; }
 [ -n "${N8N_API_KEY:-}" ]  || warn "N8N_API_KEY not set — ship.sh will fall back to SQL activation"
 command -v psql       >/dev/null || { fail "psql not on PATH"; exit 3; }
 command -v docker     >/dev/null || { fail "docker not on PATH"; exit 3; }
