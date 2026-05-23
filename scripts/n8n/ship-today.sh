@@ -26,6 +26,7 @@ FILES=(
   # Self-healing + observability
   clx-sentinel-webhook-health-probe-v1.json
   clx-admin-workflow-drift-v1.json
+  clx-sentinel-vendor-health-monitor-v1.json
 )
 
 total="${#FILES[@]}"

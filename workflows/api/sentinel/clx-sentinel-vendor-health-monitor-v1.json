@@ -1,0 +1,177 @@
+{
+  "id": "wfSentinelVendorHealthMonitorV1",
+  "name": "CLX - Sentinel Vendor Health Monitor v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 15 }] }
+      },
+      "id": "vhm-0001",
+      "name": "Every 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "Runs every 15 minutes. Computes failure rate per vendor (Postmark email, Twilio SMS, Vapi voice, etc.) over the last 60 minutes. Writes a sentinel_vendor_health snapshot for trending, and fires a sentinel_alerts row when failure rate crosses 30% with a minimum of 10 calls — the threshold at which a vendor issue is real and not just statistical noise."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_log?sent_at=gte.' + new Date(Date.now() - 60*60000).toISOString() + '&select=status,sent_at&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "vhm-0002",
+      "name": "Email Calls 60m",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/messages_sent?sent_at=gte.' + new Date(Date.now() - 60*60000).toISOString() + '&select=channel,status,error,sent_at&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "vhm-0003",
+      "name": "Messages 60m",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 380],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log?created_at=gte.' + new Date(Date.now() - 60*60000).toISOString() + '&select=channel,status,error_message,created_at&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "vhm-0004",
+      "name": "Outreach 60m",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 560],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute failure rate per vendor over the last 60 minutes.\n// Vendors are inferred from channel:\n//   email     -> postmark\n//   sms       -> twilio_sms\n//   whatsapp  -> twilio_whatsapp\n//   voice     -> vapi\n//   linkedin  -> linkedin (proxy via outreach_log)\n//   video     -> heygen (proxy via outreach_log)\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst emails   = allOf('Email Calls 60m');\nconst messages = allOf('Messages 60m');\nconst outreach = allOf('Outreach 60m');\n\nconst CHANNEL_TO_VENDOR = {\n  email:    'postmark',\n  sms:      'twilio_sms',\n  whatsapp: 'twilio_whatsapp',\n  voice:    'vapi',\n  linkedin: 'linkedin',\n  video:    'heygen'\n};\n\nfunction isFailure(status, error) {\n  const s = (status || '').toLowerCase();\n  if (s === 'failed' || s === 'undelivered' || s === 'bounced' || s === 'dropped' || s === 'rejected') return true;\n  if (error && String(error).trim().length > 0) return true;\n  return false;\n}\n\nfunction isSuccess(status) {\n  const s = (status || '').toLowerCase();\n  return s === 'sent' || s === 'delivered' || s === 'queued' || s === 'success';\n}\n\nconst stats = {};\nfunction record(vendor, channel, isFail, errMsg) {\n  if (!stats[vendor]) stats[vendor] = { vendor: vendor, channel: channel, total: 0, success: 0, failure: 0, last_error: null };\n  stats[vendor].total++;\n  if (isFail) {\n    stats[vendor].failure++;\n    if (errMsg) stats[vendor].last_error = String(errMsg).slice(0, 200);\n  } else {\n    stats[vendor].success++;\n  }\n}\n\nemails.forEach(function (e) {\n  if (!e) return;\n  record('postmark', 'email', isFailure(e.status, null), null);\n});\nmessages.forEach(function (m) {\n  if (!m) return;\n  const v = CHANNEL_TO_VENDOR[(m.channel || '').toLowerCase()] || 'other';\n  record(v, m.channel || 'other', isFailure(m.status, m.error), m.error);\n});\noutreach.forEach(function (o) {\n  if (!o) return;\n  const v = CHANNEL_TO_VENDOR[(o.channel || '').toLowerCase()] || 'other';\n  record(v, o.channel || 'other', isFailure(o.status, o.error_message), o.error_message);\n});\n\n// Build snapshot rows + alert rows for breached thresholds\nconst FAILURE_RATE_THRESHOLD = 30;\nconst MIN_CALLS_FOR_ALERT = 10;\nconst snapshots = [];\nconst alerts = [];\n\nObject.keys(stats).forEach(function (vendor) {\n  const s = stats[vendor];\n  const rate = s.total > 0 ? Math.round((s.failure / s.total) * 10000) / 100 : 0;\n  const breached = s.total >= MIN_CALLS_FOR_ALERT && rate > FAILURE_RATE_THRESHOLD;\n  const circuit = breached ? 'open' : (s.failure > 0 ? 'half_open' : 'closed');\n\n  snapshots.push({\n    vendor: vendor,\n    channel: s.channel,\n    window_minutes: 60,\n    call_count: s.total,\n    success_count: s.success,\n    failure_count: s.failure,\n    failure_rate_pct: rate,\n    circuit_state: circuit,\n    last_error: s.last_error,\n    metadata: {}\n  });\n\n  if (breached) {\n    alerts.push({\n      module_name: 'cost_monitoring',\n      alert_type: 'vendor_circuit_open',\n      severity: rate > 60 ? 'critical' : 'warning',\n      title: 'Vendor health degraded: ' + vendor + ' (' + rate + '% failure rate)',\n      message: vendor + ' had ' + s.failure + ' failures out of ' + s.total + ' calls in the last 60 min. Failure rate ' + rate + '% exceeds the ' + FAILURE_RATE_THRESHOLD + '% threshold. Last error: ' + (s.last_error || '(no detail)'),\n      details: { vendor: vendor, channel: s.channel, stats: s, threshold_pct: FAILURE_RATE_THRESHOLD },\n      status: 'open',\n      aggregation_key: 'vendor_circuit:' + vendor\n    });\n  }\n});\n\nreturn { json: {\n  measured_at: new Date().toISOString(),\n  snapshots: snapshots,\n  alerts: alerts,\n  has_alerts: alerts.length > 0\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "vhm-0005",
+      "name": "Compute Vendor Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [820, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_vendor_health",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.snapshots) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "vhm-0006",
+      "name": "Persist Snapshots",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 280],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $('Compute Vendor Health').first().json.has_alerts }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "vhm-0007",
+      "name": "IF Alerts",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Compute Vendor Health').first().json.alerts) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "vhm-0008",
+      "name": "Persist Alerts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 480],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Every 15 min": {
+      "main": [[
+        { "node": "Email Calls 60m", "type": "main", "index": 0 },
+        { "node": "Messages 60m",    "type": "main", "index": 0 },
+        { "node": "Outreach 60m",    "type": "main", "index": 0 }
+      ]]
+    },
+    "Email Calls 60m":      { "main": [[{ "node": "Compute Vendor Health", "type": "main", "index": 0 }]] },
+    "Messages 60m":         { "main": [[{ "node": "Compute Vendor Health", "type": "main", "index": 0 }]] },
+    "Outreach 60m":         { "main": [[{ "node": "Compute Vendor Health", "type": "main", "index": 0 }]] },
+    "Compute Vendor Health":{ "main": [[{ "node": "Persist Snapshots", "type": "main", "index": 0 }, { "node": "IF Alerts", "type": "main", "index": 0 }]] },
+    "IF Alerts": {
+      "main": [
+        [ { "node": "Persist Alerts", "type": "main", "index": 0 } ],
+        []
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}
