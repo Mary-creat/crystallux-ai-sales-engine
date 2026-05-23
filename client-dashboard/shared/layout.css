@@ -891,3 +891,109 @@ button { font-family: inherit; }
 }
 .clx-tab-btn:hover { color: var(--text-primary); }
 .clx-tab-btn.clx-tab-active { color: var(--text-primary); border-bottom-color: var(--color-brand-600); }
+
+/* ─── Command palette (Cmd+K) ────────────────────────────────────── */
+.clx-palette-backdrop {
+  position: fixed; inset: 0; z-index: 9600;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 80px 24px 24px;
+  opacity: 0; transition: opacity var(--motion-base) var(--ease-out);
+}
+.clx-palette-backdrop.clx-palette-in  { opacity: 1; }
+.clx-palette-backdrop.clx-palette-out { opacity: 0; }
+.clx-palette {
+  width: 100%; max-width: 600px;
+  background: var(--bg-card); color: var(--text-primary);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 120px); overflow: hidden;
+  transform: translateY(-8px) scale(0.98);
+  transition: transform var(--motion-base) var(--ease-out);
+}
+.clx-palette-backdrop.clx-palette-in .clx-palette { transform: translateY(0) scale(1); }
+.clx-palette-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.clx-palette-input {
+  flex: 1; border: none; outline: none; background: none;
+  font-size: 16px; color: var(--text-primary); font-family: inherit;
+}
+.clx-palette-input::placeholder { color: var(--text-muted); }
+.clx-palette-kbd, .clx-palette-foot kbd {
+  display: inline-block; padding: 2px 6px;
+  background: var(--gray-100); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 11px; font-family: 'JetBrains Mono', monospace; line-height: 1.4;
+}
+.clx-palette-list { flex: 1; overflow-y: auto; padding: 6px; }
+.clx-palette-section {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-muted); padding: 10px 10px 4px;
+  letter-spacing: 0.04em;
+}
+.clx-palette-row {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none; cursor: pointer;
+  padding: 10px 12px; border-radius: var(--r-sm);
+  font-size: 14px; color: var(--text-primary); text-align: left;
+}
+.clx-palette-row:hover { background: var(--bg-hover); }
+.clx-palette-row-active {
+  background: var(--color-brand-50); outline: 1px solid var(--color-brand-200);
+}
+.clx-palette-row-kind {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); font-weight: 700;
+}
+.clx-palette-empty { padding: 24px 14px; text-align: center; color: var(--text-muted); font-size: 13px; }
+.clx-palette-foot {
+  display: flex; gap: 14px; padding: 10px 14px;
+  border-top: 1px solid var(--border); background: var(--gray-50);
+  font-size: 11px; color: var(--text-muted);
+}
+.clx-palette-foot span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ─── Page-load fade + staggered card reveal ─────────────────────── */
+@keyframes clxFadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.clx-content { animation: clxFadeUp 280ms var(--ease-out) both; }
+.clx-stat-grid > * {
+  animation: clxFadeUp 320ms var(--ease-out) both;
+  animation-delay: calc(var(--clx-stagger, 0) * 40ms);
+}
+.clx-stat-grid > *:nth-child(1) { --clx-stagger: 0; }
+.clx-stat-grid > *:nth-child(2) { --clx-stagger: 1; }
+.clx-stat-grid > *:nth-child(3) { --clx-stagger: 2; }
+.clx-stat-grid > *:nth-child(4) { --clx-stagger: 3; }
+.clx-stat-grid > *:nth-child(5) { --clx-stagger: 4; }
+.clx-stat-grid > *:nth-child(6) { --clx-stagger: 5; }
+.clx-stat-grid > *:nth-child(7) { --clx-stagger: 6; }
+.clx-stat-grid > *:nth-child(8) { --clx-stagger: 7; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .clx-content, .clx-stat-grid > * { animation: none !important; }
+}
+
+/* ─── Focus-visible ring polish ──────────────────────────────────── */
+button:focus-visible, a:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  border-color: var(--color-brand-400) !important;
+}

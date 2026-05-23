@@ -782,6 +782,159 @@
     return { setActive: setActive, getActive: function () { return current; } };
   }
 
+  /* Cmd+K palette — mirrors admin. Uses client CLX_FALLBACK_NAV. */
+  function paletteEntriesFromFallbackNav() {
+    var entries = [];
+    var currentSection = '';
+    var tmp = document.createElement('div');
+    tmp.innerHTML = global.CLX_FALLBACK_NAV || '';
+    Array.prototype.forEach.call(tmp.childNodes, function (node) {
+      if (node.nodeType !== 1) return;
+      if (node.classList && node.classList.contains('clx-nav-section')) {
+        currentSection = node.textContent.trim();
+      } else if (node.tagName === 'A' && node.classList.contains('clx-nav-item')) {
+        var label = node.textContent.replace(/\s+/g, ' ').trim().replace(/^[^A-Za-z0-9]+\s*/, '');
+        entries.push({
+          kind: 'nav', section: currentSection, label: label,
+          href: node.getAttribute('href'),
+          searchKey: (currentSection + ' ' + label).toLowerCase()
+        });
+      }
+    });
+    return entries;
+  }
+  function paletteQuickActions() {
+    var built = [
+      { kind: 'action', section: 'Quick actions', label: 'Reload page',
+        searchKey: 'reload page refresh', run: function () { location.reload(); } }
+    ];
+    if (Array.isArray(global.CLX_PALETTE_ACTIONS)) {
+      global.CLX_PALETTE_ACTIONS.forEach(function (a) {
+        if (!a || !a.label || typeof a.run !== 'function') return;
+        built.push({ kind: 'action', section: 'Page actions', label: a.label,
+                     searchKey: a.label.toLowerCase(), run: a.run });
+      });
+    }
+    return built;
+  }
+  function fuzzyMatch(haystack, needle) {
+    haystack = haystack || ''; needle = (needle || '').trim().toLowerCase();
+    if (!needle) return 0;
+    var idx = haystack.indexOf(needle);
+    if (idx !== -1) return 1000 - idx;
+    var h = 0, score = 100;
+    for (var n = 0; n < needle.length; n++) {
+      var c = needle[n];
+      var found = haystack.indexOf(c, h);
+      if (found === -1) return -1;
+      score -= (found - h);
+      h = found + 1;
+    }
+    return Math.max(score, 1);
+  }
+  function openCommandPalette() {
+    if (document.querySelector('.clx-palette-backdrop')) return;
+    var entries = paletteEntriesFromFallbackNav().concat(paletteQuickActions());
+    var backdrop = document.createElement('div');
+    backdrop.className = 'clx-palette-backdrop';
+    var box = document.createElement('div');
+    box.className = 'clx-palette';
+    box.innerHTML =
+      '<div class="clx-palette-head">' +
+        '<input type="search" class="clx-palette-input" autocomplete="off" spellcheck="false" placeholder="Search pages, actions…">' +
+        '<kbd class="clx-palette-kbd">esc</kbd>' +
+      '</div>' +
+      '<div class="clx-palette-list" role="listbox"></div>' +
+      '<div class="clx-palette-foot">' +
+        '<span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>' +
+        '<span><kbd>↵</kbd> open</span>' +
+        '<span><kbd>esc</kbd> close</span>' +
+      '</div>';
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(function () { backdrop.classList.add('clx-palette-in'); });
+    var input = box.querySelector('.clx-palette-input');
+    var list = box.querySelector('.clx-palette-list');
+    var selectedIdx = 0;
+    var filtered = entries.slice();
+    function render() {
+      list.innerHTML = '';
+      if (!filtered.length) { list.innerHTML = '<div class="clx-palette-empty">No matches</div>'; return; }
+      var lastSection = '';
+      filtered.forEach(function (e, i) {
+        if (e.section !== lastSection) {
+          var sec = document.createElement('div');
+          sec.className = 'clx-palette-section';
+          sec.textContent = e.section;
+          list.appendChild(sec);
+          lastSection = e.section;
+        }
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'clx-palette-row' + (i === selectedIdx ? ' clx-palette-row-active' : '');
+        row.setAttribute('data-idx', i);
+        row.innerHTML = '<span class="clx-palette-row-label">' + escapeHtml(e.label) + '</span>' +
+                        '<span class="clx-palette-row-kind">' + escapeHtml(e.kind === 'nav' ? 'go' : 'do') + '</span>';
+        row.addEventListener('click', function () { select(parseInt(row.getAttribute('data-idx'), 10)); });
+        list.appendChild(row);
+      });
+      var active = list.querySelector('.clx-palette-row-active');
+      if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    }
+    function applyFilter() {
+      var q = input.value || '';
+      if (!q) { filtered = entries.slice(); selectedIdx = 0; render(); return; }
+      filtered = entries
+        .map(function (e) { return { e: e, score: fuzzyMatch(e.searchKey, q) }; })
+        .filter(function (x) { return x.score >= 0; })
+        .sort(function (a, b) { return b.score - a.score; })
+        .map(function (x) { return x.e; });
+      selectedIdx = 0;
+      render();
+    }
+    function select(idx) {
+      if (idx < 0 || idx >= filtered.length) return;
+      var entry = filtered[idx];
+      close();
+      if (entry.kind === 'nav' && entry.href) location.href = entry.href;
+      else if (entry.kind === 'action' && entry.run) { try { entry.run(); } catch (e) {} }
+    }
+    function close() {
+      backdrop.classList.remove('clx-palette-in');
+      backdrop.classList.add('clx-palette-out');
+      document.removeEventListener('keydown', onKey, true);
+      setTimeout(function () { if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop); }, 150);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (filtered.length) { selectedIdx = (selectedIdx + 1) % filtered.length; render(); }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (filtered.length) { selectedIdx = (selectedIdx - 1 + filtered.length) % filtered.length; render(); }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        select(selectedIdx);
+      }
+    }
+    input.addEventListener('input', applyFilter);
+    document.addEventListener('keydown', onKey, true);
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+    setTimeout(function () { input.focus(); }, 30);
+    render();
+  }
+  function wireCommandPaletteHotkey() {
+    if (global.__clxPaletteWired) return;
+    global.__clxPaletteWired = true;
+    document.addEventListener('keydown', function (e) {
+      var isHotkey = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey);
+      if (!isHotkey) return;
+      e.preventDefault();
+      openCommandPalette();
+    });
+  }
+
   global.clxComp = {
     escapeHtml: escapeHtml,
     formatDate: formatDate,
@@ -811,6 +964,9 @@
     dialog: dialog,
     confirm: confirmDialog,
     dropdown: dropdown,
-    tabs: tabs
+    tabs: tabs,
+    openCommandPalette: openCommandPalette
   };
+
+  if (global.CLX_AUTO_PALETTE !== false) wireCommandPaletteHotkey();
 })(window);

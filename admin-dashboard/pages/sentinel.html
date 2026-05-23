@@ -687,19 +687,25 @@
     document.querySelectorAll('[data-rotate-cred]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var name = btn.getAttribute('data-rotate-cred');
-        if (!window.confirm('Confirm: you rotated ' + name + ' right now? This sets last_rotated_at to now and slides next-due forward.')) return;
-        btn.disabled = true;
-        var orig = btn.textContent;
-        btn.textContent = 'Saving…';
-        clxApi.call('/api/sentinel/security/credential-rotate', { credential_name: name }).then(function(res){
-          btn.disabled = false;
-          if (res.ok && res.data && res.data.ok !== false) {
-            btn.textContent = 'Saved';
-            setTimeout(loadSecurity, 700);
-          } else {
-            btn.textContent = orig;
-            window.alert(res.error || (res.data && res.data.error) || 'Save failed.');
-          }
+        clxComp.confirm(
+          'Confirm: you rotated ' + name + ' right now? This sets last_rotated_at to now and slides next-due forward.',
+          { title: 'Mark credential rotated', confirmLabel: 'Mark rotated' }
+        ).then(function (ok) {
+          if (!ok) return;
+          btn.disabled = true;
+          var orig = btn.textContent;
+          btn.textContent = 'Saving…';
+          clxApi.call('/api/sentinel/security/credential-rotate', { credential_name: name }).then(function(res){
+            btn.disabled = false;
+            if (res.ok && res.data && res.data.ok !== false) {
+              btn.textContent = 'Saved';
+              clxComp.toast('Credential ' + name + ' marked rotated', { variant: 'success' });
+              setTimeout(loadSecurity, 700);
+            } else {
+              btn.textContent = orig;
+              clxComp.toast(res.error || (res.data && res.data.error) || 'Save failed.', { variant: 'error', durationMs: 6000 });
+            }
+          });
         });
       });
     });
@@ -1022,16 +1028,26 @@
       var row = document.getElementById('action-'+actionId);
       var status = row ? row.querySelector('.approval-status') : null;
       var verb = decision === 'approve' ? 'Approving' : 'Rejecting';
-      if (!window.confirm(decision === 'approve' ? 'Approve this action? It will execute now.' : 'Reject this action? It will be marked rolled-back.')) return;
-      btn.disabled = true; if (status) { status.textContent = verb+'…'; status.style.color = '#6b7280'; }
-      clxApi.call('/api/sentinel/remediation/action-approve', { action_id: actionId, decision: decision }).then(function(res){
-        btn.disabled = false;
-        if (res.ok && res.data && res.data.ok !== false) {
-          if (status) { status.textContent = 'Done. Refreshing…'; status.style.color = '#166534'; }
-          setTimeout(loadRemediation, 700);
-        } else {
-          if (status) { status.textContent = (res.error || (res.data && res.data.error) || 'Failed.'); status.style.color = '#b91c1c'; }
-        }
+      clxComp.confirm(
+        decision === 'approve' ? 'Approve this action? It will execute now.' : 'Reject this action? It will be marked rolled-back.',
+        { title: decision === 'approve' ? 'Approve remediation' : 'Reject remediation',
+          confirmLabel: decision === 'approve' ? 'Approve' : 'Reject',
+          variant: decision === 'approve' ? 'primary' : 'danger' }
+      ).then(function (ok) {
+        if (!ok) return;
+        btn.disabled = true; if (status) { status.textContent = verb+'…'; status.style.color = '#6b7280'; }
+        clxApi.call('/api/sentinel/remediation/action-approve', { action_id: actionId, decision: decision }).then(function(res){
+          btn.disabled = false;
+          if (res.ok && res.data && res.data.ok !== false) {
+            if (status) { status.textContent = 'Done. Refreshing…'; status.style.color = '#166534'; }
+            clxComp.toast('Action ' + decision + 'd', { variant: 'success' });
+            setTimeout(loadRemediation, 700);
+          } else {
+            var err = res.error || (res.data && res.data.error) || 'Failed.';
+            if (status) { status.textContent = err; status.style.color = '#b91c1c'; }
+            clxComp.toast(err, { variant: 'error', durationMs: 6000 });
+          }
+        });
       });
     }
     document.querySelectorAll('[data-approve]').forEach(function(btn){
