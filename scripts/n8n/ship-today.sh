@@ -27,6 +27,7 @@ FILES=(
   clx-sentinel-webhook-health-probe-v1.json
   clx-admin-workflow-drift-v1.json
   clx-sentinel-vendor-health-monitor-v1.json
+  clx-sentinel-outreach-retry-v1.json
 )
 
 total="${#FILES[@]}"

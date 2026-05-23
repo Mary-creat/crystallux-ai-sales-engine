@@ -1,0 +1,194 @@
+{
+  "id": "wfSentinelOutreachRetryV1",
+  "name": "CLX - Sentinel Outreach Retry v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 10 }] }
+      },
+      "id": "orr-0001",
+      "name": "Every 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "notes": "Runs every 10 min. Two responsibilities:\n1. Detector: find failed outbound sends (email_log / messages_sent / outreach_log) from the last hour that aren't already in the retry queue, enqueue them with exponential-backoff next_retry_at.\n2. Worker: pick up queue rows where next_retry_at <= now and status='pending', mark them 'retrying', then... for the MVP we just log the retry intent + flip the lead's outreach_status back so the existing outreach-sender-v2 cron picks it up on its next run. After max_retries, flip to 'permanent_failure' and fire a sentinel_alert."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/email_log?status=in.(failed,bounced,dropped)&sent_at=gte.' + new Date(Date.now() - 60*60000).toISOString() + '&select=id,recipient,subject,status,sent_at&limit=200' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "orr-0002",
+      "name": "Failed Emails 60m",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/messages_sent?status=in.(failed,undelivered)&sent_at=gte.' + new Date(Date.now() - 60*60000).toISOString() + '&select=id,recipient,channel,status,error,sent_at&limit=200' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "orr-0003",
+      "name": "Failed Messages 60m",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_retry_queue?status=eq.pending&select=*&order=next_retry_at.asc&limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "orr-0004",
+      "name": "Pending Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 560],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Two-phase work:\n// Phase A: enqueue NEW failures not already in the queue (dedup by source_table+source_id)\n// Phase B: process queue rows where next_retry_at <= now\n\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst failedEmails  = allOf('Failed Emails 60m');\nconst failedMsgs    = allOf('Failed Messages 60m');\nconst pendingQueue  = allOf('Pending Queue');\n\n// Build a set of already-queued source rows so we don't double-enqueue\nconst queuedKeys = new Set();\npendingQueue.forEach(function (q) {\n  if (q && q.source_table && q.source_id) {\n    queuedKeys.add(q.source_table + ':' + q.source_id);\n  }\n});\n\nconst BACKOFF_MINUTES = [5, 15, 60]; // 1st retry: 5 min, 2nd: 15 min, 3rd: 60 min\n\nfunction nextRetryISO(retryCount) {\n  const minutes = BACKOFF_MINUTES[retryCount] || BACKOFF_MINUTES[BACKOFF_MINUTES.length - 1];\n  return new Date(Date.now() + minutes * 60000).toISOString();\n}\n\n// Phase A: enqueue\nconst newEnqueues = [];\nfailedEmails.forEach(function (e) {\n  if (!e || !e.id) return;\n  const key = 'email_log:' + e.id;\n  if (queuedKeys.has(key)) return;\n  newEnqueues.push({\n    source_table: 'email_log',\n    source_id: e.id,\n    channel: 'email',\n    recipient: e.recipient,\n    payload: { subject: e.subject, original_status: e.status },\n    retry_count: 0,\n    max_retries: 3,\n    next_retry_at: nextRetryISO(0),\n    last_error: e.status,\n    status: 'pending'\n  });\n});\nfailedMsgs.forEach(function (m) {\n  if (!m || !m.id) return;\n  const key = 'messages_sent:' + m.id;\n  if (queuedKeys.has(key)) return;\n  newEnqueues.push({\n    source_table: 'messages_sent',\n    source_id: m.id,\n    channel: (m.channel || 'other').toLowerCase(),\n    recipient: m.recipient,\n    payload: { channel: m.channel, original_status: m.status, original_error: m.error },\n    retry_count: 0,\n    max_retries: 3,\n    next_retry_at: nextRetryISO(0),\n    last_error: m.error || m.status,\n    status: 'pending'\n  });\n});\n\n// Phase B: process due retries\nconst nowMs = Date.now();\nconst dueRows = pendingQueue.filter(function (q) {\n  if (!q || !q.next_retry_at) return false;\n  return new Date(q.next_retry_at).getTime() <= nowMs;\n});\n\nconst retryActions = [];\nconst exhausted = [];\nconst statusUpdates = [];\n\ndueRows.forEach(function (q) {\n  const nextCount = (q.retry_count || 0) + 1;\n  if (nextCount > (q.max_retries || 3)) {\n    // Exhausted retries — mark permanent_failure\n    exhausted.push({\n      id: q.id,\n      patch: {\n        status: 'permanent_failure',\n        resolved_at: new Date().toISOString(),\n        resolution: 'max_retries_exceeded'\n      },\n      source: q\n    });\n  } else {\n    // Schedule the retry — flip the originating lead back to Outreach Ready\n    // so the existing outreach-sender cron picks it up next cycle.\n    retryActions.push({\n      queue_id: q.id,\n      lead_id: q.lead_id,\n      channel: q.channel,\n      recipient: q.recipient,\n      next_retry_count: nextCount,\n      patch: {\n        retry_count: nextCount,\n        next_retry_at: nextRetryISO(nextCount),\n        status: nextCount >= (q.max_retries || 3) ? 'pending' : 'pending',\n        last_error: q.last_error\n      }\n    });\n  }\n});\n\nreturn { json: {\n  measured_at: new Date().toISOString(),\n  enqueue_count: newEnqueues.length,\n  retry_count: retryActions.length,\n  exhausted_count: exhausted.length,\n  new_enqueues: newEnqueues,\n  retry_actions: retryActions,\n  exhausted: exhausted,\n  alerts: exhausted.map(function (e) {\n    return {\n      module_name: 'cost_monitoring',\n      alert_type: 'outreach_permanent_failure',\n      severity: 'warning',\n      title: 'Outreach permanently failed after ' + (e.source.max_retries || 3) + ' retries',\n      message: 'Recipient ' + (e.source.recipient || 'unknown') + ' on channel ' + (e.source.channel || 'unknown') + ' failed all ' + (e.source.max_retries || 3) + ' retry attempts. Last error: ' + (e.source.last_error || 'unknown'),\n      details: { queue_row: e.source },\n      status: 'open',\n      aggregation_key: 'outreach_permanent:' + (e.source.lead_id || e.source.recipient || e.source.id)\n    };\n  })\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "orr-0005",
+      "name": "Compute Actions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [820, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.enqueue_count }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "orr-0006",
+      "name": "IF Enqueues",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_retry_queue",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Compute Actions').first().json.new_enqueues) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "orr-0007",
+      "name": "Insert New Enqueues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.exhausted_count }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "orr-0008",
+      "name": "IF Exhausted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Compute Actions').first().json.alerts) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "orr-0009",
+      "name": "Alert Permanent Failures",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Every 10 min": {
+      "main": [[
+        { "node": "Failed Emails 60m",   "type": "main", "index": 0 },
+        { "node": "Failed Messages 60m", "type": "main", "index": 0 },
+        { "node": "Pending Queue",       "type": "main", "index": 0 }
+      ]]
+    },
+    "Failed Emails 60m":   { "main": [[{ "node": "Compute Actions", "type": "main", "index": 0 }]] },
+    "Failed Messages 60m": { "main": [[{ "node": "Compute Actions", "type": "main", "index": 0 }]] },
+    "Pending Queue":       { "main": [[{ "node": "Compute Actions", "type": "main", "index": 0 }]] },
+    "Compute Actions": {
+      "main": [[
+        { "node": "IF Enqueues",  "type": "main", "index": 0 },
+        { "node": "IF Exhausted", "type": "main", "index": 0 }
+      ]]
+    },
+    "IF Enqueues":  { "main": [ [ { "node": "Insert New Enqueues",     "type": "main", "index": 0 } ], [] ] },
+    "IF Exhausted": { "main": [ [ { "node": "Alert Permanent Failures", "type": "main", "index": 0 } ], [] ] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}
