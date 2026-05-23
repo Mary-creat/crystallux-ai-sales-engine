@@ -6,6 +6,20 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0u. Sentinel Comms tab now reads vendor-health (added 2026-05-23)
+
+`clx-admin-sentinel-comms-health-v1.json` gained a 7th fetch node (`Vendor Health Latest`) that reads the most recent `sentinel_vendor_health` snapshot per vendor (last 30 min) and returns it under `data.vendor_health.by_channel`. The Comms tab per-channel table now renders Vendor + Circuit (60 min) columns alongside the trailing 30-day delivery rate.
+
+**Mary action:**
+
+1. **Re-import the workflow via the n8n UI** (CLI `import:workflow` only does INSERT — won't update an existing row). Replace existing `wfAdminSentinelCommsHealthV1`. Keep it active.
+2. **Purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` and `/admin-dashboard/pages/sentinel.html` after the Pages deploy lands (CDN edge cache, 24h TTL).
+3. Verify: open the Communications tab — table should now show Vendor + Circuit columns. While the vendor-health monitor (`clx-sentinel-vendor-health-monitor-v1`) is still dormant, those columns will read `—` everywhere; activating the monitor populates them within 15 min.
+
+No schema change — `sentinel_vendor_health` already exists from `vendor-health-schema.sql` (commit `3e3cff3`).
+
+---
+
 ## 0t. WS1 reactivation — known prerequisites Mary must check (added 2026-05-20)
 
 Workstream 1 reactivates Phase 1-9 of the Sales Engine. Two prerequisites for the workflows to actually produce + deliver leads end-to-end, NOT in the workflow JSONs themselves:

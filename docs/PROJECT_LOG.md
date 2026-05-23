@@ -32,6 +32,26 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-23 — Vendor-health wired into the Sentinel Communications tab
+
+Short follow-up session on top of yesterday's self-healing layer (4 commits ending `69e6119`). The vendor-health monitor was writing snapshots every 15 min but the data was only surfaced via the alert it raised at the 30%/10-call threshold. Wired the latest snapshot into the existing Comms tab so the live vendor circuit shows alongside the trailing 30-day delivery rate.
+
+### What shipped
+- `clx-admin-sentinel-comms-health-v1.json` — added `Vendor Health Latest` fetch (most recent `sentinel_vendor_health` row per vendor over the last 30 min) + extended Shape Response to emit `data.vendor_health.by_channel` (severity-ranked dedupe when multiple vendors hit the same channel).
+- `admin-dashboard/pages/sentinel.html` — `renderCommsChannels` gained Vendor + Circuit (60 min) columns; circuit pill uses existing `pill-up` / `pill-degraded` / `pill-critical` classes; last error becomes a `title=` tooltip on the cell. Card sub-note now cites the snapshot age via `fmtAgo()`. Page still renders cleanly when the monitor hasn't produced a snapshot yet (cells fall back to `—`).
+- No schema migration — `sentinel_vendor_health` already exists from `vendor-health-schema.sql`.
+
+### What got blocked or deferred
+- The vendor-health monitor (`clx-sentinel-vendor-health-monitor-v1`) is still `active: false` until Mary activates. Until then the new columns will read `—`.
+
+### What Mary needs to do next
+- Re-import `clx-admin-sentinel-comms-health-v1.json` via the n8n UI (Import-Replace — CLI `import:workflow` won't update an existing row per `[[n8n-workflow-update-gotcha]]`).
+- Purge Cloudflare cache for `admin.crystallux.org/pages/sentinel.html` after the Pages deploy.
+- Activate the vendor-health monitor when ready (or leave it dormant — Comms tab degrades gracefully).
+- See `docs/audit/blockers.md` §0u.
+
+---
+
 ## 2026-05-22 — Build wrap-up: digital employees + MCP chat with tools + market intelligence + product pages + dashboard polish
 
 The longest single session of the build. Pivoted from "more new builds" to "wrap up everything in flight" so we can shift to page-by-page audit next.

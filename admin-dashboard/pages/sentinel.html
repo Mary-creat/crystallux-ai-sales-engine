@@ -90,7 +90,7 @@
   <div id="pane-comms" class="tab-pane">
     <div class="clx-stat-grid" id="commsStats"><div class="clx-empty"><span class="clx-spinner"></span> Loading delivery health…</div></div>
     <div class="clx-card">
-      <div class="clx-card-head"><div class="clx-card-title">Delivery rate by channel — last 30 days</div><div class="clx-card-sub">Delivered vs failed across email, SMS, WhatsApp, voice. Higher is better; aim for &gt; 95% on email + SMS.</div></div>
+      <div class="clx-card-head"><div class="clx-card-title">Delivery rate by channel — last 30 days</div><div class="clx-card-sub" id="commsChannelSub">Delivered vs failed across email, SMS, WhatsApp, voice. Higher is better; aim for &gt; 95% on email + SMS. Vendor + circuit columns reflect the latest 60-min vendor-health snapshot.</div></div>
       <div id="commsChannelTable"><div class="clx-empty"><span class="clx-spinner"></span></div></div>
     </div>
     <div class="clx-card">
@@ -762,7 +762,14 @@
 
   function renderCommsChannels(d){
     var per = d.per_channel || {};
+    var vh  = (d.vendor_health && d.vendor_health.by_channel) || {};
     var channels = ['email', 'sms', 'whatsapp', 'voice', 'other'];
+    function circuitPillCls(state){
+      if (state === 'open') return 'pill-critical';
+      if (state === 'half_open') return 'pill-degraded';
+      if (state === 'closed') return 'pill-up';
+      return 'pill-info';
+    }
     var rows = channels.filter(function(c){ return (per[c] && per[c].total > 0); }).map(function(c){
       var x = per[c];
       var rate = x.delivery_rate != null ? x.delivery_rate : null;
@@ -771,20 +778,45 @@
         var barColor = rate >= 95 ? '#16a34a' : (rate >= 85 ? '#eab308' : '#dc2626');
         bar = '<div class="bar-wrap"><div class="bar-fill" style="width:'+rate+'%;background:'+barColor+';"></div></div>';
       }
+      var v = vh[c];
+      var vendorCell, circuitCell;
+      if (v) {
+        vendorCell = '<td><span style="font-size:12px;">'+esc(v.vendor)+'</span></td>';
+        var failRate = v.failure_rate_pct != null ? Number(v.failure_rate_pct) : null;
+        var calls = v.call_count != null ? Number(v.call_count) : 0;
+        var sub = failRate != null ? (failRate.toFixed(1)+'% of '+clxApi.formatInt(calls)+' calls') : ('—');
+        var errAttr = v.last_error ? ' title="'+esc(v.last_error)+'"' : '';
+        circuitCell = '<td'+errAttr+'><span class="pill '+circuitPillCls(v.circuit_state)+'">'+esc(v.circuit_state||'unknown')+'</span>'
+          + '<div style="font-size:11px;color:#6b7280;margin-top:3px;">'+sub+'</div></td>';
+      } else {
+        vendorCell = '<td><span style="font-size:12px;color:#9ca3af;">—</span></td>';
+        circuitCell = '<td><span style="font-size:12px;color:#9ca3af;">—</span></td>';
+      }
       return '<tr>'
         + '<td><strong>'+c.toUpperCase()+'</strong></td>'
         + '<td>'+clxApi.formatInt(x.total)+'</td>'
         + '<td>'+clxApi.formatInt(x.delivered)+'</td>'
         + '<td>'+clxApi.formatInt(x.failed)+'</td>'
         + '<td style="min-width:160px;">'+(rate != null ? (rate + '%') : '—')+bar+'</td>'
+        + vendorCell
+        + circuitCell
         + '</tr>';
     }).join('');
+    // Update the card sub-note with measured_at age if we have a snapshot.
+    var sub = document.getElementById('commsChannelSub');
+    if (sub && d.vendor_health && d.vendor_health.measured_at) {
+      sub.textContent = 'Delivered vs failed across email, SMS, WhatsApp, voice — 30-day window. '
+        + 'Vendor + circuit columns reflect the last 60 min; latest snapshot measured ' + fmtAgo(d.vendor_health.measured_at) + '.';
+    } else if (sub) {
+      sub.textContent = 'Delivered vs failed across email, SMS, WhatsApp, voice — 30-day window. '
+        + 'Vendor + circuit columns are blank until the vendor-health monitor runs (every 15 min).';
+    }
     if (!rows) {
       clxApi.renderEmpty(document.getElementById('commsChannelTable'), 'No channel traffic in the last 30 days.');
       return;
     }
     document.getElementById('commsChannelTable').innerHTML =
-      '<table class="clx-table"><thead><tr><th>Channel</th><th>Total</th><th>Delivered</th><th>Failed</th><th>Delivery rate</th></tr></thead><tbody>'
+      '<table class="clx-table"><thead><tr><th>Channel</th><th>Total</th><th>Delivered</th><th>Failed</th><th>Delivery rate</th><th>Vendor</th><th>Circuit (60 min)</th></tr></thead><tbody>'
       + rows + '</tbody></table>';
   }
 
