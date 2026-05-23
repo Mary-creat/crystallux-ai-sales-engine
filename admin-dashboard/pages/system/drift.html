@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Workflow Drift · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.drift-pill { font-size:11px; padding:3px 10px; border-radius:11px; font-weight:700; }
+.drift-pill-repo_only    { background:#dbeafe; color:#1e40af; }
+.drift-pill-n8n_only     { background:#fee2e2; color:#991b1b; }
+.drift-pill-content_diff { background:#fef3c7; color:#92400e; }
+.drift-pill-active_diff  { background:#f3e8ff; color:#6b21a8; }
+.drift-key { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+.drift-stat-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; margin-bottom:22px; }
+</style>
+</head>
+<body>
+
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+
+    <div class="clx-page-head"><div>
+      <h1 class="clx-page-title">Workflow drift</h1>
+      <div class="clx-page-sub">Live divergence between this repo (source of truth) and the running n8n. Detector runs daily at 08:00 UTC. Run <code>auto-reship-drift.sh</code> to bulk-reconcile content_diff findings.</div>
+    </div></div>
+
+    <div id="driftStats" class="drift-stat-grid">
+      <div class="clx-empty"><span class="clx-spinner"></span> Loading drift state…</div>
+    </div>
+
+    <div class="clx-card" style="margin-bottom:18px">
+      <div class="clx-card-head">
+        <div>
+          <div class="clx-card-title">14-day trend</div>
+          <div class="clx-card-sub">Drift count over the last 14 detector runs.</div>
+        </div>
+      </div>
+      <div style="position:relative;height:180px;margin-top:8px">
+        <canvas id="driftTrendChart"></canvas>
+      </div>
+    </div>
+
+    <div class="clx-card">
+      <div class="clx-card-head">
+        <div>
+          <div class="clx-card-title" id="driftFindingsTitle">Unresolved findings</div>
+          <div class="clx-card-sub" id="driftFindingsSub">All workflows where repo and n8n diverge.</div>
+        </div>
+      </div>
+      <div id="driftFindingsTable" style="overflow-x:auto;">
+        <div class="clx-empty"><span class="clx-spinner"></span></div>
+      </div>
+    </div>
+
+  </div></main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/charts.js"></script>
+<script>
+clxAuth.require(['admin']).then(function (user) {
+  if (!user) return;
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  clxComp.wireSidebar(document.getElementById('clxSidebar'), document.getElementById('clxBurger'), document.getElementById('clxBackdrop'));
+  load();
+});
+
+async function load() {
+  var res = await clxApi.adminPost('workflow-drift/summary', {});
+  if (!res.ok) {
+    clxApi.renderError(document.getElementById('driftStats'), res);
+    return;
+  }
+  var d = res.data || {};
+  renderStats(d);
+  renderTrend(d);
+  renderFindings(d);
+}
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function fmt(n) { return Number(n || 0).toLocaleString('en-CA'); }
+function fmtAgo(iso) {
+  if (!iso) return '—';
+  var ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60000) return Math.floor(ms / 1000) + 's ago';
+  if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago';
+  if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago';
+  return Math.floor(ms / 86400000) + 'd ago';
+}
+
+function renderStats(d) {
+  var t = d.by_type || {};
+  var latest = d.latest_run || {};
+  document.getElementById('driftStats').innerHTML = [
+    ['Unresolved total',  fmt(d.total_unresolved),                          'leads'],
+    ['Repo only',         fmt(t.repo_only),                                  'activity'],
+    ['n8n only',          fmt(t.n8n_only),                                   'errors'],
+    ['Content diff',      fmt(t.content_diff),                               'bookings'],
+    ['Active diff',       fmt(t.active_diff),                                'revenue'],
+    ['Last run',          latest.ran_at ? fmtAgo(latest.ran_at) : 'never',   'activity']
+  ].map(function (c) {
+    return '<div class="clx-stat-card" data-variant="' + c[2] + '">' +
+           '<div class="clx-stat-label">' + c[0] + '</div>' +
+           '<div class="clx-stat-value">' + c[1] + '</div>' +
+           '</div>';
+  }).join('');
+}
+
+function renderTrend(d) {
+  var runs = d.trend_14d || [];
+  if (!runs.length) return;
+  var labels = runs.map(function (r) { return new Date(r.ran_at).toISOString().slice(5, 10); });
+  clxCharts.line('driftTrendChart', {
+    labels: labels,
+    datasets: [
+      { label: 'Total drift', data: runs.map(function (r) { return r.drift_count; }) },
+      { label: 'Content diff', data: runs.map(function (r) { return r.content_diff; }) },
+      { label: 'Repo only',  data: runs.map(function (r) { return r.repo_only; }) },
+      { label: 'n8n only',   data: runs.map(function (r) { return r.n8n_only; }) }
+    ]
+  });
+}
+
+function renderFindings(d) {
+  var rows = d.findings || [];
+  document.getElementById('driftFindingsTitle').textContent =
+    'Unresolved findings (' + rows.length + ' shown' + (d.total_unresolved > rows.length ? ' of ' + d.total_unresolved : '') + ')';
+  var el = document.getElementById('driftFindingsTable');
+  if (!rows.length) {
+    el.innerHTML = '<div class="clx-empty"><div class="clx-empty-title">No drift detected</div>Every workflow in n8n matches the repo. Last detector run found a clean state.</div>';
+    return;
+  }
+  var html = '<table class="clx-table"><thead><tr>' +
+    '<th>Type</th><th>Workflow</th><th>Workflow ID</th><th>Detected</th><th>Repo path</th>' +
+    '</tr></thead><tbody>';
+  rows.forEach(function (r) {
+    html += '<tr>' +
+      '<td><span class="drift-pill drift-pill-' + esc(r.drift_type) + '">' + esc((r.drift_type || '').replace(/_/g, ' ')) + '</span></td>' +
+      '<td><strong>' + esc(r.workflow_name || '—') + '</strong></td>' +
+      '<td class="drift-key">' + esc(r.workflow_id) + '</td>' +
+      '<td style="font-size:12px;color:#64748b;">' + fmtAgo(r.detected_at) + '</td>' +
+      '<td class="drift-key" style="color:#64748b;">' + esc(r.repo_path || '—') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+</script>
+</body>
+</html>

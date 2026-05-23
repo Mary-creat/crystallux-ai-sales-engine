@@ -22,6 +22,10 @@ FILES=(
   # Digital employees
   clx-devops-daily-briefing-v1.json
   clx-coo-weekly-review-v1.json
+
+  # Self-healing + observability
+  clx-sentinel-webhook-health-probe-v1.json
+  clx-admin-workflow-drift-v1.json
 )
 
 total="${#FILES[@]}"
