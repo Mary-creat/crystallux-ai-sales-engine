@@ -34,11 +34,30 @@ set -uo pipefail
 # ─── settings ────────────────────────────────────────────────────
 REPO="${CLX_REPO:-/tmp/clx-latest}"
 BRANCH="${CLX_BRANCH:-scale-sprint-v1}"
-N8N_ENV_FILE="${CLX_N8N_ENV:-/opt/n8n/.env}"
 CONTAINER="${CLX_N8N_CONTAINER:-n8n}"
 MIGRATION="db/migrations/email-events-schema.sql"
 RECEIVER_WF="clx-webhook-postmark-events-v1.json"
 COMMS_WF="clx-admin-sentinel-comms-health-v1.json"
+
+# Auto-detect the n8n env file location. Different operators put it in
+# different places (/opt/n8n on stock installs, /root/crystallux/n8n on
+# Mary's VPS, /etc/crystallux on hardened setups). First path that exists
+# wins; CLX_N8N_ENV overrides everything.
+detect_env_file() {
+  if [ -n "${CLX_N8N_ENV:-}" ] && [ -r "$CLX_N8N_ENV" ]; then echo "$CLX_N8N_ENV"; return; fi
+  for candidate in \
+    "/root/crystallux/n8n/.env" \
+    "/opt/n8n/.env" \
+    "/opt/crystallux/n8n/.env" \
+    "/etc/crystallux/.env" \
+    "$HOME/.crystallux/.env"; do
+    if [ -r "$candidate" ]; then echo "$candidate"; return; fi
+  done
+  # Nothing readable — return the CLX_N8N_ENV override if set, else the
+  # most-likely default. The preflight will error with a clear message.
+  echo "${CLX_N8N_ENV:-/opt/n8n/.env}"
+}
+N8N_ENV_FILE="$(detect_env_file)"
 
 # ─── arg parsing ─────────────────────────────────────────────────
 while [ $# -gt 0 ]; do
