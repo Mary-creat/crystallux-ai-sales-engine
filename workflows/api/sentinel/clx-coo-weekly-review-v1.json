@@ -1,0 +1,286 @@
+{
+  "id": "wfCooWeeklyReviewV1",
+  "name": "CLX - COO Weekly Review v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 23 * * 0" }
+          ]
+        }
+      },
+      "id": "cwr-0001",
+      "name": "Sunday 23:00 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 500],
+      "notes": "Fires every Sunday at 23:00 UTC so the weekly review lands in Mary's inbox first thing Monday morning. The COO digital employee aggregates pipeline + revenue + comms + overdue work and writes a senior-operator summary with one growth recommendation for the week."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?date_created=gte.' + new Date(Date.now() - 7*86400000).toISOString() + '&select=id,lead_status,industry,source,city,lead_type,lead_score,date_created,total_emails_sent,last_email_sent_at,updated_at&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0002",
+      "name": "Leads This Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 100],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?date_created=gte.' + new Date(Date.now() - 28*86400000).toISOString() + '&date_created=lt.' + new Date(Date.now() - 7*86400000).toISOString() + '&select=id,lead_status,date_created&limit=10000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0003",
+      "name": "Leads Prior 3w",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 240],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/bookings?created_at=gte.' + new Date(Date.now() - 7*86400000).toISOString() + '&select=id,lead_id,booking_at,channel,created_at&limit=2000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0004",
+      "name": "Bookings This Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 380],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/quote_completed?completed_at=gte.' + new Date(Date.now() - 7*86400000).toISOString() + '&select=id,industry_slug,total_cents,status,completed_at,accepted_at,declined_at&limit=1000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0005",
+      "name": "Quotes This Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 520],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log?created_at=gte.' + new Date(Date.now() - 7*86400000).toISOString() + '&select=channel,status,created_at&limit=5000' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0006",
+      "name": "Outreach This Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 660],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=neq.Closed&lead_status=neq.Booked&last_email_sent_at=lt.' + new Date(Date.now() - 14*86400000).toISOString() + '&unsubscribed=eq.false&do_not_contact=eq.false&select=id,company,industry,lead_status,last_email_sent_at,lead_score&order=lead_score.desc&limit=50' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0007",
+      "name": "Overdue Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 800],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?active=eq.true&select=id,client_name,subscription_status,subscription_plan,monthly_retainer&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": {}
+      },
+      "id": "cwr-0008",
+      "name": "Active Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 940],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate into COO weekly-review context.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nconst leadsW   = allOf('Leads This Week');\nconst leadsP3  = allOf('Leads Prior 3w');\nconst bookings = allOf('Bookings This Week');\nconst quotes   = allOf('Quotes This Week');\nconst outreach = allOf('Outreach This Week');\nconst overdue  = allOf('Overdue Leads');\nconst clients  = allOf('Active Clients');\n\n// Pipeline this week — count by status\nconst byStatus = {};\nleadsW.forEach(function (l) {\n  const s = (l && l.lead_status) || 'unknown';\n  byStatus[s] = (byStatus[s] || 0) + 1;\n});\n\n// Sources this week\nconst bySource = {};\nleadsW.forEach(function (l) {\n  const s = (l && l.source) || 'unknown';\n  bySource[s] = (bySource[s] || 0) + 1;\n});\n\n// Industry mix this week\nconst byIndustry = {};\nleadsW.forEach(function (l) {\n  const i = (l && l.industry) || 'unknown';\n  byIndustry[i] = (byIndustry[i] || 0) + 1;\n});\n\n// Last week vs the prior 3 weeks (weekly average) — trend signal\nconst priorAvgPerWeek = Math.round(leadsP3.length / 3);\nconst leadsTrendPct = priorAvgPerWeek > 0 ? Math.round(((leadsW.length - priorAvgPerWeek) / priorAvgPerWeek) * 100) : null;\n\n// Quote revenue if any\nlet totalQuotedCents = 0;\nlet acceptedQuotedCents = 0;\nlet declinedCount = 0;\nlet pendingCount = 0;\nquotes.forEach(function (q) {\n  if (!q) return;\n  totalQuotedCents += Number(q.total_cents || 0);\n  if (q.accepted_at) acceptedQuotedCents += Number(q.total_cents || 0);\n  else if (q.declined_at) declinedCount++;\n  else pendingCount++;\n});\nconst acceptanceRatePct = quotes.length > 0 ? Math.round((quotes.length - declinedCount - pendingCount) / quotes.length * 100) : null;\n\n// Outreach volume by channel\nconst outreachByChannel = {};\nlet outreachFailures = 0;\noutreach.forEach(function (o) {\n  if (!o) return;\n  const c = (o.channel || 'other').toLowerCase();\n  outreachByChannel[c] = (outreachByChannel[c] || 0) + 1;\n  const s = (o.status || '').toLowerCase();\n  if (s === 'failed' || s === 'undelivered' || s === 'bounced') outreachFailures++;\n});\n\n// MRR from active clients (paying ones)\nconst PLAN_PRICES = { founding_1997: 1997, standard_2497: 2497, construction_1497: 1497, moving_997: 997, cleaning_997: 997, salon_997: 997, intelligence_3997: 3997 };\nlet mrrCents = 0;\nclients.forEach(function (c) {\n  if (!c) return;\n  if (c.subscription_status === 'active' || c.subscription_status === 'trialing') {\n    mrrCents += (PLAN_PRICES[c.subscription_plan] || (c.monthly_retainer || 0)) * 100;\n  }\n});\n\n// Bookings this week\nconst bookingsByChannel = {};\nbookings.forEach(function (b) {\n  if (!b) return;\n  const c = (b.channel || 'other').toLowerCase();\n  bookingsByChannel[c] = (bookingsByChannel[c] || 0) + 1;\n});\n\n// Overdue\nconst overdueHighScore = overdue.filter(function (l) { return (l.lead_score || 0) >= 60; });\n\nconst context = {\n  week_ending: new Date().toISOString().slice(0, 10),\n  pipeline: {\n    new_leads_this_week: leadsW.length,\n    prior_3w_avg_per_week: priorAvgPerWeek,\n    trend_pct: leadsTrendPct,\n    by_status: byStatus,\n    by_source: bySource,\n    by_industry: byIndustry\n  },\n  conversion: {\n    bookings_this_week: bookings.length,\n    bookings_by_channel: bookingsByChannel,\n    quotes_sent: quotes.length,\n    quotes_total_cents: totalQuotedCents,\n    quotes_accepted_cents: acceptedQuotedCents,\n    quotes_pending: pendingCount,\n    quotes_declined: declinedCount,\n    quote_acceptance_pct: acceptanceRatePct\n  },\n  comms: {\n    outreach_volume: outreach.length,\n    by_channel: outreachByChannel,\n    failures: outreachFailures,\n    failure_rate_pct: outreach.length > 0 ? Math.round((outreachFailures / outreach.length) * 100) : null\n  },\n  revenue: {\n    mrr_cents: mrrCents,\n    active_paying_clients: clients.filter(function (c) { return c && (c.subscription_status === 'active' || c.subscription_status === 'trialing'); }).length,\n    quoted_pipeline_cents: totalQuotedCents,\n    closed_this_week_cents: acceptedQuotedCents\n  },\n  overdue: {\n    total: overdue.length,\n    high_score: overdueHighScore.length,\n    top_5: overdue.slice(0, 5).map(function (l) { return { company: l.company, industry: l.industry, score: l.lead_score, status: l.lead_status, days_silent: Math.floor((Date.now() - new Date(l.last_email_sent_at).getTime()) / 86400000) }; })\n  }\n};\n\nconst systemPrompt = [\n  'You are the Crystallux COO Digital Employee. Every Monday morning Mary reads your weekly business review.',\n  '',\n  'Structure the review in clearly labeled sections (no markdown stars, just text headers on their own lines):',\n  '',\n  '## Verdict',\n  'One sentence. Green / yellow / red and why.',\n  '',\n  '## Pipeline',\n  'New leads this week vs the prior 3-week average. Where leads are coming from. What is stuck.',\n  '',\n  '## Conversion + revenue',\n  'Bookings, quotes sent, quotes accepted, MRR, closed revenue this week. Plain numbers.',\n  '',\n  '## The bottleneck',\n  'Pick ONE specific bottleneck (lowest-converting stage, channel with highest failure rate, industry that is silent, etc.) and name it precisely. Use the data.',\n  '',\n  '## Overdue work',\n  'How many leads not contacted in 14+ days, especially high-score ones. Name the top 1-2 companies if any.',\n  '',\n  '## Recommendation',\n  'ONE concrete growth experiment for this week. Specific, measurable, fits a busy founder. Not a feature request.',\n  '',\n  'Voice: senior COO briefing the founder. Direct. Specific numbers. No hedging. No marketing language. No em-dashes (use periods or line breaks). Maximum 350 words total.',\n  '',\n  'If activity is genuinely quiet (zero leads, no bookings), say so plainly. Suggest the experiment that activates pipeline rather than reporting flat numbers.'\n].join('\\n');\n\nconst userPrompt = 'Week ending ' + context.week_ending + '. Write the weekly business review.\\n\\n' + JSON.stringify(context, null, 2);\n\nreturn { json: {\n  review_context: context,\n  payload: {\n    model: 'claude-sonnet-4-6',\n    max_tokens: 1400,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPrompt } ]\n  }\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cwr-0009",
+      "name": "Shape Review Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [820, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": { "response": { "response": { "neverError": true } }, "timeout": 90000 }
+      },
+      "id": "cwr-0010",
+      "name": "Call Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 520],
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude response, build the Postmark email + sentinel_alerts row.\nconst r = $input.item.json;\nconst ctx = $('Shape Review Context').first().json.review_context;\n\nlet review = '';\nif (r && Array.isArray(r.content)) {\n  const tb = r.content.find(function (b) { return b && b.type === 'text'; });\n  review = tb ? tb.text : '';\n}\nif (!review) {\n  review = 'Weekly review for ' + ctx.week_ending + '. New leads this week: ' + ctx.pipeline.new_leads_this_week + '. Bookings: ' + ctx.conversion.bookings_this_week + '. Quotes sent: ' + ctx.conversion.quotes_sent + '. Overdue leads: ' + ctx.overdue.total + '. Claude did not respond cleanly so this is a fallback.';\n}\n\n// Format MRR as money\nfunction fmtMoney(cents) {\n  if (cents == null) return '$0';\n  return '$' + (cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });\n}\n\n// Render review with section headers styled (turn lines starting with ## into bold)\nconst reviewHtml = review.split('\\n').map(function (line) {\n  if (line.startsWith('## ')) {\n    return '<div style=\"font-size:13px;font-weight:700;color:#0f4c81;text-transform:uppercase;letter-spacing:0.05em;margin-top:18px;margin-bottom:6px;\">' + line.slice(3) + '</div>';\n  }\n  if (line.trim() === '') return '<div style=\"height:8px\"></div>';\n  return '<div style=\"font-size:14px;line-height:1.6;color:#0f172a;margin-bottom:4px;\">' + line.replace(/</g, '&lt;') + '</div>';\n}).join('');\n\nconst htmlBody = '<div style=\"font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:680px;\">' +\n  '<div style=\"padding:24px 28px;background:linear-gradient(135deg,#7C3AED 0%,#5B21B6 100%);color:#fff;border-radius:8px 8px 0 0;\">' +\n    '<div style=\"font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85;\">Crystallux COO</div>' +\n    '<div style=\"font-size:24px;font-weight:800;margin-top:6px;letter-spacing:-0.01em;\">Weekly review &middot; ' + ctx.week_ending + '</div>' +\n  '</div>' +\n  '<div style=\"padding:28px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;\">' +\n    reviewHtml +\n    '<table style=\"width:100%;border-collapse:collapse;font-size:13px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;\">' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">New leads this week</td><td style=\"padding:6px 0;text-align:right;font-weight:700;\">' + ctx.pipeline.new_leads_this_week + (ctx.pipeline.trend_pct != null ? ' <span style=\"font-size:11px;color:' + (ctx.pipeline.trend_pct >= 0 ? '#16a34a' : '#dc2626') + ';\">(' + (ctx.pipeline.trend_pct >= 0 ? '+' : '') + ctx.pipeline.trend_pct + '%)</span>' : '') + '</td></tr>' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">Bookings this week</td><td style=\"padding:6px 0;text-align:right;font-weight:700;\">' + ctx.conversion.bookings_this_week + '</td></tr>' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">Quotes sent</td><td style=\"padding:6px 0;text-align:right;font-weight:700;\">' + ctx.conversion.quotes_sent + (ctx.conversion.quote_acceptance_pct != null ? ' &middot; ' + ctx.conversion.quote_acceptance_pct + '% accept' : '') + '</td></tr>' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">MRR (paying clients)</td><td style=\"padding:6px 0;text-align:right;font-weight:700;\">' + fmtMoney(ctx.revenue.mrr_cents) + '</td></tr>' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">Closed revenue (this week)</td><td style=\"padding:6px 0;text-align:right;font-weight:700;\">' + fmtMoney(ctx.revenue.closed_this_week_cents) + '</td></tr>' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">Overdue leads (14d+)</td><td style=\"padding:6px 0;text-align:right;font-weight:700;color:' + (ctx.overdue.high_score > 0 ? '#dc2626' : '#0f172a') + ';\">' + ctx.overdue.total + (ctx.overdue.high_score > 0 ? ' &middot; ' + ctx.overdue.high_score + ' high-score' : '') + '</td></tr>' +\n      '<tr><td style=\"padding:6px 0;color:#64748b;\">Comms volume</td><td style=\"padding:6px 0;text-align:right;font-weight:700;\">' + ctx.comms.outreach_volume + (ctx.comms.failure_rate_pct ? ' &middot; ' + ctx.comms.failure_rate_pct + '% fail rate' : '') + '</td></tr>' +\n    '</table>' +\n    '<div style=\"margin-top:24px;font-size:11px;color:#94a3b8;\">Open the admin dashboard for drill-down: <a href=\"https://admin.crystallux.org/pages/sales-engine.html\" style=\"color:#7C3AED;\">admin.crystallux.org/pages/sales-engine</a></div>' +\n  '</div>' +\n  '</div>';\n\nconst maryEmail = $env.MARY_EMAIL || 'adesholaakintunde@gmail.com';\nconst fromAddr  = $env.POSTMARK_FROM || 'mary@crystallux.org';\n\nreturn { json: {\n  review_text: review,\n  review_context: ctx,\n  postmark_payload: {\n    From: fromAddr,\n    To: maryEmail,\n    Subject: 'Weekly review &middot; ' + ctx.week_ending + ' &middot; ' + ctx.pipeline.new_leads_this_week + ' new leads, ' + ctx.conversion.bookings_this_week + ' bookings',\n    HtmlBody: htmlBody,\n    TextBody: review,\n    MessageStream: 'outbound'\n  },\n  sentinel_alert_row: {\n    module_name: 'coo',\n    alert_type: 'weekly_review',\n    severity: ctx.overdue.high_score > 5 ? 'warning' : 'info',\n    title: 'COO weekly review — ' + ctx.week_ending,\n    message: review.slice(0, 2000),\n    details: { review_context: ctx },\n    status: 'resolved',\n    aggregation_key: 'coo:weekly:' + ctx.week_ending\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "cwr-0011",
+      "name": "Build Email + Alert Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postmark_payload) }}",
+        "options": { "response": { "response": { "neverError": true } }, "timeout": 30000 }
+      },
+      "id": "cwr-0012",
+      "name": "Postmark Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 440],
+      "credentials": { "httpHeaderAuth": { "name": "Postmark Server" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/sentinel_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Email + Alert Rows').first().json.sentinel_alert_row) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "cwr-0013",
+      "name": "Persist to Sentinel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 600],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Sunday 23:00 UTC": {
+      "main": [[
+        { "node": "Leads This Week",      "type": "main", "index": 0 },
+        { "node": "Leads Prior 3w",       "type": "main", "index": 0 },
+        { "node": "Bookings This Week",   "type": "main", "index": 0 },
+        { "node": "Quotes This Week",     "type": "main", "index": 0 },
+        { "node": "Outreach This Week",   "type": "main", "index": 0 },
+        { "node": "Overdue Leads",        "type": "main", "index": 0 },
+        { "node": "Active Clients",       "type": "main", "index": 0 }
+      ]]
+    },
+    "Leads This Week":     { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Leads Prior 3w":      { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Bookings This Week":  { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Quotes This Week":    { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Outreach This Week":  { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Overdue Leads":       { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Active Clients":      { "main": [[{ "node": "Shape Review Context", "type": "main", "index": 0 }]] },
+    "Shape Review Context":     { "main": [[{ "node": "Call Claude",            "type": "main", "index": 0 }]] },
+    "Call Claude":              { "main": [[{ "node": "Build Email + Alert Rows", "type": "main", "index": 0 }]] },
+    "Build Email + Alert Rows": {
+      "main": [[
+        { "node": "Postmark Send",       "type": "main", "index": 0 },
+        { "node": "Persist to Sentinel", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "version": 1
+}

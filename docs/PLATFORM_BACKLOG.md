@@ -44,31 +44,29 @@ Living list of everything in flight. Update as items complete.
 Combined COO + CMO duties. One report, one digital employee, covering business + content + brand + growth.
 
 ### Business operations
-- [ ] Pipeline health (leads by stage, conversion rates, time-in-stage, what is stuck)
-- [ ] Revenue forecast (booked + likely-close, rolling 30/60/90 day)
-- [ ] Bottleneck detector (where leads die in the funnel)
-- [ ] Capacity planning (your calendar load vs intake rate)
-- [ ] Overdue task surveillance (clients not contacted in X days)
+- [x] **Weekly business review shipped** — `wfCooWeeklyReviewV1` cron at 23:00 UTC Sunday. Aggregates pipeline (this week vs prior 3w avg, trend %, by status / source / industry), conversion (bookings, quotes sent/accepted/declined, acceptance rate %), revenue (MRR from paying clients, closed this week), comms (volume per channel, failure rate %), overdue work (leads >14d silent, high-score among them). Claude writes a sectioned 6-part Monday-morning summary (verdict / pipeline / conversion / bottleneck / overdue / one growth recommendation) and Postmark emails Mary with a stats footer.
+- [ ] Pipeline bottleneck **alerting** (not just the weekly review). When time-in-stage spikes for any status, fire a real-time alert.
+- [ ] Revenue forecast 30/60/90 — currently shows MRR + this-week closed. Add rolling forward projection from quote pipeline.
+- [ ] Capacity planning (calendar load vs intake rate) — needs Calendly two-way sync first.
 
 ### Content quality + brand maintenance
-- [ ] Pre-send content QA on every email, SMS, video script (tone, brand voice, broken links, PII leaks, em-dash check)
+- [ ] Pre-send content QA on every email, SMS, video script (tone, brand voice, broken links, PII leaks, em-dash check) — hook into every sender workflow as a Claude pre-screen.
 - [ ] Brand voice consistency across all channels
 - [ ] Auto-flag off-brand content before it ships
 - [ ] Watch for accidental data exposure in any outgoing message
 
 ### Multi-channel monitoring
-- [ ] Mentions + engagement watcher (TikTok, Instagram, Facebook, LinkedIn, YouTube, Email replies)
+- [ ] Mentions + engagement watcher — needs LinkedIn / Meta / TikTok / YouTube API access first (Mary signups pending).
 - [ ] Brand-presence health (frequency, voice, visual consistency per platform)
-- [ ] Flag inconsistencies (e.g. tone differs across channels, posting cadence dropped)
+- [ ] Flag inconsistencies
 - [ ] Cross-platform comment monitoring
 
 ### Reports + growth recommendations
-- [ ] Weekly business review (Monday morning) covering pipeline + content + brand + revenue
-- [ ] Growth-experiment proposals (when conversion stalls, propose 2-3 specific experiments)
-- [ ] Sales-increase recommendations (which channel to invest in, which segment is hot)
+- [x] Weekly business review (Monday morning) — see above.
+- [ ] Growth-experiment **success tracking** — when an experiment is proposed, track conversion delta over the next 7 days.
 - [ ] Quarterly "what to publicize" memo
 
-**Why:** so you receive summaries and decisions, not raw data to interpret.
+**Why:** so you receive summaries and decisions, not raw data to interpret. Monday-morning review lands the first specific number-driven recommendation for the week.
 
 ## 4. Email + SMS + video content voice audit
 
