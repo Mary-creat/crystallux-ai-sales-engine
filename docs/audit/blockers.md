@@ -6,54 +6,37 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
-## 0v. Postmark webhook ingestion (added 2026-05-23)
+## 0v. Sentinel Comms upgrades — vendor-health + Postmark webhook ingestion (added 2026-05-23, supersedes §0u)
 
-New `email_events` table + `clx-webhook-postmark-events-v1` workflow turn the Sentinel Comms spam + bounce panels into live streams (today they read email_log.status as best-effort).
+Two pending changes ride the same `clx-admin-sentinel-comms-health-v1.json` file (vendor-health from `4a7de59`, Postmark email_events from `7f1359d`). Plus a net-new receiver workflow + a new `email_events` table.
 
-**Mary action — three steps, none depend on each other:**
+**One-shot deploy — runs everything idempotently:**
 
-1. **Apply the migration:**
-   ```bash
-   cd /tmp/clx-latest && git pull && psql "$DATABASE_URL" -f db/migrations/email-events-schema.sql
-   ```
+```bash
+cd /tmp/clx-latest && git fetch origin && git checkout scale-sprint-v1 && git pull
+bash scripts/n8n/deploy-postmark-ingestion.sh
+```
 
-2. **Set the shared-secret env var on the n8n host**, then restart the container so n8n picks it up:
-   ```bash
-   echo 'POSTMARK_WEBHOOK_TOKEN=<long-random-token-you-generate>' >> /opt/n8n/.env
-   docker restart n8n
-   ```
-   Generate with: `openssl rand -hex 32`.
+What it does:
+1. Sync `/tmp/clx-latest` to `scale-sprint-v1`.
+2. Apply `db/migrations/email-events-schema.sql` (idempotent — `CREATE TABLE IF NOT EXISTS`).
+3. Generate `POSTMARK_WEBHOOK_TOKEN` in `/opt/n8n/.env` if absent. Preserves the existing token on re-runs.
+4. `ship.sh` the new receiver `clx-webhook-postmark-events-v1.json` (CLI import path, new workflow).
+5. `ship.sh` the updated `clx-admin-sentinel-comms-health-v1.json` (REST PUT — updates nodes/connections on the deactivated workflow, then re-activates it). Single PUT lands BOTH the vendor-health node AND the Postmark spam/bounce fetches.
+6. Smoke-test `email_events` is reachable.
+7. Print the Postmark UI config + token in the footer.
 
-3. **Ship the workflows from `scale-sprint-v1`** (ship.sh now accepts `--branch`, so no merge-to-main needed):
-   ```bash
-   cd /tmp/clx-latest
-   bash scripts/n8n/ship.sh --branch scale-sprint-v1 clx-webhook-postmark-events-v1.json
-   bash scripts/n8n/ship.sh --branch scale-sprint-v1 clx-admin-sentinel-comms-health-v1.json
-   ```
-   First call: CLI import (new workflow). Second call: REST PUT update (existing workflow). Both auto-activate, restart n8n, probe the webhook.
+Safe to re-run — every step is idempotent.
 
-4. **Configure Postmark** (Server Settings > Webhooks):
-   - Add a webhook for each event type you want: Delivery, Bounce, Open, Click, SpamComplaint, SubscriptionChange.
-   - URL: `https://automation.crystallux.org/webhook/webhook/postmark/events` (n8n prefixes the path with `/webhook`, so it shows up twice on purpose).
-   - Under "Custom HTTP headers": add `X-Postmark-Webhook-Token` = the token from step 2.
+**Then, one-time manual in the Postmark UI** (the script prints the exact values for you):
+- Server Settings > Webhooks > add webhook.
+- URL: `https://automation.crystallux.org/webhook/webhook/postmark/events` (the doubled `/webhook` is correct — n8n prefixes the workflow path).
+- Custom HTTP headers: `X-Postmark-Webhook-Token` = token from the script footer.
+- Tick: Delivery, Bounce, SpamComplaint, Open, Click, SubscriptionChange.
 
-5. **Purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` so the new Bounces card renders.
+**Finally, purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` so the new Bounces card renders.
 
-Verify by sending a test email from Postmark and watching `email_events` populate within ~5 sec.
-
----
-
-## 0u. Sentinel Comms tab now reads vendor-health (added 2026-05-23)
-
-`clx-admin-sentinel-comms-health-v1.json` gained a 7th fetch node (`Vendor Health Latest`) that reads the most recent `sentinel_vendor_health` snapshot per vendor (last 30 min) and returns it under `data.vendor_health.by_channel`. The Comms tab per-channel table now renders Vendor + Circuit (60 min) columns alongside the trailing 30-day delivery rate.
-
-**Mary action:**
-
-1. **Re-import the workflow via the n8n UI** (CLI `import:workflow` only does INSERT — won't update an existing row). Replace existing `wfAdminSentinelCommsHealthV1`. Keep it active.
-2. **Purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` and `/admin-dashboard/pages/sentinel.html` after the Pages deploy lands (CDN edge cache, 24h TTL).
-3. Verify: open the Communications tab — table should now show Vendor + Circuit columns. While the vendor-health monitor (`clx-sentinel-vendor-health-monitor-v1`) is still dormant, those columns will read `—` everywhere; activating the monitor populates them within 15 min.
-
-No schema change — `sentinel_vendor_health` already exists from `vendor-health-schema.sql` (commit `3e3cff3`).
+Verify by clicking "Send test event" in Postmark — a row lands in `email_events` within ~5 sec, and the Comms tab Spam + Bounce cards flip from "not live" pill to "live" pill on next page load.
 
 ---
 
