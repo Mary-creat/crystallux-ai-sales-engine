@@ -32,6 +32,71 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-22 — Build wrap-up: digital employees + MCP chat with tools + market intelligence + product pages + dashboard polish
+
+The longest single session of the build. Pivoted from "more new builds" to "wrap up everything in flight" so we can shift to page-by-page audit next.
+
+### What shipped
+- **Sales Engine page wake-up** (`1688ec6`) — `wfAdminSalesEngineActivityV1` + Today's-activity grid + Recent-activity feed (color-coded events from leads / bookings / outreach / email). Replaced the 3 dead placeholder cards with one honest "Voice operations" status panel. Fix for "unknown 200" pipeline display (`51f2af8`) — page was reading `status` instead of `lead_status` plus a migration that backfilled NULL/empty/"New" → "New Lead" across the leads table.
+- **Sentinel Communications tab** (`406b939`) — 7th tab with delivery rate by channel (color-coded bars, green ≥95% / amber ≥85% / red below), recent failures, opt-out posture with unsubscribe-rate red-flag, spam complaints (with Postmark-webhook-needed note), 14-day per-channel volume sparklines. `wfAdminSentinelCommsHealthV1` aggregates email_log + messages_sent + outreach_log + leads opt-out flags.
+- **MCP AI chat widget — three iterations** (`dd6b876` → `7ad0a7e` → `7c13fb0` → `3476ddc`) — floating bottom-right chat panel on every admin page. v1 = Q&A only, v2 = persistence in `admin_chat_sessions` + `admin_chat_messages`, v3 = full tool execution via the MCP Tool Gateway with 10 tools (check_system_health, list_leads, scan_city, etc.). v3 also added the **write-action confirmation gate**: tools are classified READ vs WRITE; write tools (research_lead, score_lead, update_lead_status, scan_city) require Claude to describe the action and ask "Confirm? Reply yes to proceed" before invoking, with a server-side guard that refuses execution unless the most recent user message contains an affirmative token.
+- **Market Intelligence (Part B.9)** (`1c70467` → `6698237` → `074fe69`) — schema migration with 4 tables (raw + processed + routing log + per-client preferences) + `v_active_market_signals` view + admin endpoint `admin/market-intelligence/summary` aggregating signals by type / vertical / region / source + 7d ingestion + routing stats. Heat-map dashboard at `/pages/market-intelligence.html`. Critically, the existing `clx-campaign-router-v2` + `clx-outreach-generation-v2` workflows already had signal-aware nodes wired in production — they were just waiting on the schema. So Layers 3 + 4 of the B.9 spec activate the moment the schema lands.
+- **Email + SMS voice audit** (`d59ef62` + `ccd3644`) — `docs/handbook/BRAND_VOICE.md` documents the hard rules (no em-dashes, no generic openers, no stilted sign-offs). `scripts/audit/lint-message-templates.py` scans every workflow JSON + HTML page for violations with severity + auto-fix for em-dashes. **127 em-dashes scrubbed** from 26 customer-facing files: every outbound channel (email, SMS, WhatsApp, LinkedIn, voice, video), every public site page, every insurer-marketing page, every booking confirmation, every Smart Quote email.
+- **All 7 standalone product pages live** (`4e7bba7` → `1e1ac53` → `47de20a`) — site/products/{index, smart-quote, luxi, ava, maxi, ciro, mga, sales-engine}.html with shared product-page.css. Each: dark gradient hero, 6-card feature grid, vertical-specific "who buys this", numbered how-it-works, "Talk to me" pricing card, closing CTA. Insurer-marketing pages also got AI-native-era + solo-founder positioning stripped earlier (`7d946b6`, `8d36040`).
+- **Dashboard polish two rounds** (`a3b12dc` + `1d5cbb1`) — slate neutral ramp (replaces zinc), emerald accent ramp, shadow + motion tokens, global transition baseline. Chart.js wired in via `/shared/charts.js` with line / bar / donut / sparkline helpers. Overview page uses real Chart.js now. Sidebar active state has gradient + 3px brand edge. Stat cards have variant-aware top-edge gradients (leads/activity/bookings/errors/revenue each get their own). Tables polished, buttons with linear-gradient + shadow, skeleton shimmer. Browser-style back/forward arrows auto-inject in the topbar via `clxComp.injectNavArrows()`.
+- **DevOps Digital Employee** (`30462e6`) — `wfDevopsDailyBriefingV1` cron at 11:00 UTC. Aggregates Sentinel alerts (24h) + cost tracking (7d vs budgets) + paused workflows + lead/booking activity, Claude writes a one-paragraph senior-on-call-engineer briefing, Postmark emails Mary + persists to `sentinel_alerts` (module='devops').
+- **COO Digital Employee** (`66cfe5b`) — `wfCooWeeklyReviewV1` cron at 23:00 UTC Sunday so Monday morning lands the review. Aggregates pipeline (this week vs prior 3w avg, trend %, status/source/industry mixes), conversion (bookings, quotes sent + accepted + acceptance %), revenue (MRR + closed this week), comms (volume per channel + failure rate %), overdue work (>14d silent + high-score subset). Claude writes a 6-section summary (verdict / pipeline / conversion / bottleneck / overdue / one growth recommendation) with a sectioned HTML email + stats footer + sentinel_alerts row module='coo'.
+- **Workflow drift detector** (`19e0bfb` → `4cda91c` → `653da5d` → `fc4546b`) — `scripts/drift/detect-workflow-drift.py` runs on VPS via cron, hashes every repo workflow + every n8n workflow (REST API with docker exec CLI fallback when API key lacks listing permission), classifies divergence as `repo_only` / `n8n_only` / `content_diff` / `active_diff`. CLAUDE.md "Dormant by default" rule encoded: only flags active_diff when repo expects active=true but n8n has it off. Migration `workflow-drift-schema.sql` defines `workflow_drift` + `workflow_drift_runs` tables. Daily cron added on Mary's VPS at 08:00. Current state: 0 repo_only, 1 n8n_only (old chat-v2 to deactivate), 0 active_diff, 60 content_diff (mix of historic UI edits + n8n adding default fields the hash can't strip yet — known limitation, operationally fine).
+- **ship.sh evolution** (`9742679` → `3ee001e` → `f0585bc` → `f417d55` → `ce97502`) — one command that handles import OR update via REST API PUT. SQL fallback when API key fails. `ship-em-dash-fixes.sh` + `ship-today.sh` bulk wrappers for batch deploys.
+- **Cleanup** — superseded `clx-admin-chat-v1.json` and `clx-admin-chat-v2.json` removed from repo (`1e1ac53`); only v3 is canonical now.
+
+### What got unblocked / decided
+- Mary picked the launch-priority order: DevOps employee → COO employee → drift detector, then audit. Build wrap then page-by-page review.
+- ship.sh upgraded to REST API PUT semantics means future commits update workflows in place — no more deactivate-then-reship dance.
+- Drift detector accepted at "operationally useful but content_diff is noisy" level. Refining the hash is a 1-2h rabbit hole with diminishing returns; the action Mary would take with 5 findings is the same as with 60 (audit or bulk-reship).
+- The drift detector lives on the VPS cron, NOT in n8n, because:
+  1. The repo isn't mounted into the n8n container
+  2. The pattern keeps drift detection independent of n8n's own health
+
+### What got blocked or deferred
+- Live spam tracking via Postmark webhook — needs the webhook + an `email_events` table. Follow-up.
+- Multi-channel monitoring (LinkedIn / Meta / TikTok / YouTube mentions + engagement) — gated on the free API signups.
+- Content QA pre-send hook — needs to hook into every sender workflow; 1-2 sessions.
+- Workflow drift admin page + DevOps briefing integration — low-priority polish.
+
+### What Mary needs to do next
+
+```bash
+ssh vps
+cd /tmp/clx-latest && git pull origin main
+```
+
+Migrations to verify applied (run each in Supabase SQL Editor; idempotent):
+- `db/migrations/lead-status-backfill.sql` — fixes "unknown 200" Sales Engine display
+- `db/migrations/market-intelligence-schema.sql` — Part B.9 schema
+- `db/migrations/chat-history-schema.sql` — chat persistence
+- `db/migrations/workflow-drift-schema.sql` — drift tracking
+
+Workflow ships to apply:
+- `bash scripts/n8n/ship-today.sh` — bulk-ship the 7 new/modified workflows from today
+- Deactivate orphan `CLX - Admin Chat v2` in n8n UI (clears the 1 n8n_only drift finding)
+
+API signups to pursue in parallel (priority order):
+1. LinkedIn Developer (free, ~30 min) — unlocks CIRO auto-DM
+2. Meta Business / Facebook + Instagram Graph (free, ~2h with verification) — unlocks LUXI auto-comment + AVA cross-posting
+3. TikTok Developer (free, 1-2d approval) — same for TikTok
+4. YouTube Data API (free, ~30 min) — content publishing + comment monitoring
+5. HeyGen (~$99-330/mo) — AVA video render
+6. ElevenLabs (~$22/mo) — premium voice
+7. NewsAPI + OpenWeatherMap (both free) — activate market intelligence ingestion
+
+### Open questions for next session
+- Start the page-by-page audit (you proposed; suggested order: overview → sales-engine → sentinel → market-intelligence → smart-quote → luxi → ava → carriers → ciro → public products → marketing) — or ship one more build item first (Postmark webhook, Content QA pre-send)?
+- Pricing decision for the product pages — current placeholders say "Talk to me"; you have the ballpark tier structure proposal from earlier today (Smart Quote $97-397, MGA $1,997-6,997, etc.).
+- Anything in the chat widget you want adjusted before launch (placement, default greeting, tool list)?
+
+---
+
 ## 2026-05-21 — Nuclear reset tooling for the 19-endpoint failure (Path B)
 
 ### What shipped
