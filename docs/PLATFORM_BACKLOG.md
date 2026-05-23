@@ -34,7 +34,7 @@ Living list of everything in flight. Update as items complete.
 - [x] Quota watcher — **already exists** as `clxSentinelCostThresholdCheckV1` (active)
 - [x] Credential rotation reminder — **already exists** as `clxSentinelCredentialAgeCheckV1` (active)
 - [x] Auto-pause + auto-resume — **already exist** as `clxSentinelWorkflowAutoPauseV1` + `clxSentinelWorkflowAutoResumeV1` (active)
-- [ ] **Workflow drift detector** — compare live n8n workflow JSON to repo, flag divergence. Follow-up commit.
+- [x] **Workflow drift detector shipped** — Python script `scripts/drift/detect-workflow-drift.py` runs on VPS via cron, hashes every workflow in the repo + every workflow in n8n (via REST API), classifies divergence as `repo_only` / `n8n_only` / `content_diff` / `active_diff`, writes findings to `workflow_drift` table + a `workflow_drift_runs` summary. Migration `db/migrations/workflow-drift-schema.sql` defines both tables.
 - [ ] **Proactive code suggestions** — when DevOps detects a fixable pattern (e.g. all OpenAI cost spikes correlate with a specific workflow), surface a code suggestion. Follow-up; needs more data first.
 
 **Why:** so you stop carrying the system-health mental load. Briefing lands in your inbox before your workday starts.
