@@ -769,3 +769,125 @@ button { font-family: inherit; }
   .clx-copilot-panel { width: 100vw; }
   .clx-copilot-fab { bottom: 78px; right: 16px; }  /* keep above bottom-nav on mobile */
 }
+
+/* ═══ Polish v2 primitives ════════════════════════════════════════════
+   Mirrors admin-dashboard/shared/layout.css. Pure CSS — no JS animation.
+   =================================================================== */
+
+.clx-toast-stack {
+  position: fixed; top: 16px; right: 16px; z-index: 10000;
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: calc(100vw - 32px); width: 360px; pointer-events: none;
+}
+.clx-toast {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--gray-900); color: var(--gray-0);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  font-size: 13px; line-height: 1.4;
+  opacity: 0; transform: translateY(-8px) scale(0.98);
+  transition: opacity var(--motion-base) var(--ease-out),
+              transform var(--motion-base) var(--ease-out);
+}
+.clx-toast.clx-toast-in  { opacity: 1; transform: translateY(0) scale(1); }
+.clx-toast.clx-toast-out { opacity: 0; transform: translateY(-8px) scale(0.98); }
+.clx-toast-success { background: var(--color-accent-700); }
+.clx-toast-error   { background: var(--error); }
+.clx-toast-warning { background: var(--warning); color: var(--gray-900); }
+.clx-toast-info    { background: var(--gray-800); }
+.clx-toast-msg { flex: 1; }
+.clx-toast-action {
+  background: rgba(255,255,255,0.12); color: inherit;
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: var(--r-sm); padding: 4px 10px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.clx-toast-action:hover { background: rgba(255,255,255,0.22); }
+.clx-toast-close {
+  background: none; border: none; color: inherit;
+  font-size: 18px; line-height: 1; padding: 0 4px;
+  cursor: pointer; opacity: 0.7;
+}
+.clx-toast-close:hover { opacity: 1; }
+
+.clx-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 9500;
+  background: rgba(15, 23, 42, 0.40);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; opacity: 0;
+  transition: opacity var(--motion-base) var(--ease-out);
+}
+.clx-dialog-backdrop.clx-dialog-in  { opacity: 1; }
+.clx-dialog-backdrop.clx-dialog-out { opacity: 0; }
+.clx-dialog {
+  background: var(--bg-card); color: var(--text-primary);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  max-width: 480px; width: 100%;
+  max-height: calc(100vh - 48px); overflow: auto;
+  transform: translateY(8px) scale(0.98);
+  transition: transform var(--motion-base) var(--ease-out);
+}
+.clx-dialog-backdrop.clx-dialog-in .clx-dialog { transform: translateY(0) scale(1); }
+.clx-dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 0; }
+.clx-dialog-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.clx-dialog-x {
+  background: none; border: none; cursor: pointer;
+  font-size: 22px; line-height: 1; color: var(--text-muted);
+  padding: 4px 8px; border-radius: var(--r-sm);
+}
+.clx-dialog-x:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-dialog-body { padding: 14px 18px; }
+.clx-dialog-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 18px 16px; border-top: 1px solid var(--border);
+  background: var(--gray-50);
+  border-bottom-left-radius: var(--r-lg); border-bottom-right-radius: var(--r-lg);
+}
+.clx-dialog-btn {
+  padding: 8px 16px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid transparent;
+}
+.clx-dialog-btn-ghost { background: var(--bg-card); color: var(--text-secondary); border-color: var(--border-strong); }
+.clx-dialog-btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.clx-dialog-btn-primary { background: var(--color-brand-600); color: var(--gray-0); }
+.clx-dialog-btn-primary:hover { background: var(--color-brand-700); }
+.clx-dialog-btn-danger { background: var(--error); color: var(--gray-0); }
+.clx-dialog-btn-danger:hover { filter: brightness(0.92); }
+
+.clx-dropdown {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  padding: 4px; min-width: 160px; z-index: 9400;
+  opacity: 0; transform: translateY(-4px) scale(0.97);
+  transition: opacity var(--motion-fast) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out);
+}
+.clx-dropdown.clx-dropdown-in { opacity: 1; transform: translateY(0) scale(1); }
+.clx-dropdown-item {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer;
+  padding: 8px 12px; border-radius: var(--r-sm);
+  font-size: 13px; color: var(--text-primary);
+}
+.clx-dropdown-item:hover:not([disabled]) { background: var(--bg-hover); }
+.clx-dropdown-item[disabled] { opacity: 0.45; cursor: not-allowed; }
+.clx-dropdown-item-danger { color: var(--error); }
+.clx-dropdown-item-danger:hover:not([disabled]) { background: #FEF2F2; }
+.clx-dropdown-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+.clx-tabs {
+  display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.clx-tab-btn {
+  background: none; border: none; cursor: pointer;
+  padding: 10px 16px; font-size: 14px; font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.clx-tab-btn:hover { color: var(--text-primary); }
+.clx-tab-btn.clx-tab-active { color: var(--text-primary); border-bottom-color: var(--color-brand-600); }

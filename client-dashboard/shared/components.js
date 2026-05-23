@@ -527,6 +527,261 @@
       '</div>';
   }
 
+  /* ───────────────────────────────────────────────────────────────
+     Polish v2 primitives — toast / dialog / dropdown / tabs.
+     Mirrors admin-dashboard/shared/components.js. Pure vanilla.
+     Styles in client layout.css under matching .clx-* classes.
+     ─────────────────────────────────────────────────────────────── */
+
+  function ensureToastStack() {
+    var stack = document.querySelector('.clx-toast-stack');
+    if (stack) return stack;
+    stack = document.createElement('div');
+    stack.className = 'clx-toast-stack';
+    document.body.appendChild(stack);
+    return stack;
+  }
+
+  function toast(message, opts) {
+    opts = opts || {};
+    var variant = opts.variant || 'info';
+    var duration = (opts.durationMs == null) ? 4000 : opts.durationMs;
+    var stack = ensureToastStack();
+    var el = document.createElement('div');
+    el.className = 'clx-toast clx-toast-' + variant;
+    el.setAttribute('role', variant === 'error' ? 'alert' : 'status');
+    var msgSpan = document.createElement('span');
+    msgSpan.className = 'clx-toast-msg';
+    msgSpan.textContent = String(message == null ? '' : message);
+    el.appendChild(msgSpan);
+    if (opts.action && opts.action.label) {
+      var actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = 'clx-toast-action';
+      actionBtn.textContent = opts.action.label;
+      actionBtn.addEventListener('click', function () {
+        try { opts.action.onClick && opts.action.onClick(); } catch (e) {}
+        dismiss();
+      });
+      el.appendChild(actionBtn);
+    }
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'clx-toast-close';
+    closeBtn.setAttribute('aria-label', 'Dismiss');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', function () { dismiss(); });
+    el.appendChild(closeBtn);
+    stack.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('clx-toast-in'); });
+    var timer = null;
+    if (duration > 0) timer = setTimeout(function () { dismiss(); }, duration);
+    function dismiss() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      el.classList.remove('clx-toast-in');
+      el.classList.add('clx-toast-out');
+      setTimeout(function () {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 200);
+    }
+    return { dismiss: dismiss };
+  }
+
+  function dialog(opts) {
+    opts = opts || {};
+    var dismissable = opts.dismissable !== false;
+    var backdrop = document.createElement('div');
+    backdrop.className = 'clx-dialog-backdrop';
+    var box = document.createElement('div');
+    box.className = 'clx-dialog';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    if (opts.title) box.setAttribute('aria-label', String(opts.title));
+    var html = '';
+    if (opts.title) {
+      html += '<div class="clx-dialog-head"><div class="clx-dialog-title">' + escapeHtml(opts.title) + '</div>';
+      if (dismissable) html += '<button type="button" class="clx-dialog-x" aria-label="Close">&times;</button>';
+      html += '</div>';
+    }
+    html += '<div class="clx-dialog-body"></div>';
+    if (opts.actions && opts.actions.length) html += '<div class="clx-dialog-actions"></div>';
+    box.innerHTML = html;
+    var bodyEl = box.querySelector('.clx-dialog-body');
+    if (opts.body instanceof Node) bodyEl.appendChild(opts.body);
+    else bodyEl.innerHTML = String(opts.body == null ? '' : opts.body);
+    var actionsEl = box.querySelector('.clx-dialog-actions');
+    var resolveFn = null;
+    var promise = new Promise(function (r) { resolveFn = r; });
+    function close(value) {
+      backdrop.classList.add('clx-dialog-out');
+      setTimeout(function () {
+        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        document.removeEventListener('keydown', onKey, true);
+        if (prevFocus && prevFocus.focus) { try { prevFocus.focus(); } catch (e) {} }
+      }, 180);
+      resolveFn(value == null ? null : value);
+    }
+    if (actionsEl && opts.actions) {
+      opts.actions.forEach(function (a) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'clx-dialog-btn clx-dialog-btn-' + (a.variant || 'ghost');
+        btn.textContent = a.label || '';
+        btn.addEventListener('click', function () {
+          var result = a.onClick ? a.onClick() : undefined;
+          if (result === false) return;
+          close(a.value != null ? a.value : a.label);
+        });
+        actionsEl.appendChild(btn);
+      });
+    }
+    var xBtn = box.querySelector('.clx-dialog-x');
+    if (xBtn) xBtn.addEventListener('click', function () { close(null); });
+    if (dismissable) {
+      backdrop.addEventListener('click', function (e) {
+        if (e.target === backdrop) close(null);
+      });
+    }
+    function onKey(e) {
+      if (e.key === 'Escape' && dismissable) { e.stopPropagation(); close(null); }
+      if (e.key === 'Tab') {
+        var focusables = box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (!focusables.length) return;
+        var first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
+    var prevFocus = document.activeElement;
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(function () { backdrop.classList.add('clx-dialog-in'); });
+    document.addEventListener('keydown', onKey, true);
+    var firstBtn = box.querySelector('.clx-dialog-btn-primary, .clx-dialog-btn-danger, .clx-dialog-btn, .clx-dialog-x');
+    if (firstBtn) setTimeout(function () { firstBtn.focus(); }, 50);
+    return { close: close, promise: promise };
+  }
+
+  function confirmDialog(message, opts) {
+    opts = opts || {};
+    var d = dialog({
+      title: opts.title || 'Confirm',
+      body: '<div style="font-size:14px;color:var(--text-secondary);line-height:1.5;">' + escapeHtml(message) + '</div>',
+      actions: [
+        { label: opts.cancelLabel || 'Cancel', variant: 'ghost', value: false },
+        { label: opts.confirmLabel || 'Confirm', variant: opts.variant || 'primary', value: true }
+      ]
+    });
+    return d.promise.then(function (v) { return v === true; });
+  }
+
+  function dropdown(triggerEl, items, opts) {
+    opts = opts || {};
+    var menu = null;
+    function close() {
+      if (!menu) return;
+      menu.classList.remove('clx-dropdown-in');
+      var m = menu;
+      menu = null;
+      setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 120);
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('mousedown', onOutside, true);
+    }
+    function onOutside(e) {
+      if (menu && !menu.contains(e.target) && e.target !== triggerEl) close();
+    }
+    function onKey(e) {
+      if (!menu) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      var focusables = Array.prototype.slice.call(menu.querySelectorAll('button.clx-dropdown-item:not([disabled])'));
+      if (!focusables.length) return;
+      var idx = focusables.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusables[(idx + 1) % focusables.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); focusables[(idx - 1 + focusables.length) % focusables.length].focus(); }
+    }
+    function open() {
+      close();
+      menu = document.createElement('div');
+      menu.className = 'clx-dropdown';
+      menu.setAttribute('role', 'menu');
+      items.forEach(function (it) {
+        if (it.separator) {
+          var sep = document.createElement('div');
+          sep.className = 'clx-dropdown-sep';
+          menu.appendChild(sep);
+          return;
+        }
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'clx-dropdown-item' + (it.variant ? ' clx-dropdown-item-' + it.variant : '');
+        if (it.disabled) btn.disabled = true;
+        btn.setAttribute('role', 'menuitem');
+        btn.textContent = it.label || '';
+        btn.addEventListener('click', function () {
+          if (it.disabled) return;
+          try { it.onClick && it.onClick(); } catch (e) {}
+          close();
+        });
+        menu.appendChild(btn);
+      });
+      var rect = triggerEl.getBoundingClientRect();
+      menu.style.position = 'fixed';
+      menu.style.top = (rect.bottom + 6) + 'px';
+      var align = opts.align || 'right';
+      if (align === 'left') menu.style.left = rect.left + 'px';
+      else                  menu.style.right = (window.innerWidth - rect.right) + 'px';
+      document.body.appendChild(menu);
+      requestAnimationFrame(function () { menu.classList.add('clx-dropdown-in'); });
+      document.addEventListener('keydown', onKey, true);
+      document.addEventListener('mousedown', onOutside, true);
+      var first = menu.querySelector('button.clx-dropdown-item:not([disabled])');
+      if (first) setTimeout(function () { first.focus(); }, 30);
+    }
+    function toggle() { menu ? close() : open(); }
+    triggerEl.addEventListener('click', function (e) { e.preventDefault(); toggle(); });
+    return { open: open, close: close, toggle: toggle };
+  }
+
+  function tabs(container, tabsDef, opts) {
+    opts = opts || {};
+    if (!container || !tabsDef || !tabsDef.length) return null;
+    container.classList.add('clx-tabs');
+    container.innerHTML = '';
+    var current = opts.initialKey || tabsDef[0].key;
+    tabsDef.forEach(function (t) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'clx-tab-btn' + (t.key === current ? ' clx-tab-active' : '');
+      btn.setAttribute('data-tab-key', t.key);
+      btn.setAttribute('role', 'tab');
+      btn.textContent = t.label;
+      btn.addEventListener('click', function () { setActive(t.key); });
+      container.appendChild(btn);
+    });
+    function syncPanes() {
+      tabsDef.forEach(function (t) {
+        if (!t.paneId) return;
+        var pane = document.getElementById(t.paneId);
+        if (!pane) return;
+        pane.style.display = (t.key === current) ? '' : 'none';
+      });
+    }
+    function setActive(key) {
+      if (key === current) return;
+      current = key;
+      var btns = container.querySelectorAll('.clx-tab-btn');
+      btns.forEach(function (b) {
+        b.classList.toggle('clx-tab-active', b.getAttribute('data-tab-key') === key);
+      });
+      syncPanes();
+      var def = tabsDef.find(function (t) { return t.key === key; });
+      if (def && def.onActivate) { try { def.onActivate(); } catch (e) {} }
+      if (opts.onChange) { try { opts.onChange(key); } catch (e) {} }
+    }
+    syncPanes();
+    return { setActive: setActive, getActive: function () { return current; } };
+  }
+
   global.clxComp = {
     escapeHtml: escapeHtml,
     formatDate: formatDate,
@@ -550,6 +805,12 @@
     progressBar: progressBar,
     avatar: avatar,
     scoreBar: scoreBar,
-    sectionHead: sectionHead
+    sectionHead: sectionHead,
+    /* Polish v2 primitives */
+    toast: toast,
+    dialog: dialog,
+    confirm: confirmDialog,
+    dropdown: dropdown,
+    tabs: tabs
   };
 })(window);
