@@ -32,6 +32,20 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-23 (pt 3) — ship.sh --branch flag (kill the manual checkout)
+
+Tiny ergonomics commit. ship.sh hardcoded `git pull origin main`, so the existing pattern required merging `scale-sprint-v1` → `main` (or manually checking out the feature branch in `/tmp/clx-latest`) before shipping anything. Added `--branch <name>` (and `CLX_BRANCH` env equivalent) so the standard flow becomes:
+
+```bash
+bash scripts/n8n/ship.sh --branch scale-sprint-v1 clx-foo-v1.json
+```
+
+ship.sh now does `git fetch + git checkout + git pull` of the requested branch. Default stays `main` so every existing caller still works. ship-today.sh passes `--branch` straight through to every ship.sh invocation; argument-array expansion guarded with `${arr[@]+...}` so it stays compatible with older bash on the VPS.
+
+Updated blockers §0v to use `--branch scale-sprint-v1` in the Postmark deploy steps — Mary no longer needs to merge before shipping.
+
+---
+
 ## 2026-05-23 (pt 2) — Postmark webhook ingestion: spam + bounces go live
 
 Closed the placeholder on the Comms tab — spam tracking has been "best-effort scan of email_log.status" since the Comms tab shipped. Now it's a live Postmark webhook stream.

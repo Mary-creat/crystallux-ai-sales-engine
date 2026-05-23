@@ -4,10 +4,23 @@
 # Ships every workflow built or modified in today's session. Run after
 # git pull to bring the live n8n in sync with the repo, then re-run
 # drift detection — should drop content_diff substantially.
+#
+# Pass --branch <name> to ship from a non-main branch (e.g. before merge):
+#   bash scripts/n8n/ship-today.sh --branch scale-sprint-v1
 
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Pass-through for ship.sh's --branch flag.
+SHIP_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --branch)     SHIP_ARGS+=( --branch "$2" ); shift 2 ;;
+    --branch=*)   SHIP_ARGS+=( "$1" );          shift ;;
+    *)            break ;;
+  esac
+done
 
 FILES=(
   # New admin endpoints
@@ -37,7 +50,8 @@ fails=0
 for f in "${FILES[@]}"; do
   i=$((i + 1))
   printf "\n==== [%d/%d] %s ====\n" "$i" "$total" "$f"
-  if ! bash "${SCRIPT_DIR}/ship.sh" "$f"; then
+  # ${arr[@]+...} guard keeps set -u happy when SHIP_ARGS is empty (older bash).
+  if ! bash "${SCRIPT_DIR}/ship.sh" ${SHIP_ARGS[@]+"${SHIP_ARGS[@]}"} "$f"; then
     fails=$((fails + 1))
     printf "  WARN: ship failed for %s\n" "$f"
   fi

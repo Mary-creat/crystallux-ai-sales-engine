@@ -5,28 +5,29 @@
 # the JSON anywhere under workflows/, import, activate, restart.
 #
 # Usage:
-#   bash scripts/n8n/ship.sh <workflow-filename>
+#   bash scripts/n8n/ship.sh [--branch <name>] <workflow-filename>
 #
 # Examples:
 #   bash scripts/n8n/ship.sh clx-admin-sales-engine-activity-v1.json
-#   bash scripts/n8n/ship.sh clx-public-quote-fetch-v1.json
+#   bash scripts/n8n/ship.sh --branch scale-sprint-v1 clx-webhook-postmark-events-v1.json
 #
 # You only need the FILENAME — the script finds it under workflows/
 # automatically (admin/, public/, avatars/, ciro/, etc.).
 #
 # What it does:
-#   1. git pull origin main
+#   1. git fetch + checkout + pull the target branch (default: main)
 #   2. Locate the workflow JSON anywhere under workflows/
 #   3. Read its top-level "id" field
-#   4. Copy the JSON into the n8n container
-#   5. n8n import:workflow (inserts the workflow)
-#   6. Activate via REST API using N8N_API_KEY (more reliable than the
+#   4. Update via REST API PUT if the workflow already exists,
+#      otherwise n8n import:workflow CLI
+#   5. Activate via REST API using N8N_API_KEY (more reliable than the
 #      deprecated CLI --active flag)
-#   7. docker restart n8n
-#   8. Wait + probe the webhook to confirm it routes
+#   6. docker restart n8n
+#   7. Wait + probe the webhook to confirm it routes
 #
 # Env overrides:
 #   CLX_REPO            default: /tmp/clx-latest
+#   CLX_BRANCH          default: main  (same as --branch)
 #   CLX_N8N_CONTAINER   default: n8n
 #   N8N_API_KEY         optional, used for REST-API activation
 #   N8N_URL             default: http://localhost:5678
@@ -35,8 +36,37 @@ set -uo pipefail
 
 # ─── settings ────────────────────────────────────────────────────
 REPO="${CLX_REPO:-/tmp/clx-latest}"
+BRANCH="${CLX_BRANCH:-main}"
 CONTAINER="${CLX_N8N_CONTAINER:-n8n}"
 N8N_URL="${N8N_URL:-http://localhost:5678}"
+
+# ─── arg parsing (--branch flag, then positional filename) ───────
+# Keep this minimal: only --branch is supported beyond the filename.
+# Anything else gets passed through as the filename so we don't break
+# existing callers that just say `ship.sh foo.json`.
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --branch)
+      BRANCH="${2:-}"
+      if [ -z "$BRANCH" ]; then
+        printf "ship.sh: --branch requires a value\n" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --branch=*)
+      BRANCH="${1#--branch=}"
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 # ─── pretty output ───────────────────────────────────────────────
 GREEN=$'\033[32m'
@@ -53,17 +83,26 @@ step() { printf "\n${BOLD}%s${RESET}\n" "$*"; }
 
 # ─── arg check ───────────────────────────────────────────────────
 if [ $# -lt 1 ]; then
-  printf "${BOLD}Usage:${RESET} bash %s <workflow-filename.json>\n\n" "$0"
-  printf "Example:\n  bash %s clx-admin-sales-engine-activity-v1.json\n" "$0"
+  printf "${BOLD}Usage:${RESET} bash %s [--branch <name>] <workflow-filename.json>\n\n" "$0"
+  printf "Examples:\n"
+  printf "  bash %s clx-admin-sales-engine-activity-v1.json\n" "$0"
+  printf "  bash %s --branch scale-sprint-v1 clx-webhook-postmark-events-v1.json\n" "$0"
   exit 2
 fi
 NAME="$1"
 
 # ─── 1. pull latest ──────────────────────────────────────────────
-step "1/6  Pull latest repo"
+step "1/6  Pull latest repo (${BRANCH})"
 cd "$REPO" || { fail "Repo not at $REPO"; exit 3; }
-git pull origin main --quiet
-ok "pulled main"
+git fetch origin "$BRANCH" --quiet || { fail "git fetch origin $BRANCH failed"; exit 3; }
+# Switch to the requested branch if we're not already on it. Use checkout
+# rather than switch for portability with older git on the VPS.
+CURRENT=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [ "$CURRENT" != "$BRANCH" ]; then
+  git checkout "$BRANCH" --quiet || { fail "git checkout $BRANCH failed"; exit 3; }
+fi
+git pull origin "$BRANCH" --quiet || { fail "git pull origin $BRANCH failed"; exit 3; }
+ok "pulled ${BRANCH}"
 
 # ─── 2. locate the workflow file ─────────────────────────────────
 step "2/6  Find workflow file"

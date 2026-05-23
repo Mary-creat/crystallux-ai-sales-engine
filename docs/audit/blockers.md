@@ -24,19 +24,20 @@ New `email_events` table + `clx-webhook-postmark-events-v1` workflow turn the Se
    ```
    Generate with: `openssl rand -hex 32`.
 
-3. **Import + activate the workflow** (UI Import-Replace per `[[n8n-workflow-update-gotcha]]`):
-   - File: `workflows/api/webhooks/clx-webhook-postmark-events-v1.json`
-   - Activate after import.
-   - Webhook URL is `https://automation.crystallux.org/webhook/webhook/postmark/events` (n8n prefixes the path with `/webhook`).
+3. **Ship the workflows from `scale-sprint-v1`** (ship.sh now accepts `--branch`, so no merge-to-main needed):
+   ```bash
+   cd /tmp/clx-latest
+   bash scripts/n8n/ship.sh --branch scale-sprint-v1 clx-webhook-postmark-events-v1.json
+   bash scripts/n8n/ship.sh --branch scale-sprint-v1 clx-admin-sentinel-comms-health-v1.json
+   ```
+   First call: CLI import (new workflow). Second call: REST PUT update (existing workflow). Both auto-activate, restart n8n, probe the webhook.
 
 4. **Configure Postmark** (Server Settings > Webhooks):
    - Add a webhook for each event type you want: Delivery, Bounce, Open, Click, SpamComplaint, SubscriptionChange.
-   - URL: the one from step 3.
+   - URL: `https://automation.crystallux.org/webhook/webhook/postmark/events` (n8n prefixes the path with `/webhook`, so it shows up twice on purpose).
    - Under "Custom HTTP headers": add `X-Postmark-Webhook-Token` = the token from step 2.
 
-5. **Re-import** `clx-admin-sentinel-comms-health-v1.json` — Comms tab now has Spam Events + Bounce Events fetches. Without re-importing it still works (falls back to email_log scan); after re-import the spam + bounce cards flip to "live" pills.
-
-6. **Purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` so the new Bounces card renders.
+5. **Purge Cloudflare cache** for `admin.crystallux.org/pages/sentinel.html` so the new Bounces card renders.
 
 Verify by sending a test email from Postmark and watching `email_events` populate within ~5 sec.
 
