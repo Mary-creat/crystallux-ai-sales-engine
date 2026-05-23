@@ -32,6 +32,26 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-23 (pt 4) — Polish v2: SaaS-feel primitives within the existing stack
+
+Mary forwarded a generic template prompt asking for a Next.js + React + Tailwind + shadcn + Framer Motion rewrite. Doctrine conflict (CLAUDE.md: "the repo is intentionally plain HTML + plain JS"). Offered three scoped options; Mary picked Polish v2 — additive within the current stack.
+
+### What shipped (three commits — `19bed4b` + `4c55b64` + this)
+- **Primitives in `components.js`** (admin + client mirrored): `toast`, `dialog`, `confirm`, `dropdown`, `tabs`. Pure vanilla, no framework. ~400 LoC + matching CSS in both `layout.css`.
+- **Cmd+K command palette** — auto-wired globally, parses `CLX_FALLBACK_NAV` for entries, fuzzy substring match, arrow-key nav. Pages extend via `window.CLX_PALETTE_ACTIONS`; disable with `window.CLX_AUTO_PALETTE = false`.
+- **CSS polish** — page-load fade + 40ms-stagger stat-card reveal (pure `@keyframes` + nth-child), brand-purple `:focus-visible` ring on every interactive element, soft brand box-shadow on focused inputs. `prefers-reduced-motion` honored.
+- **Demo wirings** — `sentinel.html` swapped both `window.confirm` sites for `clxComp.confirm` + added toast feedback on save/error.
+- **`docs/handbook/DESIGN_SYSTEM.md`** — single-source-of-truth doc covering tokens, every helper, the polish v2 primitives, common patterns, the rules.
+
+### What got blocked or deferred
+- Zero pages migrated wholesale — additive only. Other pages can opt into `clxComp.confirm` / `clxComp.toast` / `clxComp.tabs` incrementally as they get touched.
+
+### What Mary needs to do next
+- Pull on the VPS clone — no migrations, no env vars, no Postmark config required for this set (pure frontend, Cloudflare Pages auto-deploy on next push).
+- Hit Cmd+K on any admin page after the next CF deploy to feel the palette.
+
+---
+
 ## 2026-05-23 (pt 3) — ship.sh --branch flag (kill the manual checkout)
 
 Tiny ergonomics commit. ship.sh hardcoded `git pull origin main`, so the existing pattern required merging `scale-sprint-v1` → `main` (or manually checking out the feature branch in `/tmp/clx-latest`) before shipping anything. Added `--branch <name>` (and `CLX_BRANCH` env equivalent) so the standard flow becomes:
