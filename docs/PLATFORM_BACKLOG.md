@@ -30,15 +30,14 @@ Living list of everything in flight. Update as items complete.
 
 ## 2. DevOps Digital Employee
 
-- [ ] Auto-restart failed workflows
-- [ ] Quota watcher (Postmark daily limit, Twilio balance, OpenAI rate limits, Apollo credits)
-- [ ] Credential rotation reminder (keys older than 90 days)
-- [ ] Workflow drift detector (live n8n vs repo)
-- [ ] Daily DevOps briefing (one paragraph every morning)
-- [ ] Proactive code suggestions when fixable patterns detected
-- [ ] Builds on existing Sentinel infrastructure
+- [x] **Daily morning briefing shipped** — `wfDevopsDailyBriefingV1` cron at 11:00 UTC. Pulls open alerts (24h) + cost tracking (7d vs budgets) + paused workflow breakers + lead/booking activity, sends to Claude with a senior-on-call-engineer prompt, emails Mary a one-paragraph briefing via Postmark + persists the briefing as a `sentinel_alerts` row with `module='devops'`.
+- [x] Quota watcher — **already exists** as `clxSentinelCostThresholdCheckV1` (active)
+- [x] Credential rotation reminder — **already exists** as `clxSentinelCredentialAgeCheckV1` (active)
+- [x] Auto-pause + auto-resume — **already exist** as `clxSentinelWorkflowAutoPauseV1` + `clxSentinelWorkflowAutoResumeV1` (active)
+- [ ] **Workflow drift detector** — compare live n8n workflow JSON to repo, flag divergence. Follow-up commit.
+- [ ] **Proactive code suggestions** — when DevOps detects a fixable pattern (e.g. all OpenAI cost spikes correlate with a specific workflow), surface a code suggestion. Follow-up; needs more data first.
 
-**Why:** so you stop carrying the system-health mental load.
+**Why:** so you stop carrying the system-health mental load. Briefing lands in your inbox before your workday starts.
 
 ## 3. Chief Operating Officer Digital Employee (expanded scope)
 
