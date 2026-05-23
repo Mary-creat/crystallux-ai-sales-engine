@@ -105,10 +105,30 @@ fi
 
 [ -n "${DATABASE_URL:-}" ] || { fail "DATABASE_URL not set (not in shell, not in $N8N_ENV_FILE)"; exit 3; }
 [ -n "${N8N_API_KEY:-}" ]  || warn "N8N_API_KEY not set — ship.sh will fall back to SQL activation"
-command -v psql       >/dev/null || { fail "psql not on PATH"; exit 3; }
 command -v docker     >/dev/null || { fail "docker not on PATH"; exit 3; }
 command -v openssl    >/dev/null || { fail "openssl not on PATH (needed to generate token)"; exit 3; }
-ok "repo=$REPO  branch=$BRANCH  n8n_env=$N8N_ENV_FILE  container=$CONTAINER"
+
+# psql is preferred for migrations + smoke checks, but the VPS doesn't
+# always have postgresql-client installed. If absent, we transparently
+# fall back to running psql inside a one-shot postgres:15-alpine docker
+# container. First call pulls the image (~30 MB), subsequent calls are
+# instant. Define a `run_psql` wrapper the rest of the script can use.
+if command -v psql >/dev/null; then
+  PSQL_MODE="native"
+  run_psql() { psql "$@"; }
+else
+  warn "psql not on PATH — using docker fallback (postgres:15-alpine)"
+  PSQL_MODE="docker"
+  run_psql() {
+    docker run --rm -i \
+      -v "$(pwd):/work" -w /work \
+      -e PGPASSWORD \
+      postgres:15-alpine \
+      psql "$@"
+  }
+fi
+
+ok "repo=$REPO  branch=$BRANCH  n8n_env=$N8N_ENV_FILE  container=$CONTAINER  psql=$PSQL_MODE"
 
 # ─── 1. bring repo onto branch ───────────────────────────────────
 step "1/6  Sync repo to ${BRANCH}"
@@ -132,7 +152,7 @@ ok "deploy targets present"
 
 # ─── 2. apply migration (idempotent) ─────────────────────────────
 step "2/6  Apply migration: $MIGRATION"
-MIG_OUT=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$MIGRATION" 2>&1)
+MIG_OUT=$(run_psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$MIGRATION" 2>&1)
 MIG_RC=$?
 if [ $MIG_RC -ne 0 ]; then
   fail "psql failed (rc=$MIG_RC):"
@@ -140,7 +160,7 @@ if [ $MIG_RC -ne 0 ]; then
   exit 6
 fi
 # Sanity: confirm the table is there
-EXISTS=$(psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.email_events') IS NOT NULL;" 2>/dev/null | tr -d '[:space:]')
+EXISTS=$(run_psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.email_events') IS NOT NULL;" 2>/dev/null | tr -d '[:space:]')
 if [ "$EXISTS" = "t" ]; then
   ok "email_events present"
 else
@@ -180,7 +200,7 @@ bash "$SCRIPT_DIR/ship.sh" --branch "$BRANCH" "$COMMS_WF" || { fail "ship.sh fai
 
 # ─── 6. smoke-test ───────────────────────────────────────────────
 step "6/6  Smoke-test"
-EVT_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM email_events;" 2>/dev/null | tr -d '[:space:]')
+EVT_COUNT=$(run_psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM email_events;" 2>/dev/null | tr -d '[:space:]')
 if [ -z "$EVT_COUNT" ]; then
   warn "could not query email_events (DB hiccup?). Skipping count check."
 else
@@ -188,7 +208,7 @@ else
   if [ "$EVT_COUNT" = "0" ]; then
     say "${DIM}(0 is expected until Postmark starts sending events — see footer)${RESET}"
   else
-    psql "$DATABASE_URL" -c "SELECT event_type, COUNT(*) FROM email_events WHERE received_at >= now() - interval '7 days' GROUP BY event_type ORDER BY 2 DESC;"
+    run_psql "$DATABASE_URL" -c "SELECT event_type, COUNT(*) FROM email_events WHERE received_at >= now() - interval '7 days' GROUP BY event_type ORDER BY 2 DESC;"
   fi
 fi
 
