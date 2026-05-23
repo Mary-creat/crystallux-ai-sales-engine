@@ -76,22 +76,47 @@ def http_post(url, body, headers=None, timeout=30):
 # Hash + normalisation
 # ───────────────────────────────────────────────────────────────────
 def normalize(workflow):
-    """Strip ephemeral fields, sort node arrays, return a deterministic dict."""
+    """Strip ephemeral fields, sort node arrays, return a deterministic dict.
+
+    Drift hashing has to ignore:
+    - Node IDs (n8n auto-generates them on insert if missing in repo)
+    - Node positions (visual only, n8n sometimes changes precision)
+    - Node `disabled` flags when false (n8n adds them as defaults)
+    - Workflow-level metadata n8n stamps on save (updatedAt, versionId, etc.)
+    - Empty/missing vs {} for connections + settings + credentials
+    Sort nodes by NAME (stable across both sides) — IDs may differ."""
     nodes = workflow.get('nodes', []) or []
-    # Sort nodes by id (n8n preserves order but ids are stable)
-    nodes_sorted = sorted([_clean_node(n) for n in nodes], key=lambda n: n.get('id') or n.get('name') or '')
+    nodes_sorted = sorted([_clean_node(n) for n in nodes],
+                          key=lambda n: (n.get('name', ''), n.get('type', '')))
     return {
         'name': workflow.get('name', ''),
         'nodes': nodes_sorted,
-        'connections': workflow.get('connections') or {},
+        'connections': _normalize_connections(workflow.get('connections') or {}),
         'settings': workflow.get('settings') or {}
     }
 
 
 def _clean_node(n):
-    """Drop ephemeral fields that n8n adds on insert."""
-    keep = {'id', 'name', 'type', 'typeVersion', 'parameters', 'position', 'credentials', 'webhookId'}
-    return {k: v for k, v in n.items() if k in keep}
+    """Drop ephemeral + presentation fields. Keep semantic identity:
+    name, type, typeVersion, parameters, webhookId (matters for routing),
+    credentials (semantic — references credential by name only)."""
+    keep = {'name', 'type', 'typeVersion', 'parameters', 'webhookId'}
+    cleaned = {k: v for k, v in n.items() if k in keep}
+    # Normalize credentials: keep only the `name` field, not the id
+    if 'credentials' in n and isinstance(n['credentials'], dict):
+        cleaned['credentials'] = {
+            k: {'name': v.get('name')} if isinstance(v, dict) else v
+            for k, v in n['credentials'].items()
+        }
+    return cleaned
+
+
+def _normalize_connections(conns):
+    """Connections object: keys are node names, structure is otherwise stable.
+    Just ensure it's a dict (not None) and recurse to strip any None values."""
+    if not isinstance(conns, dict):
+        return {}
+    return conns
 
 
 def hash_workflow(workflow):
