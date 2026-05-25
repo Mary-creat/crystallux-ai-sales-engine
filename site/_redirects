@@ -4,13 +4,11 @@
 # Public quote landing — emailed link looks like crystallux.org/quote/<uuid>
 /quote/*           /quote.html?id=:splat    200
 
-# Public MGA application landings — clean URLs without .html
-/join-advisor      /join-advisor.html       200
-/join-carrier      /join-carrier.html       200
-
-# Legacy aliases mentioned in earlier emails / docs.
-# If insurance.crystallux.org or insurer.crystallux.org point at this
-# same Pages project, /join on those hosts resolves to the right form.
+# Public MGA application landings.
+# CF Pages natively serves /join-advisor from /join-advisor.html (extensionless
+# URL pretty-mapping is built-in). Explicit rewrites here caused a redirect
+# loop with CF's own .html-stripping behavior — same trap as smart-quote below.
+# Legacy /join alias still needs an explicit rule since there is no /join.html.
 /join              /join-advisor.html       200
 
 # Cloudflare Pages serves /products/smart-quote -> /products/smart-quote.html
