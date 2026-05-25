@@ -1,4 +1,12 @@
-# n8n duplicate-workflow cleanup — plan + worksheet
+# n8n duplicate-workflow cleanup — generic worksheet + recovery procedure
+
+> **Role:** generic worksheet template + backup/restore procedure. The IDs listed below are from the 2026-05-16 MGA-focused snapshot and may be stale.
+> **For the CURRENT pre-computed dedupe plan, see `WORKFLOW_DEDUPE_PLAN.md`** (2026-05-19, 30-duplicate listing, runs via `dedupe-all-workflows.sh`).
+> **This doc is still useful for:**
+> - The process flow diagram (Section "Process") if you want to understand the cleanup loop.
+> - The "How to pick which to keep" heuristic (mirrored in the canonical plan, but documented in more detail here).
+> - The **backup/restore procedure** ("What backups exist" section) — load-bearing if a wrong workflow gets deleted.
+> - The **historical records table** at the bottom — fill in after each cleanup pass for audit trail.
 
 This is the worksheet Mary fills in after running `scripts/n8n/audit-duplicates.sh`. Each section pre-lists the duplicate groups Mary identified in the 2026-05-16 brief. The empty `Keep` / `Delete` columns get filled from the audit report.
 

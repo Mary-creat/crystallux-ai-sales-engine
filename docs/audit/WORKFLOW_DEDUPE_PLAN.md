@@ -1,5 +1,9 @@
 # Workflow dedupe — runbook + pre-computed plan
 
+> **Role:** CANONICAL execution plan for the current n8n dedupe. Run this when Mary is ready to clean up the live VPS.
+> **Companion doc:** `DUPLICATE_CLEANUP_PLAN.md` (older worksheet from 2026-05-16, MGA-focused) — keep for the backup/restore procedure + historical records table; do NOT execute its worksheet directly (the IDs it lists may be stale).
+> **Source of truth for top-level-id enforcement:** `scripts/n8n/add-top-level-ids.py` + `blockers.md §0n`.
+
 **Status:** ready for Mary to execute on the n8n VPS.
 **Generated:** 2026-05-19 from Mary's diagnostic listing of 30 duplicate IDs.
 
