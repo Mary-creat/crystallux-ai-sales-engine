@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS market_signals_raw (
 DO $$ BEGIN
   ALTER TABLE market_signals_raw
     ADD CONSTRAINT msr_source_external_unique UNIQUE (source, external_id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS idx_msr_unprocessed
   ON market_signals_raw(processed, fetched_at)
@@ -119,13 +119,13 @@ DO $$ BEGIN
       'natural_disaster','economic','regulatory','seasonal',
       'news_event','trend','political','technological'
     ));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE market_signals_processed
     ADD CONSTRAINT msp_confidence_check
     CHECK (confidence IN ('high','medium','low'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS idx_msp_active
   ON market_signals_processed(created_at DESC)
@@ -166,7 +166,7 @@ DO $$ BEGIN
   ALTER TABLE signal_routing_log
     ADD CONSTRAINT srl_decision_check
     CHECK (decision_type IS NULL OR decision_type IN ('scale_up','scale_down','message_swap','channel_boost','skip'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS idx_srl_signal_recent
   ON signal_routing_log(signal_id, applied_at DESC);
