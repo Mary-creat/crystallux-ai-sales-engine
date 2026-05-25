@@ -1,14 +1,14 @@
 /* ═══ Crystallux Insurance MGA Dashboard — auth.js ══════════════════
    Session validation + page-load gate for the insurance-vertical
    MGA module. Mirrors admin-dashboard/shared/auth.js but constrains
-   the role allowlist to advisor / sub_agent / mga_principal /
-   compliance_officer / admin (no client / team_member).
+   the role allowlist to advisor / sub_agent / supervisor /
+   mga_principal / compliance_officer / admin (no client / team_member).
    =================================================================== */
 (function (global) {
   'use strict';
   var LOGIN_URL = '/login.html';
   var VALIDATE  = 'https://automation.crystallux.org/webhook/auth/validate-session';
-  var ALLOWED_ROLES = ['advisor','sub_agent','mga_principal','compliance_officer','admin'];
+  var ALLOWED_ROLES = ['advisor','sub_agent','supervisor','mga_principal','compliance_officer','admin'];
 
   function getToken()  { try { return localStorage.getItem('clx_session_token') || ''; } catch (e) { return ''; } }
   function getRole()   { try { return localStorage.getItem('clx_user_role')     || ''; } catch (e) { return ''; } }
