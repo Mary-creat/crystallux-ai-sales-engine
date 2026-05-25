@@ -110,15 +110,12 @@
 (function() {
   'use strict';
 
-  // All requests go to n8n at automation.crystallux.org. Token comes
-  // back in the JSON response and is then handed off to the receiving
-  // dashboard via a URL hash fragment, because the dashboards live on
-  // different origins (app./admin.crystallux.org) and localStorage is
-  // not shared cross-origin. Hash fragments are NOT sent over the
-  // wire, so the token does not appear in HTTP request logs of the
-  // receiving page; the dashboard reads window.location.hash, copies
-  // the token into its own localStorage, then strips the hash from
-  // the URL before any other code runs.
+  // Token from the auth response is handed to the receiving dashboard
+  // via a URL hash fragment (dashboards live on different origins and
+  // localStorage is not shared cross-origin). Hash fragments stay in
+  // the browser and do not appear in HTTP request logs; the dashboard
+  // reads window.location.hash, copies the token into its own
+  // localStorage, then strips the hash before any other code runs.
   var AUTH_BASE  = 'https://automation.crystallux.org/webhook';
   var LOGIN_URL  = AUTH_BASE + '/auth/login';
   var MAGIC_URL  = AUTH_BASE + '/auth/magic-link';
