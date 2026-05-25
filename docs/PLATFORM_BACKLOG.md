@@ -2,7 +2,7 @@
 
 Living list of everything in flight. Update as items complete.
 
-**Last refreshed:** 2026-05-21 (after the nuke-and-reimport session)
+**Last refreshed:** 2026-05-25 (after self-healing + Postmark + polish v2 + drift detector shipped)
 
 ---
 
@@ -118,20 +118,21 @@ Combined COO + CMO duties. One report, one digital employee, covering business +
 
 **Why:** the concern about leaked internal info is valid and unaudited.
 
-## 8. Standalone product pages (monetization layer) — DONE
+## 8. Standalone product pages (monetization layer) — pages DONE, checkout PENDING
 
-- [ ] Public product page for Smart Quote (`/products/smart-quote`)
-- [ ] Public product page for LUXI (`/products/luxi`)
-- [ ] Public product page for AVA (`/products/ava`)
-- [ ] Public product page for CIRO (`/products/ciro`)
-- [ ] Public product page for MAXI (`/products/maxi`)
-- [ ] Public product page for MGA (`/products/mga`)
-- [ ] Public product page for Sales Engine (`/products/sales-engine`)
-- [ ] Each page: features, pricing tier, demo video, signup CTA wired to Stripe checkout
-- [ ] Per-tenant Stripe products + tier enforcement on signup
-- [ ] Pricing decisions: you set the numbers, I wire them in
+- [x] Public product page for Smart Quote (`/products/smart-quote`) — `4e7bba7`
+- [x] Public product page for LUXI (`/products/luxi`) — `1e1ac53`
+- [x] Public product page for AVA (`/products/ava`) — `1e1ac53`
+- [x] Public product page for CIRO (`/products/ciro`) — `1e1ac53`
+- [x] Public product page for MAXI (`/products/maxi`) — `1e1ac53`
+- [x] Public product page for MGA (`/products/mga`) — `1e1ac53`
+- [x] Public product page for Sales Engine (`/products/sales-engine`) — `1e1ac53`
+- [x] Each page: features, "Talk to me" pricing card, CTA. Demo video slot ready.
+- [ ] **Stripe Products + Prices creation** — DEFERRED until Stripe Live mode lands (verification 2-5 business days from submission). Once approved, create per `docs/STRIPE_PRODUCTS_SPEC.md` (3 tiers: Starter $1,497 / Growth $2,997 / Scale $5,997) and copy Price IDs into n8n env.
+- [ ] **Wire Stripe Checkout** into each product page CTA (after Stripe Live).
+- [ ] **Per-tenant Stripe products + tier enforcement on signup** (after Stripe Live).
 
-**Why:** the platform has the features but no place for customers to buy them.
+**Why:** the platform has the features but no place for customers to buy them. Pages are shipped + reachable; payment wiring is gated on Stripe verification.
 
 ## 9. API signup queue
 

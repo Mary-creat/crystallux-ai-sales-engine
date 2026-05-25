@@ -98,11 +98,11 @@ What "build" still needs: if Mary wants `advisor.crystallux.org` as a SEPARATE s
 
 ---
 
-## WS5 — Carrier portal (carriers.crystallux.org)
+## WS5 — Carrier portal (portal.crystallux.org)
 
-**Status: ✅ Already built. Lives in `insurer-dashboard/`.**
+**Status: ✅ Already built. Lives in `insurer-dashboard/` → serves at `portal.crystallux.org`.**
 
-Mary's spec calls it "carriers" portal; the repo named it `insurer-dashboard/` (insurer.crystallux.org). Same purpose — insurance carriers viewing their production through Crystallux MGAs.
+Mary's spec called it "carriers" portal; the repo named it `insurer-dashboard/` and the live custom domain is `portal.crystallux.org` (auth-gated app). Same purpose — insurance carriers viewing their production through Crystallux MGAs. Source-of-truth domain mapping: `docs/operations/CLOUDFLARE_PAGES_MAPPING.md` (probed 2026-05-19).
 
 Existing pages:
 
@@ -116,7 +116,7 @@ Existing pages:
 | Compliance | `insurer-dashboard/compliance/audit-log.html` + `reviews.html` + `scorecard.html` |
 | Account | `insurer-dashboard/account/profile.html` + `account/users.html` |
 
-What "build" still needs: if Mary specifically wants `carriers.crystallux.org` instead of `insurer.crystallux.org`, that's a domain decision. The code is done.
+What "build" still needs: nothing on the code side. If Mary wants a vanity `carriers.crystallux.org` alongside the canonical `portal.crystallux.org`, that's a Cloudflare custom-domain add (5 min). The companion marketing site is `insurers.crystallux.org` (separate Pages project, public).
 
 ---
 
@@ -131,7 +131,7 @@ What "build" still needs: if Mary specifically wants `carriers.crystallux.org` i
 | `lead_type` propagation through phases | ✅ Done in router | Phase 5 reads `lead.lead_type` and overrides `recommended_campaign_type` |
 | Carrier-specific outreach templates | ✅ Via existing infra | Phase 6 reads `campaign_value_proposition` etc. set by Phase 5; carrier_partnership campaign config carries the message |
 | Advisor recruitment templates | ✅ Via existing infra | Same — advisor_recruitment campaign config |
-| Booking routes by lead_type | 🟡 Open | Booking currently sends generic email + Calendly link. Could enhance: carrier_prospect → insurer.crystallux.org/join landing; advisor_candidate → insurance.crystallux.org/join. Skipping for now until Mary confirms landing pages exist |
+| Booking routes by lead_type | 🟡 Open | Booking currently sends generic email + Calendly link. Could enhance: carrier_prospect → `insurers.crystallux.org/join` (marketing site, public); advisor_candidate → `insurance.crystallux.org/join` (MGA marketing). Skipping for now until Mary confirms landing pages exist |
 
 ---
 

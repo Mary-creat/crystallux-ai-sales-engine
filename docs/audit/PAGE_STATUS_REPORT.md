@@ -15,7 +15,8 @@ Domains:
 - `admin.crystallux.org` — admin-dashboard
 - `app.crystallux.org` — client-dashboard
 - `mga.crystallux.org` — insurance-mga-dashboard (advisor + principal shells)
-- `portal.crystallux.org` / `insurers.crystallux.org` — insurer-dashboard
+- `portal.crystallux.org` — insurer-dashboard (auth-gated portal app)
+- `insurers.crystallux.org` — insurer-marketing (public marketing site)
 - `crystallux.org` — main marketing + auth (site/)
 - `insurance.crystallux.org` — MGA marketing (insurance-marketing/)
 
@@ -114,9 +115,9 @@ Auth gate in `insurance-mga-dashboard/shared/auth.js` already accepts arrays —
 
 ---
 
-## portal.crystallux.org / insurers.crystallux.org
+## portal.crystallux.org (insurer-dashboard, auth-gated)
 
-Insurer portal — read-only screens. Uses a separate auth gate (`clxAuth.require()` with no role check, validates via insurer-session-validate webhook). Not affected by the array-form bug.
+Insurer portal — read-only screens. Uses a separate auth gate (`clxAuth.require()` with no role check, validates via insurer-session-validate webhook). Not affected by the array-form bug. Companion public marketing site is `insurers.crystallux.org` (insurer-marketing/), tracked separately.
 
 | Path | File | Status |
 |---|---|---|
