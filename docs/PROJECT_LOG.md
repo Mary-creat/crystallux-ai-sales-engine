@@ -32,6 +32,37 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-25 — Launch-readiness wrap-up: audit, sync, no duplication
+
+Pre-launch sweep across the repo. Two Explore agents read the handbook + audit + dedupe + blockers corpus to surface what's shipped, what's left, what's duplicated, and what conflicts between docs. Then five focused commits to fix everything in-session that didn't need VPS access. The picture is now clean for Mary to run the VPS launch runbook against accurate docs.
+
+### What shipped (5 commits — `95b159a` → `b3ecc68`)
+
+- **Avatars registry move finished** (`95b159a`) — half-done refactor in the working tree had moved `pages/avatars.html` → `pages/system/avatars.html` but left 9 references pointing at the deleted path (nav.html, components.js, `_redirects`, 5 subpage breadcrumbs, dev-console). All 9 updated; `_redirects` got a 301 from the old path so external bookmarks don't 404.
+- **`.gitignore` hardening** (`f1300af`) — `__pycache__/` + `*.pyc` added (drift detector was leaving cache files in working tree).
+- **Handbook refresh to 2026-05-25** (`a9ec9e5`) — was stamped 2026-05-11; missed every capability shipped since. §5.1 phase table gained 11 new rows (self-healing layer, Postmark webhook, market intelligence, DevOps + COO digital employees, polish v2, workflow drift detector, MCP chat v3, avatars Tranche 1, Smart Quote, brand-voice scrub, product pages). §5.3 (Next 30 days) rewritten as a launch-blocking ordered list (§0s → §0v → §0t → §0i → dedupe → TESTING MODE removal → Stripe Live → legal docs).
+- **Cross-doc conflict reconciliation** (`19b09ec`) — insurer-portal subdomain naming canonicalized to `portal.crystallux.org` (app, auth-gated) vs `insurers.crystallux.org` (marketing, public) across WORKSTREAM_STATUS + PAGE_STATUS_REPORT; Stripe Products status in PLATFORM_BACKLOG item #8 fixed (header said "DONE" but checkboxes unchecked — pages are done, Stripe wiring is explicitly DEFERRED until Live mode lands); `Last refreshed` bumped 2026-05-21 → 2026-05-25.
+- **Dedupe doc cross-references** (`b3ecc68`) — two overlapping dedupe docs (`DUPLICATE_CLEANUP_PLAN.md` 2026-05-16 + `WORKFLOW_DEDUPE_PLAN.md` 2026-05-19) had no relationship spelled out, so a reader couldn't tell which to execute. Added headers on each naming role + pointing at companion + flagging which parts of each are still load-bearing. No content removed.
+
+### What got blocked or deferred
+
+- Mary's VPS launch runbook (`§0s` webhook re-registration → `§0v` Postmark deploy → `§0t` WS1 reactivation → `§0i` Cloudflare cache purge → workflow dedupe → TESTING MODE removal per channel) is now the single ordered path to actual launch. Each step is documented; execution requires VPS access. See refreshed handbook §5.3.
+- Stripe Live mode (2-5 business days for verification) and legal docs (1-2 week lawyer SLA) are the two external dependencies that gate first revenue. Neither is unblockable from inside the repo.
+
+### What Mary needs to do next
+
+1. Run the VPS launch runbook in order (handbook §5.3). Each step's full instructions live in `docs/audit/blockers.md` at the cited §number.
+2. Send legal docs to lawyer (today if not done — 1-2 week SLA).
+3. LinkedIn Developer signup (~30 min, free) — unlocks CIRO Phase 4 auto-DM.
+4. Once Stripe Live verification lands: create Products + Prices per `docs/STRIPE_PRODUCTS_SPEC.md` (3 tiers) and copy Price IDs into n8n env.
+
+### Open questions for next session
+
+- After §0s/0v/0t run on the VPS, was the WEBHOOK_INVENTORY EMPTY-200 count fixed? Should drop from 12 (or 17, depending on snapshot) → 0 after the workflow re-import.
+- Carrier portal vanity domain — does Mary want `carriers.crystallux.org` added alongside `portal.crystallux.org`, or stay single-domain? (5-min CF custom-domain add either way.)
+
+---
+
 ## 2026-05-23 (pt 4) — Polish v2: SaaS-feel primitives within the existing stack
 
 Mary forwarded a generic template prompt asking for a Next.js + React + Tailwind + shadcn + Framer Motion rewrite. Doctrine conflict (CLAUDE.md: "the repo is intentionally plain HTML + plain JS"). Offered three scoped options; Mary picked Polish v2 — additive within the current stack.
