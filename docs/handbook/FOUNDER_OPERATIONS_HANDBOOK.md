@@ -1,7 +1,7 @@
 # Crystallux Founder's Operations Handbook
 
 > **Single source of truth for operating, understanding, and making decisions about the Crystallux platform.**
-> **Last updated:** 2026-05-11
+> **Last updated:** 2026-05-25
 > **Maintainer:** Mary Akintunde, Founder
 
 ---
@@ -655,8 +655,19 @@ Look for "error" / "panic" / "permission denied" lines. Common causes:
 | 1 | Foundation activation | ✅ Code complete · ⏳ external integrations pending | `6bd51c7` | Stripe billing / Postmark / auth-flow rewire — verify external |
 | 2-3 | Universal Core Engine | ✅ Code complete · ⏳ external integrations pending | `25c0886` | 25 workflows; gated on NewsAPI/HeyGen/Vapi/R2/Cal.com signups |
 | Layer 2A | AI Compliance Engine | ✅ Complete | `b4f5ec0` | Stripe Identity + Zoho Sign external setup pending |
-| Layer 2B | MGA Operations + Reviews + Video | ✅ Code complete · ⏳ 5 Mary activation tasks remaining | `f5a73cf` | All 7 migrations applied; 41 workflows imported (dormant); LICENSE_ENCRYPTION_KEY set |
+| Layer 2B | MGA Operations + Reviews + Video | ✅ Code complete · 🟡 Phase 1+5 active in n8n; downstream phases ride existing infra · ⏳ Mary activation tasks remain | `f5a73cf` → `aa7a33c` | All 7 migrations applied; LICENSE_ENCRYPTION_KEY set. Per `docs/audit/WORKSTREAM_STATUS.md` WS6. |
 | Layer 2C | Insurer-Facing Mode + reports + demo | 🟡 Next session | TBD | 4-6h scope; expansion-to-14h scope recommended per audits |
+| Avatars Tranche 1 | 7-avatar platform (AVA / LUXI / MAXI / LUMI / LUMA / LETY / EAZA) | ✅ Schema + AVA content (104 templates) + MAXI industry pages + LUXI auction tick · ⏳ HeyGen/ElevenLabs/Restream signups | `54b256d` → `feb7fc2` | Active=false until external APIs; router resolves by target_avatar → vertical_hint. |
+| Smart Quote | Multi-industry estimator + quote-to-booking | ✅ Core + 7 industry templates + nurture sequence + customer accept/decline landing · ⏳ Browserless for PDF + per-industry pricing | `8d7d922` → `cb4dffa` | Print-from-browser stop-gap works. |
+| Sentinel Comms + Postmark | Live email-event ingestion + delivery health + vendor circuit | ✅ Schema + receiver workflow + Comms tab + bounce/spam cards · ⏳ Mary's Postmark webhook config (`§0v`) | `406b939` → `7f1359d` → `4a7de59` | Falls back to email_log scan until webhook configured. |
+| Self-healing layer | Webhook health probe + auto-reship + vendor monitor + retry queue | ✅ All 4 layers shipped + Sentinel UI surface | `715bdc7` → `4a7de59` | Vendor-health monitor `active: false` until Mary activates. |
+| Workflow drift detector | Repo↔n8n divergence audit + nightly cron | ✅ Detector + admin page + DevOps briefing integration | `19e0bfb` → `2369cf4` → `bb9c9d6` | 60 content_diff false positives are tolerated; active_diff is the signal. |
+| DevOps + COO digital employees | Daily 11:00 UTC briefing + Sunday 23:00 UTC weekly review | ✅ Both crons + Postmark email + sentinel_alerts persistence | `30462e6` + `66cfe5b` | Active and emailing Mary. |
+| Market Intelligence (Part B.9) | Signal ingestion + routing + heat-map dashboard | ✅ 4-table schema + `v_active_market_signals` view + admin endpoint + dashboard | `1c70467` → `074fe69` | Layers 3+4 (signal-aware router/outreach) activate the moment Mary applies schema. |
+| MCP AI chat v3 | Floating admin assistant with tool execution + write-action gate | ✅ Q&A + persistence + 10 tools + READ/WRITE classification with confirm gate | `dd6b876` → `3476ddc` | Live on every admin page. |
+| Polish v2 (UI primitives) | Toast/dialog/dropdown/tabs + Cmd+K palette + DESIGN_SYSTEM.md | ✅ Vanilla JS, no framework rewrite | `19bed4b` → `2c1792b` | Other pages opt in incrementally. |
+| Brand voice audit | 127 em-dashes scrubbed + BRAND_VOICE.md handbook + lint script | ✅ All 26 customer-facing files clean | `d59ef62` + `ccd3644` | Lint runs in CI for new files. |
+| All 7 standalone product pages | Public marketing landing per product | ✅ index + 6 products + redirect fix | `4e7bba7` → `47de20a` | Pricing tier copy is placeholder ("Talk to me") until Stripe Products created. |
 | Phase 4 | Content Marketing workflows | 🔴 Future (2-3 weeks) | — | Schema ready in `25c0886`; gated on social-platform API approvals |
 | Phase 5b | Polish (Certn, partition, dispute table, etc.) | 🔴 Future (1 week) | — | List in `docs/audit/2026-05-11-comprehensive-audit.md` |
 | Phase 6 | Carrier API integrations | 🔴 Future (12-18 mo) | — | Business-development driven |
@@ -713,21 +724,24 @@ Look for "error" / "panic" / "permission denied" lines. Common causes:
 
 ## 5.3 Next 30 days priority
 
-1. **Complete Mary's 5 Layer 2 Part B activation tasks** (per night notes `2026-05-10-night-wrapup.md`):
-   - Promote `info@crystallux.org` → `mga_principal`
-   - Seed 12 video review templates via webhook
-   - Deploy `insurance-mga-dashboard/` to Cloudflare Pages (`mga.crystallux.org`)
-   - Confirm Phase 1/2/3 external integration status (Stripe / Postmark / NewsAPI / HeyGen / Vapi / R2 / Twilio WA approval / Cal.com)
-   - Smoke test end-to-end
-2. **Layer 2 Part C build** (Claude Code, 4-6 hours minimum — see audit recommendation to expand scope).
-3. **Verify three flagged tables exist** (5 minutes in Supabase):
-   ```sql
-   SELECT to_regclass('public.closing_scripts');       -- F6 depends
-   SELECT to_regclass('public.agent_calendar_prefs');  -- F1 + F4 depend
-   SELECT to_regclass('public.agent_daily_plans');     -- F5 Upsert Plan depends
-   ```
-4. **Onboard first paying customer.**
-5. **First insurer pitch meeting.**
+**LAUNCH-BLOCKING (this week, in order):**
+
+1. **Run VPS recovery + activation runbook** (see `docs/audit/blockers.md`):
+   - `§0s` — webhook re-registration (36/69 endpoints still 404 until fixed)
+   - `§0v` — Postmark + vendor-health deploy (`/root/crystallux/scripts/deploy-sentinel-comms.sh`)
+   - `§0t` — WS1 reactivation (apply migrations + `CLX_BOOKING_TEST_INBOX` env + activate Phase 1-9)
+   - `§0i` — Cloudflare `/shared/*` cache purge so auth fixes hit the edge
+2. **Run workflow dedupe** — `scripts/n8n/dedupe-all-workflows.sh` then UI re-import 9 canonical JSONs (full plan in `docs/audit/WORKFLOW_DEDUPE_PLAN.md`).
+3. **Remove TESTING MODE redirects** per channel (4 sender workflows: `clx-outreach-sender-v2`, `clx-follow-up-v2`, `clx-video-ready-v1`, `clx-stripe-provision-v1`). First live outreach goes to test inbox until done.
+4. **Stripe Live mode** — verification pending; create Products + Prices per `docs/STRIPE_PRODUCTS_SPEC.md` once approved (3 tiers: Starter $1,497 / Growth $2,997 / Scale $5,997).
+5. **Legal docs to lawyer** — contract / ToS / Privacy in `docs/operations/`. 1-2 week SLA. Cannot invoice without signed contract.
+
+**REVENUE / GROWTH (next 30 days):**
+
+6. **Onboard first paying customer** (once Stripe Live + signed contract).
+7. **LinkedIn Developer signup** (~30 min, free) — unlocks CIRO Phase 4 auto-DM via Unipile.
+8. **First insurer pitch meeting.**
+9. **Layer 2C build** (Claude Code, 4-14 hours per audit recommendation).
 
 ## 5.4 Next 90 days priority
 
