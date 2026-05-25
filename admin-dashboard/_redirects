@@ -17,7 +17,8 @@
 /sales-engine           /pages/sales-engine.html  301
 /sentinel               /pages/sentinel.html    301
 /carriers               /pages/carriers/overview.html  301
-/avatars                /pages/avatars.html     301
+/avatars                /pages/system/avatars.html  301
+/pages/avatars.html     /pages/system/avatars.html  301
 /ava                    /pages/avatars/ava/index.html   301
 /luxi                   /pages/avatars/luxi/index.html  301
 /maxi                   /pages/avatars/maxi/index.html  301
