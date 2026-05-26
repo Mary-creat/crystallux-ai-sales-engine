@@ -62,7 +62,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pull video_render_id from script-generator response. Bail early on\n// failure so the caller sees a useful error rather than a render call\n"+"// to a non-existent row.\nconst resp = $input.item.json || {};\nconst data = resp.data || resp;\nconst videoRenderId = data && (data.video_render_id || (data.row && data.row.id) || data.id) || null;\nif (!videoRenderId) {\n  return { json: { _failed: true, status: 502, error: 'script-generator returned no video_render_id', upstream: resp } };\n}\nconst orig = $('Validate').item.json;\nreturn { json: {\n  video_render_id: videoRenderId,\n  lead_id: orig.lead_id,\n  client_id: orig.client_id,\n  intent: orig.intent,\n  delivery_channel: orig.delivery_channel\n} };",
+        "jsCode": "// Pull video_render_id from script-generator response. Bail early on failure so the caller sees a useful error rather than a render call to a non-existent row.\nconst resp = $input.item.json || {};\nconst data = resp.data || resp;\nconst videoRenderId = data && (data.video_render_id || (data.row && data.row.id) || data.id) || null;\nif (!videoRenderId) {\n  return { json: { _failed: true, status: 502, error: 'script-generator returned no video_render_id', upstream: resp } };\n}\nconst orig = $('Validate').item.json;\nreturn { json: {\n  video_render_id: videoRenderId,\n  lead_id: orig.lead_id,\n  client_id: orig.client_id,\n  intent: orig.intent,\n  delivery_channel: orig.delivery_channel\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "mvo-0005",
