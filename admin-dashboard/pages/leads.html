@@ -128,13 +128,47 @@ function renderTable() {
       return (v || '').toLowerCase().indexOf(q) !== -1;
     });
   });
+
+  // Hide MGA-vertical applications from the master admin view. They belong to
+  // the insurance MGA principal dashboard. Override with ?show=applications.
+  var includeApplications = new URLSearchParams(window.location.search).get('show') === 'applications';
+  var APP_TYPES = ['advisor_candidate', 'carrier_prospect'];
+  var hiddenAppCount = 0;
+  if (!includeApplications) {
+    var before = rows.length;
+    rows = rows.filter(function(r){ return APP_TYPES.indexOf(r.lead_type) === -1; });
+    hiddenAppCount = before - rows.length;
+  }
+
   rows.forEach(function(r){ if (r.client_id) r._href = '/pages/client-detail.html?id=' + r.client_id; });
   var el = document.getElementById('leadsTable');
+
+  // Banner when applications are hidden — gives operator visibility without clutter.
+  var bannerHtml = '';
+  if (hiddenAppCount > 0) {
+    bannerHtml = '<div style="margin:0 0 12px 0;padding:10px 14px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:13px;color:#92400e">' +
+      hiddenAppCount + ' MGA application' + (hiddenAppCount > 1 ? 's' : '') +
+      ' hidden (advisor + carrier signups). They belong to the insurance MGA principal dashboard. ' +
+      '<a href="?show=applications" style="color:#92400e;text-decoration:underline">Show them here</a> · ' +
+      'Notifications also sent to info@crystallux.org.' +
+      '</div>';
+  } else if (includeApplications) {
+    bannerHtml = '<div style="margin:0 0 12px 0;padding:10px 14px;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;font-size:13px;color:#1e40af">' +
+      'Showing MGA applications (advisor + carrier signups). ' +
+      '<a href="?" style="color:#1e40af;text-decoration:underline">Hide them</a>' +
+      '</div>';
+  }
+
   if (!rows.length) {
-    clxComp.renderEmpty(el, 'No leads match these filters.', 'inbox');
+    el.innerHTML = bannerHtml;
+    var empty = document.createElement('div');
+    clxComp.renderEmpty(empty, 'No leads match these filters.', 'inbox');
+    el.appendChild(empty);
     return;
   }
-  clxComp.renderTable(el, rows, [
+
+  el.innerHTML = bannerHtml + '<div id="leadsTableInner"></div>';
+  clxComp.renderTable(document.getElementById('leadsTableInner'), rows, [
     { key: 'company',      label: 'Company' },
     { key: 'client_name',  label: 'Client' },
     { key: 'industry',     label: 'Industry' },
@@ -146,6 +180,12 @@ function renderTable() {
       } },
     { key: 'lead_status',  label: 'Status', html: true, format: function(r){
         return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
+      } },
+    { key: 'created_at',   label: 'Received', format: function(r){
+        if (!r.created_at) return '—';
+        var d = new Date(r.created_at);
+        if (isNaN(d.getTime())) return '—';
+        return d.toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
       } },
     { key: 'updated_at',   label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
   ]);
