@@ -1,0 +1,162 @@
+{
+  "id": "wfCronBirthdayVideos",
+  "name": "CLX - Cron Birthday Videos v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cbv-0001",
+      "name": "Daily 12:00 UTC (~8 AM ET)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute today's month + day + current year for the lookup.\n// Cron fires at 12:00 UTC daily, which is 08:00 America/Toronto in\n// summer (EDT) and 07:00 in winter (EST) — close enough to a morning\n// send window for Mary's audience.\nconst now = new Date();\nconst month = now.getUTCMonth() + 1;\nconst day   = now.getUTCDate();\nconst year  = now.getUTCFullYear();\nreturn { json: { month: month, day: day, year: year } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cbv-0002",
+      "name": "Today Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?select=id,client_id,full_name,first_name,date_of_birth,birthday_video_sent_year&date_of_birth=not.is.null&or=(birthday_video_sent_year.is.null,birthday_video_sent_year.lt.' + $json.year + ')&limit=500' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "cbv-0003",
+      "name": "Fetch Candidate Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 400],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter to leads whose DOB falls on today's month+day. We do this in JS\n// rather than the PostgREST URL because PostgREST doesn't expose\n// date_part() directly through select filters. The query already excludes\n// leads that received this year's birthday video, so the candidate set\n// is small (everyone with a DOB who hasn't been sent yet this year).\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst ctx = $('Today Context').first().json;\nconst rows = allOf('Fetch Candidate Leads');\nconst todays = rows.filter(function (r) {\n  if (!r || !r.date_of_birth) return false;\n  const dob = new Date(r.date_of_birth + 'T00:00:00Z');\n  return (dob.getUTCMonth() + 1) === ctx.month && dob.getUTCDate() === ctx.day;\n});\nif (!todays.length) {\n  return [{ json: { _no_birthdays: true, month: ctx.month, day: ctx.day, year: ctx.year, candidates_checked: rows.length } }];\n}\nreturn todays.map(function (r) {\n  return { json: {\n    lead_id: r.id,\n    client_id: r.client_id,\n    full_name: r.full_name || '',\n    first_name: r.first_name || ((r.full_name || '').split(' ')[0] || ''),\n    year: ctx.year\n  } };\n});",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cbv-0004",
+      "name": "Filter to Today's Birthdays",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._no_birthdays }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cbv-0005",
+      "name": "IF Any Birthdays",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mcp/video-orchestrate' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, intent: 'birthday' }) }}",
+        "options": { "timeout": 30000, "response": { "response": { "neverError": true } } }
+      },
+      "id": "cbv-0006",
+      "name": "Trigger Birthday Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 320],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($('Filter to Today\\'s Birthdays').item.json.lead_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ birthday_video_sent_year: $('Filter to Today\\'s Birthdays').item.json.year }) }}",
+        "options": { "timeout": 15000, "response": { "response": { "neverError": true } } }
+      },
+      "id": "cbv-0007",
+      "name": "Mark Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 320],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final summary. Counts how many birthdays fired today, how many\n// orchestrator calls succeeded, how many were marked sent. Useful when\n// debugging via execution history.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst triggers = allOf('Trigger Birthday Video');\nconst marks = allOf('Mark Sent');\nconst fired = triggers.filter(function (t) { return t && t.ok !== false && !t.error; }).length;\nreturn { json: {\n  ok: true,\n  birthdays_today: triggers.length,\n  videos_fired: fired,\n  marked_sent: marks.length,\n  ts: new Date().toISOString()\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "cbv-0008",
+      "name": "Summarise Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1840, 320]
+    }
+  ],
+  "connections": {
+    "Daily 12:00 UTC (~8 AM ET)": { "main": [[ { "node": "Today Context", "type": "main", "index": 0 } ]] },
+    "Today Context": { "main": [[ { "node": "Fetch Candidate Leads", "type": "main", "index": 0 } ]] },
+    "Fetch Candidate Leads": { "main": [[ { "node": "Filter to Today's Birthdays", "type": "main", "index": 0 } ]] },
+    "Filter to Today's Birthdays": { "main": [[ { "node": "IF Any Birthdays", "type": "main", "index": 0 } ]] },
+    "IF Any Birthdays": {
+      "main": [
+        [ { "node": "Trigger Birthday Video", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "Trigger Birthday Video": { "main": [[ { "node": "Mark Sent", "type": "main", "index": 0 } ]] },
+    "Mark Sent": { "main": [[ { "node": "Summarise Run", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "notes": "Daily birthday-video cron. Fires at 12:00 UTC (~08:00 America/Toronto). Queries leads with date_of_birth NOT NULL where birthday_video_sent_year is null or < current year. Filters in JS to today's month+day. For each match: calls /webhook/mcp/video-orchestrate with intent='birthday' (which chains script-generate -> heygen-render -> async delivery), then patches the lead's birthday_video_sent_year so the next run doesn't double-send. Requires db migration add-date-of-birth-to-leads.sql + active clx-mcp-video-orchestrator-v1 + active clx-video-script-generator-v1 + active clx-video-heygen-render-v1. Dormant until those + Meta WhatsApp / Postmark deliveries clear."
+  }
+}

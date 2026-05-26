@@ -1,0 +1,168 @@
+{
+  "id": "wfMcpVideoOrchestrator",
+  "name": "CLX - MCP Video Orchestrator v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mcp/video-orchestrate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "mvo-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mcp-video-orchestrator-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Internal-call entry point. Triggered by MCP generate_video, by birthday\n// cron, by lead-capture welcome trigger, or any other workflow that needs\n// a personalised video sent. Validates the internal secret + required\n// fields, defaults intent to 'general' so a missing template still works.\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) {\n  return { json: { _unauthorized: true, status: 401, error: 'internal_secret required' } };\n}\nif (!body.lead_id) return { json: { _empty: true, status: 400, error: 'lead_id required' } };\nif (!body.client_id) return { json: { _empty: true, status: 400, error: 'client_id required' } };\n\nconst allowedIntents = ['general','welcome','birthday','anniversary','review_request','financial_tip','referral_request','quote_followup','booking_followup'];\nconst intent = allowedIntents.indexOf(body.intent) !== -1 ? body.intent : 'general';\n\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  intent: intent,\n  override_script: body.override_script || null,\n  delivery_channel: body.delivery_channel || 'auto'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mvo-0002",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "mvo-0003",
+      "name": "IF Authorized",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/video/script-generate' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, intent: $json.intent, override_script: $json.override_script }) }}",
+        "options": { "timeout": 30000, "response": { "response": { "neverError": true } } }
+      },
+      "id": "mvo-0004",
+      "name": "Call Script Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull video_render_id from script-generator response. Bail early on\n// failure so the caller sees a useful error rather than a render call\n"+"// to a non-existent row.\nconst resp = $input.item.json || {};\nconst data = resp.data || resp;\nconst videoRenderId = data && (data.video_render_id || (data.row && data.row.id) || data.id) || null;\nif (!videoRenderId) {\n  return { json: { _failed: true, status: 502, error: 'script-generator returned no video_render_id', upstream: resp } };\n}\nconst orig = $('Validate').item.json;\nreturn { json: {\n  video_render_id: videoRenderId,\n  lead_id: orig.lead_id,\n  client_id: orig.client_id,\n  intent: orig.intent,\n  delivery_channel: orig.delivery_channel\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mvo-0005",
+      "name": "Extract Render Id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._failed }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "mvo-0006",
+      "name": "IF Script OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/video/heygen-render' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, video_render_id: $json.video_render_id }) }}",
+        "options": { "timeout": 30000, "response": { "response": { "neverError": true } } }
+      },
+      "id": "mvo-0007",
+      "name": "Trigger HeyGen Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build success response. The actual video isn't ready yet — HeyGen\n// processes async (5-30 min) and calls clx-heygen-webhook-v1 when done,\n// which then routes through clx-video-delivery-router-v1 to the lead.\nconst ext = $('Extract Render Id').item.json;\nconst heygenResp = $input.item.json || {};\nconst heygenOk = heygenResp && (heygenResp.ok !== false) && !heygenResp.error;\nreturn { json: {\n  ok: true,\n  video_render_id: ext.video_render_id,\n  lead_id: ext.lead_id,\n  client_id: ext.client_id,\n  intent: ext.intent,\n  status: heygenOk ? 'rendering' : 'render_kickoff_failed',\n  heygen_response: heygenResp,\n  message: heygenOk\n    ? 'Video script generated, HeyGen render started. Delivery routes automatically on callback (5-30 min).'\n    : 'Script generated but HeyGen kickoff failed. Check render workflow logs.'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mvo-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "mvo-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1980, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, status: $json.status || 500, error: $json.error || 'orchestration failed', upstream: $json.upstream || null }) }}",
+        "options": { "responseCode": "={{ $json.status || 500 }}" }
+      },
+      "id": "mvo-0010",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1320, 520]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
+    "Validate": { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
+    "IF Authorized": {
+      "main": [
+        [ { "node": "Call Script Generator", "type": "main", "index": 0 } ],
+        [ { "node": "Respond Error", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Call Script Generator": { "main": [[ { "node": "Extract Render Id", "type": "main", "index": 0 } ]] },
+    "Extract Render Id": { "main": [[ { "node": "IF Script OK", "type": "main", "index": 0 } ]] },
+    "IF Script OK": {
+      "main": [
+        [ { "node": "Trigger HeyGen Render", "type": "main", "index": 0 } ],
+        [ { "node": "Respond Error", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Trigger HeyGen Render": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "notes": "MCP-side video orchestrator. Wraps the existing script-generator + heygen-render workflows into a single internal-call surface so MCP generate_video, birthday cron, welcome-video trigger, and any other automation can kick off the full pipeline (script -> render -> delivery on callback) with one webhook call. Body: { internal_secret, lead_id, client_id, intent, override_script?, delivery_channel? }. Returns video_render_id + status='rendering'. Actual delivery happens on HeyGen callback (5-30 min later) via clx-heygen-webhook-v1 -> clx-video-delivery-router-v1."
+  }
+}
