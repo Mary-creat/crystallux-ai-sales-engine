@@ -130,13 +130,15 @@ function renderTable() {
   });
 
   // Hide MGA-vertical applications from the master admin view. They belong to
-  // the insurance MGA principal dashboard. Override with ?show=applications.
+  // the insurance MGA principal dashboard. The list-leads workflow returns
+  // `source` (not `lead_type`), so filter on the source values written by
+  // workflows/api/public/clx-public-mga-apply-v1.json. Override: ?show=applications.
   var includeApplications = new URLSearchParams(window.location.search).get('show') === 'applications';
-  var APP_TYPES = ['advisor_candidate', 'carrier_prospect'];
+  var APP_SOURCES = ['advisor_application', 'carrier_inquiry'];
   var hiddenAppCount = 0;
   if (!includeApplications) {
     var before = rows.length;
-    rows = rows.filter(function(r){ return APP_TYPES.indexOf(r.lead_type) === -1; });
+    rows = rows.filter(function(r){ return APP_SOURCES.indexOf(r.source) === -1; });
     hiddenAppCount = before - rows.length;
   }
 
@@ -181,13 +183,12 @@ function renderTable() {
     { key: 'lead_status',  label: 'Status', html: true, format: function(r){
         return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
       } },
-    { key: 'created_at',   label: 'Received', format: function(r){
-        if (!r.created_at) return '—';
-        var d = new Date(r.created_at);
+    { key: 'date_created', label: 'Received', format: function(r){
+        if (!r.date_created) return '—';
+        var d = new Date(r.date_created);
         if (isNaN(d.getTime())) return '—';
         return d.toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
-      } },
-    { key: 'updated_at',   label: 'Updated', format: function(r){ return clxComp.relativeTime(r.updated_at); } }
+      } }
   ]);
 }
 </script>
