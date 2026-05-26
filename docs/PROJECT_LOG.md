@@ -32,6 +32,59 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-26 — Signup funnel goes live + generate_video MCP wired end-to-end
+
+Long session that closed three gaps blocking real customer signups: the public signup pages were in a redirect loop, the admin had no path for importing Mary's existing client list, and the video personalization stack existed but was never connected to MCP. All three landed; the platform is now ready for actual lead acquisition the moment external approvals (Postmark, Meta WhatsApp Business) clear.
+
+### What shipped (8 commits — `3d1636a` → `72a8976`)
+
+- **Public signup loop fix + customer-facing tech-leak cleanup** (`3d1636a`) — `/join-advisor` and `/join-carrier` were stuck in an infinite 308 redirect that gave ERR_TOO_MANY_REDIRECTS in Mary's browser. Root cause: explicit rewrite rules in `site/_redirects` fought CF Pages' built-in `.html` stripping (same trap the smart-quote comment in the file already warned about). Dropped the rules; CF Pages serves both paths natively now. Same commit replaced HeyGen / Postmark / Twilio / Vapi / Restream mentions across 5 customer-facing pages with plain-language equivalents ("AI video creation", "voice calls", etc.) — vendor names belong in PIPEDA subprocessor disclosures, not product pages.
+- **Admin leads view cleaned up** (`1bd9313` → `765e27d`) — added a "Received" column showing `date_created` as an absolute timestamp; hid `advisor_candidate` + `carrier_prospect` lead types from the master admin by default (they belong to the MGA principal, not Crystallux master). Yellow banner shows count of hidden applications with a `?show=applications` reveal link. First commit assumed Postgres-convention column names (`created_at`, `lead_type`); follow-up fixed to actual API field names (`date_created`, `source`).
+- **Bulk-import lane stood up** (`2f77813` + `c791ee0`) — new `workflows/api/admin/clx-admin-bulk-import-leads-v1.json` (admin-gated, 1000-lead cap, dedupes within batch by email, validates email + full_name, returns imported / skipped counts) + `admin-dashboard/pages/import-leads.html` (drag-drop CSV with PapaParse, auto-detects column mapping by header hints, preview of first 5 mapped rows, source / campaign_tag / lead_type / lead_score config, one-click dispatch). Sidebar nav link added between Leads and Workflows.
+- **Super Visa landing page** (`af60837`) — dedicated `insurance-marketing/super-visa-insurance.html` for Mary's chosen highest-converting wedge (parents visiting Canada). Generic `/travel-insurance` page treats Super Visa as one dropdown option; this page is 100% focused: emotional hero ("Protect your parents before they travel to Canada"), pain anchor (uninsured ER costs), IRCC requirements ($100K, 1 year, Canadian insurer), 5-bracket sample-premium table for ages 55-80, pre-existing-condition honest disclosure, 5 FAQs answering actual Super Visa questions. Phone is required (not optional) — funnel relies on WhatsApp follow-up. Posts to existing `/mga/insurance/lead-capture` webhook with `product='super_visa'` hidden field. Footer + nav updated.
+- **`generate_video` MCP pipeline wired end-to-end** (`23f2cdf` + `72a8976`) — the existing video stack (script-gen → HeyGen render → delivery) was orphaned: MCP's `Tool: Video` only called script-generate and never fired the render. Five-piece fix:
+  - **New `workflows/api/mcp/clx-mcp-video-orchestrator-v1.json`** chains script-generate → heygen-render in one internal-call surface. POST `/webhook/mcp/video-orchestrate` with `{ internal_secret, lead_id, client_id, intent, override_script?, delivery_channel? }`. Intent allow-list covers 9 templates (general, welcome, birthday, anniversary, review_request, financial_tip, referral_request, quote_followup, booking_followup).
+  - **Modified `workflows/api/mcp/clx-mcp-agent-tools-v1.json`** — `Tool: Video` URL retargeted from `/webhook/video/script-generate` to `/webhook/mcp/video-orchestrate`. One-line change.
+  - **Modified `workflows/api/admin/clx-admin-chat-v3.json`** — added `generate_video` to Copilot's tool array with full input schema; added to WRITE_TOOLS so confirmation is required; added to system-prompt write-tools list. Mary can now chat "Send a birthday video to Jane Smith" and Copilot will describe + ask "Confirm? Reply yes to proceed."
+  - **New `db/migrations/add-date-of-birth-to-leads.sql`** — adds `date_of_birth` (date) + `birthday_video_sent_year` (integer) columns to leads, plus a functional index on `(month, day)` of DOB filtered to NOT NULL. Idempotent.
+  - **New `workflows/api/sentinel/clx-cron-birthday-videos-v1.json`** — daily cron at 12:00 UTC (~08:00 America/Toronto). Queries leads with DOB not null + sent_year stale, filters in JS to today's month+day, fires `generate_video` with `intent='birthday'` for each, PATCHes sent_year so no double-send.
+  - Hotfix `72a8976` removed a stray `"..."+"..."` JavaScript string-concat in the orchestrator's JSON (broke `jq` parse; ship.sh blocked at step 2).
+- **Full automation deploy path used end-to-end** — all 5 workflows shipped via `scripts/n8n/ship.sh` (REST API PUT for existing, CLI import for new, REST activate, docker restart, webhook probe). No manual UI work needed for the workflow side this session.
+
+### What got unblocked / decided
+
+- **Founder rule saved as memory**: never default to manual workflows (Gmail BCC, personal DMs, hand-emailing) for business / customer-acquisition tasks. The platform exists specifically so Mary does not have to personally beg her network. Default is always: import → leads table → engine outreach → tracked campaigns. Manual is fallback only when automation is genuinely broken AND the customer is already in the pipeline.
+- **Super Visa picked as the focus campaign vertical** (vs generic travel insurance). Reasoning: emotional + financial trigger ("hospital cost for visiting parents"), urgent ("trip in 2 weeks"), Mary's LLQP licence covers it, single-advisor + no carrier negotiation, immigrant communities = trust matters + Mary's natural network.
+- **MCP/DevOps internal labels stay as-is.** Mary's call: "do not rename, I just want to maintain what is there and have the feature I need." The Copilot widget already shows as "Crystallux Copilot" to Mary (not "MCP"), and module='devops' labels in the Sentinel alerts table are operator-only, not customer-visible.
+- **Postmark enhancements deferred** except CASL unsubscribe footer (legal requirement) and warm-up. Postmark dashboard already handles bounce management + open/click tracking natively; rebuilding those into the leads table is Phase 4 work. Warning surfaced: Postmark is transactional-only — cold outbound prospecting must use a different sender (Smartlead/Instantly/Mailgun) or accounts get suspended. Flagged for revisit when Mary hits volume.
+- **`scale-sprint-v1` → `main` ff-merge cadence working well** — six pushes this session (`git push origin scale-sprint-v1:main`), each ~60s deploy via CF Pages. No PR overhead, no review bottleneck. Aligned with the standing decision in the bottom section.
+
+### What got blocked or deferred
+
+- **Postmark Production approval pending** — server provisioned with Crystallux/info@crystallux.org sender (DKIM verified, Return-Path not verified). Approval is a 1-24 hour manual review by Postmark. All notification emails (form submissions, application acknowledgements, video delivery email channel) are wired but dormant until approval lands. Once approved, Mary needs to copy the server API token into `POSTMARK_API_TOKEN` env var on the VPS (both `/root/crystallux/n8n/.env` AND `docker-compose.prod.yml`'s environment block per [[crystallux-n8n-env-var-propagation]]; force-recreate to pick up).
+- **Meta WhatsApp Business via Twilio pending** — `clx-whatsapp-send-v1.json` is built + activated but its notes mark it "DORMANT until Meta WhatsApp Business approval clears for the client's Twilio WA sender." Meta approval is typically 1-4 weeks, no way to speed up. Once cleared: Twilio sender provisioned → workflow already routes correctly.
+- **HeyGen API key + credit not verified this session.** generate_video pipeline is wired but actual render-to-MP4 depends on `HEYGEN_API_KEY` + sufficient credit. Need to confirm via a test fire (Copilot chat → "Send welcome video to lead X" → check `video_renders` table for `status='rendering'` + check HeyGen dashboard for the render job).
+- **Return-Path Not Verified in Postmark** — deliverability concern, not a send-blocker. Add the CNAME Postmark shows in Sender Signatures → DNS Settings to Cloudflare DNS. ~5 min + propagation. Improves Gmail/Outlook deliverability significantly. Not tonight.
+- **Bulk-import dedupe across batches** — workflow dedupes within a single batch by email but does not deduplicate against leads already in the table. If Mary re-imports the same CSV, she gets duplicate rows. Acceptable for the first import; add `ON CONFLICT (email) DO UPDATE` + `UNIQUE(email)` constraint when this becomes a real problem.
+- **Birthday video script template** — script-generator currently uses generic `intent` flavoring; it does NOT yet have explicit "birthday" template logic. The cron will fire and Claude will write *something* on `intent='birthday'`, but it may not always lead with "Happy birthday". Add explicit intent-template handling in script-generator's Build Claude Prompt node when there's a real birthday lead to test on.
+
+### What Mary needs to do next
+
+1. **Watch the Postmark inbox** for approval (subject usually contains "Crystallux Production"). On approval: Settings → API Tokens → copy Server API Token → update VPS env per [[crystallux-n8n-env-var-propagation]] → force-recreate n8n.
+2. **Verify HeyGen account state** — log in to HeyGen, confirm API key matches `HEYGEN_API_KEY` env var on VPS, confirm there is credit available. Even with Postmark + WhatsApp blocked, the render itself can be tested + the rendered MP4 can be downloaded from the HeyGen dashboard.
+3. **Drive Super Visa traffic** — paid ads OR FB groups OR LinkedIn organic OR existing-client CSV import. Form is live + capturing into leads table. Leads land regardless of downstream channel approvals.
+4. **Bulk-import existing-client CSV** when ready — go to `/admin/pages/import-leads.html`, drag CSV in, set source / campaign tag (e.g. `travel_insurance_2026q2`), import. The leads are then targetable by any campaign workflow filtering on `source='existing_client_import'`.
+5. **First test of Copilot generate_video** — open Copilot widget on any admin page, type "Send a welcome video to lead `<id>` for client `6edc687d-07b0-4478-bb4b-820dc4eebf5d`". Reply `yes` to the confirmation prompt. Check `video_renders` table for a new row + check HeyGen dashboard for the render job.
+
+### Open questions for next session
+
+- **Standalone DevOps Employee product page** — Mary asked at session-end whether the internal DevOps Digital Employee (daily-briefing cron + Sentinel + drift detector + workflow restart automation) can be packaged as a standalone product page. Monetization strategy already names this as Phase 7 ("Sentinel Operations standalone-izes the internal DevOps capability"). Distinct from CIRO (CIRO = sales ops). Next session: build `/products/sentinel.html` or `/products/devops-employee.html` modeled on existing product-page pattern. 45-60 min.
+- After the first real Super Visa lead arrives, does the existing `/mga/insurance/lead-capture` workflow auto-trigger anything (orchestrator? video? Postmark?), or is it pure capture-and-store? Need to verify whether the engine fires outreach automatically on insert or whether Mary still has to manually click "Run campaign on this segment" somewhere.
+- Should the bulk-import workflow get cross-batch email dedupe via a `UNIQUE(email)` constraint + `ON CONFLICT` handling? Depends on whether Mary expects to re-import the same CSV (e.g. monthly client list refreshes).
+- Is the WhatsApp-greeting branch on the lead-capture workflow worth building NOW (so it auto-fires the moment Meta approves) or wait until approval lands (so the test is real, not theoretical)? Trade-off: build-now = readiness, build-later = no wasted work if pipeline shape changes.
+
+---
+
 ## 2026-05-25 — Launch-readiness wrap-up: audit, sync, no duplication
 
 Pre-launch sweep across the repo. Two Explore agents read the handbook + audit + dedupe + blockers corpus to surface what's shipped, what's left, what's duplicated, and what conflicts between docs. Then five focused commits to fix everything in-session that didn't need VPS access. The picture is now clean for Mary to run the VPS launch runbook against accurate docs.
@@ -391,7 +444,9 @@ For pre-log archaeology: `git log --oneline --since="2026-04-01" --until="2026-0
 
 | Blocker | Severity | Action owner | Notes |
 |---|---|---|---|
-| HeyGen API key | Build | Mary signup | Unlocks AVA video render pipeline + outreach personalization |
+| **Postmark Production approval** | **Launch** | **Postmark (waiting)** | **Provisioned 2026-05-26; 1-24h review. Gates ALL transactional email — form notifications, application acks, video delivery email channel. Once approved: copy Server API Token to VPS `POSTMARK_API_TOKEN` per [[crystallux-n8n-env-var-propagation]].** |
+| **Meta WhatsApp Business via Twilio** | **Launch** | **Meta (waiting)** | **`clx-whatsapp-send-v1` is built + activated but dormant. 1-4 week Meta review. Gates WhatsApp greeting auto-send on new lead + WhatsApp delivery channel for personalized videos.** |
+| HeyGen API key | Build | Mary signup | Unlocks AVA video render pipeline + outreach personalization. Pipeline now end-to-end wired via `clx-mcp-video-orchestrator-v1` — needs API key + credit verified in n8n env. |
 | LinkedIn Developer API | Build | Mary signup | Unlocks CIRO Phase 4 auto-DM/comment |
 | TikTok / Facebook Graph / Instagram / YouTube Developer APIs | Build | Mary signup | Unlocks LUXI auto-comment monitoring + avatar replies |
 | Restream / HeyGen Interactive | Build | Mary signup | Unlocks live LUXI broadcast (camera-on) |
