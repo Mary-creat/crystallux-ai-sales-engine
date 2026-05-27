@@ -1,0 +1,188 @@
+{
+  "id": "wfMgaInsuranceQuoteComparison",
+  "name": "CLX - MGA Insurance Quote Comparison v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/quote-comparison",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://insurance.crystallux.org,https://crystallux.org,https://cheapcover.ca"
+        }
+      },
+      "id": "qc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-mga-insurance-quote-comparison-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate inbound payload + generate seeded comparison quotes.\n// Body: { vertical, form_data, source_domain?, contact? }\n//   vertical: 'auto' | 'home' | 'tenant' | 'travel'\n//   form_data: vertical-specific fields\n//   contact: { name?, email?, phone?, postal_code? } — optional at this stage\n//\n// Phase 1 uses seeded carrier list + deterministic price formulas. Phase 3\n// replaces this with live insurer rate APIs (Aviva, Intact, etc.). The shape\n// returned to the frontend is identical either way, so the swap is invisible.\nconst body = $input.item.json.body || {};\nconst headers = $input.item.json.headers || {};\nconst vertical = String(body.vertical || '').toLowerCase().trim();\nconst formData = body.form_data || {};\nconst contact = body.contact || {};\nconst sourceDomain = String(body.source_domain || headers['origin'] || 'insurance.crystallux.org').replace(/^https?:\\/\\//, '').replace(/\\/$/, '');\n\nconst allowedVerticals = ['auto', 'home', 'tenant', 'travel'];\nif (allowedVerticals.indexOf(vertical) === -1) {\n  return { json: { _empty: true, status: 400, error: 'vertical must be one of: ' + allowedVerticals.join(', ') } };\n}\n\n// Seeded carriers per vertical — generic Canadian-sounding names. Each has a\n// base monthly premium + a multiplier to produce a believable spread across\n// the comparison. Mary can later swap these for real carrier partners by\n// inserting rows into insurance_carriers + replacing the seed list.\nconst CARRIERS = {\n  auto: [\n    { name: 'BlueLine Auto',        base: 142, mult: 0.92, features: ['Accident forgiveness', '24/7 claims', 'Multi-vehicle discount'] },\n    { name: 'Maple Auto Insurance', base: 156, mult: 1.00, features: ['Standard coverage', 'Roadside assistance', 'New driver friendly'] },\n    { name: 'Northshield Mutual',   base: 168, mult: 1.04, features: ['Lifetime renewal', 'Glass coverage included', 'Claims-free discount'] },\n    { name: 'Polaris Drivers',      base: 174, mult: 1.10, features: ['Premium coverage', 'Rental car included', 'Forgiveness on 1st claim'] },\n    { name: 'Heritage Vehicle Care',base: 188, mult: 1.18, features: ['White-glove claims', 'Concierge service', 'Pristine record reward'] }\n  ],\n  home: [\n    { name: 'Foundation Home',      base: 78,  mult: 0.92, features: ['Replacement cost coverage', 'Water damage included', '$1M liability'] },\n    { name: 'Maple Home Group',     base: 88,  mult: 1.00, features: ['Standard dwelling cover', 'Personal property protection', 'Identity theft included'] },\n    { name: 'Heritage Roof Insurance', base: 96, mult: 1.06, features: ['Guaranteed replacement', 'Sewer backup', 'Earthquake rider available'] },\n    { name: 'Northshield Home',     base: 104, mult: 1.12, features: ['High-value home option', '$2M liability', 'All-perils coverage'] },\n    { name: 'BlueLine Property',    base: 116, mult: 1.20, features: ['Premium tier', 'Scheduled valuables', 'Loss-of-use included'] }\n  ],\n  tenant: [\n    { name: 'Anchor Renter Cover',  base: 22,  mult: 0.85, features: ['Contents up to $30K', 'Personal liability $1M', 'Theft protection'] },\n    { name: 'Maple Renter Group',   base: 28,  mult: 1.00, features: ['Contents up to $60K', '$1M liability', 'Roommate add-on'] },\n    { name: 'BlueLine Renters',     base: 32,  mult: 1.08, features: ['Replacement cost', 'Identity theft', 'Sewer backup'] },\n    { name: 'Polaris Renters',      base: 35,  mult: 1.15, features: ['High-value contents tier', '$2M liability', 'Loss-of-use'] },\n    { name: 'Heritage Tenant',      base: 39,  mult: 1.22, features: ['Concierge claims', 'Scheduled valuables', 'Premium service'] }\n  ],\n  travel: [\n    { name: 'Maple Travel Cover',     base: 58,  mult: 0.88, features: ['$5M emergency medical', 'Trip cancellation $5K', '10-day stability period'] },\n    { name: 'Northern Voyage Insurance', base: 72, mult: 1.00, features: ['$10M emergency medical', 'Trip cancellation $7.5K', 'Baggage cover $1500'] },\n    { name: 'BlueLine Trip',          base: 84,  mult: 1.10, features: ['Comprehensive coverage', 'Sports rider included', 'Pre-existing 90-day stability'] },\n    { name: 'Polaris Traveler',       base: 96,  mult: 1.20, features: ['Premium medical', 'Trip interruption $10K', 'Concierge claims'] },\n    { name: 'Heritage Voyager',       base: 108, mult: 1.32, features: ['Highest-tier coverage', 'No annual cap', 'White-glove service'] }\n  ]\n};\n\n// Vertical-specific factor functions. All return a number between 0.5-2.5 ish\n// that multiplies the carrier base. Same input -> same output (deterministic).\nfunction autoFactors(f) {\n  const age = parseInt(f.driver_age, 10) || 35;\n  const vehicleYear = parseInt(f.vehicle_year, 10) || (new Date().getFullYear() - 5);\n  const vehicleAge = Math.max(0, new Date().getFullYear() - vehicleYear);\n  const claims = parseInt(f.claims_count, 10) || 0;\n  const tickets = parseInt(f.tickets_count, 10) || 0;\n  const postal = String(f.postal_code || '').toUpperCase().slice(0, 1);\n  const coverage = String(f.coverage_level || 'standard').toLowerCase();\n\n  let m = 1.0;\n  if (age < 25)      m *= 1.55;\n  else if (age < 30) m *= 1.22;\n  else if (age < 50) m *= 1.00;\n  else if (age < 65) m *= 0.90;\n  else               m *= 1.12;\n\n  if (vehicleAge <= 3)      m *= 1.32;\n  else if (vehicleAge <= 7) m *= 1.05;\n  else if (vehicleAge <= 12)m *= 0.92;\n  else                      m *= 0.82;\n\n  m *= (1 + claims * 0.42);\n  m *= (1 + tickets * 0.28);\n\n  const postalMap = { M: 1.18, L: 1.08, K: 1.00, N: 0.96, H: 1.15, V: 1.10, T: 1.02, B: 1.00, R: 0.98, S: 0.96, E: 0.97, J: 1.10 };\n  m *= (postalMap[postal] || 1.00);\n\n  if (coverage === 'basic')          m *= 0.82;\n  else if (coverage === 'standard')  m *= 1.00;\n  else if (coverage === 'comprehensive') m *= 1.28;\n  else if (coverage === 'premium')   m *= 1.45;\n  return m;\n}\n\nfunction homeFactors(f) {\n  const homeValue = parseInt(f.home_value, 10) || 600000;\n  const dwellingType = String(f.dwelling_type || 'detached').toLowerCase();\n  const claims = parseInt(f.claims_count, 10) || 0;\n  const postal = String(f.postal_code || '').toUpperCase().slice(0, 1);\n  const yearBuilt = parseInt(f.year_built, 10) || 1990;\n  const homeAge = Math.max(0, new Date().getFullYear() - yearBuilt);\n\n  let m = 1.0;\n  m *= Math.max(0.55, Math.min(2.4, homeValue / 600000));\n\n  const dwellMap = { detached: 1.0, semi: 0.92, townhouse: 0.88, condo: 0.65, mobile: 0.78 };\n  m *= (dwellMap[dwellingType] || 1.0);\n\n  m *= (1 + claims * 0.38);\n\n  if (homeAge > 50)      m *= 1.18;\n  else if (homeAge > 30) m *= 1.08;\n  else if (homeAge < 5)  m *= 0.92;\n\n  const postalMap = { M: 1.20, L: 1.05, K: 1.00, N: 0.95, H: 1.18, V: 1.15, T: 1.02, B: 1.00, R: 0.97, S: 0.95 };\n  m *= (postalMap[postal] || 1.00);\n  return m;\n}\n\nfunction tenantFactors(f) {\n  const contents = parseInt(f.contents_value, 10) || 30000;\n  const claims = parseInt(f.claims_count, 10) || 0;\n  const postal = String(f.postal_code || '').toUpperCase().slice(0, 1);\n  const roommates = parseInt(f.roommate_count, 10) || 0;\n\n  let m = 1.0;\n  m *= Math.max(0.6, Math.min(2.2, contents / 30000));\n  m *= (1 + claims * 0.35);\n  m *= (1 + roommates * 0.12);\n\n  const postalMap = { M: 1.22, L: 1.06, K: 1.00, N: 0.96, H: 1.18, V: 1.16, T: 1.04 };\n  m *= (postalMap[postal] || 1.00);\n  return m;\n}\n\nfunction travelFactors(f) {\n  const age = parseInt(f.traveler_age, 10) || 40;\n  const tripDays = parseInt(f.trip_days, 10) || 14;\n  const destRegion = String(f.destination_region || 'usa').toLowerCase();\n  const coverageAmount = parseInt(f.coverage_amount, 10) || 5000000;\n  const preExisting = String(f.pre_existing || 'none').toLowerCase();\n\n  let m = 1.0;\n  if (age < 35)      m *= 0.85;\n  else if (age < 55) m *= 1.00;\n  else if (age < 65) m *= 1.45;\n  else if (age < 75) m *= 2.05;\n  else               m *= 2.85;\n\n  m *= Math.max(0.6, Math.min(3.5, tripDays / 14));\n\n  const regionMap = { usa: 1.0, mexico: 0.92, caribbean: 0.95, europe: 0.78, asia: 0.85, worldwide: 1.05 };\n  m *= (regionMap[destRegion] || 1.0);\n\n  if (coverageAmount >= 10000000)     m *= 1.22;\n  else if (coverageAmount >= 5000000) m *= 1.00;\n  else                                 m *= 0.85;\n\n  if (preExisting === 'stable')       m *= 1.12;\n  else if (preExisting === 'unstable') m *= 1.85;\n  return m;\n}\n\nconst factorFn = { auto: autoFactors, home: homeFactors, tenant: tenantFactors, travel: travelFactors }[vertical];\nconst factor = factorFn(formData);\n\nconst seedCarriers = CARRIERS[vertical];\nconst rawQuotes = seedCarriers.map(function (c) {\n  const monthly = Math.round(c.base * c.mult * factor * 100) / 100;\n  const annual = Math.round(monthly * 12 * 100) / 100;\n  return {\n    carrier_name: c.name,\n    estimated_premium_monthly: monthly,\n    estimated_premium_annual:  annual,\n    coverage_summary: {\n      coverage_level: String(formData.coverage_level || formData.coverage_amount || 'standard'),\n      key_features:   c.features\n    }\n  };\n});\n\n// Sort cheapest -> most expensive, rank + flag lowest\nrawQuotes.sort(function (a, b) { return a.estimated_premium_monthly - b.estimated_premium_monthly; });\nconst quotes = rawQuotes.map(function (q, i) {\n  return Object.assign({}, q, { rank_position: i + 1, is_lowest: i === 0 });\n});\n\n// Build the lead row (insert even if no email — anonymous quote viewer)\nconst leadRow = {\n  full_name:         String(contact.name || '').trim().slice(0, 200) || 'Anonymous quote viewer',\n  email:             String(contact.email || '').trim().toLowerCase().slice(0, 200) || null,\n  phone:             String(contact.phone || '').trim().slice(0, 40) || null,\n  city:              String(contact.city || '').trim().slice(0, 120) || null,\n  province:          String(contact.province || formData.province || '').trim().slice(0, 20) || null,\n  industry:          'insurance',\n  product_type:      vertical + '_insurance',\n  lead_type:         'b2c_consumer',\n  source:            'marketplace_' + vertical,\n  source_domain:     sourceDomain,\n  marketplace_vertical: vertical,\n  marketplace_status:   'quote_viewed',\n  lead_status:       'New Lead',\n  lead_score:        45,\n  do_not_contact:    false,\n  unsubscribed:      false,\n  total_emails_sent: 0,\n  notes:             'Marketplace ' + vertical + ' quote on ' + new Date().toISOString().slice(0, 10) + ' (source: ' + sourceDomain + '). Form data: ' + JSON.stringify(formData).slice(0, 800)\n};\n\nreturn { json: { vertical: vertical, sourceDomain: sourceDomain, leadRow: leadRow, quotes: quotes, formDataKeys: Object.keys(formData) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "qc-0002",
+      "name": "Validate + Build Quotes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "qc-0003",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.leadRow) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "qc-0004",
+      "name": "Insert Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull the inserted lead id, then build the marketplace_quotes batch insert payload.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst leadRows = allOf('Insert Lead');\nconst leadId = leadRows.length > 0 ? leadRows[0].id : null;\nif (!leadId) {\n  return { json: { _failed: true, status: 500, error: 'Lead insert returned no row — check Supabase RLS / service role' } };\n}\n\nconst v = $('Validate + Build Quotes').item.json;\nconst quotes = v.quotes.map(function (q) {\n  return Object.assign({}, q, {\n    lead_id:        leadId,\n    source_domain:  v.sourceDomain,\n    vertical:       v.vertical\n  });\n});\nreturn { json: { lead_id: leadId, vertical: v.vertical, quoteRows: quotes } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "qc-0005",
+      "name": "Build Quote Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/marketplace_quotes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.quoteRows) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "qc-0006",
+      "name": "Insert Quotes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 320],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shape the final response for the frontend. The frontend uses lead_id +\n// quote_id to wire up the 'Get this quote' click to the quote-select workflow.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst quotes = allOf('Insert Quotes');\nconst built = $('Build Quote Rows').item.json;\nif (!quotes.length) {\n  return { json: { ok: false, status: 500, error: 'No quotes were persisted — check marketplace_quotes RLS or service role' } };\n}\nreturn { json: {\n  ok: true,\n  lead_id: built.lead_id,\n  vertical: built.vertical,\n  quotes: quotes.map(function (q) {\n    return {\n      id: q.id,\n      carrier_name: q.carrier_name,\n      estimated_premium_monthly: parseFloat(q.estimated_premium_monthly),\n      estimated_premium_annual:  parseFloat(q.estimated_premium_annual),\n      coverage_summary: q.coverage_summary,\n      is_lowest: q.is_lowest,\n      rank_position: q.rank_position,\n      estimate_disclaimer: q.estimate_disclaimer\n    };\n  }).sort(function (a, b) { return a.rank_position - b.rank_position; })\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "qc-0007",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "id": "qc-0008",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1760, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, status: $json.status || 400, error: $json.error || 'Invalid request' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" }
+            ]
+          }
+        }
+      },
+      "id": "qc-0009",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 520]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[ { "node": "Validate + Build Quotes", "type": "main", "index": 0 } ]] },
+    "Validate + Build Quotes": { "main": [[ { "node": "IF Valid", "type": "main", "index": 0 } ]] },
+    "IF Valid": {
+      "main": [
+        [ { "node": "Insert Lead", "type": "main", "index": 0 } ],
+        [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Insert Lead": { "main": [[ { "node": "Build Quote Rows", "type": "main", "index": 0 } ]] },
+    "Build Quote Rows": { "main": [[ { "node": "Insert Quotes", "type": "main", "index": 0 } ]] },
+    "Insert Quotes": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "notes": "Public marketplace quote-comparison endpoint. POST /webhook/mga/insurance/quote-comparison with { vertical: 'auto'|'home'|'tenant'|'travel', form_data: {...}, contact?: { name, email, phone, city, province }, source_domain? }. Inserts an anonymous (or named) lead row tagged source='marketplace_<vertical>' + marketplace_status='quote_viewed', then generates 5 estimated carrier quotes via deterministic vertical-specific formulas (Phase 1 seeded estimates, Phase 3 will swap to live insurer rate APIs without changing the response shape). Persists each quote to marketplace_quotes, returns sorted cards with is_lowest flag for frontend highlight. CORS allows insurance.crystallux.org / crystallux.org / cheapcover.ca for the public + white-label flow. The 'Get this quote' click is handled by a separate quote-select workflow (Phase 2 build)."
+  }
+}
