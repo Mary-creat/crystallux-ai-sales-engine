@@ -206,7 +206,8 @@ CREATE INDEX IF NOT EXISTS idx_csp_client
 -- Convenience view: active signals (not decayed, not needs_review) ──
 -- ══════════════════════════════════════════════════════════════════
 DROP VIEW IF EXISTS v_active_market_signals;
-CREATE VIEW v_active_market_signals AS
+CREATE VIEW v_active_market_signals
+WITH (security_invoker = on) AS
 SELECT
   msp.*,
   EXTRACT(EPOCH FROM (now() - msp.created_at)) / 3600 AS age_hours
