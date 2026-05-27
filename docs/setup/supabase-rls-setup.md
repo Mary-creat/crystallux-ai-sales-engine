@@ -64,16 +64,32 @@ CREATE POLICY "Service role full access on mcp_tool_calls"
 
 ---
 
-## Step 5 — Verify RLS Is Active
+## Step 5 — Enable RLS on Email Events
+
+Applied 2026-05-27 in response to a Supabase Advisor `rls_disabled_in_public` warning. The Postmark webhook writes to this table via the service role, so blocking anon access doesn't break ingestion.
+
+```sql
+ALTER TABLE public.email_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access on email_events"
+  ON public.email_events
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+```
+
+---
+
+## Step 6 — Verify RLS Is Active
 
 ```sql
 SELECT tablename, rowsecurity
 FROM pg_tables
 WHERE schemaname = 'public'
-  AND tablename IN ('leads', 'pipeline_stats', 'mcp_tool_calls');
+  AND tablename IN ('leads', 'pipeline_stats', 'mcp_tool_calls', 'email_events');
 ```
 
-All three should show `rowsecurity = true`.
+All four should show `rowsecurity = true`.
 
 ---
 
