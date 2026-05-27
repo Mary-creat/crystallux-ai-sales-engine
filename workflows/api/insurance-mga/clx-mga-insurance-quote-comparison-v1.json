@@ -48,14 +48,14 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?on_conflict=email",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
           ]
         },
         "sendBody": true,
