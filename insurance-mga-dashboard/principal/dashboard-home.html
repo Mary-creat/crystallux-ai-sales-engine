@@ -57,13 +57,25 @@
         el.innerHTML = '<ul class="clx-bullet-list">' + ranked.map(function (r) { return '<li><strong>' + clxApi.escapeHtml(r.name) + '</strong> — ' + r.avg + '% avg achievement (' + r.goals + ' goals)</li>'; }).join('') + '</ul>';
       });
 
-      // Compliance alerts: from existing compliance queue endpoint (reuse).
-      clxApi.mgaPost('principal/compliance-queue', {}).then(function (resp) {
+      // Compliance alerts: re-routed to principal/advisors-and-compliance (which
+      // exists and returns license + E&O status per advisor). Surface anyone with
+      // a worst_renewal_status that needs attention OR missing E&O. The dedicated
+      // principal/compliance-queue workflow is on the next-session build list.
+      clxApi.mgaPost('principal/advisors-and-compliance', {}).then(function (resp) {
         var el = document.getElementById('qCompliance');
         if (!resp.ok) return fail(el, resp.error);
-        var queue = (resp.data && (resp.data.queue || resp.data.reviews)) || [];
-        if (queue.length === 0) { el.innerHTML = '<div class="clx-empty">No alerts. 🎉</div>'; return; }
-        el.innerHTML = '<ul class="clx-bullet-list">' + queue.slice(0, 5).map(function (r) { return '<li>' + clxComp.reviewTypeIcon(r.review_type) + ' — ' + clxApi.escapeHtml(r.summary || r.lead_name || r.client_name || '—') + '</li>'; }).join('') + '</ul>';
+        var advisors = (resp.data && resp.data.advisors) || [];
+        var alerts = advisors.filter(function (a) {
+          var bad = ['expired','expiring_soon','missing','overdue'];
+          return (a.eo_count || 0) === 0 || bad.indexOf(a.worst_renewal_status) !== -1;
+        });
+        if (alerts.length === 0) { el.innerHTML = '<div class="clx-empty">No alerts. 🎉 All advisors compliant.</div>'; return; }
+        el.innerHTML = '<ul class="clx-bullet-list">' + alerts.slice(0, 5).map(function (a) {
+          var issues = [];
+          if ((a.eo_count || 0) === 0) issues.push('no E&amp;O');
+          if (['expired','expiring_soon','missing','overdue'].indexOf(a.worst_renewal_status) !== -1) issues.push('license ' + a.worst_renewal_status);
+          return '<li>⚠️ <strong>' + clxApi.escapeHtml(a.full_name || a.email) + '</strong> — ' + issues.join(', ') + '</li>';
+        }).join('') + '</ul>';
       });
 
       // Pending quotes: from carriers-list, count carrier_quotes? Use mgaPost wrapping our own endpoint.
@@ -74,13 +86,22 @@
         el.innerHTML = '<div class="clx-card-sub">' + carriers.length + ' carriers configured, ' + ((resp.data && resp.data.products_total) || 0) + ' products available. Pending quote queue surfaces here once advisors submit suitability assessments.</div>';
       });
 
-      // Recent applications: reuse the principal/applications endpoint if it exists.
-      clxApi.mgaPost('principal/applications', {}).then(function (resp) {
+      // Recent applications: re-routed to advisor/applications (which exists
+      // and returns the advisor's own application pipeline). Until the dedicated
+      // principal/applications cross-advisor workflow is built next session,
+      // this card surfaces the count + a link to drill in.
+      clxApi.mgaPost('advisor/applications', {}).then(function (resp) {
         var el = document.getElementById('qApps');
         if (!resp.ok) return fail(el, resp.error);
         var apps = (resp.data && (resp.data.applications || resp.data.list)) || [];
-        if (apps.length === 0) { el.innerHTML = '<div class="clx-empty">No applications yet.</div>'; return; }
-        el.innerHTML = '<ul class="clx-bullet-list">' + apps.slice(0, 5).map(function (a) { return '<li>' + clxApi.escapeHtml(a.advisor_name || '—') + ' — ' + clxApi.escapeHtml(a.product_type || '') + ' (' + clxApi.escapeHtml(a.status || '') + ')</li>'; }).join('') + '</ul>';
+        if (apps.length === 0) {
+          el.innerHTML = '<div class="clx-empty">No applications yet. New advisor + carrier signups land at <a href="/principal/advisors.html">Advisors</a>.</div>';
+          return;
+        }
+        el.innerHTML = '<ul class="clx-bullet-list">' + apps.slice(0, 5).map(function (a) {
+          return '<li>' + clxApi.escapeHtml(a.advisor_name || a.full_name || '—') + ' — ' + clxApi.escapeHtml(a.product_type || a.policy_type || '') + ' (' + clxApi.escapeHtml(a.status || a.application_status || '') + ')</li>';
+        }).join('') + '</ul>' +
+          '<div class="clx-card-sub" style="margin-top:8px;font-size:11px;color:var(--muted)">Showing latest applications. Cross-advisor principal view is a next-session build.</div>';
       });
     }
   })();
