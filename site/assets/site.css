@@ -287,8 +287,11 @@ address { font-style: normal; }
 }
 
 /* ─── Layout ─── */
-.clx-section { padding: var(--space-24) var(--space-6); }
-.clx-section-compact { padding: var(--space-16) var(--space-6); }
+/* Responsive section padding — scales smoothly from mobile to desktop without
+   breakpoint jumps. Replaces fixed --space-24 / --space-16 + media-query override.
+   Modern-SaaS pattern (Stripe / Linear / Vercel use the same clamp() approach). */
+.clx-section { padding: clamp(48px, 7vw, 80px) var(--space-6); }
+.clx-section-compact { padding: clamp(32px, 5vw, 48px) var(--space-6); }
 .clx-container { max-width: var(--max); margin: 0 auto; }
 .clx-container-narrow { max-width: 780px; margin: 0 auto; }
 
@@ -343,8 +346,11 @@ address { font-style: normal; }
   .clx-h2 { font-size: var(--text-3xl); }
   .clx-h3 { font-size: var(--text-lg); }
   .clx-subhead { font-size: var(--text-base); }
-  .clx-section { padding: var(--space-16) var(--space-5); }
-  .clx-section-compact { padding: var(--space-12) var(--space-5); }
+  /* .clx-section padding override removed — clamp() above handles responsive
+     vertical scaling. We only override horizontal padding on small screens to
+     reduce edge-bleed. */
+  .clx-section { padding-left: var(--space-5); padding-right: var(--space-5); }
+  .clx-section-compact { padding-left: var(--space-5); padding-right: var(--space-5); }
 }
 
 /* ─── Hero ─── */
@@ -750,7 +756,9 @@ address { font-style: normal; }
 
 /* ─── New hero pattern (used by index + industry pages) ─── */
 .hero {
-  padding: var(--space-32) 0 var(--space-24) 0;
+  /* Responsive hero padding (was: 128px / 96px fixed which felt empty on desktop).
+     Min 48px on mobile, max 80px on desktop, smooth scaling between. */
+  padding: clamp(48px, 7vw, 80px) 0 clamp(40px, 6vw, 64px) 0;
   background: var(--bg-default);
   position: relative;
   overflow: hidden;
