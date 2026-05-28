@@ -120,6 +120,83 @@ function renderKpis() {
   ]);
 }
 
+function toggleLeadDetail(r, rowEl) {
+  // Look for an existing detail row right below the clicked row; if it
+  // exists, toggle it off. Otherwise insert one with all the lead fields.
+  if (!rowEl) {
+    // Fallback: row click is a delegated handler; find the row from the table
+    var hit = document.querySelector('tr[data-lead-id="' + r.id + '"]');
+    if (hit) rowEl = hit;
+  }
+  if (!rowEl) return;
+  rowEl.setAttribute('data-lead-id', r.id);
+  var next = rowEl.nextElementSibling;
+  if (next && next.classList.contains('lead-detail-row')) {
+    next.remove();
+    return;
+  }
+  var esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  var line = function (label, val) {
+    if (val == null || val === '') return '';
+    return '<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px"><div style="min-width:140px;color:#64748b;font-weight:600">' + esc(label) + '</div><div style="flex:1;color:#0f172a">' + esc(val) + '</div></div>';
+  };
+  var phoneHtml = r.phone ? '<a href="tel:' + esc(r.phone) + '" style="color:#7C3AED;text-decoration:none">' + esc(r.phone) + '</a> · <a href="https://wa.me/' + esc(String(r.phone).replace(/[^0-9]/g, '')) + '" target="_blank" style="color:#10b981;text-decoration:none">WhatsApp</a>' : '';
+  var emailHtml = r.email ? '<a href="mailto:' + esc(r.email) + '" style="color:#7C3AED;text-decoration:none">' + esc(r.email) + '</a>' : '';
+  var html = '<td colspan="99" style="padding:18px 22px;background:#fafafa;border-top:1px solid #e2e8f0">' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;max-width:1100px">' +
+    line('Name',       r.full_name) +
+    (r.email ? '<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px"><div style="min-width:140px;color:#64748b;font-weight:600">Email</div><div style="flex:1">' + emailHtml + '</div></div>' : '') +
+    (r.phone ? '<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px"><div style="min-width:140px;color:#64748b;font-weight:600">Phone</div><div style="flex:1">' + phoneHtml + '</div></div>' : '') +
+    line('Company',    r.company) +
+    line('Job title',  r.job_title) +
+    line('Industry',   r.industry) +
+    line('City',       r.city) +
+    line('Province',   r.province) +
+    line('Source',     r.source) +
+    line('Source domain', r.source_domain) +
+    line('Lead type',  r.lead_type) +
+    line('Product type', r.product_type) +
+    line('Marketplace vertical', r.marketplace_vertical) +
+    line('Marketplace status', r.marketplace_status) +
+    line('Status',     r.lead_status) +
+    line('Score',      r.lead_score) +
+    line('Received',   r.date_created) +
+    line('Updated',    r.updated_at) +
+    '</div>' +
+    (r.notes ? '<div style="margin-top:14px;padding:12px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:6px"><div style="font-weight:600;font-size:12px;color:#64748b;margin-bottom:6px">Notes</div><div style="font-size:13px;color:#334155;white-space:pre-wrap">' + esc(r.notes) + '</div></div>' : '') +
+    '<div style="margin-top:14px;display:flex;gap:8px"><span style="font-size:11px;color:#9ca3af">Lead ID: ' + esc(r.id) + '</span></div>' +
+    '</td>';
+  var tr = document.createElement('tr');
+  tr.className = 'lead-detail-row';
+  tr.innerHTML = html;
+  rowEl.parentNode.insertBefore(tr, rowEl.nextSibling);
+}
+
+// Attach a delegated click handler so rendered rows pick up the toggle.
+document.addEventListener('click', function (e) {
+  var tr = e.target.closest && e.target.closest('tr[data-lead-id], tbody tr');
+  if (!tr || tr.classList.contains('lead-detail-row')) return;
+  var table = tr.closest('table');
+  if (!table || table.closest('#leadsTableInner') === null) return;
+  // Index of row inside tbody to find matching lead in __rows
+  var tbody = tr.parentNode;
+  var idx = Array.prototype.indexOf.call(tbody.children, tr);
+  // Account for detail rows that may already be inserted
+  var leadIdx = 0;
+  for (var i = 0; i < idx; i++) {
+    if (!tbody.children[i].classList.contains('lead-detail-row')) leadIdx++;
+  }
+  var visibleRows = (__rows || []).filter(function(r){
+    var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+    if (q && ![r.company, r.client_name, r.industry, r.city].some(function(v){ return (v||'').toLowerCase().indexOf(q) !== -1; })) return false;
+    var inc = new URLSearchParams(window.location.search).get('show') === 'applications';
+    if (!inc && ['advisor_application','carrier_inquiry'].indexOf(r.source) !== -1) return false;
+    return true;
+  });
+  var r = visibleRows[leadIdx];
+  if (r) toggleLeadDetail(r, tr);
+});
+
 function renderTable() {
   var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
   var rows = __rows.filter(function(r){
@@ -142,7 +219,10 @@ function renderTable() {
     hiddenAppCount = before - rows.length;
   }
 
-  rows.forEach(function(r){ if (r.client_id) r._href = '/pages/client-detail.html?id=' + r.client_id; });
+  // Each row gets a click handler that toggles an inline detail panel
+  // below the row, populated with every field returned by the workflow.
+  // No detail-page navigation — keeps things fast.
+  rows.forEach(function(r){ r._onClick = function(ev) { toggleLeadDetail(r, ev && ev.currentTarget); }; });
   var el = document.getElementById('leadsTable');
 
   // Banner when applications are hidden — gives operator visibility without clutter.
@@ -183,6 +263,7 @@ function renderTable() {
     { key: 'lead_status',  label: 'Status', html: true, format: function(r){
         return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
       } },
+    { key: 'click', label: '', html: true, format: function(){ return '<button class="clx-btn clx-btn-ghost" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();event.preventDefault();">View ▾</button>'; } },
     { key: 'date_created', label: 'Received', format: function(r){
         if (!r.date_created) return '—';
         var d = new Date(r.date_created);
