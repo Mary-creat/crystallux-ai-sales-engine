@@ -27,6 +27,36 @@
       <div class="clx-page-sub" id="clientName">—</div>
     </div></div>
 
+    <!-- First-time welcome banner — auto-hides once the client has any data.
+         Rendered by maybeShowWelcome() below based on overview.stats. -->
+    <div id="welcomeBanner" style="display:none;margin-bottom:18px;padding:24px 26px;background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 50%,#fff 100%);border:1px solid #c4b5fd;border-radius:14px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div style="flex:1;min-width:280px">
+          <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#7C3AED;margin-bottom:6px">Welcome to Crystallux</div>
+          <h2 style="margin:0 0 6px;font-size:1.35rem;color:#0f172a">Let's get your first leads in the pipeline.</h2>
+          <p style="margin:0;color:#475569;font-size:0.95rem">Three things to do in your first 15 minutes. Mary's also on standby — reply to your welcome email any time.</p>
+        </div>
+        <button id="dismissWelcome" style="background:transparent;border:1px solid #c4b5fd;color:#7C3AED;padding:6px 12px;border-radius:6px;font-size:0.82rem;cursor:pointer">Dismiss</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:18px">
+        <a href="/pages/settings.html" style="text-decoration:none;color:inherit;display:block;padding:16px;background:#fff;border:1px solid #e9d5ff;border-radius:10px;transition:transform .12s,box-shadow .12s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(124,58,237,0.10)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="font-size:0.72rem;font-weight:700;color:#7C3AED;margin-bottom:4px">STEP 1</div>
+          <h3 style="margin:0 0 6px;font-size:1rem;color:#0f172a">Complete your profile</h3>
+          <p style="margin:0;font-size:0.85rem;color:#64748b">Company name, industry, target customer. This tunes the engine for you. <span style="color:#7C3AED;font-weight:600">→</span></p>
+        </a>
+        <a href="/pages/campaigns.html" style="text-decoration:none;color:inherit;display:block;padding:16px;background:#fff;border:1px solid #e9d5ff;border-radius:10px;transition:transform .12s,box-shadow .12s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(124,58,237,0.10)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="font-size:0.72rem;font-weight:700;color:#7C3AED;margin-bottom:4px">STEP 2</div>
+          <h3 style="margin:0 0 6px;font-size:1rem;color:#0f172a">Configure your first campaign</h3>
+          <p style="margin:0;font-size:0.85rem;color:#64748b">Pick a target city + industry. Mary's team helps you tune. <span style="color:#7C3AED;font-weight:600">→</span></p>
+        </a>
+        <a href="/pages/content-preferences.html" style="text-decoration:none;color:inherit;display:block;padding:16px;background:#fff;border:1px solid #e9d5ff;border-radius:10px;transition:transform .12s,box-shadow .12s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(124,58,237,0.10)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="font-size:0.72rem;font-weight:700;color:#7C3AED;margin-bottom:4px">STEP 3</div>
+          <h3 style="margin:0 0 6px;font-size:1rem;color:#0f172a">Set your voice + tone</h3>
+          <p style="margin:0;font-size:0.85rem;color:#64748b">How the AI sounds when it writes outreach in your name. <span style="color:#7C3AED;font-weight:600">→</span></p>
+        </a>
+      </div>
+    </div>
+
     <div class="clx-stat-grid" id="kpiGrid"></div>
 
     <div class="clx-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
@@ -92,6 +122,24 @@ function greeting() {
   return 'Good evening';
 }
 
+function maybeShowWelcomeBanner(overview) {
+  var banner = document.getElementById('welcomeBanner');
+  if (!banner) return;
+  var dismissed = false;
+  try { dismissed = localStorage.getItem('clx_welcome_dismissed_v1') === '1'; } catch (e) {}
+  if (dismissed) return;
+  var stats = (overview && overview.data && overview.data.stats) || {};
+  // Fresh account heuristic: no leads + no bookings means they just signed in.
+  var fresh = (stats.total_leads || 0) === 0 && (stats.booked_30d || 0) === 0;
+  if (!fresh) return;
+  banner.style.display = '';
+  var btn = document.getElementById('dismissWelcome');
+  if (btn) btn.addEventListener('click', function () {
+    try { localStorage.setItem('clx_welcome_dismissed_v1', '1'); } catch (e) {}
+    banner.style.display = 'none';
+  });
+}
+
 async function load() {
   var [overview, leads, bookings, leads30] = await Promise.all([
     clxApi.clientGet('overview'),
@@ -103,6 +151,10 @@ async function load() {
   if (overview.ok && overview.data && overview.data.client) {
     document.getElementById('clientName').textContent = overview.data.client.client_name || '';
   }
+
+  // Show the welcome banner only on fresh accounts (no leads yet) AND only if
+  // the user hasn't dismissed it. Auto-vanishes once they have any data.
+  maybeShowWelcomeBanner(overview);
 
   var grid = document.getElementById('kpiGrid');
   if (overview.ok && overview.data && overview.data.stats) {

@@ -1,0 +1,213 @@
+{
+  "id": "wfPublicClientSignup",
+  "name": "CLX - Public Client Signup v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "public/client-signup",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://crystallux.org,https://insurance.crystallux.org"
+        }
+      },
+      "id": "pcs-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-public-client-signup-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate + build a 'saas signup lead'. We DON'T create the auth_users row\n// directly — Mary qualifies on a call first, then provisions. This avoids\n// fake/spam signups creating real platform accounts. The lead row carries\n// the requested product(s) so Mary knows what to activate.\nconst body = $input.item.json.body || {};\nconst email = String(body.email || '').trim().toLowerCase();\nconst emailRe = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (!email || !emailRe.test(email)) {\n  return { json: { _empty: true, status: 400, error: 'Valid email required' } };\n}\nconst fullName = String(body.full_name || body.name || '').trim().slice(0, 200);\nif (!fullName) return { json: { _empty: true, status: 400, error: 'Full name required' } };\nif (body.consent !== true && body.consent !== 'true' && body.consent !== 'on') {\n  return { json: { _empty: true, status: 400, error: 'CASL consent required' } };\n}\n\n// product = which Crystallux product they want (from the marketing page CTA).\n// Allowed: sales_engine, sentinel, ava, luxi, maxi, ciro, mga, smart_quote.\nconst allowedProducts = ['sales_engine','sentinel','ava','luxi','maxi','ciro','mga','smart_quote','unspecified'];\nconst rawProduct = String(body.product || 'unspecified').toLowerCase().replace(/-/g, '_');\nconst product = allowedProducts.indexOf(rawProduct) !== -1 ? rawProduct : 'unspecified';\nconst tier = String(body.tier || '').toLowerCase().slice(0, 40);\n\n// industry tells us which vertical the buyer operates in — drives the\n// archetype the engine uses for outreach personalization later.\nconst industry = String(body.industry || '').trim().slice(0, 80);\n\nconst leadRow = {\n  full_name:           fullName,\n  email:               email,\n  phone:               String(body.phone || '').trim().slice(0, 40),\n  company:             String(body.company || body.company_name || '').trim().slice(0, 200) || 'TBD on call',\n  job_title:           String(body.job_title || body.role || '').trim().slice(0, 120),\n  industry:            industry || 'saas',\n  city:                String(body.city || '').trim().slice(0, 120),\n  source:              'saas_client_signup',\n  lead_status:         'New Lead',\n  product_type:        'saas',\n  lead_type:           'saas_signup',\n  do_not_contact:      false,\n  unsubscribed:        false,\n  total_emails_sent:   0,\n  lead_score:          80,\n  notes:               'SaaS client signup for product=' + product + ' tier=' + (tier || '(unspecified)') + ' on ' + new Date().toISOString().slice(0,10) + '. Industry: ' + (industry || 'unspecified') + '. Message: ' + (String(body.message || '').slice(0, 1000) || '(none)'),\n  updated_at:          new Date().toISOString()\n};\n\nconst notifySubject = '[Crystallux] New SaaS signup: ' + fullName + ' wants ' + product + (tier ? ' (' + tier + ')' : '');\nconst notifyBody = 'New SaaS client signup intent:\\n\\n' +\n  'Name: ' + fullName + '\\n' +\n  'Email: ' + email + '\\n' +\n  'Company: ' + (leadRow.company) + '\\n' +\n  'Phone: ' + (leadRow.phone || '(none)') + '\\n' +\n  'Industry: ' + (industry || '(unspecified)') + '\\n' +\n  'Product: ' + product + '\\n' +\n  'Tier: ' + (tier || '(none)') + '\\n' +\n  'Message: ' + (String(body.message || '').slice(0, 1000) || '(none)') + '\\n\\n' +\n  'Action: schedule onboarding call within 24h, then provision the auth_users row + product flags in Supabase.';\n\nreturn { json: { leadRow, email, fullName, product, tier, notifySubject, notifyBody } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pcs-0002",
+      "name": "Validate + Build",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "pcs-c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "pcs-0003",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation,resolution=merge-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.leadRow) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pcs-0004",
+      "name": "Insert Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Postmark notification to Mary + the welcome auto-reply to the\n// signer. Postmark will queue these if it's not yet approved — that's fine,\n// they'll dispatch automatically once approval lands.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst leadRows = allOf('Insert Lead');\nconst leadId = leadRows.length > 0 ? leadRows[0].id : null;\n\nconst v = $('Validate + Build').item.json;\n\n// Welcome auto-reply HTML — sent to the signer\nconst welcomeHtml = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#333;max-width:640px\">' +\n  '<h2 style=\"color:#0f172a\">Thanks for signing up to Crystallux.</h2>' +\n  '<p>Hi ' + v.fullName.split(\" \")[0] + ',</p>' +\n  '<p>We received your interest in <strong>' + v.product.replace(/_/g, ' ') + '</strong>' + (v.tier ? ' (' + v.tier + ' tier)' : '') + '. Here is what happens next:</p>' +\n  '<ol>' +\n    '<li><strong>Within 24 hours:</strong> Mary (founder, LLQP-licensed) will email you to book a 20-minute onboarding call.</li>' +\n    '<li><strong>On the call:</strong> we walk through your goals, confirm the right product + tier, and answer your questions.</li>' +\n    '<li><strong>Same day:</strong> we provision your account + give you your login. You see leads, campaigns, and tools the moment you sign in.</li>' +\n    '<li><strong>Week 1:</strong> we onboard you personally. You will not be left staring at a blank dashboard.</li>' +\n  '</ol>' +\n  '<p>Need to reach us before then? Reply to this email or write to <a href=\"mailto:info@crystallux.org\">info@crystallux.org</a>.</p>' +\n  '<p style=\"margin-top:24px\">Talk soon,<br><strong>Mary Akintunde</strong><br>Founder, Crystallux Inc.<br>LLQP-Licensed</p>' +\n  '<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:24px 0\">' +\n  '<p style=\"font-size:11px;color:#94a3b8\">You are receiving this because you signed up at crystallux.org. To unsubscribe, reply with \"unsubscribe\" and we will remove you immediately. Crystallux Inc., Guelph, Ontario, Canada.</p>' +\n  '</div>';\n\nreturn { json: {\n  ok: !!leadId,\n  lead_id: leadId,\n  product: v.product,\n  tier: v.tier,\n  fullName: v.fullName,\n  email: v.email,\n  notify_to_mary: {\n    From:    'info@crystallux.org',\n    To:      'info@crystallux.org',\n    Subject: v.notifySubject,\n    HtmlBody: '<pre style=\"font-family:monospace\">' + (v.notifyBody || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + (leadId ? '<p><a href=\"https://admin.crystallux.org/pages/leads.html?lead_id=' + leadId + '\">Open in admin -></a></p>' : ''),\n    TextBody: v.notifyBody,\n    MessageStream: 'outbound',\n    Tag: 'saas-client-signup',\n    Metadata: { lead_id: leadId || '', product: v.product, tier: v.tier }\n  },\n  welcome_to_signer: {\n    From:    'info@crystallux.org',\n    To:      v.email,\n    Subject: 'Welcome to Crystallux — what happens next',\n    HtmlBody: welcomeHtml,\n    TextBody: 'Hi ' + v.fullName.split(\" \")[0] + ',\\n\\nWe received your interest in ' + v.product.replace(/_/g, ' ') + (v.tier ? ' (' + v.tier + ' tier)' : '') + '.\\n\\nWithin 24 hours, Mary (founder, LLQP-licensed) will email you to book a 20-minute onboarding call. On the call we walk through your goals + confirm the right product + tier. Same day, we provision your account + give you your login.\\n\\nNeed to reach us before then? Reply to this email or write to info@crystallux.org.\\n\\nTalk soon,\\nMary Akintunde\\nFounder, Crystallux Inc., LLQP-Licensed',\n    MessageStream: 'outbound',\n    Tag: 'saas-client-welcome',\n    Metadata: { lead_id: leadId || '', product: v.product }\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pcs-0005",
+      "name": "Build Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept",                 "value": "application/json" },
+            { "name": "Content-Type",           "value": "application/json" },
+            { "name": "X-Postmark-Server-Token","value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.notify_to_mary) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pcs-0006",
+      "name": "Notify Mary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept",                 "value": "application/json" },
+            { "name": "Content-Type",           "value": "application/json" },
+            { "name": "X-Postmark-Server-Token","value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Emails').item.json.welcome_to_signer) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pcs-0007",
+      "name": "Welcome Signer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Friendly response back to the page so it can show 'thanks' message.\nconst v = $('Build Emails').item.json;\nreturn { json: {\n  ok: v.ok !== false,\n  lead_id: v.lead_id,\n  message: 'Signup received. Mary will reach out within 24 hours to schedule your onboarding call.',\n  product: v.product,\n  tier: v.tier\n} };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "pcs-0008",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" },
+              { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+              { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+            ]
+          }
+        }
+      },
+      "id": "pcs-0009",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1760, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, status: $json.status || 400, error: $json.error || 'Invalid signup' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin",  "value": "*" }
+            ]
+          }
+        }
+      },
+      "id": "pcs-0010",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 520]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[ { "node": "Validate + Build", "type": "main", "index": 0 } ]] },
+    "Validate + Build": { "main": [[ { "node": "IF Valid", "type": "main", "index": 0 } ]] },
+    "IF Valid": {
+      "main": [
+        [ { "node": "Insert Lead", "type": "main", "index": 0 } ],
+        [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Insert Lead": { "main": [[ { "node": "Build Emails", "type": "main", "index": 0 } ]] },
+    "Build Emails": {
+      "main": [
+        [
+          { "node": "Notify Mary",   "type": "main", "index": 0 },
+          { "node": "Welcome Signer","type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Notify Mary":    { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Welcome Signer": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond OK",    "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "notes": "Public SaaS-client signup endpoint. POST /webhook/public/client-signup with { full_name, email, phone?, company?, job_title?, industry?, product, tier?, message?, consent: true }. Creates a 'saas_signup' lead so Mary can qualify-then-provision (avoids fake signups creating real platform accounts). Sends Mary a notification email + sends the signer a welcome auto-reply with 'what happens next' framing. Both emails queue silently if Postmark Production approval hasn't landed yet — they dispatch automatically the moment it does. Product allow-list: sales_engine, sentinel, ava, luxi, maxi, ciro, mga, smart_quote, unspecified. CORS allows crystallux.org + insurance.crystallux.org."
+  }
+}
