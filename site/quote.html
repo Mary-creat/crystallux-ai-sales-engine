@@ -113,9 +113,15 @@
 
   if (!quoteId) {
     document.getElementById('content').innerHTML =
-      '<div style="padding:40px 0;text-align:center"><h2>Quote ID missing</h2>' +
-      '<p>This page expects a quote ID in the URL. Use the link from your email, or ' +
-      '<a href="book.html" style="color:#7C3AED">book a call</a> to get one.</p></div>';
+      '<div style="padding:60px 0;text-align:center;max-width:520px;margin:0 auto">' +
+        '<div style="font-size:42px;margin-bottom:14px">🔗</div>' +
+        '<h2 style="margin-bottom:10px">Looking for a quote?</h2>' +
+        '<p style="color:#475569;margin-bottom:24px">Personalised quote links are emailed to you after your first call. If you want to start fresh, compare quotes from multiple Canadian carriers in 60 seconds — no obligation.</p>' +
+        '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
+          '<a href="https://insurance.crystallux.org/compare/" style="display:inline-block;padding:12px 22px;background:#7C3AED;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Compare insurance quotes</a>' +
+          '<a href="book.html" style="display:inline-block;padding:12px 22px;background:#f1f5f9;color:#0f172a;border-radius:8px;text-decoration:none;font-weight:600">Book a call</a>' +
+        '</div>' +
+      '</div>';
     return;
   }
 
