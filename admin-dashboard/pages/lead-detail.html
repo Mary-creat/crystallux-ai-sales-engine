@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lead detail · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .ld-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-top: 14px; }
+  @media (max-width: 720px) { .ld-grid { grid-template-columns: 1fr; } }
+  .ld-row { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+  .ld-row .lbl { min-width: 140px; color: #64748b; font-weight: 600; }
+  .ld-row .val { flex: 1; color: #0f172a; word-break: break-word; }
+  .ld-notes { margin-top: 16px; padding: 14px 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #334155; white-space: pre-wrap; }
+  .ld-quick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .ld-quick-actions a { padding: 8px 14px; border-radius: 6px; background: #7C3AED; color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; }
+  .ld-quick-actions a.alt { background: #10b981; }
+  .ld-quick-actions a.muted { background: #f1f5f9; color: #0f172a; }
+  .ld-timeline { margin-top: 18px; }
+  .ld-msg { padding: 12px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; }
+  .ld-msg .head { display: flex; gap: 10px; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 6px; flex-wrap: wrap; }
+  .ld-msg .channel { padding: 2px 8px; border-radius: 999px; background: #ede9fe; color: #6d28d9; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  .ld-msg .dir-in { background: #d1fae5; color: #065f46; }
+  .ld-msg .dir-out { background: #ede9fe; color: #6d28d9; }
+  .ld-msg .status { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #475569; }
+  .ld-msg .body { font-size: 13px; color: #334155; white-space: pre-wrap; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger">☰</button>
+    <a href="/pages/overview.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span></a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight"></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+  <main class="clx-main"><div class="clx-content">
+
+    <div class="clx-page-head">
+      <div>
+        <h1 class="clx-page-title" id="leadName">Lead</h1>
+        <div class="clx-page-sub"><a href="/pages/leads.html" style="color:var(--text-muted)">← All leads</a> · <span id="leadId" style="font-family:ui-monospace,monospace;font-size:11px;color:#9ca3af"></span></div>
+      </div>
+    </div>
+
+    <div class="clx-card" id="leadCard">
+      <div class="clx-empty"><span class="clx-spinner"></span> Loading lead…</div>
+    </div>
+
+    <div class="clx-card" style="margin-top:14px">
+      <div class="clx-card-head">
+        <div class="clx-card-title">📞 Communications timeline</div>
+        <div style="font-size:12px;color:#9ca3af">Every message CIRO has sent or received on this lead's behalf</div>
+      </div>
+      <div id="commsContent" style="padding:8px 16px 16px">
+        <div class="clx-empty"><span class="clx-spinner"></span> Loading messages…</div>
+      </div>
+    </div>
+
+  </div></main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script src="/shared/copilot.js"></script>
+<script>
+(function () {
+  var leadId = new URLSearchParams(window.location.search).get('id');
+  document.getElementById('leadId').textContent = leadId ? ('id: ' + leadId) : '(no id in URL)';
+
+  clxAuth.require('admin').then(function () {
+    clxComp.injectNav(document.getElementById('clxSidebar'));
+    clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+    if (!leadId) {
+      document.getElementById('leadCard').innerHTML = '<div class="clx-empty">No lead id in URL. <a href="/pages/leads.html">Go back to leads</a>.</div>';
+      document.getElementById('commsContent').innerHTML = '';
+      return;
+    }
+    loadLead(leadId);
+    loadComms(leadId);
+  });
+
+  function loadLead(id) {
+    clxApi.adminGet('list-leads', { lead_id: id, limit: 1 }).then(function (res) {
+      var card = document.getElementById('leadCard');
+      if (!res.ok) { clxApi.renderError(card, res); return; }
+      var leads = (res.data && res.data.leads) || [];
+      var lead = leads[0];
+      if (!lead) { card.innerHTML = '<div class="clx-empty">Lead not found. It may have been deleted.</div>'; return; }
+      document.getElementById('leadName').textContent = lead.full_name || lead.email || '(unnamed lead)';
+      renderLead(card, lead);
+    });
+  }
+
+  function loadComms(id) {
+    clxApi.adminGet('comms-log', { lead_id: id, limit: 100 }).then(function (res) {
+      var el = document.getElementById('commsContent');
+      if (!res.ok) {
+        // comms-log might be dormant; show friendly empty rather than scary error.
+        el.innerHTML = '<div class="clx-empty">No messages yet. Once CIRO sends emails / SMS / WhatsApp / voice calls to this lead, every send shows up here.</div>';
+        return;
+      }
+      var rows = (res.data && res.data.rows) || [];
+      if (!rows.length) {
+        el.innerHTML = '<div class="clx-empty">No messages yet for this lead. CIRO will populate this as outreach fires.</div>';
+        return;
+      }
+      el.innerHTML = '<div class="ld-timeline">' + rows.map(renderMsg).join('') + '</div>';
+    });
+  }
+
+  function renderLead(card, l) {
+    var esc = function (s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var line = function (label, val) {
+      if (val == null || val === '') return '';
+      return '<div class="ld-row"><div class="lbl">' + esc(label) + '</div><div class="val">' + esc(val) + '</div></div>';
+    };
+    var lineHtml = function (label, html) {
+      return '<div class="ld-row"><div class="lbl">' + esc(label) + '</div><div class="val">' + html + '</div></div>';
+    };
+    var phoneRaw = (l.phone || '').replace(/[^0-9+]/g, '');
+    var quickActions = '';
+    if (l.phone) {
+      quickActions += '<a href="tel:' + esc(l.phone) + '">📞 Call</a>';
+      quickActions += '<a href="https://wa.me/' + esc(phoneRaw.replace(/^\+/, '')) + '" target="_blank" class="alt">💬 WhatsApp</a>';
+    }
+    if (l.email) {
+      quickActions += '<a href="mailto:' + esc(l.email) + '" class="muted">✉️ Email</a>';
+    }
+
+    var html = '<div class="clx-card-head"><div class="clx-card-title">' + esc(l.full_name || l.email) + '</div>' +
+      '<span class="clx-badge clx-badge-' + (l.lead_status === 'Booked' ? 'success' : 'info') + '">' + esc(l.lead_status || '—') + '</span></div>' +
+      (quickActions ? '<div class="ld-quick-actions">' + quickActions + '</div>' : '') +
+      '<div class="ld-grid">' +
+        line('Full name', l.full_name) +
+        (l.email ? lineHtml('Email', '<a href="mailto:' + esc(l.email) + '" style="color:#7C3AED">' + esc(l.email) + '</a>') : '') +
+        (l.phone ? lineHtml('Phone', '<a href="tel:' + esc(l.phone) + '" style="color:#7C3AED">' + esc(l.phone) + '</a>') : '') +
+        line('Company', l.company) +
+        line('Job title', l.job_title) +
+        line('Industry', l.industry) +
+        line('City', l.city) +
+        line('Source', l.source) +
+        line('Lead type', l.lead_type) +
+        line('Product type', l.product_type) +
+        line('Status', l.lead_status) +
+        line('Score', l.lead_score) +
+        line('Received', l.date_created ? new Date(l.date_created).toLocaleString('en-CA') : null) +
+        line('Updated', l.updated_at ? new Date(l.updated_at).toLocaleString('en-CA') : null) +
+      '</div>' +
+      (l.notes ? '<div class="ld-notes">' + esc(l.notes) + '</div>' : '');
+    card.innerHTML = html;
+  }
+
+  function renderMsg(m) {
+    var esc = function (s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var dirClass = m.direction === 'inbound' ? 'dir-in' : 'dir-out';
+    var dirLabel = m.direction === 'inbound' ? '← INBOUND' : '→ OUTBOUND';
+    var when = m.sent_at ? new Date(m.sent_at).toLocaleString('en-CA') : '';
+    return '<div class="ld-msg">' +
+      '<div class="head">' +
+        '<span class="channel ' + dirClass + '">' + esc(m.channel) + ' ' + esc(dirLabel) + '</span>' +
+        '<span>' + esc(when) + '</span>' +
+        (m.status ? '<span class="status">' + esc(m.status) + '</span>' : '') +
+        (m.source ? '<span style="font-size:10px;color:#9ca3af">' + esc(m.source) + '</span>' : '') +
+      '</div>' +
+      (m.subject ? '<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#0f172a">' + esc(m.subject) + '</div>' : '') +
+      '<div class="body">' + esc(m.content || m.content_excerpt || '(no content)') + '</div>' +
+    '</div>';
+  }
+})();
+</script>
+</body>
+</html>

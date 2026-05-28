@@ -120,7 +120,7 @@ function renderKpis() {
   ]);
 }
 
-function toggleLeadDetail(r, rowEl) {
+function __unusedToggleLeadDetail(r, rowEl) {  // removed — replaced by /pages/lead-detail.html navigation
   // Look for an existing detail row right below the clicked row; if it
   // exists, toggle it off. Otherwise insert one with all the lead fields.
   if (!rowEl) {
@@ -219,10 +219,10 @@ function renderTable() {
     hiddenAppCount = before - rows.length;
   }
 
-  // Each row gets a click handler that toggles an inline detail panel
-  // below the row, populated with every field returned by the workflow.
-  // No detail-page navigation — keeps things fast.
-  rows.forEach(function(r){ r._onClick = function(ev) { toggleLeadDetail(r, ev && ev.currentTarget); }; });
+  // Every row navigates to /pages/lead-detail.html?id=<lead_id> on click.
+  // The detail page shows all fields + comms log (every message CIRO has
+  // auto-sent to this lead).
+  rows.forEach(function(r){ r._href = '/pages/lead-detail.html?id=' + r.id; });
   var el = document.getElementById('leadsTable');
 
   // Banner when applications are hidden — gives operator visibility without clutter.
@@ -263,7 +263,6 @@ function renderTable() {
     { key: 'lead_status',  label: 'Status', html: true, format: function(r){
         return '<span class="clx-badge clx-badge-' + clxComp.badgeFor(r.lead_status) + '">' + clxComp.escapeHtml(r.lead_status || '—') + '</span>';
       } },
-    { key: 'click', label: '', html: true, format: function(){ return '<button class="clx-btn clx-btn-ghost" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();event.preventDefault();">View ▾</button>'; } },
     { key: 'date_created', label: 'Received', format: function(r){
         if (!r.date_created) return '—';
         var d = new Date(r.date_created);
