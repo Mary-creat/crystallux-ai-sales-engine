@@ -206,16 +206,23 @@ function renderTable() {
     });
   });
 
-  // Hide MGA-vertical applications from the master admin view. They belong to
-  // the insurance MGA principal dashboard. The list-leads workflow returns
-  // `source` (not `lead_type`), so filter on the source values written by
-  // workflows/api/public/clx-public-mga-apply-v1.json. Override: ?show=applications.
+  // Hide all insurance-vertical leads from the master admin view — they
+  // belong to the insurance MGA dashboard. Includes advisor/carrier
+  // applications + B2C consumer leads from marketplace + travel + super
+  // visa + any other marketing-site source. Override: ?show=applications.
   var includeApplications = new URLSearchParams(window.location.search).get('show') === 'applications';
-  var APP_SOURCES = ['advisor_application', 'carrier_inquiry'];
+  var APP_SOURCES = ['advisor_application', 'carrier_inquiry', 'marketing_site'];
+  var APP_SOURCE_PREFIXES = ['marketplace_'];
   var hiddenAppCount = 0;
   if (!includeApplications) {
     var before = rows.length;
-    rows = rows.filter(function(r){ return APP_SOURCES.indexOf(r.source) === -1; });
+    rows = rows.filter(function(r){
+      if (APP_SOURCES.indexOf(r.source) !== -1) return false;
+      if (APP_SOURCE_PREFIXES.some(function(p){ return r.source && r.source.indexOf(p) === 0; })) return false;
+      // Also catch insurance-industry B2C consumer leads (travel, life, etc).
+      if (r.industry === 'insurance' && r.lead_type === 'b2c_consumer') return false;
+      return true;
+    });
     hiddenAppCount = before - rows.length;
   }
 
@@ -229,8 +236,8 @@ function renderTable() {
   var bannerHtml = '';
   if (hiddenAppCount > 0) {
     bannerHtml = '<div style="margin:0 0 12px 0;padding:10px 14px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:13px;color:#92400e">' +
-      hiddenAppCount + ' MGA application' + (hiddenAppCount > 1 ? 's' : '') +
-      ' hidden (advisor + carrier signups). They belong to the insurance MGA principal dashboard. ' +
+      hiddenAppCount + ' insurance lead' + (hiddenAppCount > 1 ? 's' : '') +
+      ' hidden (advisor + carrier signups + B2C marketplace + travel + life). They belong to the <a href="https://insurance.crystallux.org/principal/dashboard-home.html" style="color:#92400e;text-decoration:underline">insurance MGA dashboard</a>. ' +
       '<a href="?show=applications" style="color:#92400e;text-decoration:underline">Show them here</a> · ' +
       'Notifications also sent to info@crystallux.org.' +
       '</div>';
