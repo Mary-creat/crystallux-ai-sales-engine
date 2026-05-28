@@ -32,6 +32,63 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-28 — Comparison marketplace live + Sentinel productized + client onboarding lane
+
+Multi-day continuous session (2026-05-26 → 2026-05-28) closing the gap between "platform built" and "real customers can sign up + see value." The headline ship: the insurance comparison marketplace is end-to-end working (4 verticals, Kayak-style search-theater, hot-lead trigger). Five iterations of lead-insert debugging before it ran clean — every iteration documented in the commits so the same trap won't bite again.
+
+### What shipped (29+ commits — `4f21e1c` → `2e18281`)
+
+- **Insurance comparison marketplace — Phase 1 live** (`7c706b9` + 5 follow-up bug-fix commits → `eaca9d8`)
+  - 5 frontend pages: `/compare/` entry + `/compare/auto.html` + `/compare/home.html` + `/compare/tenant.html` + `/compare/travel.html`
+  - Shared `comparison.js` runs the Kayak/Insurify-style 4-second search-theater animation (5 carriers appearing one-by-one) → renders sorted comparison cards with gold-bordered "⭐ Lowest" highlight → wires "Get this quote" click to optimistic-UI confirmation with the centralized advisor phone
+  - `clx-mga-insurance-quote-comparison-v1.json` workflow with 5 seeded carriers per vertical + deterministic premium formulas (age × postal × claims × coverage × carrier-specific multipliers). Lookup-then-insert UPSERT pattern after PostgREST ON CONFLICT failed on the partial/expression index for `leads.email`. Returns sorted cards with `is_lowest` flag.
+  - `db/migrations/marketplace-schema.sql` — `marketplace_quotes` + `marketplace_quote_selections` tables + 4 leads columns (`marketplace_vertical`, `marketplace_selected_carrier_name`, `marketplace_status`, `source_domain`) + RLS + service-role policies + indexes.
+- **Lead-insert bug saga (5 iterations, all documented)** — vertical_id/client_id missing → consent_given_at column doesn't exist → switched to public/mga/apply's proven schema → duplicate-key email constraint → tried ON CONFLICT → no matching constraint (partial index) → final fix: lookup-by-email then INSERT-only-if-new. Each iteration surfaced one layer of the schema honestly via improved error reporting in the workflow.
+- **Sentinel — standalone AI DevOps product** (`e0dddc7` + `4b31904`) — `site/products/sentinel.html` modeled on the existing product-page pattern, positioned as "AI on-call engineer" (not "replace your team" — buyer rejection frame). Three subscription tiers ($299 Starter / $999 Growth (Most popular) / $2,499 Scale) with per-tier feature ladder (workflow caps, briefing cadence, alert-triage depth, playbook count, support tier, audit-log retention). Dedicated white-label card for agencies/MSPs (revenue share OR per-tenant license). CFO math table. Surfaces from `/products/` index.
+- **Client onboarding lane** (`000450d` + `b7a3e3f`) — `site/join-client.html` self-serve signup with name/email/company/phone/role/industry/product/tier/message + CASL consent. `clx-public-client-signup-v1.json` workflow validates + inserts `saas_signup` lead + fans out 2 Postmark emails (notification to info@crystallux.org + welcome auto-reply to signer with "what happens next" framing). `auth_users.products` (jsonb) + `onboarding_status` + `company_name` + `signup_source` columns for product activation. First-time welcome banner on `client-dashboard/pages/overview.html` (auto-shows on zero-data accounts with 3 numbered action tiles, dismissible via localStorage, auto-vanishes once they have data).
+- **Lead-detail page + clickable rows** (`2e18281`) — `admin-dashboard/pages/lead-detail.html` with Call/WhatsApp/Email quick actions + full field grid + comms-log timeline (every CIRO-sent message — channel, direction, status, timestamp, content). `list-leads` workflow extended to accept `lead_id` filter so detail page reuses the existing endpoint. Replaces a broken in-page expand handler that didn't catch the right row.
+- **Spacing + copy polish on site/** (`4f21e1c` + `debe605` + `98a5f90` + `028b638`) — `site.css` switched section padding from fixed 128px/96px to `clamp(48px, 7vw, 80px)` matching modern SaaS (Stripe / Linear / Vercel). Replaced "Mary tunes" with "Your onboarding specialist tunes" on smart-quote, "Mary will reach out" → "Our team" on quote.html. Victory Enrichment related-party disclosure removed from `insurance-marketing/disclosure.html` + sections 9-14 renumbered to 8-13.
+- **MGA principal dashboard unblocked** (`9bfc721`) — re-routed `dashboard-home.html`'s broken `principal/compliance-queue` + `principal/applications` calls to the existing `principal/advisors-and-compliance` + `advisor/applications` endpoints. Compliance card now surfaces advisors with missing E&O or expired licenses; recent-applications card shows latest 5 with a note that the dedicated cross-advisor view is next-session work.
+- **Mary-name scrub on customer-facing pages** — separate from the founder bios / privacy officer / footers (which are correct as-is). Public product pages and signup confirmations now read "Our team" / "An onboarding specialist" so the brand reads like a team, not a one-founder shop. Recruitment pages (`join-advisor`, `join-carrier`) intentionally KEEP "Mary personally responds" — founder-touch IS the value prop in MGA recruitment.
+
+### What got unblocked / decided
+
+- **Path A confirmed (plain HTML/JS, no Next.js pivot).** Marketplace built on the existing stack in one session — proves the doctrine. Documented the trade-off table for future tempting moments.
+- **Sentinel pricing locked.** $299 / $999 / $2,499 + white-label custom. Annual billing saves 20%. CFO math anchors against $180K hire.
+- **Founder-touch trade-off settled.** MGA recruitment keeps "Mary personally responds" (trust signal). SaaS marketing reads "Our team" (scalable). Different audiences, different framing — saved as memory.
+- **Carrier acquisition path mapped.** Apply direct to Aviva + Manulife Travel + Echelon + Pembridge for auto/home/travel. Sub-broker through HUB International + Aurora MGA + PPI for life. Real rate APIs (Applied Rating, Equisoft) only after appointments land — not a Phase 1 cost.
+- **Manual onboarding accepted for first 5-10 clients.** Self-serve signup + manual qualification call + manual auth_users provisioning is the right level of automation until volume justifies more. Learning > automating.
+
+### What got blocked or deferred
+
+- **Postmark Production approval still pending.** Marketplace + client signup workflows fan out emails that queue silently — they'll dispatch the moment approval lands.
+- **Meta WhatsApp Business approval still pending.** WhatsApp greeting on marketplace lead capture is wired but dormant until the Twilio WhatsApp sender clears.
+- **LinkedIn / Instagram / YouTube / Facebook / TikTok / X Developer API approvals.** All 6 publisher workflows are built (confirmed via audit) but each platform gates activation. 1-4 weeks per platform, all calendar time, no engineering.
+- **HeyGen API key + credit verification.** Video pipeline wired end-to-end including the MCP `generate_video` route via `clx-mcp-video-orchestrator-v1` — needs Mary to confirm key + credit are live.
+- **CF Pages production branch on `crystallux-admin-dashboard` is still `scale-sprint-v1`** (not `main`). Means every push needs a manual "Retry deployment" click in CF Pages dashboard. The fix is to switch to `main` in Settings → Builds & deployments — saves the manual rebuild on every future push. Same misconfig likely applies to other Crystallux CF Pages projects (site / insurance-marketing / insurer-marketing / mga-dashboard / portal / app).
+- **Stripe Live verification** — Mary's parallel work this week.
+
+### What Mary needs to do next
+
+1. **Push the pending commits** — `git push origin scale-sprint-v1:main` from laptop Git Bash. After CF rebuilds (or manual rebuild), all the comparison + Sentinel + signup + lead-detail pages go live.
+2. **Re-ship the 2 modified workflows** on VPS — `bash /tmp/clx-latest/scripts/n8n/ship.sh clx-admin-list-leads.json` + the comms-log workflow if not yet active.
+3. **Switch CF Pages Production branch from `scale-sprint-v1` to `main`** on all Crystallux projects so future pushes auto-deploy without manual rebuilds.
+4. **Drive marketplace traffic** — paid ads, FB groups, LinkedIn for `/compare/auto.html` (highest conversion intent). The funnel works; needs volume now.
+5. **Apply to first carrier appointments** — Aviva + Manulife Travel + HUB MGA. Free, 1-2 week onboarding. Unlocks real commission flow when policies place.
+6. **Verify HeyGen + Postmark + Twilio env vars on VPS** — make sure every external integration has live credentials so the moment each approval clears, the pipeline goes live.
+
+### Open questions for next session
+
+- **Marketplace quote-select + advisor-router workflows** — the frontend already calls `/webhook/mga/insurance/quote-select` but that workflow isn't built yet. Optimistic UI hides the gap, but real advisor routing on hot-lead click needs the missing 2 workflows (~60-90 min). Logged.
+- **Carrier table-driven marketplace** — move the 5 seeded carriers per vertical from hardcoded JS into the existing `insurance_carriers` Supabase table. ~45 min. Once Mary has real appointments she can add carriers via SQL row without code changes.
+- **LUXI outright-sale mode** — extend the auction-only platform with fixed-price live commerce (catalog table + buy-now comment trigger + FCFS inventory locking). 2 sessions when LUXI customers ask.
+- **Dedicated MGA principal workflows** — proper cross-advisor `principal/compliance-queue` + `principal/applications` (tonight's re-route is tactical). 60 min.
+- **Autonomous DevOps Agent (Claude Agent SDK)** — when Crystallux is at $5M+ ARR + the manual ops work outweighs the build cost. 2-3 sessions. Sentinel product page already positions for it.
+- **AI Operations Suite bundle** (Sentinel + COO Employee + Security Employee product page) — wait until first Sentinel sale + Mary decides whether to build the cybersecurity sister-product first.
+- **146 search_path warnings batch-fix** — low priority, single SQL migration with a DO block looping every public-schema function. 30 min when Mary wants to clear the Supabase advisor noise.
+
+---
+
 ## 2026-05-26 — Signup funnel goes live + generate_video MCP wired end-to-end
 
 Long session that closed three gaps blocking real customer signups: the public signup pages were in a redirect loop, the admin had no path for importing Mary's existing client list, and the video personalization stack existed but was never connected to MCP. All three landed; the platform is now ready for actual lead acquisition the moment external approvals (Postmark, Meta WhatsApp Business) clear.
