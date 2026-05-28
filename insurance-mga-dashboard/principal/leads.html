@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leads · Crystallux Insurance MGA</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/shared/layout.css">
+</head>
+<body>
+<header class="clx-topbar">
+  <div class="clx-topbar-left"><a href="/principal/dashboard-home.html" class="clx-logo"><span class="clx-logo-mark">C</span>Crystallux <span class="clx-vertical-badge">Insurance MGA</span></a></div>
+  <div class="clx-topbar-right" id="topbarRight"><span class="clx-user-chip"><span class="clx-spinner"></span></span></div>
+</header>
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="sidebar"></nav>
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head">
+        <div>
+          <h1 class="clx-page-title">Insurance Leads</h1>
+          <div class="clx-page-sub">All advisor applications, carrier inquiries, marketplace quotes, and B2C consumer leads across the insurance vertical.</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <select id="sourceFilter" style="padding:6px 10px;font-size:13px;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+            <option value="all">All sources</option>
+            <option value="advisor_application">Advisor applications</option>
+            <option value="carrier_inquiry">Carrier inquiries</option>
+            <option value="marketplace_auto">Marketplace · Auto</option>
+            <option value="marketplace_home">Marketplace · Home</option>
+            <option value="marketplace_tenant">Marketplace · Tenant</option>
+            <option value="marketplace_travel">Marketplace · Travel</option>
+            <option value="marketing_site">Marketing site (travel/life/etc)</option>
+          </select>
+          <select id="statusFilter" style="padding:6px 10px;font-size:13px;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+            <option value="all">All statuses</option>
+            <option>New Lead</option>
+            <option>Contacted</option>
+            <option>Replied</option>
+            <option>Booked</option>
+            <option>Closed</option>
+            <option>Lost</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="countsGrid" class="clx-stat-grid"></div>
+
+      <div class="clx-card" style="padding:0;margin-top:14px">
+        <div id="leadsTable" style="padding:8px 16px 16px"><div class="clx-empty"><span class="clx-spinner"></span> Loading…</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components-mga.js"></script>
+<script>
+  (function () {
+    fetch('/shared/nav.html').then(function (r) { return r.text(); }).then(function (h) { document.getElementById('sidebar').innerHTML = h; });
+
+    var __all = [];
+    var __counts = {};
+
+    clxAuth.require(['mga_principal','compliance_officer','supervisor','admin']).then(function (user) {
+      if (!user) return;
+      document.getElementById('topbarRight').innerHTML = '<span class="clx-user-chip">' + clxApi.escapeHtml(user.email || '') + ' · <span class="clx-role-pill">' + clxApi.escapeHtml(user.user_role || user.role) + '</span></span>';
+      document.getElementById('sourceFilter').addEventListener('change', load);
+      document.getElementById('statusFilter').addEventListener('change', load);
+      load();
+    });
+
+    function load() {
+      var src = document.getElementById('sourceFilter').value;
+      var status = document.getElementById('statusFilter').value;
+      var filters = { limit: 200 };
+      if (src && src !== 'all') filters.source = src;
+      if (status && status !== 'all') filters.status = status;
+
+      clxApi.mgaPost('principal/leads-list', { filters: filters }).then(function (resp) {
+        var el = document.getElementById('leadsTable');
+        if (!resp.ok) {
+          el.innerHTML = '<div class="clx-empty">' + clxApi.escapeHtml(resp.error || 'Could not load leads. Workflow may not be imported yet.') + '</div>';
+          return;
+        }
+        __all = (resp.data && resp.data.leads) || [];
+        __counts = (resp.data && resp.data.counts) || {};
+        renderCounts();
+        renderTable();
+      });
+    }
+
+    function renderCounts() {
+      var c = __counts;
+      var grid = document.getElementById('countsGrid');
+      grid.innerHTML = '';
+      var cards = [
+        { label: 'Total leads', value: c.total || 0, color: '#7C3AED' },
+        { label: 'Advisor apps', value: c.advisor_applications || 0, color: '#10b981' },
+        { label: 'Carrier inquiries', value: c.carrier_inquiries || 0, color: '#3b82f6' },
+        { label: 'Marketplace quotes', value: c.marketplace || 0, color: '#f59e0b' },
+        { label: 'B2C consumer (marketing site)', value: c.marketing_site || 0, color: '#ec4899' }
+      ];
+      grid.innerHTML = cards.map(function (card) {
+        return '<div class="clx-stat-card" style="border-top:3px solid ' + card.color + '">' +
+          '<div style="font-size:0.78rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">' + clxApi.escapeHtml(card.label) + '</div>' +
+          '<div style="font-size:1.8rem;font-weight:700;color:#0f172a;margin-top:6px">' + card.value + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function renderTable() {
+      var el = document.getElementById('leadsTable');
+      if (!__all.length) {
+        el.innerHTML = '<div class="clx-empty">No leads match these filters. Try changing source or status above.</div>';
+        return;
+      }
+      var rows = __all.map(function (l) {
+        var receivedTxt = l.date_created ? new Date(l.date_created).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
+        var sourceLabel = (l.source || '').replace(/_/g, ' ');
+        var phoneCell = l.phone ? '<a href="tel:' + clxApi.escapeHtml(l.phone) + '" style="color:#7C3AED;text-decoration:none">' + clxApi.escapeHtml(l.phone) + '</a>' : '<span style="color:#cbd5e1">—</span>';
+        var emailCell = l.email ? '<a href="mailto:' + clxApi.escapeHtml(l.email) + '" style="color:#7C3AED;text-decoration:none">' + clxApi.escapeHtml(l.email) + '</a>' : '<span style="color:#cbd5e1">—</span>';
+        return '<tr style="cursor:pointer" onclick="window.location=\'https://admin.crystallux.org/pages/lead-detail.html?id=' + clxApi.escapeHtml(l.id) + '\'">' +
+          '<td style="padding:10px 12px;font-weight:600">' + clxApi.escapeHtml(l.full_name || '(unnamed)') + '</td>' +
+          '<td style="padding:10px 12px">' + emailCell + '</td>' +
+          '<td style="padding:10px 12px">' + phoneCell + '</td>' +
+          '<td style="padding:10px 12px"><span class="clx-badge clx-badge-info">' + clxApi.escapeHtml(sourceLabel) + '</span></td>' +
+          '<td style="padding:10px 12px">' + clxApi.escapeHtml(l.lead_status || '—') + '</td>' +
+          '<td style="padding:10px 12px;font-size:12px;color:#64748b">' + receivedTxt + '</td>' +
+        '</tr>';
+      }).join('');
+      el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+        '<thead><tr style="background:#f8fafc;text-align:left">' +
+          '<th style="padding:10px 12px;font-size:11px;text-transform:uppercase;color:#64748b">Name</th>' +
+          '<th style="padding:10px 12px;font-size:11px;text-transform:uppercase;color:#64748b">Email</th>' +
+          '<th style="padding:10px 12px;font-size:11px;text-transform:uppercase;color:#64748b">Phone</th>' +
+          '<th style="padding:10px 12px;font-size:11px;text-transform:uppercase;color:#64748b">Source</th>' +
+          '<th style="padding:10px 12px;font-size:11px;text-transform:uppercase;color:#64748b">Status</th>' +
+          '<th style="padding:10px 12px;font-size:11px;text-transform:uppercase;color:#64748b">Received</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+  })();
+</script>
+</body>
+</html>

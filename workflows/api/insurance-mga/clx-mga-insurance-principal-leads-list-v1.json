@@ -1,0 +1,161 @@
+{
+  "id": "wfMgaInsurancePrincipalLeadsList",
+  "name": "CLX - MGA Insurance Principal Leads List v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mga/insurance/principal/leads-list",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "mpll-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-mga-insurance-principal-leads-list-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// MGA principal view of ALL insurance-vertical leads. Filters at the\n// query layer to: advisor applications + carrier inquiries + marketplace\n// (auto/home/tenant/travel) + marketing-site B2C consumer leads. The\n// master admin leads page hides these — they belong here.\nconst headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst f = (body.filters || {});\nconst limit = Math.min(Math.max(parseInt(f.limit, 10) || 100, 1), 500);\n// PostgREST OR filter: insurance industry OR insurance-vertical source patterns.\n// in.(...) takes a comma list; like.* uses URL-escape friendly *.\nconst sourceList = ['advisor_application','carrier_inquiry','marketing_site','marketplace_auto','marketplace_home','marketplace_tenant','marketplace_travel'];\nlet qs = 'select=id,full_name,email,phone,company,job_title,industry,city,lead_status,lead_score,source,client_id,lead_type,product_type,notes,date_created,updated_at';\nqs += '&or=(source.in.(' + sourceList.join(',') + '),and(industry.eq.insurance,lead_type.eq.b2c_consumer))';\nqs += '&order=date_created.desc&limit=' + limit;\nif (f.status && f.status !== 'all') qs += '&lead_status=eq.' + encodeURIComponent(f.status);\nif (f.source && f.source !== 'all') qs += '&source=eq.' + encodeURIComponent(f.source);\nif (f.lead_id) qs = 'select=id,full_name,email,phone,company,job_title,industry,city,lead_status,lead_score,source,client_id,lead_type,product_type,notes,date_created,updated_at&id=eq.' + encodeURIComponent(f.lead_id) + '&limit=1';\nreturn { json: { token, qs } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mpll-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "mpll-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Allow mga_principal, compliance_officer, supervisor, admin.\n// MGA principals view ALL insurance leads (not just their own assignments).\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowedRoles = ['mga_principal','compliance_officer','supervisor','admin'];\nif (allowedRoles.indexOf(row.user_role) === -1) return { json: { ok: false, status: 403, error: 'MGA principal access required' } };\nreturn { json: { ok: true, qs: $('Extract Inputs').item.json.qs } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "mpll-0004",
+      "name": "Check Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "mpll-c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "mpll-0005",
+      "name": "IF Role OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?' + $json.qs }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mpll-0006",
+      "name": "Query Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst leads = allOf('Query Leads');\n// Bucket counts so the principal dashboard can show 'X advisor apps, Y carrier inquiries, Z B2C consumers'.\nconst counts = { total: leads.length, advisor_applications: 0, carrier_inquiries: 0, marketplace: 0, marketing_site: 0, other: 0 };\nleads.forEach(function (l) {\n  if (l.source === 'advisor_application') counts.advisor_applications++;\n  else if (l.source === 'carrier_inquiry') counts.carrier_inquiries++;\n  else if (l.source && l.source.indexOf('marketplace_') === 0) counts.marketplace++;\n  else if (l.source === 'marketing_site') counts.marketing_site++;\n  else counts.other++;\n});\nreturn { json: { ok: true, leads: leads, counts: counts } };",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "mpll-0009",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "mpll-0007",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1700, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "mpll-0008",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 420]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs": { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Role", "type": "main", "index": 0 } ]] },
+    "Check Role": { "main": [[ { "node": "IF Role OK", "type": "main", "index": 0 } ]] },
+    "IF Role OK": {
+      "main": [
+        [ { "node": "Query Leads", "type": "main", "index": 0 } ],
+        [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Query Leads": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "notes": "MGA principal view of ALL insurance-vertical leads. POST /webhook/mga/insurance/principal/leads-list with optional { filters: { status, source, lead_id, limit } }. Auth: mga_principal | compliance_officer | supervisor | admin. Returns leads filtered to insurance sources (advisor_application, carrier_inquiry, marketplace_*, marketing_site) OR industry=insurance AND lead_type=b2c_consumer. Includes per-source counts so the dashboard can show 'X advisor apps, Y marketplace, Z B2C'."
+  }
+}

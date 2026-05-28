@@ -107,7 +107,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const postmark = $input.item.json;\nconst v = $('Build Notification').first().json;\nconst sentOk = !!(postmark && postmark.MessageID);\nreturn { json: {\n  ok: v.ok,\n  lead_id: v.lead_id,\n  form_type: v.form_type,\n  notification_sent: sentOk,\n  message: v.form_type === 'advisor'\n    ? 'Thanks. your advisor application is in. Mary will reply from info@crystallux.org within 24 hours.'\n    : 'Thanks. your carrier inquiry is in. Mary will reach out from info@crystallux.org within 24 hours.'\n} };",
+        "jsCode": "const postmark = $input.item.json;\nconst v = $('Build Notification').first().json;\nconst sentOk = !!(postmark && postmark.MessageID);\n// Always return ok:true even when leadId is null (duplicate email — they're\n// already in leads — still a valid submission from the signer's POV).\nreturn { json: {\n  ok: true,\n  lead_id: v.lead_id,\n  form_type: v.form_type,\n  notification_sent: sentOk,\n  message: v.form_type === 'advisor'\n    ? 'Thanks. Your advisor application is in. Our team will reply from info@crystallux.org within 24 hours.'\n    : 'Thanks. Your carrier inquiry is in. Our team will reach out from info@crystallux.org within 24 hours.'\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "pma-0007",
