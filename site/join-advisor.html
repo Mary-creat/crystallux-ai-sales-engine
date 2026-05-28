@@ -197,8 +197,14 @@
       card.innerHTML =
         '<div class="j-success">' +
           '<h2>✓ Application received</h2>' +
-          '<p>Thanks ' + escapeHtml(fullName) + '. Mary will personally reply from info@crystallux.org within 24 hours. ' +
-          'Check your spam folder if you don\'t see it by then.</p>' +
+          '<p style="margin:14px 0 18px"><strong>Thanks ' + escapeHtml(fullName) + '.</strong> Your advisor application is in.</p>' +
+          '<p style="font-weight:600;margin-bottom:8px">What happens next:</p>' +
+          '<ol style="padding-left:22px;line-height:1.7;color:#475569">' +
+            '<li>Mary (LLQP-licensed principal) personally reviews every application.</li>' +
+            '<li>You will get a reply from <strong>info@crystallux.org</strong> within 24 hours to schedule a 20-minute fit call.</li>' +
+            '<li>If the fit is right, we appoint you the same week and your dashboard goes live.</li>' +
+          '</ol>' +
+          '<p style="font-size:0.88rem;color:#64748b;margin-top:18px">Nothing in your inbox by tomorrow? Check spam first. Still nothing? Write to <a href="mailto:info@crystallux.org" style="color:#7C3AED">info@crystallux.org</a> and we will sort it out.</p>' +
         '</div>';
       window.scrollTo({ top: card.offsetTop - 60, behavior: 'smooth' });
     }).catch(function (e) {
