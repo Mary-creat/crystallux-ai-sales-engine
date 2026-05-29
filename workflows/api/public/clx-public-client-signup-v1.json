@@ -76,6 +76,35 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?on_conflict=email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $('Validate + Build').item.json.email, user_role: 'client', full_name: $('Validate + Build').item.json.fullName, company_name: ($('Validate + Build').item.json.leadRow && $('Validate + Build').item.json.leadRow.company) || 'TBD', products: ($('Validate + Build').item.json.product && $('Validate + Build').item.json.product !== 'unspecified') ? [$('Validate + Build').item.json.product] : [], onboarding_status: 'account_created', signup_source: 'demo_to_paid' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pcs-0004b",
+      "name": "Provision Auth User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 320],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
         "jsCode": "// Build the Postmark notification to Mary + the welcome auto-reply to the\n// signer. Postmark will queue these if it's not yet approved — that's fine,\n// they'll dispatch automatically once approval lands.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    if (items.length === 1 && items[0] && typeof items[0] === 'object' && !Array.isArray(items[0]) && items[0].id) return [items[0]];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst leadRows = allOf('Insert Lead');\nconst leadId = leadRows.length > 0 ? leadRows[0].id : null;\n// Even if leadId is null (duplicate email — they're already in leads), we\n// STILL send the welcome email + notify Mary. From the signer's POV the action\n// succeeded; from Mary's POV she gets an inquiry to follow up on.\n\nconst v = $('Validate + Build').item.json;\n\n// Welcome auto-reply HTML — sent to the signer\nconst welcomeHtml = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#333;max-width:640px\">' +\n  '<h1 style=\"font-size:22px;font-weight:700;color:#0f172a;margin:0 0 14px;line-height:1.3;letter-spacing:-0.01em\">Welcome aboard, ' + v.fullName.split(\" \")[0] + '.</h1>' +\n  '<p style=\"color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px\">Thanks for signing up for <strong style=\"color:#0f172a\">' + v.product.replace(/_/g, ' ') + (v.tier ? ' on the ' + v.tier + ' tier' : '') + '</strong>. Here is the path from this email to a live dashboard with your first leads.</p>' +\n  '<p style=\"font-size:12px;font-weight:700;color:#64748b;letter-spacing:0.08em;text-transform:uppercase;margin:24px 0 14px\">Your onboarding timeline</p>' +\n  '<ol style=\"padding-left:20px;margin:0 0 24px\">' +\n    '<li style=\"font-size:14px;color:#334155;line-height:1.6;margin-bottom:10px\"><strong style=\"color:#0f172a\">Within 24 hours.</strong> An onboarding specialist emails you a calendar link to book a 20-minute discovery call.</li>' +\n    '<li style=\"font-size:14px;color:#334155;line-height:1.6;margin-bottom:10px\"><strong style=\"color:#0f172a\">Discovery call (20 minutes).</strong> We confirm the right product and tier for your business, walk through your goals, and answer every question. No slides, no pressure.</li>' +\n    '<li style=\"font-size:14px;color:#334155;line-height:1.6;margin-bottom:10px\"><strong style=\"color:#0f172a\">Same-day activation.</strong> We provision your account and email your login. You see a live dashboard with your first campaigns the moment you sign in.</li>' +\n    '<li style=\"font-size:14px;color:#334155;line-height:1.6\"><strong style=\"color:#0f172a\">Week 1 onboarding.</strong> Personal support every step. You will not be left staring at a blank screen.</li>' +\n  '</ol>' +\n  '<p style=\"font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px\">Need to reach us before then? Just reply to this email — we read every one.</p>' +\n  '<p style=\"font-size:14px;color:#0f172a;margin:28px 0 0;font-weight:600\">— The Crystallux Team</p>' +\n  '<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:24px 0\">' +\n  '<p style=\"font-size:11px;color:#94a3b8\">You are receiving this because you signed up at crystallux.org. To unsubscribe, reply with \"unsubscribe\" and we will remove you immediately. Crystallux Inc., Guelph, Ontario, Canada.</p>' +\n  '</div>';\n\nreturn { json: {\n  ok: true,\n  lead_id: leadId,\n  product: v.product,\n  tier: v.tier,\n  fullName: v.fullName,\n  email: v.email,\n  notify_to_mary: {\n    From:    'info@crystallux.org',\n    To:      'info@crystallux.org',\n    Subject: v.notifySubject,\n    HtmlBody: '<pre style=\"font-family:monospace\">' + (v.notifyBody || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>' + (leadId ? '<p><a href=\"https://admin.crystallux.org/pages/leads.html?lead_id=' + leadId + '\">Open in admin -></a></p>' : ''),\n    TextBody: v.notifyBody,\n    MessageStream: 'outbound',\n    Tag: 'saas-client-signup',\n    Metadata: { lead_id: leadId || '', product: v.product, tier: v.tier }\n  },\n  welcome_to_signer: {\n    From:    'info@crystallux.org',\n    To:      v.email,\n    Subject: 'Welcome to Crystallux — what happens next',\n    HtmlBody: welcomeHtml,\n    TextBody: 'Hi ' + v.fullName.split(\" \")[0] + ',\\n\\nWe received your interest in ' + v.product.replace(/_/g, ' ') + (v.tier ? ' (' + v.tier + ' tier)' : '') + '.\\n\\nWithin 24 hours, an onboarding specialist will email you to book a 20-minute onboarding call. On the call we walk through your goals + confirm the right product + tier. Same day, we provision your account + give you your login.\\n\\nNeed to reach us before then? Reply to this email or write to info@crystallux.org.\\n\\nTalk soon,\\nThe Crystallux Team\\ninfo@crystallux.org',\n    MessageStream: 'outbound',\n    Tag: 'saas-client-welcome',\n    Metadata: { lead_id: leadId || '', product: v.product }\n  }\n} };",
         "mode": "runOnceForEachItem"
       },
@@ -192,7 +221,8 @@
         [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
       ]
     },
-    "Insert Lead": { "main": [[ { "node": "Build Emails", "type": "main", "index": 0 } ]] },
+    "Insert Lead": { "main": [[ { "node": "Provision Auth User", "type": "main", "index": 0 } ]] },
+    "Provision Auth User": { "main": [[ { "node": "Build Emails", "type": "main", "index": 0 } ]] },
     "Build Emails": {
       "main": [
         [
