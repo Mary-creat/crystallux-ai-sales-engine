@@ -32,6 +32,52 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-29 (continued) — Access control follow-ups: CSP, auth.js parity, verify-email loop closed
+
+Mary pushed straight through the queued items from the earlier session instead of breaking for sleep. All four follow-ups in one focused commit.
+
+### What shipped (`a636e50`)
+
+- **Chart.js CSP fix** — added `https://cdn.jsdelivr.net` to `script-src` across all 15 client-dashboard files + `_headers`. Two CSP variants in the codebase (with/without the cloudflareinsights wildcard, plus the Stripe-extended variant on onboarding/index.html); sed handled the first two, manual edit for Stripe. Console error gone, charts render.
+- **Auth.js parity sweep** — `admin-dashboard/shared/auth.js` and `insurance-mga-dashboard/shared/auth.js` now mirror the client-dashboard gates: suspended → /account-suspended.html, email_verified=false → /verify-email.html (admins exempt so a legacy admin row with email_verified=false doesn't lock Mary out of her own shell). All access fields persisted to localStorage. `hasProduct()` exposed for consistency (admins always return true).
+- **insurer-dashboard auth.js intentionally NOT updated** — uses its own `insurer-session-validate` endpoint with separate access model (insurer_users + insurer_account, not auth_users). Stripe cancel handling for insurers would patch insurer_accounts.subscription_status, not auth_users.is_active. Bigger scope; logged as known gap.
+- **Magic-link verify now flips email_verified=true** — added Mark Email Verified PATCH node between Mark Login Success and Respond OK in `clx-auth-magic-link-verify.json`. Any successful magic-link click = verified email automatically. Simpler than a parallel verify flow.
+- **`clx-auth-resend-verification-v1` workflow** — POST `/auth/resend-verification` with `{email}`. Lookup auth_users → if user exists, active, not yet verified: mint 24h auth_magic_links token + send Postmark verify email pointing at `/auth/magic-link-verify.html?token=X`. Always returns ok=true (does not leak existence). Reuses the existing auth_magic_links table — no new schema needed.
+
+### Verify-email loop end-to-end
+
+```
+Signup → auth_users row created with email_verified=false
+       → validate-session returns email_verified=false
+       → frontend redirects to /verify-email.html
+       → Mary's user clicks Resend
+       → POST /webhook/auth/resend-verification
+       → token minted, Postmark email sent
+       → user clicks button in email
+       → /auth/magic-link-verify.html → POST /webhook/auth/magic-link-verify
+       → session created + email_verified=true + email_verified_at=now()
+       → user lands in dashboard, no more verify redirect
+```
+
+### What got unblocked / decided
+
+- **Reuse auth_magic_links for verify tokens.** Originally planned a separate `email_verification_tokens` table. Saw that magic-link-verify already does most of what we needed (consume token + create session) — extending it with one PATCH node was cleaner than building a parallel flow.
+- **insurer-dashboard access model is separate** — accepted that the gate sweep doesn't naturally apply. Future Stripe cancel handling for insurers needs its own branch in clx-stripe-webhook-v1.
+
+### What got blocked or deferred
+
+- **insurer-dashboard auth.js + Stripe cancel handling for insurers** — see above. Not blocking any active customer flow; queued.
+- **Rate limiting on /auth/resend-verification** — currently no per-email cooldown. A determined caller could spam tokens (within Postmark's free-tier email cap). Add a "last_sent_at > now() - 5 min skip" check next pass.
+- **Verify-email page Resend button success message** — currently shows "Sent. Check your inbox" even if downstream Postmark failed (the workflow returns ok=true regardless to avoid existence leak). Trade-off accepted; user can email support if nothing arrives.
+
+### What Mary needs to do next
+
+- Run the deploy block: `docker cp` + `import:workflow` for magic-link-verify + resend-verification + `docker restart n8n`. CF Pages auto-deploys CSP + auth.js parity.
+- Purge `/shared/*` at CF after deploy (24h edge cache).
+- Test the verify loop end-to-end with Paul's email once his account is reactive — should land in his inbox + click should verify him.
+
+---
+
 ## 2026-05-29 — Access control gates: is_active + email_verified + per-product + Stripe-cancel
 
 Overnight session closing the 4 security gaps identified after Paul's first signup landed and we realized the access model was wide open (no per-product gating, no email verification enforcement, no suspension flag, no link from Stripe cancellation back to dashboard access).
