@@ -1,0 +1,223 @@
+{
+  "id": "wfAdminProvisionClient",
+  "name": "CLX - Admin Provision Client v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/provision-client",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "apc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "clx-admin-provision-client-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst leadId = String(body.lead_id || '').trim();\nif (!leadId) return { json: { ok: false, status: 400, error: 'lead_id required' } };\nconst productsOverride = Array.isArray(body.products) ? body.products : null;\nconst roleOverride = String(body.role || '').trim() || null;\nreturn { json: { token, leadId, productsOverride, roleOverride } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "apc-0002",
+      "name": "Extract Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "apc-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst inp = $('Extract Inputs').item.json;\nreturn { json: { ok: true, leadId: inp.leadId, productsOverride: inp.productsOverride, roleOverride: inp.roleOverride } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "apc-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "apc-c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "apc-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.leadId) + '&select=id,full_name,email,phone,company,industry,source,notes&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "apc-0006",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 220],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the auth_users row from the lead. Parse the product list from\n// the lead notes (the signup workflow wrote 'product=<x>' there) unless\n// the caller passed an explicit products override.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst leads = allOf('Fetch Lead');\nconst lead = leads[0];\nif (!lead) {\n  return { json: { _failed: true, status: 404, error: 'Lead not found for that id' } };\n}\nif (!lead.email) {\n  return { json: { _failed: true, status: 400, error: 'Lead has no email — cannot provision' } };\n}\n\nconst inp = $('Check Admin').item.json;\nlet products = inp.productsOverride;\nif (!products) {\n  const notes = String(lead.notes || '');\n  const m = notes.match(/product=([a-z_]+)/i);\n  const product = m ? m[1].toLowerCase() : null;\n  if (product && ['sales_engine','sentinel','ava','luxi','maxi','ciro','mga','smart_quote'].indexOf(product) !== -1) {\n    products = [product];\n  } else {\n    products = [];\n  }\n}\n\nconst row = {\n  email:              String(lead.email).trim().toLowerCase(),\n  user_role:          inp.roleOverride || 'client',\n  full_name:          lead.full_name || lead.email,\n  company_name:       lead.company || 'TBD',\n  products:           products,\n  onboarding_status:  'account_created',\n  signup_source:      lead.source === 'saas_client_signup' ? 'demo_to_paid' : 'admin_provisioned'\n};\n\nreturn { json: { authUserRow: row, leadId: lead.id, leadEmail: lead.email, leadName: lead.full_name } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "apc-0007",
+      "name": "Build Auth User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "apc-c2", "leftValue": "={{ $json._failed }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "apc-0008",
+      "name": "IF Lead OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1780, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?on_conflict=email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.authUserRow) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "apc-0009",
+      "name": "Upsert Auth User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 160],
+      "credentials": {
+        "httpCustomAuth": { "name": "Supabase Crystallux Custom" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (x) { return x && x.id; });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Upsert Auth User');\nconst authUser = rows[0];\nconst build = $('Build Auth User').item.json;\nif (!authUser || !authUser.id) {\n  const raw = $('Upsert Auth User').first().json || {};\n  return { json: { ok: false, status: 500, error: 'Auth user upsert returned no row: ' + (raw.message || raw.error || 'unknown'), supabase_raw: raw } };\n}\nreturn { json: {\n  ok: true,\n  auth_user_id: authUser.id,\n  email: authUser.email,\n  user_role: authUser.user_role,\n  full_name: authUser.full_name,\n  products: authUser.products,\n  onboarding_status: authUser.onboarding_status,\n  lead_id: build.leadId,\n  message: 'Provisioned ' + authUser.full_name + ' (' + authUser.email + ') with role ' + authUser.user_role + ' and products ' + JSON.stringify(authUser.products) + '. Send them a magic link via Supabase Auth -> Users -> Send Magic Link.'\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "apc-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 160]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "apc-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2440, 160]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, status: $json.status || 400, error: $json.error || 'Unauthorized', supabase_raw: $json.supabase_raw || null }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "apc-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 420]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[ { "node": "Extract Inputs", "type": "main", "index": 0 } ]] },
+    "Extract Inputs": { "main": [[ { "node": "Validate Session", "type": "main", "index": 0 } ]] },
+    "Validate Session": { "main": [[ { "node": "Check Admin", "type": "main", "index": 0 } ]] },
+    "Check Admin": { "main": [[ { "node": "IF Admin OK", "type": "main", "index": 0 } ]] },
+    "IF Admin OK": {
+      "main": [
+        [ { "node": "Fetch Lead", "type": "main", "index": 0 } ],
+        [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Fetch Lead": { "main": [[ { "node": "Build Auth User", "type": "main", "index": 0 } ]] },
+    "Build Auth User": { "main": [[ { "node": "IF Lead OK", "type": "main", "index": 0 } ]] },
+    "IF Lead OK": {
+      "main": [
+        [ { "node": "Upsert Auth User", "type": "main", "index": 0 } ],
+        [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Upsert Auth User": { "main": [[ { "node": "Shape Response", "type": "main", "index": 0 } ]] },
+    "Shape Response": { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "notes": "Admin 1-click client provisioning. POST /webhook/admin/provision-client with { lead_id, products?, role? }. Admin-gated. Reads the lead, extracts product from notes (or accepts override), UPSERTs into auth_users with onboarding_status='account_created'. Returns auth_user_id so the UI can confirm. Designed to be called from a 'Provision client' button on the lead-detail page."
+  }
+}

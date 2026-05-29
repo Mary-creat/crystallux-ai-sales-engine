@@ -137,9 +137,18 @@
       quickActions += '<a href="mailto:' + esc(l.email) + '" class="muted">✉️ Email</a>';
     }
 
+    // Provision button — only for SaaS-signup leads. One-click creates the
+    // auth_users row so Paul (and future signups) can log in. Replaces the
+    // manual SQL Mary used to run.
+    var provisionBtn = '';
+    if (l.source === 'saas_client_signup') {
+      provisionBtn = '<button id="provisionBtn" data-lead-id="' + esc(l.id) + '" data-email="' + esc(l.email || '') + '" data-name="' + esc(l.full_name || '') + '" style="padding:9px 16px;background:#10b981;color:#fff;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px">⚡ Provision client account</button>';
+    }
+
     var html = '<div class="clx-card-head"><div class="clx-card-title">' + esc(l.full_name || l.email) + '</div>' +
       '<span class="clx-badge clx-badge-' + (l.lead_status === 'Booked' ? 'success' : 'info') + '">' + esc(l.lead_status || '—') + '</span></div>' +
-      (quickActions ? '<div class="ld-quick-actions">' + quickActions + '</div>' : '') +
+      (quickActions || provisionBtn ? '<div class="ld-quick-actions">' + quickActions + provisionBtn + '</div>' : '') +
+      '<div id="provisionResult" style="margin-top:10px"></div>' +
       '<div class="ld-grid">' +
         line('Full name', l.full_name) +
         (l.email ? lineHtml('Email', '<a href="mailto:' + esc(l.email) + '" style="color:#7C3AED">' + esc(l.email) + '</a>') : '') +
@@ -158,6 +167,38 @@
       '</div>' +
       (l.notes ? '<div class="ld-notes">' + esc(l.notes) + '</div>' : '');
     card.innerHTML = html;
+
+    // Wire the provision button
+    var btn = document.getElementById('provisionBtn');
+    if (btn) btn.addEventListener('click', function () { provisionClient(btn); });
+  }
+
+  function provisionClient(btn) {
+    var leadId = btn.dataset.leadId;
+    var email = btn.dataset.email;
+    var name = btn.dataset.name;
+    if (!confirm('Provision an account for ' + name + ' (' + email + ')?\n\nThis creates the auth_users row. Send them a magic link from Supabase Auth -> Users after.')) return;
+    btn.disabled = true;
+    btn.textContent = 'Provisioning…';
+    var resultEl = document.getElementById('provisionResult');
+    clxApi.adminPost('provision-client', { lead_id: leadId }).then(function (res) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Provision client account';
+      if (!res.ok) {
+        resultEl.innerHTML = '<div style="padding:10px 14px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;color:#991b1b;font-size:13px">✗ ' + (res.error || 'Failed to provision') + '</div>';
+        return;
+      }
+      var d = res.data || {};
+      resultEl.innerHTML = '<div style="padding:12px 16px;background:#d1fae5;border:1px solid #6ee7b7;border-radius:6px;color:#065f46;font-size:13px">' +
+        '<strong>✓ Account provisioned.</strong><br>' +
+        'auth_user_id: <code>' + (d.auth_user_id || '?') + '</code><br>' +
+        'Role: ' + (d.user_role || '?') + ' · Products: ' + JSON.stringify(d.products || []) + '<br>' +
+        '<strong>Next:</strong> Go to <a href="https://supabase.com/dashboard/project/zqwatouqmqgkmaslydbr/auth/users" target="_blank" style="color:#065f46;text-decoration:underline">Supabase Auth -> Users</a>, find ' + email + ', click <strong>Send Magic Link</strong>. They use it to set their password + log in.' +
+        '</div>';
+      btn.style.background = '#94a3b8';
+      btn.disabled = true;
+      btn.textContent = '✓ Provisioned';
+    });
   }
 
   function renderMsg(m) {
