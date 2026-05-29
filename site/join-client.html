@@ -63,7 +63,7 @@
   </div>
 
   <div class="j-form-wrap">
-    <p class="j-form-sub">Fill out a few details below. Within 24 hours we email you to book a 20-minute discovery call where we walk through your goals and confirm the right product + tier together. Pick what feels closest if you are not sure — we will refine on the call.</p>
+    <p class="j-form-sub">Quick form below — takes 30 seconds. Within 24 hours someone real (not a bot) reaches out to book a 20-minute chat. That is where we figure out which product fits your business. Not sure which one to pick? Just choose what feels closest. We will sort it out on the call together.</p>
 
     <form id="signup-form">
       <div class="j-form-grid">
@@ -187,15 +187,15 @@
       form.style.display = 'none';
       statusEl.className = 'j-status ok';
       statusEl.innerHTML =
-        '<div style="font-size:1.05rem;font-weight:700;color:#065f46;margin-bottom:12px">✓ Sign-up received.</div>' +
-        '<p style="margin:0 0 14px;color:#0f172a">Thanks. We have your details. Here is exactly what happens next:</p>' +
-        '<ol style="padding-left:22px;margin:0 0 14px;line-height:1.7;color:#334155">' +
-          '<li><strong>Today (within 24 hours):</strong> Our onboarding team emails you from <strong>info@crystallux.org</strong> with a calendar link to book a 20-minute discovery call.</li>' +
-          '<li><strong>On the call:</strong> we confirm your goals, pick the right product + tier, and answer your questions. No pressure, no slides.</li>' +
-          '<li><strong>Same day as the call:</strong> we provision your account, send you your login, and walk you through the dashboard. You leave with a live workspace and your first leads in motion.</li>' +
-          '<li><strong>Week 1:</strong> personal onboarding support. You will not be left staring at a blank screen.</li>' +
+        '<div style="font-size:1.1rem;font-weight:700;color:#065f46;margin-bottom:14px">✓ Got it. We have your details.</div>' +
+        '<p style="margin:0 0 18px;color:#0f172a;line-height:1.6">Thanks for reaching out. Here is what happens next:</p>' +
+        '<ol style="padding-left:22px;margin:0 0 18px;line-height:1.75;color:#334155">' +
+          '<li style="margin-bottom:8px"><strong>Within 24 hours.</strong> We email you from <strong>info@crystallux.org</strong> with a few times to chat. Just pick one.</li>' +
+          '<li style="margin-bottom:8px"><strong>The call (20 min, max).</strong> We talk through what you are trying to build, figure out which product and tier actually fits, and answer any questions. No slides, no pressure.</li>' +
+          '<li style="margin-bottom:8px"><strong>Same day as the call.</strong> Your account is live. Login emailed. Dashboard ready. First campaigns set up while we are still on the line if you want.</li>' +
+          '<li><strong>Your first week.</strong> Real human support — not a chatbot. You will not be staring at a blank screen wondering what to do.</li>' +
         '</ol>' +
-        '<p style="margin:0;font-size:0.88rem;color:#64748b">Nothing in your inbox by tomorrow? Check spam first. Still nothing? Reply to this page\'s sender or write to <a href="mailto:info@crystallux.org" style="color:#7C3AED">info@crystallux.org</a> and we will sort it out.</p>';
+        '<p style="margin:0;font-size:0.9rem;color:#64748b;line-height:1.6">Nothing in your inbox by tomorrow? Check spam first. Still nothing? Just write to <a href="mailto:info@crystallux.org" style="color:#7C3AED;text-decoration:underline">info@crystallux.org</a> — we will sort it out.</p>';
     })
     .catch(function (err) {
       btn.disabled = false;
