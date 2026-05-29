@@ -64,14 +64,41 @@
     },
     {
       "parameters": {
-        "jsCode": "// Defensive: array OR auto-unwrapped single object.\nconst raw = $input.item.json;\nconst user = Array.isArray(raw) ? (raw[0] || null) : (raw && raw.id ? raw : null);\nconst email = $('Validate Email').item.json.email;\n\n// Always respond ok=true to the caller (do not leak existence). The\n// 'shouldSend' flag controls whether the downstream send branch fires.\nlet shouldSend = false;\nlet reason = '';\nif (!user) { reason = 'no_user'; }\nelse if (user.is_active === false) { reason = 'suspended'; }\nelse if (user.email_verified === true) { reason = 'already_verified'; }\nelse { shouldSend = true; }\n\nif (!shouldSend) {\n  return { json: { ok: true, shouldSend: false, reason, email } };\n}\n\n// Mint a 32-byte base64url token, 24h expiry. Reuses auth_magic_links\n// table — magic-link-verify is what flips email_verified=true and is\n// also the page the user lands on, so the table double-duty is fine.\nconst crypto = require('crypto');\nconst token = crypto.randomBytes(32).toString('base64url');\nconst expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();\nreturn { json: { ok: true, shouldSend: true, email, token, expires_at, user_id: user.id } };",
+        "jsCode": "// Pass-through: stash the user lookup so we can read it after the\n// rate-limit query overwrites $json in the next node.\nconst raw = $input.item.json;\nconst user = Array.isArray(raw) ? (raw[0] || null) : (raw && raw.id ? raw : null);\nreturn { json: { user, email: $('Validate Email').item.json.email } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-rv-0012",
+      "name": "Stash User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_magic_links?email=eq.' + encodeURIComponent($json.email) + '&created_at=gte.' + encodeURIComponent(new Date(Date.now() - 5 * 60 * 1000).toISOString()) + '&used_at=is.null&select=id&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "auth-rv-0013",
+      "name": "Check Recent Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine user state + rate-limit state to decide whether to send.\n// Always respond ok=true (do not leak existence or rate-limit window).\nconst stash = $('Stash User').item.json;\nconst user = stash.user;\nconst email = stash.email;\n\n// Rate-limit query returns [] when no recent token, or [{id:...}] when there is one.\nconst recentRaw = $input.item.json;\nconst recent = Array.isArray(recentRaw) ? recentRaw : (recentRaw && recentRaw.id ? [recentRaw] : []);\nconst rateLimited = recent.length > 0;\n\nlet shouldSend = false;\nlet reason = '';\nif (!user) { reason = 'no_user'; }\nelse if (user.is_active === false) { reason = 'suspended'; }\nelse if (user.email_verified === true) { reason = 'already_verified'; }\nelse if (rateLimited) { reason = 'rate_limited'; }\nelse { shouldSend = true; }\n\nif (!shouldSend) {\n  return { json: { ok: true, shouldSend: false, reason, email } };\n}\n\n// Mint a 32-byte base64url token, 24h expiry.\nconst crypto = require('crypto');\nconst token = crypto.randomBytes(32).toString('base64url');\nconst expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();\nreturn { json: { ok: true, shouldSend: true, email, token, expires_at, user_id: user.id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "auth-rv-0005",
       "name": "Mint Token Or Skip",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 200]
+      "position": [1520, 200]
     },
     {
       "parameters": {
@@ -198,8 +225,10 @@
                                        [ { "node": "Lookup User",        "type": "main", "index": 0 } ],
                                        [ { "node": "Respond 4xx",        "type": "main", "index": 0 } ]
                                      ] },
-    "Lookup User":          { "main": [[ { "node": "Mint Token Or Skip", "type": "main", "index": 0 } ]] },
-    "Mint Token Or Skip":   { "main": [[ { "node": "IF Should Send",     "type": "main", "index": 0 } ]] },
+    "Lookup User":          { "main": [[ { "node": "Stash User",          "type": "main", "index": 0 } ]] },
+    "Stash User":           { "main": [[ { "node": "Check Recent Token",  "type": "main", "index": 0 } ]] },
+    "Check Recent Token":   { "main": [[ { "node": "Mint Token Or Skip",  "type": "main", "index": 0 } ]] },
+    "Mint Token Or Skip":   { "main": [[ { "node": "IF Should Send",      "type": "main", "index": 0 } ]] },
     "IF Should Send":       { "main": [
                                        [ { "node": "Insert Magic Link",  "type": "main", "index": 0 } ],
                                        [ { "node": "Respond OK",         "type": "main", "index": 0 } ]
