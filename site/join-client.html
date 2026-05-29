@@ -186,9 +186,16 @@
       }
       form.style.display = 'none';
       statusEl.className = 'j-status ok';
-      statusEl.innerHTML = '<strong>✓ Sign-up received.</strong><br>' +
-        'Our team will email you from <strong>info@crystallux.org</strong> within 24 hours to book your onboarding call. ' +
-        'Check your spam folder if nothing arrives by then.';
+      statusEl.innerHTML =
+        '<div style="font-size:1.05rem;font-weight:700;color:#065f46;margin-bottom:12px">✓ Sign-up received.</div>' +
+        '<p style="margin:0 0 14px;color:#0f172a">Thanks. We have your details. Here is exactly what happens next:</p>' +
+        '<ol style="padding-left:22px;margin:0 0 14px;line-height:1.7;color:#334155">' +
+          '<li><strong>Today (within 24 hours):</strong> Our onboarding team emails you from <strong>info@crystallux.org</strong> with a calendar link to book a 20-minute discovery call.</li>' +
+          '<li><strong>On the call:</strong> we confirm your goals, pick the right product + tier, and answer your questions. No pressure, no slides.</li>' +
+          '<li><strong>Same day as the call:</strong> we provision your account, send you your login, and walk you through the dashboard. You leave with a live workspace and your first leads in motion.</li>' +
+          '<li><strong>Week 1:</strong> personal onboarding support. You will not be left staring at a blank screen.</li>' +
+        '</ol>' +
+        '<p style="margin:0;font-size:0.88rem;color:#64748b">Nothing in your inbox by tomorrow? Check spam first. Still nothing? Reply to this page\'s sender or write to <a href="mailto:info@crystallux.org" style="color:#7C3AED">info@crystallux.org</a> and we will sort it out.</p>';
     })
     .catch(function (err) {
       btn.disabled = false;
