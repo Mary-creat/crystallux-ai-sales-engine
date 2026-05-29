@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Account paused | Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="canonical" href="https://crystallux.org/account-suspended.html">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .auth-shell{max-width:520px;margin:80px auto;padding:0 20px}
+  .auth-card{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:14px;padding:36px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.04)}
+  .auth-title{font-size:24px;font-weight:700;color:var(--text-primary);margin-bottom:8px;letter-spacing:-0.01em}
+  .auth-sub{font-size:14px;color:var(--text-secondary);margin-bottom:18px;line-height:1.6}
+  .auth-btn{display:inline-block;padding:11px 18px;background:var(--accent-primary);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;font:inherit;font-size:14px;text-decoration:none}
+  .auth-btn-secondary{background:transparent;color:var(--text-secondary);border:1px solid var(--border-default);margin-left:8px}
+  .helpline{font-size:13px;color:var(--text-secondary);margin-top:18px}
+  .helpline a{color:var(--accent-primary);text-decoration:none}
+</style>
+</head>
+<body>
+  <main class="auth-shell">
+    <div class="auth-card">
+      <h1 class="auth-title">Your account is paused</h1>
+      <p class="auth-sub">
+        Access has been suspended — this usually means a subscription lapsed
+        or was canceled. Your data is safe and untouched.
+      </p>
+      <p class="auth-sub">
+        To reactivate, email <a href="mailto:billing@crystallux.org">billing@crystallux.org</a>
+        or reply to your last invoice. We'll have you back up the same day.
+      </p>
+      <a class="auth-btn" href="mailto:billing@crystallux.org">Email billing</a>
+      <a class="auth-btn auth-btn-secondary" href="/" id="home-link">Back to crystallux.org</a>
+      <p class="helpline">
+        Signed in as <span id="user-email">your account</span>.
+        <a href="#" id="logout-link">Sign out</a>
+      </p>
+    </div>
+  </main>
+  <script>
+    (function () {
+      var email = '';
+      try { email = localStorage.getItem('clx_user_email') || ''; } catch (e) {}
+      if (email) document.getElementById('user-email').textContent = email;
+      document.getElementById('logout-link').addEventListener('click', function (e) {
+        e.preventDefault();
+        try {
+          localStorage.removeItem('clx_session_token');
+          localStorage.removeItem('clx_user_email');
+          localStorage.removeItem('clx_user_role');
+          localStorage.removeItem('clx_user_client_id');
+          localStorage.removeItem('clx_user_products');
+          localStorage.removeItem('clx_user_email_verified');
+          localStorage.removeItem('clx_user_is_active');
+        } catch (err) {}
+        window.location.replace('/login.html');
+      });
+    })();
+  </script>
+</body>
+</html>

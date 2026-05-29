@@ -188,6 +188,91 @@
     {
       "parameters": {
         "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "clx-sw-cond-sub-deleted", "leftValue": "={{ $json.is_subscription_deleted }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "clx-sw-0012",
+      "name": "IF Subscription Deleted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1640, 700]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?stripe_customer_id=eq.{{ $('Dispatch Event Type').item.json.stripe_customer_id }}&select=id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "options": {}
+      },
+      "id": "clx-sw-0013",
+      "name": "Lookup Client For Suspend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1880, 760],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?client_id=eq.{{ ($json[0] && $json[0].id) || 'none' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ is_active: false, products: [], suspended_at: new Date().toISOString(), suspended_reason: 'stripe_subscription_canceled' }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0014",
+      "name": "Suspend Auth Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2120, 760],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/revoke_sessions_for_client",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: ($('Lookup Client For Suspend').item.json[0] && $('Lookup Client For Suspend').item.json[0].id) || null }) }}",
+        "options": {}
+      },
+      "id": "clx-sw-0015",
+      "name": "Revoke Sessions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 760],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
           "options": {
             "caseSensitive": true,
             "leftValue": "",
@@ -197,7 +282,7 @@
           "conditions": [
             {
               "id": "clx-sw-cond-pay-fail",
-              "leftValue": "={{ $json.is_payment_failed }}",
+              "leftValue": "={{ $('Dispatch Event Type').item.json.is_payment_failed }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -338,6 +423,37 @@
       ]
     },
     "Patch Client Row": {
+      "main": [
+        [
+          { "node": "IF Subscription Deleted", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "IF Subscription Deleted": {
+      "main": [
+        [
+          { "node": "Lookup Client For Suspend", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "IF Payment Failed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Lookup Client For Suspend": {
+      "main": [
+        [
+          { "node": "Suspend Auth Users", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Suspend Auth Users": {
+      "main": [
+        [
+          { "node": "Revoke Sessions", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Revoke Sessions": {
       "main": [
         [
           { "node": "IF Payment Failed", "type": "main", "index": 0 }

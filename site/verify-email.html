@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" data-clx-allow-unverified="true">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verify your email | Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="canonical" href="https://crystallux.org/verify-email.html">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .auth-shell{max-width:480px;margin:80px auto;padding:0 20px}
+  .auth-card{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:14px;padding:36px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.04)}
+  .auth-title{font-size:24px;font-weight:700;color:var(--text-primary);margin-bottom:8px;letter-spacing:-0.01em}
+  .auth-sub{font-size:14px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6}
+  .auth-email{font-weight:600;color:var(--text-primary)}
+  .auth-btn{display:inline-block;padding:11px 18px;background:var(--accent-primary);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;font:inherit;font-size:14px}
+  .auth-btn:disabled{opacity:.6;cursor:not-allowed}
+  .auth-btn-secondary{background:transparent;color:var(--text-secondary);border:1px solid var(--border-default);margin-left:8px}
+  .auth-msg{margin-top:14px;padding:10px 12px;border-radius:8px;font-size:13px;display:none}
+  .auth-msg.ok{background:#ecfdf5;color:#065f46;display:block}
+  .auth-msg.err{background:#fef2f2;color:#991b1b;display:block}
+  .helpline{font-size:13px;color:var(--text-secondary);margin-top:18px}
+  .helpline a{color:var(--accent-primary);text-decoration:none}
+</style>
+</head>
+<body>
+  <main class="auth-shell">
+    <div class="auth-card">
+      <h1 class="auth-title">One quick step: verify your email</h1>
+      <p class="auth-sub">
+        We sent a verification link to <span class="auth-email" id="user-email">your inbox</span>.
+        Click it to unlock your dashboard. The link is good for 24 hours.
+      </p>
+      <button id="resend-btn" class="auth-btn" type="button">Resend verification email</button>
+      <a class="auth-btn auth-btn-secondary" href="#" id="logout-link">Sign out</a>
+      <div id="msg" class="auth-msg" role="status"></div>
+      <p class="helpline">
+        Not seeing it? Check spam, or email
+        <a href="mailto:support@crystallux.org">support@crystallux.org</a>
+        and we'll fix it within the hour.
+      </p>
+    </div>
+  </main>
+  <script>
+    (function () {
+      var email = '';
+      try { email = localStorage.getItem('clx_user_email') || ''; } catch (e) {}
+      if (email) document.getElementById('user-email').textContent = email;
+
+      var btn = document.getElementById('resend-btn');
+      var msg = document.getElementById('msg');
+      btn.addEventListener('click', function () {
+        if (!email) {
+          msg.className = 'auth-msg err';
+          msg.textContent = 'No active session. Sign in again to resend.';
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        fetch('https://automation.crystallux.org/webhook/auth/resend-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        }).then(function (r) {
+          msg.className = r.ok ? 'auth-msg ok' : 'auth-msg err';
+          msg.textContent = r.ok
+            ? 'Sent. Check your inbox in the next minute.'
+            : "We hit a snag sending it. Email support@crystallux.org and we'll verify you manually.";
+          btn.disabled = false;
+          btn.textContent = 'Resend verification email';
+        }).catch(function () {
+          msg.className = 'auth-msg err';
+          msg.textContent = "Network error. Email support@crystallux.org and we'll verify you manually.";
+          btn.disabled = false;
+          btn.textContent = 'Resend verification email';
+        });
+      });
+
+      document.getElementById('logout-link').addEventListener('click', function (e) {
+        e.preventDefault();
+        try {
+          localStorage.removeItem('clx_session_token');
+          localStorage.removeItem('clx_user_email');
+          localStorage.removeItem('clx_user_role');
+          localStorage.removeItem('clx_user_client_id');
+          localStorage.removeItem('clx_user_products');
+        } catch (err) {}
+        window.location.replace('/login.html');
+      });
+    })();
+  </script>
+</body>
+</html>

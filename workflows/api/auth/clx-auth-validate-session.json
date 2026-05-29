@@ -65,11 +65,11 @@
     },
     {
       "parameters": {
-        "jsCode": "// validate_session returns 0 or 1 row. 0 = invalid/expired/revoked.\nconst raw = $input.item.json;\n// Defensive: array OR auto-unwrapped single object. See clx-auth-login note.\nconst row = Array.isArray(raw) ? (raw[0] || null) : (raw && (raw.user_id || raw.id) ? raw : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nreturn { json: {\n  ok: true,\n  user_id: row.user_id,\n  email: row.email,\n  user_role: row.user_role,\n  client_id: row.client_id,\n  expires_at: row.expires_at\n} };",
+        "jsCode": "// validate_session returns 0 or 1 row. 0 = invalid/expired/revoked.\nconst raw = $input.item.json;\nconst row = Array.isArray(raw) ? (raw[0] || null) : (raw && (raw.user_id || raw.id) ? raw : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nreturn { json: {\n  ok: true,\n  user_id: row.user_id,\n  email: row.email,\n  user_role: row.user_role,\n  client_id: row.client_id,\n  expires_at: row.expires_at\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "auth-vs-0005",
-      "name": "Shape Response",
+      "name": "Shape Session",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1120, 400]
@@ -85,10 +85,55 @@
         }
       },
       "id": "auth-vs-0006",
-      "name": "IF Valid",
+      "name": "IF Session Valid",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/v_auth_users_access?user_id=eq.{{ $json.user_id }}&select=user_id,email,user_role,client_id,is_active,email_verified,products,onboarding_status,company_name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/vnd.pgrst.object+json" } ] },
+        "options": {}
+      },
+      "id": "auth-vs-0010",
+      "name": "Fetch Access Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enforce hard access gates: is_active must be true.\n// email_verified is RETURNED but not enforced here — frontend decides whether\n// to redirect to /verify-email. (Otherwise the verify page itself would 401.)\n// vnd.pgrst.object+json returns a single object OR a PGRST116 error envelope.\nconst raw = $input.item.json || {};\nconst session = $('Shape Session').item.json;\n\n// If the view query errored or returned nothing usable, fall back to session-only.\nconst hasProfile = raw && raw.user_id && raw.is_active !== undefined;\n\nif (hasProfile && raw.is_active === false) {\n  return { json: {\n    ok: false,\n    status: 403,\n    error: 'Account suspended. Contact support@crystallux.org.'\n  } };\n}\n\n// Merge access profile onto session response.\nconst products = Array.isArray(raw.products) ? raw.products\n                : (raw.products && typeof raw.products === 'object' ? raw.products : []);\n\nreturn { json: {\n  ok: true,\n  user_id: session.user_id,\n  email: session.email,\n  user_role: session.user_role,\n  client_id: session.client_id,\n  expires_at: session.expires_at,\n  is_active:        hasProfile ? raw.is_active        : true,\n  email_verified:   hasProfile ? raw.email_verified   : false,\n  products:         products,\n  onboarding_status: hasProfile ? raw.onboarding_status : 'new',\n  company_name:     hasProfile ? raw.company_name     : null\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "auth-vs-0011",
+      "name": "Enforce Access Gates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-vs-0012",
+      "name": "IF Gates Pass",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2020, 300]
     },
     {
       "parameters": {
@@ -107,49 +152,55 @@
       "name": "Touch Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 320],
+      "position": [2240, 220],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
       "continueOnFail": true
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, user: { id: $('Shape Response').item.json.user_id, email: $('Shape Response').item.json.email, role: $('Shape Response').item.json.user_role, client_id: $('Shape Response').item.json.client_id }, expires_at: $('Shape Response').item.json.expires_at }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, user: { id: $('Enforce Access Gates').item.json.user_id, email: $('Enforce Access Gates').item.json.email, role: $('Enforce Access Gates').item.json.user_role, client_id: $('Enforce Access Gates').item.json.client_id, is_active: $('Enforce Access Gates').item.json.is_active, email_verified: $('Enforce Access Gates').item.json.email_verified, products: $('Enforce Access Gates').item.json.products, onboarding_status: $('Enforce Access Gates').item.json.onboarding_status, company_name: $('Enforce Access Gates').item.json.company_name }, expires_at: $('Enforce Access Gates').item.json.expires_at }) }}",
         "options": { "responseCode": 200 }
       },
       "id": "auth-vs-0008",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1800, 320]
+      "position": [2460, 220]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid or expired session' }) }}",
-        "options": { "responseCode": 401 }
+        "options": { "responseCode": "={{ $json.status === 403 ? 403 : 401 }}" }
       },
       "id": "auth-vs-0009",
-      "name": "Respond 401",
+      "name": "Respond Denied",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1580, 500]
+      "position": [2240, 500]
     }
   ],
   "connections": {
-    "Webhook":             { "main": [[ { "node": "Extract Token",       "type": "main", "index": 0 } ]] },
-    "Extract Token":       { "main": [[ { "node": "IF No Token",          "type": "main", "index": 0 } ]] },
-    "IF No Token":         { "main": [
-                                      [ { "node": "Respond 401",         "type": "main", "index": 0 } ],
-                                      [ { "node": "Validate Session RPC","type": "main", "index": 0 } ]
-                                    ] },
-    "Validate Session RPC":{ "main": [[ { "node": "Shape Response",      "type": "main", "index": 0 } ]] },
-    "Shape Response":      { "main": [[ { "node": "IF Valid",            "type": "main", "index": 0 } ]] },
-    "IF Valid":            { "main": [
-                                      [ { "node": "Touch Session",       "type": "main", "index": 0 } ],
-                                      [ { "node": "Respond 401",         "type": "main", "index": 0 } ]
-                                    ] },
-    "Touch Session":       { "main": [[ { "node": "Respond OK",          "type": "main", "index": 0 } ]] }
+    "Webhook":              { "main": [[ { "node": "Extract Token",        "type": "main", "index": 0 } ]] },
+    "Extract Token":        { "main": [[ { "node": "IF No Token",          "type": "main", "index": 0 } ]] },
+    "IF No Token":          { "main": [
+                                       [ { "node": "Respond Denied",       "type": "main", "index": 0 } ],
+                                       [ { "node": "Validate Session RPC", "type": "main", "index": 0 } ]
+                                     ] },
+    "Validate Session RPC": { "main": [[ { "node": "Shape Session",        "type": "main", "index": 0 } ]] },
+    "Shape Session":        { "main": [[ { "node": "IF Session Valid",     "type": "main", "index": 0 } ]] },
+    "IF Session Valid":     { "main": [
+                                       [ { "node": "Fetch Access Profile", "type": "main", "index": 0 } ],
+                                       [ { "node": "Respond Denied",       "type": "main", "index": 0 } ]
+                                     ] },
+    "Fetch Access Profile": { "main": [[ { "node": "Enforce Access Gates", "type": "main", "index": 0 } ]] },
+    "Enforce Access Gates": { "main": [[ { "node": "IF Gates Pass",        "type": "main", "index": 0 } ]] },
+    "IF Gates Pass":        { "main": [
+                                       [ { "node": "Touch Session",        "type": "main", "index": 0 } ],
+                                       [ { "node": "Respond Denied",       "type": "main", "index": 0 } ]
+                                     ] },
+    "Touch Session":        { "main": [[ { "node": "Respond OK",           "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false
