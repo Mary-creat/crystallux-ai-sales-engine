@@ -89,7 +89,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ email: $('Validate + Build').item.json.email, user_role: 'client', company_name: ($('Validate + Build').item.json.leadRow && $('Validate + Build').item.json.leadRow.company) || $('Validate + Build').item.json.fullName || 'TBD', products: ($('Validate + Build').item.json.product && $('Validate + Build').item.json.product !== 'unspecified') ? [$('Validate + Build').item.json.product] : [], onboarding_status: 'account_created', signup_source: 'demo_to_paid' }) }}",
+        "jsonBody": "={{ JSON.stringify({ email: $('Validate + Build').item.json.email, user_role: 'client', company_name: ($('Validate + Build').item.json.leadRow && $('Validate + Build').item.json.leadRow.company) || $('Validate + Build').item.json.fullName || 'TBD', email_verified: false, products: ($('Validate + Build').item.json.product && $('Validate + Build').item.json.product !== 'unspecified') ? [$('Validate + Build').item.json.product] : [], onboarding_status: 'account_created', signup_source: 'demo_to_paid' }) }}",
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "pcs-0004b",
