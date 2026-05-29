@@ -177,6 +177,33 @@
     },
     {
       "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?id=eq.' + encodeURIComponent($('Mint Session').item.json.user_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"email_verified\": true, \"email_verified_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": {}
+      },
+      "id": "auth-mlv-0013",
+      "name": "Mark Email Verified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2360, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, session_token: $('Mint Session').item.json.session_token, expires_at: $('Mint Session').item.json.expires_at, user: { email: $('Mint Session').item.json.email, role: $('Mint Session').item.json.user_role, client_id: $('Mint Session').item.json.client_id } }) }}",
         "options": { "responseCode": 200 }
@@ -185,7 +212,7 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2460, 220]
+      "position": [2580, 220]
     },
     {
       "parameters": {
@@ -213,7 +240,8 @@
     "Mint Session":         { "main": [[ { "node": "Mark Link Used",      "type": "main", "index": 0 } ]] },
     "Mark Link Used":       { "main": [[ { "node": "Insert Session",      "type": "main", "index": 0 } ]] },
     "Insert Session":       { "main": [[ { "node": "Mark Login Success",  "type": "main", "index": 0 } ]] },
-    "Mark Login Success":   { "main": [[ { "node": "Respond OK",          "type": "main", "index": 0 } ]] }
+    "Mark Login Success":   { "main": [[ { "node": "Mark Email Verified", "type": "main", "index": 0 } ]] },
+    "Mark Email Verified":  { "main": [[ { "node": "Respond OK",          "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false

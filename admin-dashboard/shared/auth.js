@@ -10,6 +10,9 @@
      localStorage.clx_user_email
      localStorage.clx_user_role         see role inventory below
      localStorage.clx_user_client_id    UUID or empty
+     localStorage.clx_user_products     JSON array of product keys
+     localStorage.clx_user_is_active    'true' | 'false'
+     localStorage.clx_user_email_verified 'true' | 'false'
 
    Role inventory (what pages actually call `require()` with — keep in
    sync when adding a new role to a page):
@@ -27,6 +30,13 @@
    array (['admin','mga_principal']); the array form is preferred for
    pages shared across role sets.
 
+   Access gates (added 2026-05-29 — parity with client-dashboard/shared/auth.js):
+     - is_active=false → server already 403s; bounced to /account-suspended.html
+     - email_verified=false → /verify-email.html for non-admin roles only.
+       Admins are exempt (admin signup flow sets email_verified=true; if a
+       legacy admin row has it false, we don't want to lock Mary out of admin
+       while she's actively fixing things).
+
    Note on role enforcement:
      The role is also re-checked on every API call by the n8n webhook
      (which trusts only its own validate_session RPC). The role we
@@ -36,14 +46,23 @@
 (function (global) {
   'use strict';
 
-  var LOGIN_URL = 'https://crystallux.org/login.html';
-  var APP_URL   = 'https://app.crystallux.org/';
-  var VALIDATE  = 'https://automation.crystallux.org/webhook/auth/validate-session';
+  var LOGIN_URL     = 'https://crystallux.org/login.html';
+  var APP_URL       = 'https://app.crystallux.org/';
+  var VERIFY_URL    = 'https://crystallux.org/verify-email.html';
+  var SUSPENDED_URL = 'https://crystallux.org/account-suspended.html';
+  var VALIDATE      = 'https://automation.crystallux.org/webhook/auth/validate-session';
 
   function getToken()   { try { return localStorage.getItem('clx_session_token') || ''; } catch (e) { return ''; } }
   function getRole()    { try { return localStorage.getItem('clx_user_role')     || ''; } catch (e) { return ''; } }
   function getEmail()   { try { return localStorage.getItem('clx_user_email')    || ''; } catch (e) { return ''; } }
   function getClientId(){ try { return localStorage.getItem('clx_user_client_id')|| ''; } catch (e) { return ''; } }
+  function getProducts() {
+    try {
+      var raw = localStorage.getItem('clx_user_products') || '[]';
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
 
   function clearSession() {
     try {
@@ -52,6 +71,11 @@
       localStorage.removeItem('clx_user_email');
       localStorage.removeItem('clx_user_role');
       localStorage.removeItem('clx_user_client_id');
+      localStorage.removeItem('clx_user_products');
+      localStorage.removeItem('clx_user_email_verified');
+      localStorage.removeItem('clx_user_is_active');
+      localStorage.removeItem('clx_user_onboarding_status');
+      localStorage.removeItem('clx_user_company_name');
     } catch (e) {}
   }
 
@@ -64,18 +88,23 @@
   }
 
   function redirectWrongRole() {
-    // Admin shell, but the user is logged in as a client. Send them to
-    // the client app rather than dropping them at the login screen.
     window.location.replace(APP_URL);
   }
 
-  /**
-   * Validate the session against n8n. Resolves with the user object
-   * on success, or rejects with a string reason. The window-level
-   * gate (require()) ALWAYS redirects on failure — pages should use
-   * require(), and only call validate() directly when they want the
-   * raw promise.
-   */
+  function redirectToVerify() {
+    var sep = VERIFY_URL.indexOf('?') === -1 ? '?' : '&';
+    var next = encodeURIComponent(window.location.href);
+    window.location.replace(VERIFY_URL + sep + 'next=' + next);
+  }
+
+  function redirectToSuspended() {
+    window.location.replace(SUSPENDED_URL);
+  }
+
+  function pageAllowsUnverified() {
+    return document.documentElement.getAttribute('data-clx-allow-unverified') === 'true';
+  }
+
   function validate() {
     var token = getToken();
     if (!token) return Promise.reject('no-token');
@@ -85,13 +114,18 @@
       body: JSON.stringify({})
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.status === 403) { return Promise.reject('suspended'); }
         if (!res.ok || !data.ok) { return Promise.reject(data.error || ('http-' + res.status)); }
-        // Refresh local user fields in case role/client_id changed server-side
         try {
           if (data.user) {
             localStorage.setItem('clx_user_email',     data.user.email     || '');
             localStorage.setItem('clx_user_role',      data.user.role      || '');
             localStorage.setItem('clx_user_client_id', data.user.client_id || '');
+            localStorage.setItem('clx_user_products',  JSON.stringify(data.user.products || []));
+            localStorage.setItem('clx_user_email_verified',    String(!!data.user.email_verified));
+            localStorage.setItem('clx_user_is_active',         String(data.user.is_active !== false));
+            localStorage.setItem('clx_user_onboarding_status', data.user.onboarding_status || 'new');
+            localStorage.setItem('clx_user_company_name',      data.user.company_name || '');
           }
           if (data.expires_at) localStorage.setItem('clx_session_expires', data.expires_at);
         } catch (e) {}
@@ -102,16 +136,7 @@
     });
   }
 
-  /**
-   * Page gate. Call as the first thing in <body>:
-   *   <script>clxAuth.require('admin')</script>          single role
-   *   <script>clxAuth.require(['admin','mga_principal'])</script>  allowlist
-   * Hides the page (visibility:hidden via <html data-clx-gate>) until
-   * the session is confirmed. On success the body becomes visible and
-   * `clxAuth.user` is populated. On failure → redirect.
-   */
   function require_(role) {
-    // Hide content until validated to prevent UI flash
     document.documentElement.setAttribute('data-clx-gate', 'pending');
     var styleId = 'clx-gate-style';
     if (!document.getElementById(styleId)) {
@@ -126,17 +151,34 @@
         if (user.role === 'client') return redirectWrongRole();
         return redirectToLogin('wrong-role');
       }
+      if (user.is_active === false) {
+        return redirectToSuspended();
+      }
+      // Email-verified enforcement: admins are exempt (legacy admin rows may
+      // have email_verified=false; we don't want Mary locked out of the admin
+      // shell). Every other role is bounced to /verify-email.html.
+      if (user.role !== 'admin' && user.email_verified === false && !pageAllowsUnverified()) {
+        return redirectToVerify();
+      }
       global.clxAuth.user = user;
       document.documentElement.setAttribute('data-clx-gate', 'ok');
-      // Notify pages that auth is ready
       try { window.dispatchEvent(new CustomEvent('clx:auth:ready', { detail: user })); } catch (e) {}
       return user;
     }).catch(function (reason) {
+      if (reason === 'suspended') return redirectToSuspended();
       redirectToLogin(reason);
-      // Resolve with a never-settling promise so subsequent .then chains
-      // don't fire while the redirect is in flight.
       return new Promise(function () {});
     });
+  }
+
+  // Per-product helpers. Admins always pass; other roles consult the
+  // products array. Exported for consistency with client-dashboard auth.js.
+  function hasProduct(name) {
+    if (!name) return true;
+    var user = global.clxAuth.user || {};
+    if (user.role === 'admin') return true;
+    var products = Array.isArray(user.products) ? user.products : getProducts();
+    return products.indexOf(name) !== -1;
   }
 
   function logout() {
@@ -159,8 +201,10 @@
     getRole: getRole,
     getEmail: getEmail,
     getClientId: getClientId,
+    getProducts: getProducts,
     validate: validate,
     require: require_,
+    hasProduct: hasProduct,
     logout: logout,
     clearSession: clearSession
   };
