@@ -32,6 +32,45 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-29 — Access control gates: is_active + email_verified + per-product + Stripe-cancel
+
+Overnight session closing the 4 security gaps identified after Paul's first signup landed and we realized the access model was wide open (no per-product gating, no email verification enforcement, no suspension flag, no link from Stripe cancellation back to dashboard access).
+
+### What shipped (`0cef3d4`)
+
+- **DB migration `add-access-control-flags.sql` applied** — adds `is_active boolean NOT NULL DEFAULT true` + `suspended_at` + `suspended_reason` to `auth_users`. Partial index on active users. Creates `v_auth_users_access` view bundling every gating field the frontend needs (is_active, email_verified, products, onboarding_status, company_name) so validate-session fetches them in one round trip. Creates `revoke_sessions_for_client(p_client_id uuid)` RPC for the Stripe cancellation path.
+- **validate-session workflow rewired** — now calls the view after the RPC, HARD-rejects suspended accounts with 403, and returns the full access profile (products/email_verified/onboarding_status/company_name) in the response payload. Verified live: response body now includes all 4 new fields.
+- **Stripe webhook `customer.subscription.deleted` handler** — looks up the canceled client by stripe_customer_id, PATCHes every matching auth_users row to `is_active=false` + `products=[]` + suspended_at/reason, then calls revoke_sessions_for_client so open browser tabs hit the 403 on their next validate-session call.
+- **client-dashboard/shared/auth.js** — `hasProduct()` / `requireProduct()` / `applyProductGates()` helpers. Auto-applies `data-clx-product="<name>"` attribute hiding after auth resolves. Suspended sessions redirect to `/account-suspended.html`; unverified to `/verify-email.html` (which sets `data-clx-allow-unverified=true` so it doesn't redirect-loop).
+- **nav.html** — Sales Engine items (Leads / Campaigns / Bookings / Activity) gated; Overview/Billing/Settings always visible.
+- **site/verify-email.html + site/account-suspended.html** — plain HTML landings matching login.html design tokens. Verify page has Resend button (calls `auth/resend-verification` — workflow not yet built; gracefully errors).
+- Admin row's `email_verified=true` flipped via UPDATE so Mary doesn't get bounced when admin-dashboard gates land next session.
+
+### What got unblocked / decided
+
+- **n8n CLI gotcha downgraded** — Mary's n8n version's `import:workflow` actually *does* replace existing workflows (the memory `n8n-workflow-update-gotcha` may need a version qualifier). Confirmed by "Deactivating workflow X. Remember to activate later. Successfully imported 1 workflow" pattern. `update:workflow` is deprecated → use `publish:workflow` going forward.
+- **VPS env-loading pattern** — `set -a; . /root/crystallux/n8n/.env; set +a` is the cleanest one-liner to source the .env vars into a root shell for psql/curl. Worth saving as a memory.
+- **Admin email verification approach** — admins seeded with `email_verified=false` got stuck. For now, manual UPDATE; longer-term, admin signup flow should set it true automatically.
+
+### What got blocked or deferred
+
+- **Chart.js CSP block on client-dashboard pages** — `https://cdn.jsdelivr.net` not in script-src whitelist. Console error, charts don't render. Fix: add jsdelivr to CSP meta tag OR self-host chart.js bundle. Standalone commit, queued.
+- **admin-dashboard / insurance-mga / insurer auth.js NOT YET updated with the gates** — only client-dashboard got them. Parity sweep needed so suspended admin sessions also get bounced.
+- **`clx-auth-resend-verification-v1` workflow not built** — the Verify Email page's Resend button hits `/webhook/auth/resend-verification` which 404s today. Mary can manually flip `email_verified=true` via psql in the interim.
+- **Magic-link verify endpoint not built** — needs to be a webhook that takes a token from the email, validates it, sets `email_verified=true` + `email_verified_at=now()`, and redirects to /login.html.
+
+### What Mary needs to do next
+
+- Continue onboarding Paul manually — his SaaS account is provisioned but unverified; flip his `email_verified=true` flag via psql when ready, OR wait for the verify workflow next session.
+- Stripe Products + Prices for Sentinel tiers ($299 / $999 / $2,499) — still pending so the subscription-deleted handler has real subscriptions to act on.
+- Decide: roll the queued items (Chart.js CSP + auth.js parity sweep + resend-verification + magic-link verify) into one session, or split.
+
+### Open questions for next session
+
+- Should email_verified be HARD-enforced (server 403) instead of soft (frontend redirect)? Soft is more flexible (verify page itself can load) but a determined attacker could bypass it. Recommend: keep soft for now, add server-side enforcement on sensitive POST endpoints (lead creation, billing changes) as a second pass.
+
+---
+
 ## 2026-05-28 — Comparison marketplace live + Sentinel productized + client onboarding lane
 
 Multi-day continuous session (2026-05-26 → 2026-05-28) closing the gap between "platform built" and "real customers can sign up + see value." The headline ship: the insurance comparison marketplace is end-to-end working (4 verticals, Kayak-style search-theater, hot-lead trigger). Five iterations of lead-insert debugging before it ran clean — every iteration documented in the commits so the same trap won't bite again.
