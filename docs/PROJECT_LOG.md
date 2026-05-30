@@ -32,6 +32,28 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-30 — Sales Engine end-to-end verification + import-leads UNIQUE(company) fix
+
+Goal: prove the Sales Engine runs end-to-end (so Mary can reach insurers + buyers) and test the never-used import-leads feature. Diagnosed from **live deployment state** — probed production `automation.crystallux.org` webhooks directly with a real admin session — rather than reading code.
+
+### What I verified live
+- `auth/login` → issues a valid session token. Auth pipeline healthy end-to-end.
+- `auth/validate-session` (real token) → returns the full user record.
+- `admin/list-leads` (real token) → returns **real leads from the live DB**.
+- Junk-token probes return empty `200` (the pre-fix §0m error-handling shape). This is cosmetic — it only affects *invalid* tokens; valid sessions work. Not a pipeline blocker.
+
+### Bug found + fixed (`<this commit>`)
+- **import-leads (`admin/bulk-import-leads`) was broken.** A 2-row smoke test failed atomically with `duplicate key value violates unique constraint "leads_company_unique"` (23505). Root cause: the *Build + Validate Rows* node defaulted blank company to the literal `'Existing client'`, so every blank/duplicate-company row collided.
+- **The constraint is intentional** — it's the B2B one-lead-per-company dedup the protected **Lead Research v2** discovery pipeline relies on (`docs/architecture/migrations/v2.1_smart_scanning.sql:133`). So the fix is in the importer, NOT the constraint (dropping it would break a protected workflow).
+- Fix mirrors the signup fix `f518a0e`: imported rows are *people*, so `company` is disambiguated by the row's already-unique email (`<company> | <email>`, or `Imported client | <email>` when blank); the real company name is preserved in `notes`. Atomic failure means **no smoke-test rows landed** in the DB.
+
+### Gated on Mary
+- Re-import `workflows/api/admin/clx-admin-bulk-import-leads-v1.json` into live n8n (UI → Import from File → Replace existing). The workflow is **already active on live** (the smoke test reached the DB), so no new activation — just swap in the fixed code. See blockers §0w.
+
+### Open / next session
+- After re-import: run a real CSV through the import-leads UI, confirm rows land in `/leads`.
+- Then trace the outreach leg: confirm an imported segment (by `campaign_tag`) is picked up by Campaign Router v2 → Outreach Generation v2 → Outreach Sender v2, so imported clients actually get contacted.
+
 ## 2026-05-29 (later) — API roadmap + multi-language + carousel + subtitle strategy locked in
 
 Strategic direction-setting session (no new code shipped beyond commit `58519ae` rate-limit on resend-verification). Mary worked through ElevenLabs key creation, asked the broad "what other APIs do we need" question, and we mapped every signup needed for full pipeline coverage across all 7 avatars + insurance MGA + Sales Engine + Sentinel + LUXI.

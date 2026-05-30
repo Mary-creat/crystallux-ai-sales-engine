@@ -6,6 +6,17 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0w. import-leads UNIQUE(company) clash — re-import bulk-import workflow (added 2026-05-30)
+
+The admin **import-leads** feature (`POST /webhook/admin/bulk-import-leads`) rejected inserts with `duplicate key value violates unique constraint "leads_company_unique"` (Postgres 23505). Cause: the importer defaulted a blank `company` to the shared literal `'Existing client'`, so every blank- or shared-company row collided. The `UNIQUE(company)` constraint is **intentional** (the B2B one-lead-per-company dedup the protected Lead Research v2 pipeline relies on — `docs/architecture/migrations/v2.1_smart_scanning.sql:133`), so the fix is in the importer, not the constraint. Now each imported person's `company` is disambiguated by their unique email; the real company name is preserved in `notes`.
+
+**Mary's one step** (workflow is *already active* on live — this just swaps in the fixed code):
+- n8n UI → open **"CLX - Admin Bulk Import Leads v1"** → ⋮ → **Import from File** → select `workflows/api/admin/clx-admin-bulk-import-leads-v1.json` → check **Replace existing** → Save.
+
+**Verify:** go to `admin.crystallux.org/pages/import-leads.html`, upload a small CSV (with some blank/repeated company values), click Import → expect **"✓ Imported N of N leads."** Then confirm they appear in `/pages/leads.html`.
+
+---
+
 ## 0v. Sentinel Comms upgrades — vendor-health + Postmark webhook ingestion (added 2026-05-23, supersedes §0u)
 
 Two pending changes ride the same `clx-admin-sentinel-comms-health-v1.json` file (vendor-health from `4a7de59`, Postmark email_events from `7f1359d`). Plus a net-new receiver workflow + a new `email_events` table.
