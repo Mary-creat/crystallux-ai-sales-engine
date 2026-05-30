@@ -32,6 +32,59 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-29 (later) — API roadmap + multi-language + carousel + subtitle strategy locked in
+
+Strategic direction-setting session (no new code shipped beyond commit `58519ae` rate-limit on resend-verification). Mary worked through ElevenLabs key creation, asked the broad "what other APIs do we need" question, and we mapped every signup needed for full pipeline coverage across all 7 avatars + insurance MGA + Sales Engine + Sentinel + LUXI.
+
+### What shipped (`58519ae`)
+- **Rate-limit on `/auth/resend-verification`** — 1 token per email per 5 min. Adds Check Recent Token GET node that queries auth_magic_links?email=eq.X&created_at=gte.(now-5min)&used_at=is.null. If hit, Mint Token Or Skip sets reason='rate_limited' and short-circuits to Respond OK. Caller still sees ok=true (no leak of rate-limit window).
+
+### What got unblocked / decided
+
+- **No external translation API needed.** Multi-language content (FR, Punjabi, Mandarin, Tagalog, Spanish, Arabic) is handled inline by Claude + HeyGen (175+ avatar languages) + ElevenLabs (32+ multilingual voices) + Browserless (Unicode rendering). DeepL / Google Translate would be redundant ~$25–50/mo savings. Build plan: add `language` column to content tables, pass through every Claude prompt, map language→HeyGen voice ID. ~3 hrs work, $0 cost. Marketing angle: "Crystallux generates outreach in Punjabi/Mandarin/French automatically — same lead, three languages." Big differentiator for MGAs serving immigrant communities + healthcare clients.
+
+- **Carousel generation via Browserless, not Bannerbear.** Decided to build carousel slides using HTML templates rendered by Browserless (already in queue at $10/mo) rather than subscribing to Bannerbear ($49–99/mo). Trade-off: ~4 hrs more upfront template work, full design control + zero new vendor + unlimited templates. Path: AVA carousel orchestrator workflow → Claude writes copy → fills HTML template → Browserless renders each 1080×1080 slide as PNG → R2 upload → posts via Meta + LinkedIn + TikTok APIs.
+
+- **AVA video subtitles via ElevenLabs Forced Alignment.** Reversed earlier "skip subtitles" call after Mary flagged the 80%+ silent-autoplay social engagement multiplier. Flipped Forced Alignment on her ElevenLabs API key to Access. Build plan: video orchestrator → after HeyGen renders, send audio to ElevenLabs Forced Alignment → word-level timestamps → .srt → ffmpeg burn-in (or upload as YouTube/TikTok caption track). Slots into same build as AVA video pipeline.
+
+- **Construction Smart Quote — three-path strategy locked.** Path A (client-managed material price list, $0, ship Phase 1) + Path B (Statistics Canada free API for commodity trend overlay, "Lumber up 12%" dashboard alerts, ~3 hrs, $0 cost, big marketing win) + Path C (RSMeans database, $500–2k/yr, defer to Scale-tier construction customers). StatsCan API: https://www.statcan.gc.ca/en/developers/wds — free + unlimited.
+
+- **Insurance carrier API reality check.** Most Canadian P&C carriers (Aviva, Manulife auto, Intact, Echelon, Pembridge, Northbridge) only expose APIs to APPOINTED brokers. Path: apply for direct broker appointments first (free, ~2–4 weeks per carrier), then subscribe to Applied Rating Services aggregator ($200–500/mo) which unifies multiple carriers behind one API. Compulife ($30/mo, life insurance only) is the easy quick-win — no appointment needed, unlocks all Canadian life carriers immediately for the comparison marketplace life vertical.
+
+- **Sentinel API expansion.** Beyond PagerDuty/Datadog from the original list, the demo-critical additions are Sentry (error tracking + replay, free 5k errors/mo), Slack API (alerts to client's Slack, free), Linear/Jira (auto-create tickets, free), Cloudflare API (deploy controls/WAF, free). Add AWS/GCP/Azure read-only credentials per-client when clients are cloud-hosted. StatusPage.io ($29/mo) reserved for Scale tier.
+
+- **Social listening + life event trigger stack.** TheSportsDB (free, NHL/NBA/MLB/NFL/Soccer scores) for "Leafs win" → "What a game last night!" auto-outreach via CIRO. Birthdays from signup data (already in schema) feed AVA birthday-video cron. NewsAPI.org free tier (100/day) for funding/news-triggered "congrats on the round" outreach. LinkedIn Sales Nav ($80/mo/seat) deferred. PDL/Brand24 deferred until first paid client asks.
+
+- **Purchase intent / bidder-readiness stack.** Built-in (no external API): Stripe webhooks for payment-method-added events + custom dashboard scoring ("visited LUXI 3+ times in 7 days" = hot) + PostHog self-host (free, session replay). Apollo Intent add-on ($99–300/mo) as Phase 2. Bombora / 6sense / G2 Buyer Intent deferred — enterprise budget.
+
+- **LUXI live commerce stack post-Restream.** Restream broadcasts to 30+ platforms but LUXI needs own-site player + sub-3-second latency for live bidding. Two paths: Amazon IVS (~$30–50/mo testing, sub-3s latency — auction feel) OR Cloudflare Stream ($5–20/mo, 5–10s latency, tighter CF integration). Recommend Cloudflare Stream first; upgrade to IVS only when latency becomes a real bidder complaint. Shoppable overlays built in-house (no API). Live captions via AssemblyAI ($0.37/hr) as accessibility upgrade later.
+
+- **Stripe Tax for Smart Quote.** Just enable in Stripe Dashboard (no separate signup) → adds Ontario HST (13%) automatically to all checkout sessions. 2-min toggle. Saves manual tax reconciliation per quote.
+
+### What got blocked or deferred
+
+- **HeyGen plan upgrade** — Mary has API key but on free tier (no usage history yet); intentional defer until AVA goes into production for paying customers.
+- **OpenAI signup** — Anthropic Claude covers all LLM needs; OpenAI optional for Whisper STT redundancy (ElevenLabs STT covers) or DALL-E image gen (Browserless template approach covers).
+- **Enterprise B2B intent data** — Bombora, 6sense, G2 Buyer Intent, Clearbit Reveal — all deferred until $10k MRR.
+- **Canadian carrier direct API integrations** — Aviva, Manulife, Intact, Echelon, Pembridge etc. all gatekeep behind broker appointments. Defer until first appointment lands (~2–4 weeks each, free to apply).
+- **LinkedIn Sales Navigator API** ($80/mo/seat) — defer until first SaaS client asks for it.
+
+### What Mary needs to do next
+
+- Finish ElevenLabs key creation with **Forced Alignment = Access** (subtitle build needs this) + paste back
+- Net-new signups in priority order: Apollo, HeyGen (free tier OK), Cloudflare R2, TheSportsDB (free), Compulife trial (insurance life)
+- Tomorrow: Hunter.io, Twilio, Slack, Sentry, Calendly
+- This week: Meta + TikTok + LinkedIn + YouTube + Cloudflare Stream
+- Apply NOW (long lead time): Aviva, Manulife, Intact, Echelon broker appointments (2–4 weeks each)
+
+### Open questions for next session
+
+- Confirm preferred path for Path A vs Path B Smart Quote rollout for construction — ship Phase A first or both together?
+- Once Stripe Price IDs land, wire Buy buttons on /products/sentinel.html and Sales Engine pages
+- Should we kick off the AVA video + subtitle + carousel build immediately after API keys land, or batch with other Sales Engine work?
+
+---
+
 ## 2026-05-29 (continued) — Access control follow-ups: CSP, auth.js parity, verify-email loop closed
 
 Mary pushed straight through the queued items from the earlier session instead of breaking for sleep. All four follow-ups in one focused commit.
