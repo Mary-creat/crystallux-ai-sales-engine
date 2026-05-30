@@ -32,6 +32,26 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-05-30 (later) — LUXI: Buy Now + auto-bid + self-serve card-backed web bidding
+
+Built LUXI's commercial layer on top of the existing auction engine. Three increments, all on `scale-sprint-v1`, all dormant (`active:false`) pending Mary's VPS deploy.
+
+### What shipped
+- **Buy Now + auto-bid (proxy)** (`f2d79dd`): `listing_type`/`buy_now_price_cents`, `auction_proxy_bids` table, RPC engine (`luxi_apply_proxy_bids` single-pass/idempotent), workflows `clx-admin-luxi-buy-now-v1` + `clx-admin-luxi-proxy-bid-v1`, tick runs proxy resolution each cycle, admin UI (Sale type + Buy Now price on create; Buy now + Set auto-bid on live page).
+- **Self-serve web bidding (fund-guaranteed)** (`<this commit>`): public page `site/luxi-bid.html?a=<id>` with Stripe Elements (first Stripe.js use in repo). Flow: create PaymentIntent **hold** (manual capture) up to max → confirm card → register card-backed proxy → on close, `clx-luxi-proxy-settle-v1` cron captures winner / releases losers. Migration `luxi-web-bidding.sql` (RPCs `luxi_set_web_proxy_bid`, `luxi_classify_proxy_settlements`; hold lifecycle cols). 4 public/avatar workflows. CSP updated for Stripe.
+
+### Design decisions (Mary confirmed)
+- `listing_type` = auction | buy_now | **both** (per item). Auto-bid = **Stripe card pre-auth** proxy bidding.
+- Heavy logic in **Postgres RPCs** → thin n8n workflows, protected place-bid untouched.
+
+### What Mary needs to do
+- Deploy per blockers **§0x** (LUXI go-live) + **§0y** (web bidding): apply migrations, ship workflows via `ship.sh`, set `avatars.active=true`.
+- Set **two** Stripe env vars in n8n: `STRIPE_SECRET_KEY` + `STRIPE_PUBLISHABLE_KEY`.
+
+### Open / next
+- Public one-click **Buy Now** purchase (immediate capture) — fast-follow reusing create-intent.
+- Live video streaming, bidder verification tiers, outbid/winner notifications — Phase 2.
+
 ## 2026-05-30 — Sales Engine end-to-end verification + import-leads UNIQUE(company) fix
 
 Goal: prove the Sales Engine runs end-to-end (so Mary can reach insurers + buyers) and test the never-used import-leads feature. Diagnosed from **live deployment state** — probed production `automation.crystallux.org` webhooks directly with a real admin session — rather than reading code.

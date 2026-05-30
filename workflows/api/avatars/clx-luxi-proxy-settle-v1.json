@@ -1,0 +1,108 @@
+{
+  "id": "wfLuxiProxySettleV1",
+  "name": "CLX - LUXI Proxy Settle v1",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 1 }] } },
+      "id": "lps-0001", "name": "Schedule (every 1 min)", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_classify_proxy_settlements",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Accept", "value": "application/json" }] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lps-0002", "name": "Classify Settlements", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [420, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let rows = $input.item.json;\nif (!Array.isArray(rows)) rows = (rows && rows.proxy_id) ? [rows] : [];\nif (rows.length === 0) return [{ json: { _no_work: true, ts: new Date().toISOString() } }];\nreturn rows.filter(function (r) { return r && r.proxy_id && r.stripe_payment_intent_id; }).map(function (r) { return { json: r }; });",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "lps-0003", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json._no_work }}", "rightValue": true, "operator": { "type": "boolean", "operation": "notEquals", "singleValue": true } }], "combinator": "and" }
+      },
+      "id": "lps-0004", "name": "IF Has Work", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "rules": { "values": [
+          { "outputKey": "capture", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "capture", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
+          { "outputKey": "release", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "release", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
+        ] },
+        "options": {}
+      },
+      "id": "lps-0005", "name": "Capture or Release", "type": "n8n-nodes-base.switch", "typeVersion": 3.2, "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.stripe_payment_intent_id + '/capture' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" },
+          { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ] },
+        "sendBody": true, "specifyBody": "string", "body": "={{ 'amount_to_capture=' + $json.amount_cents }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lps-0006", "name": "Stripe Capture", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.stripe_payment_intent_id + '/cancel' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" },
+          { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ] },
+        "sendBody": true, "specifyBody": "string", "body": "cancellation_reason=abandoned",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lps-0007", "name": "Stripe Cancel", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stripe = $input.item.json || {};\nconst src = $('Fan Out').itemMatching($itemIndex).json;\nconst action = src.action;\nconst st = stripe.status || null;\nconst err = stripe.error ? (stripe.error.message || stripe.error.code) : null;\nlet newStatus, tsField, fail = null;\nif (action === 'capture') {\n  if (st === 'succeeded') { newStatus = 'captured'; tsField = 'captured_at'; }\n  else { newStatus = 'failed'; tsField = 'captured_at'; fail = err || ('capture status: ' + st); }\n} else {\n  if (st === 'canceled') { newStatus = 'released'; tsField = 'released_at'; }\n  else { newStatus = 'failed'; tsField = 'released_at'; fail = err || ('cancel status: ' + st); }\n}\nconst patch = { hold_status: newStatus, settle_amount_cents: src.amount_cents };\npatch[tsField] = new Date().toISOString();\nif (fail) patch.failure_reason = fail;\nreturn { json: { proxy_id: src.proxy_id, patch_body: patch } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lps-0008", "name": "Build Update", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auction_proxy_bids?id=eq.' + $json.proxy_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Prefer", "value": "return=minimal" }] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.patch_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lps-0009", "name": "Patch Proxy", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1840, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    }
+  ],
+  "connections": {
+    "Schedule (every 1 min)": { "main": [[{ "node": "Classify Settlements", "type": "main", "index": 0 }]] },
+    "Classify Settlements":   { "main": [[{ "node": "Fan Out",              "type": "main", "index": 0 }]] },
+    "Fan Out":                { "main": [[{ "node": "IF Has Work",          "type": "main", "index": 0 }]] },
+    "IF Has Work": { "main": [[{ "node": "Capture or Release", "type": "main", "index": 0 }], []] },
+    "Capture or Release": { "main": [
+      [{ "node": "Stripe Capture", "type": "main", "index": 0 }],
+      [{ "node": "Stripe Cancel",  "type": "main", "index": 0 }]
+    ] },
+    "Stripe Capture": { "main": [[{ "node": "Build Update", "type": "main", "index": 0 }]] },
+    "Stripe Cancel":  { "main": [[{ "node": "Build Update", "type": "main", "index": 0 }]] },
+    "Build Update":   { "main": [[{ "node": "Patch Proxy",  "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

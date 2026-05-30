@@ -1,0 +1,60 @@
+{
+  "id": "wfLuxiPublicAuctionV1",
+  "name": "CLX - LUXI Public Auction v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "public/luxi/auction", "responseMode": "responseNode", "options": {} },
+      "id": "lpa-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 300],
+      "webhookId": "clx-luxi-public-auction-001",
+      "notes": "DEACTIVATED. PUBLIC (no auth). Returns public auction info + the Stripe publishable key for the self-serve bidding page. Body: { auction_id }."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst id = String(body.auction_id || '').trim();\nif (!id) return { json: { ok: false, status: 400, error: 'auction_id required' } };\nreturn { json: { auction_id: id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lpa-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auctions?id=eq.' + $json.auction_id + '&select=id,item_title,item_description,item_category,status,current_high_bid_cents,min_increment_cents,reserve_price_cents,scheduled_close_at,listing_type,buy_now_price_cents&limit=1' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lpa-0003", "name": "Fetch Auction", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let rows = $input.item.json;\nif (!Array.isArray(rows)) rows = rows && rows.id ? [rows] : [];\nif (rows.length === 0) return { json: { ok: false, status: 404, error: 'Auction not found' } };\nconst a = rows[0];\nconst live = (a.status === 'open' || a.status === 'extended');\nreturn { json: {\n  ok: true,\n  auction: {\n    id: a.id,\n    title: a.item_title,\n    description: a.item_description,\n    category: a.item_category,\n    status: a.status,\n    live: live,\n    current_high_cents: a.current_high_bid_cents || 0,\n    min_increment_cents: a.min_increment_cents || 100,\n    min_next_cents: (a.current_high_bid_cents || 0) + (a.min_increment_cents || 100),\n    closes_at: a.scheduled_close_at,\n    listing_type: a.listing_type || 'auction',\n    buy_now_cents: a.buy_now_price_cents || null\n  }\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lpa-0004", "name": "Shape", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.ok ? Object.assign({}, $json, { stripe_pk: $env.STRIPE_PUBLISHABLE_KEY || '' }) : $json) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 200 }}",
+          "responseHeaders": { "entries": [
+            { "name": "Access-Control-Allow-Origin",  "value": "*" },
+            { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+            { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+          ] }
+        }
+      },
+      "id": "lpa-0005", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1140, 300]
+    }
+  ],
+  "connections": {
+    "Webhook":      { "main": [[{ "node": "Extract",       "type": "main", "index": 0 }]] },
+    "Extract":      { "main": [[{ "node": "Fetch Auction", "type": "main", "index": 0 }]] },
+    "Fetch Auction":{ "main": [[{ "node": "Shape",         "type": "main", "index": 0 }]] },
+    "Shape":        { "main": [[{ "node": "Respond",       "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

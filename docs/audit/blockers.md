@@ -6,6 +6,30 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0y. LUXI self-serve web bidding (fund-guaranteed auto-bid) — added 2026-05-30
+
+Public page `site/luxi-bid.html?a=<auction_id>` lets a real bidder set a max + enter a card; we authorize a Stripe **hold** (manual capture) up to their max, register a card-backed proxy, and on close capture the winner / release losers. First Stripe.js integration in the repo. CSP (`site/_headers`) updated for `js.stripe.com` + `api.stripe.com`.
+
+**Two Stripe env vars in n8n** (VPS `.env`, then restart n8n — secrets stay server-side):
+- `STRIPE_SECRET_KEY` (`sk_live_…` / `sk_test_…`) — create/capture/cancel PaymentIntents.
+- `STRIPE_PUBLISHABLE_KEY` (`pk_live_…` / `pk_test_…`) — returned by the auction endpoint so the page can mount Stripe Elements.
+
+**Deploy (run on VPS, after the §0x block):**
+```bash
+psql "$DATABASE_URL" -f db/migrations/luxi-web-bidding.sql
+for wf in clx-luxi-public-auction-v1.json clx-luxi-public-create-intent-v1.json \
+          clx-luxi-public-confirm-bid-v1.json clx-luxi-proxy-settle-v1.json; do
+  bash scripts/n8n/ship.sh --branch scale-sprint-v1 "$wf"
+done
+```
+Then ensure `site/luxi-bid.html` deploys via Cloudflare Pages (it's in `site/`), and purge cache if needed.
+
+**Verify:** open `https://crystallux.org/luxi-bid.html?a=<open_auction_id>` → set a max → use Stripe test card `4242 4242 4242 4242` (any future expiry/CVC) → expect "Auto-bid placed". Confirm a hold appears in Stripe Dashboard (uncaptured), `auction_proxy_bids` gets a row with `hold_status='authorized'`, and the bidder leads. Close the auction → the proxy-settle cron captures the winner / releases losers within ~1 min.
+
+**Scope note:** v1 covers card-backed *auto-bid*. Public one-click Buy Now purchase (immediate capture) is a fast-follow reusing the same create-intent pattern. Raising your own max creates a new hold and best-effort cancels the prior one; otherwise Stripe auto-expires uncaptured auths in ~7 days.
+
+---
+
 ## 0x. LUXI go-live — migrations + activate 6 workflows (added 2026-05-30)
 
 LUXI's auction engine is **fully built** (create → bid → anti-snipe → auto-close → winner → Stripe capture is real code, not stubs) but **dormant**. Live video streaming is NOT built (Phase 2) — for launch, the operator streams externally (e.g. TikTok Live) and enters bids via the built live page. **Minimal manual-bid launch needs NO Stripe/secret keys** (settle with winner out-of-band; the capture cron simply finds no holds and no-ops).
