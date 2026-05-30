@@ -45,6 +45,8 @@
 <div class="wrap">
   <div class="brand"><b>LUXI</b> live auction</div>
 
+  <div id="streamBar" class="hidden" style="margin-top:12px;background:#161616;color:#fff;border-radius:12px;padding:12px 14px;font-size:14px"></div>
+
   <div id="loading" class="card">Loading auction…</div>
 
   <div id="auctionCard" class="card hidden">
@@ -70,8 +72,8 @@
 
   <!-- Step 2: card -->
   <div id="payCard" class="card hidden">
-    <div style="font-weight:700;font-size:16px">Authorize a hold for your max</div>
-    <div class="hint">Your card is <b>authorized, not charged</b>. We hold up to your max so your bids are guaranteed. If you don't win, the hold is released; if you win, only the final price is charged.</div>
+    <div id="payCardTitle" style="font-weight:700;font-size:16px">Authorize a hold for your max</div>
+    <div class="hint" id="payCardHint">Your card is <b>authorized, not charged</b>. We hold up to your max so your bids are guaranteed. If you don't win, the hold is released; if you win, only the final price is charged.</div>
     <div id="payment-element"></div>
     <button id="payBtn">Authorize hold &amp; place auto-bid</button>
     <div class="msg err" id="payErr"></div>
@@ -90,6 +92,7 @@ var stripe = null, elements = null, STATE = { auction: null, pi: null };
 
 function $(id){ return document.getElementById(id); }
 function money(c){ return '$' + ((parseInt(c,10)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 function showMsg(el, kind, text){ el.className='msg '+kind; el.textContent=text; el.style.display='block'; }
 function hideMsg(el){ el.style.display='none'; }
 
@@ -114,6 +117,12 @@ async function loadAuction(){
   if (STATE.auction.live && stripe){
     $('bidCard').classList.remove('hidden');
     $('minHint').textContent = 'Minimum next bid: ' + money(STATE.auction.min_next_cents);
+    if (STATE.auction.buy_now_cents){
+      $('bidCard').insertAdjacentHTML('beforeend',
+        '<div style="text-align:center;color:#9ca3af;font-size:12px;margin:18px 0 0">— or skip the wait —</div>' +
+        '<button id="buyNowBtn" style="background:#059669">Buy it now ' + money(STATE.auction.buy_now_cents) + '</button>');
+      $('buyNowBtn').addEventListener('click', startBuyNow);
+    }
   } else if (!stripe){
     $('auctionCard').insertAdjacentHTML('beforeend', '<div class="hint" style="margin-top:12px">Online bidding is not enabled yet. Check back shortly.</div>');
   }
@@ -135,6 +144,17 @@ async function refresh(){
   if (res.ok && res.data && res.data.ok){ STATE.auction = res.data.auction; renderAuction(); $('minHint').textContent = 'Minimum next bid: ' + money(STATE.auction.min_next_cents); }
 }
 
+function mountPay(clientSecret, title, hint, btnLabel){
+  $('payCardTitle').textContent = title;
+  $('payCardHint').innerHTML = hint;
+  STATE.payLabel = btnLabel;
+  $('payBtn').textContent = btnLabel;
+  elements = stripe.elements({ clientSecret: clientSecret, appearance:{ theme:'stripe', variables:{ colorPrimary:'#e91e63' } } });
+  elements.create('payment').mount('#payment-element');
+  $('bidCard').classList.add('hidden');
+  $('payCard').classList.remove('hidden');
+}
+
 $('continueBtn').addEventListener('click', async function(){
   hideMsg($('step1Err'));
   var name = $('fName').value.trim();
@@ -147,24 +167,46 @@ $('continueBtn').addEventListener('click', async function(){
   var res = await postJSON('/public/luxi/create-intent', { auction_id: AUCTION_ID, max_cents: maxCents });
   btn.disabled=false; btn.textContent='Continue to secure payment';
   if (!res.ok || !res.data || !res.data.ok){ showMsg($('step1Err'),'err',(res.data&&res.data.error)||'Could not start payment.'); return; }
-  STATE.pi = { id: res.data.payment_intent_id, max_cents: maxCents, handle: name, client_secret: res.data.client_secret };
-  // mount Stripe Payment Element
-  elements = stripe.elements({ clientSecret: res.data.client_secret, appearance:{ theme:'stripe', variables:{ colorPrimary:'#e91e63' } } });
-  var pe = elements.create('payment'); pe.mount('#payment-element');
-  $('bidCard').classList.add('hidden');
-  $('payCard').classList.remove('hidden');
+  STATE.mode = 'hold';
+  STATE.pi = { id: res.data.payment_intent_id, max_cents: maxCents, handle: name };
+  mountPay(res.data.client_secret, 'Authorize a hold for your max',
+    'Your card is <b>authorized, not charged</b>. We hold up to your max so your bids are guaranteed. If you don\'t win, the hold is released; if you win, only the final price is charged.',
+    'Authorize hold & place auto-bid');
 });
+
+async function startBuyNow(){
+  hideMsg($('step1Err'));
+  var name = $('fName').value.trim();
+  if (!name){ showMsg($('step1Err'),'err','Enter your name or email first.'); $('fName').focus(); return; }
+  var btn = $('buyNowBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Preparing…';
+  var res = await postJSON('/public/luxi/buy-now-intent', { auction_id: AUCTION_ID });
+  btn.disabled=false; btn.textContent='Buy it now ' + money(STATE.auction.buy_now_cents);
+  if (!res.ok || !res.data || !res.data.ok){ showMsg($('step1Err'),'err',(res.data&&res.data.error)||'Could not start checkout.'); return; }
+  STATE.mode = 'buy';
+  STATE.pi = { id: res.data.payment_intent_id, amount_cents: res.data.amount_cents, handle: name };
+  mountPay(res.data.client_secret, 'Complete your purchase',
+    'You are buying this item now for <b>' + money(res.data.amount_cents) + '</b>. Your card is charged on confirmation.',
+    'Pay & buy now');
+}
 
 $('payBtn').addEventListener('click', async function(){
   hideMsg($('payErr'));
-  var btn = $('payBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Authorizing…';
+  var btn = $('payBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Processing…';
   var conf = await stripe.confirmPayment({ elements: elements, redirect:'if_required' });
-  if (conf.error){ showMsg($('payErr'),'err', conf.error.message || 'Card could not be authorized.'); btn.disabled=false; btn.textContent='Authorize hold & place auto-bid'; return; }
+  if (conf.error){ showMsg($('payErr'),'err', conf.error.message || 'Card could not be processed.'); btn.disabled=false; btn.textContent=STATE.payLabel; return; }
   var pi = conf.paymentIntent;
-  if (!pi || pi.status !== 'requires_capture'){ showMsg($('payErr'),'err','Authorization incomplete (status: '+(pi&&pi.status)+'). Your card was not charged.'); btn.disabled=false; btn.textContent='Authorize hold & place auto-bid'; return; }
-  // hold confirmed → register the auto-bid
+  if (STATE.mode === 'buy'){
+    if (!pi || pi.status !== 'succeeded'){ showMsg($('payErr'),'err','Payment incomplete (status: '+(pi&&pi.status)+').'); btn.disabled=false; btn.textContent=STATE.payLabel; return; }
+    var r2 = await postJSON('/public/luxi/buy-now-confirm', { auction_id: AUCTION_ID, handle: STATE.pi.handle, payment_intent_id: pi.id });
+    $('payCard').classList.add('hidden');
+    if (!r2.ok || !r2.data || !r2.data.ok){ showMsg($('successMsg'),'ok','✓ Payment received. Your order is being confirmed — we\'ll email you.'); return; }
+    showMsg($('successMsg'),'ok','✓ Yours! Purchased for ' + r2.data.amount_display + '. We\'ll email your receipt and next steps.');
+    refresh(); return;
+  }
+  // hold / auto-bid
+  if (!pi || pi.status !== 'requires_capture'){ showMsg($('payErr'),'err','Authorization incomplete (status: '+(pi&&pi.status)+'). Your card was not charged.'); btn.disabled=false; btn.textContent=STATE.payLabel; return; }
   var res = await postJSON('/public/luxi/confirm-bid', { auction_id: AUCTION_ID, handle: STATE.pi.handle, max_cents: STATE.pi.max_cents, payment_intent_id: pi.id });
-  if (!res.ok || !res.data || !res.data.ok){ showMsg($('payErr'),'err',(res.data&&res.data.error)||'Could not place your bid. Your hold will auto-release.'); btn.disabled=false; btn.textContent='Authorize hold & place auto-bid'; return; }
+  if (!res.ok || !res.data || !res.data.ok){ showMsg($('payErr'),'err',(res.data&&res.data.error)||'Could not place your bid. Your hold will auto-release.'); btn.disabled=false; btn.textContent=STATE.payLabel; return; }
   $('payCard').classList.add('hidden');
   var d = res.data;
   var msg = '✓ Auto-bid placed, max ' + d.max_display + '.';
@@ -174,8 +216,24 @@ $('payBtn').addEventListener('click', async function(){
   refresh();
 });
 
+async function loadStream(){
+  var res = await postJSON('/public/luxi/stream-status', {});
+  var bar = $('streamBar');
+  if (!res.ok || !res.data || !res.data.live){ bar.classList.add('hidden'); return; }
+  var d = res.data;
+  var plats = (d.platforms||[]).map(function(p){ return String(p).replace('_live',''); });
+  var watch = d.watch_urls || {};
+  var links = Object.keys(watch).map(function(k){ return '<a href="'+esc(encodeURI(watch[k]))+'" target="_blank" rel="noopener noreferrer" style="color:#ffd700;margin-right:12px">▶ '+esc(k)+'</a>'; }).join('');
+  bar.innerHTML = '<span style="font-weight:800;color:#ff4d4f">● LIVE</span>&nbsp; ' +
+    (d.title ? '<b>'+esc(d.title)+'</b> · ' : '') +
+    'streaming on ' + (plats.length ? esc(plats.join(', ')) : 'all platforms') +
+    (links ? '<div style="margin-top:7px">'+links+'</div>' : '');
+  bar.classList.remove('hidden');
+}
+
 loadAuction();
-setInterval(refresh, 7000);
+loadStream();
+setInterval(function(){ refresh(); loadStream(); }, 7000);
 </script>
 </body>
 </html>

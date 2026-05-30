@@ -1,0 +1,95 @@
+{
+  "id": "wfLuxiPublicBuyNowConfirmV1",
+  "name": "CLX - LUXI Public Buy Now Confirm v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "public/luxi/buy-now-confirm", "responseMode": "responseNode", "options": {} },
+      "id": "lbc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 300],
+      "webhookId": "clx-luxi-public-buy-now-confirm-001",
+      "notes": "DEACTIVATED. PUBLIC. After the buyer's card is charged, verifies the PaymentIntent succeeded and records the Buy Now sale (closes the auction). Body: { auction_id, handle, payment_intent_id }. Needs STRIPE_SECRET_KEY."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst id = String(body.auction_id || '').trim();\nconst handle = String(body.handle || body.email || body.name || '').trim().slice(0, 120);\nconst pi = String(body.payment_intent_id || '').trim();\nif (!id) return { json: { ok: false, status: 400, error: 'auction_id required' } };\nif (!handle) return { json: { ok: false, status: 400, error: 'name or email required' } };\nif (!pi) return { json: { ok: false, status: 400, error: 'payment_intent_id required' } };\nreturn { json: { auction_id: id, handle: handle, payment_intent_id: pi } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lbc-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.payment_intent_id }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lbc-0003", "name": "Stripe Get Intent", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $input.item.json || {};\nconst x = $('Extract').item.json;\nif (s.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (s.error.message || 'lookup failed') } };\nif (!s.id) return { json: { ok: false, status: 400, error: 'Payment not found' } };\nif (s.status !== 'succeeded') return { json: { ok: false, status: 402, error: 'Payment did not complete (status: ' + s.status + ')' } };\nconst meta = s.metadata || {};\nif (String(meta.auction_id || '') !== x.auction_id) return { json: { ok: false, status: 400, error: 'Payment does not match this item' } };\nif (meta.kind !== 'luxi_buynow') return { json: { ok: false, status: 400, error: 'Payment is not a Buy Now charge' } };\nreturn { json: { ok: true, auction_id: x.auction_id, handle: x.handle, amount_cents: parseInt(s.amount, 10) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lbc-0004", "name": "Verify Paid", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }
+      },
+      "id": "lbc-0005", "name": "IF Paid", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_buy_now_by_handle",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Accept", "value": "application/json" }] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_auction_id: $json.auction_id, p_platform: 'web', p_handle: $json.handle }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lbc-0006", "name": "Record Sale RPC", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let r = $input.item.json; if (Array.isArray(r)) r = r[0] || {};\nconst v = $('Verify Paid').item.json;\nif (r == null || typeof r !== 'object') r = { ok: false };\nif (!r.ok) {\n  // Payment succeeded but the sale record failed — surface clearly so it can be reconciled (do NOT tell the buyer it failed; they were charged).\n  return { json: { ok: true, status: 200, paid: true, recorded: false, amount_display: '$' + ((v.amount_cents||0)/100).toFixed(2), warning: (r.error || 'sale record pending') } };\n}\nreturn { json: { ok: true, status: 200, paid: true, recorded: true, amount_display: '$' + ((v.amount_cents||0)/100).toFixed(2) } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lbc-0007", "name": "Shape", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1620, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200, "responseHeaders": { "entries": [
+          { "name": "Access-Control-Allow-Origin", "value": "*" },
+          { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+          { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+        ] } }
+      },
+      "id": "lbc-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1860, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}", "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] } }
+      },
+      "id": "lbc-0009", "name": "Respond Error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":           { "main": [[{ "node": "Extract",          "type": "main", "index": 0 }]] },
+    "Extract":           { "main": [[{ "node": "Stripe Get Intent", "type": "main", "index": 0 }]] },
+    "Stripe Get Intent": { "main": [[{ "node": "Verify Paid",       "type": "main", "index": 0 }]] },
+    "Verify Paid":       { "main": [[{ "node": "IF Paid",           "type": "main", "index": 0 }]] },
+    "IF Paid": { "main": [
+      [{ "node": "Record Sale RPC", "type": "main", "index": 0 }],
+      [{ "node": "Respond Error",   "type": "main", "index": 0 }]
+    ] },
+    "Record Sale RPC": { "main": [[{ "node": "Shape",     "type": "main", "index": 0 }]] },
+    "Shape":           { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,48 @@
+{
+  "id": "wfLuxiPublicStreamV1",
+  "name": "CLX - LUXI Public Stream Status v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "public/luxi/stream-status", "responseMode": "responseNode", "options": {} },
+      "id": "lpss-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 300],
+      "webhookId": "clx-luxi-public-stream-001",
+      "notes": "DEACTIVATED. PUBLIC. Returns the current live LUXI stream (platforms + watch links) for the LIVE badge. No auth. Never returns rtmp/stream_key."
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_stream_current",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Accept", "value": "application/json" }] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lpss-0002", "name": "Stream Current RPC", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 300],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let r = $input.item.json; if (Array.isArray(r)) r = r[0] || {};\nif (r == null || typeof r !== 'object' || r.ok === false) return { json: { ok: true, live: false } };\nreturn { json: r };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lpss-0003", "name": "Shape", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200, "responseHeaders": { "entries": [
+          { "name": "Access-Control-Allow-Origin", "value": "*" },
+          { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+          { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+        ] } }
+      },
+      "id": "lpss-0004", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[{ "node": "Stream Current RPC", "type": "main", "index": 0 }]] },
+    "Stream Current RPC": { "main": [[{ "node": "Shape",              "type": "main", "index": 0 }]] },
+    "Shape":              { "main": [[{ "node": "Respond",            "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

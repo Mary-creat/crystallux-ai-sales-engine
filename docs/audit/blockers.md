@@ -17,12 +17,19 @@ Public page `site/luxi-bid.html?a=<auction_id>` lets a real bidder set a max + e
 **Deploy (run on VPS, after the §0x block):**
 ```bash
 psql "$DATABASE_URL" -f db/migrations/luxi-web-bidding.sql
+psql "$DATABASE_URL" -f db/migrations/luxi-streaming.sql
 for wf in clx-luxi-public-auction-v1.json clx-luxi-public-create-intent-v1.json \
-          clx-luxi-public-confirm-bid-v1.json clx-luxi-proxy-settle-v1.json; do
+          clx-luxi-public-confirm-bid-v1.json clx-luxi-proxy-settle-v1.json \
+          clx-luxi-public-buy-now-intent-v1.json clx-luxi-public-buy-now-confirm-v1.json \
+          clx-luxi-public-stream-v1.json clx-admin-luxi-stream-manage-v1.json; do
   bash scripts/n8n/ship.sh --branch scale-sprint-v1 "$wf"
 done
 ```
 Then ensure `site/luxi-bid.html` deploys via Cloudflare Pages (it's in `site/`), and purge cache if needed.
+
+**Public Buy Now** (added 2026-05-30): the bid page now also offers "Buy it now" on items with a Buy Now price — `public/luxi/buy-now-intent` (auto-capture charge) + `public/luxi/buy-now-confirm` (verifies paid → `luxi_buy_now_by_handle` closes the sale). Same two Stripe keys.
+
+**Live streaming** (added 2026-05-30): LUXI streams to every listed platform. `luxi-streaming.sql` adds session control RPCs (`luxi_stream_start/end/current`) + operator fields on `avatar_streaming_sessions`. Admin dashboard → **🎬 Go Live** (pick platforms, link the auction, paste the RTMP target) starts a session; the public bid page shows a **● LIVE on … + watch links** banner. The A/V *transport is external*: connect TikTok/FB/YT/IG once in **Restream.io** (one RTMP in → all platforms out), point **HeyGen Interactive** (real-time AI avatar) OR **OBS** at the RTMP ingest you paste in the Go Live modal. No new env var — the RTMP target is entered per-stream. Comment→bid ingestion (`avatar_comment_responses` `'bid'` intent → existing bid-parser) is the next streaming sub-task.
 
 **Verify:** open `https://crystallux.org/luxi-bid.html?a=<open_auction_id>` → set a max → use Stripe test card `4242 4242 4242 4242` (any future expiry/CVC) → expect "Auto-bid placed". Confirm a hold appears in Stripe Dashboard (uncaptured), `auction_proxy_bids` gets a row with `hold_status='authorized'`, and the bidder leads. Close the auction → the proxy-settle cron captures the winner / releases losers within ~1 min.
 

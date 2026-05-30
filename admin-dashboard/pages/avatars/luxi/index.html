@@ -75,6 +75,7 @@
           <option value="cancelled">Cancelled</option>
         </select>
         <a href="/pages/avatars/luxi/live.html" class="clx-btn clx-btn-secondary" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🔴 Live entry</a>
+        <button id="streamBtn" class="clx-btn clx-btn-secondary" style="background:#161616;color:#fff;border-color:#161616">🎬 Go Live</button>
         <button id="refreshBtn" class="clx-btn clx-btn-secondary">Refresh</button>
         <button id="newAuctionBtn" class="clx-btn clx-btn-primary">+ New auction</button>
       </div>
@@ -158,6 +159,54 @@
       <div style="display:flex;gap:10px;margin-top:8px">
         <button type="submit" class="clx-btn clx-btn-primary">Create auction</button>
         <button type="button" id="createCancel" class="clx-btn clx-btn-secondary">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ───── Live stream modal ───── -->
+<div class="lx-detail-backdrop" id="streamBackdrop">
+  <div class="lx-detail-panel" onclick="event.stopPropagation()" style="max-width:480px">
+    <button class="lx-detail-close" id="streamClose" aria-label="Close">×</button>
+    <div class="lx-detail-h">LUXI live stream</div>
+    <div class="lx-detail-meta" style="margin-bottom:14px"><span id="streamState">Checking status…</span></div>
+    <form id="streamForm" class="clx-form" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label for="stTitle">Stream title</label>
+        <input type="text" id="stTitle" class="clx-input" placeholder="e.g. Friday Night Drop">
+      </div>
+      <div>
+        <label>Broadcast to</label>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:13px">
+          <label style="font-weight:400"><input type="checkbox" class="stPlat" value="tiktok_live" checked> TikTok</label>
+          <label style="font-weight:400"><input type="checkbox" class="stPlat" value="youtube_live" checked> YouTube</label>
+          <label style="font-weight:400"><input type="checkbox" class="stPlat" value="facebook_live" checked> Facebook</label>
+          <label style="font-weight:400"><input type="checkbox" class="stPlat" value="instagram_live"> Instagram</label>
+          <label style="font-weight:400"><input type="checkbox" class="stPlat" value="x_live"> X</label>
+        </div>
+      </div>
+      <div>
+        <label for="stAuction">Link to auction (optional)</label>
+        <select id="stAuction" class="clx-input"><option value="">— none —</option></select>
+      </div>
+      <details>
+        <summary style="cursor:pointer;font-size:13px;color:#6b7280">Streaming transport (Restream / RTMP — set once)</summary>
+        <div style="margin-top:8px">
+          <label for="stRtmp">RTMP ingest URL</label>
+          <input type="text" id="stRtmp" class="clx-input" placeholder="rtmp://live.restream.io/live">
+          <label for="stKey" style="margin-top:8px">Stream key</label>
+          <input type="text" id="stKey" class="clx-input" placeholder="from Restream / platform">
+          <label for="stWatchYt" style="margin-top:8px">Public watch link — YouTube (optional)</label>
+          <input type="text" id="stWatchYt" class="clx-input" placeholder="https://youtube.com/...">
+          <label for="stWatchTt" style="margin-top:8px">Public watch link — TikTok (optional)</label>
+          <input type="text" id="stWatchTt" class="clx-input" placeholder="https://tiktok.com/@.../live">
+        </div>
+      </details>
+      <div id="streamErr" style="color:#dc2626;font-size:13px;display:none"></div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button type="submit" class="clx-btn clx-btn-primary" style="background:#dc2626">● Go Live</button>
+        <button type="button" id="streamEndBtn" class="clx-btn clx-btn-secondary" style="display:none">End stream</button>
+        <button type="button" id="streamCancel" class="clx-btn clx-btn-secondary">Close</button>
       </div>
     </form>
   </div>
@@ -425,6 +474,75 @@ function openDetail(auctionId) {
 function closeDetail() {
   document.getElementById('detailBackdrop').classList.remove('open');
 }
+</script>
+<script>
+(function(){
+  var bd = document.getElementById('streamBackdrop');
+  if (!bd) return;
+  var STREAM = { session_id: null };
+  function tok(){ return localStorage.getItem('clx_session_token') || ''; }
+  async function sPost(path, body){
+    var r = await fetch('https://automation.crystallux.org/webhook'+path, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok()}, body:JSON.stringify(body||{}) });
+    var t = await r.text(); var d=null; try{ d=t?JSON.parse(t):null; }catch(_){}
+    return { ok:r.ok, status:r.status, data:d };
+  }
+  function sErr(msg){ var e=document.getElementById('streamErr'); e.textContent=msg||''; e.style.display=msg?'block':'none'; }
+  async function refreshState(){
+    var res = await sPost('/public/luxi/stream-status', {});
+    var st = document.getElementById('streamState');
+    var endBtn = document.getElementById('streamEndBtn');
+    if (res.data && res.data.live){
+      STREAM.session_id = res.data.session_id;
+      var plats = (res.data.platforms||[]).map(function(p){return String(p).replace('_live','');}).join(', ');
+      st.innerHTML = '<span style="color:#dc2626;font-weight:700">● LIVE</span> on ' + (plats||'—');
+      endBtn.style.display='';
+    } else {
+      STREAM.session_id = null;
+      st.textContent = 'Offline — not currently streaming.';
+      endBtn.style.display='none';
+    }
+  }
+  function fillAuctions(){
+    var sel = document.getElementById('stAuction');
+    if (!sel || typeof STATE==='undefined' || !STATE.auctions) return;
+    var opts = '<option value="">— none —</option>';
+    STATE.auctions.filter(function(a){return a.status==='open'||a.status==='extended'||a.status==='scheduled';}).forEach(function(a){
+      opts += '<option value="'+a.id+'">'+String(a.item_title||'(untitled)').replace(/</g,'&lt;')+'</option>';
+    });
+    sel.innerHTML = opts;
+  }
+  document.getElementById('streamBtn').addEventListener('click', function(){ sErr(''); fillAuctions(); refreshState(); bd.classList.add('open'); });
+  document.getElementById('streamClose').addEventListener('click', function(){ bd.classList.remove('open'); });
+  document.getElementById('streamCancel').addEventListener('click', function(){ bd.classList.remove('open'); });
+  bd.addEventListener('click', function(){ bd.classList.remove('open'); });
+  document.getElementById('streamForm').addEventListener('submit', async function(e){
+    e.preventDefault(); sErr('');
+    var platforms = Array.prototype.slice.call(document.querySelectorAll('.stPlat:checked')).map(function(c){return c.value;});
+    if (!platforms.length){ sErr('Pick at least one platform.'); return; }
+    var watch = {};
+    var yt = document.getElementById('stWatchYt').value.trim(); if (yt) watch.youtube = yt;
+    var tt = document.getElementById('stWatchTt').value.trim(); if (tt) watch.tiktok = tt;
+    var btn = e.target.querySelector('button[type=submit]'); btn.disabled=true; btn.textContent='Going live…';
+    var res = await sPost('/admin/luxi/stream', {
+      action:'start', platforms:platforms,
+      title: document.getElementById('stTitle').value.trim(),
+      auction_id: document.getElementById('stAuction').value || null,
+      rtmp_ingest_url: document.getElementById('stRtmp').value.trim(),
+      stream_key: document.getElementById('stKey').value.trim(),
+      watch_urls: watch
+    });
+    btn.disabled=false; btn.innerHTML='● Go Live';
+    if (!res.ok || !res.data || !res.data.ok){ sErr((res.data&&res.data.error)||'Could not go live.'); return; }
+    await refreshState();
+  });
+  document.getElementById('streamEndBtn').addEventListener('click', async function(){
+    if (!STREAM.session_id) return;
+    if (!window.confirm('End the live stream?')) return;
+    var res = await sPost('/admin/luxi/stream', { action:'end', session_id: STREAM.session_id });
+    if (!res.ok || !res.data || !res.data.ok){ sErr((res.data&&res.data.error)||'Could not end stream.'); return; }
+    await refreshState();
+  });
+})();
 </script>
 </body>
 </html>
