@@ -6,6 +6,33 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0z. Revenue wiring — self-serve Stripe Checkout for Sentinel (+ Sales Engine) — added 2026-05-30
+
+Turns the live products into paying subscriptions. Sentinel's pricing CTAs ($299 / $999 / $2,499) now start a **Stripe Checkout** (14-day trial); on success the buyer lands on `site/welcome.html`, which verifies the session and grants the product onto `auth_users.products` (existing account) or drops a flagged PAID lead for Mary (new buyer). LUXI is already transaction-based (Buy Now/auto-bid captures, §0y); Sales Engine plans stay demo-led but the same checkout works for them via `STRIPE_PRICE_*`.
+
+**Mary's setup (Stripe Dashboard + n8n env — secrets stay server-side):**
+1. **STRIPE_SECRET_KEY** in n8n env (already needed for LUXI).
+2. Create 3 Stripe **Products → recurring monthly CAD Prices** for Sentinel and set env vars:
+   - Starter $299 → `STRIPE_PRICE_SENTINEL_STARTER`
+   - Growth $999 → `STRIPE_PRICE_SENTINEL_GROWTH`
+   - Scale $2,499 → `STRIPE_PRICE_SENTINEL_SCALE`
+   - (For self-serve Sales Engine later, create the per-vertical prices from `docs/STRIPE_PRODUCTS_SPEC.md` → `STRIPE_PRICE_CONSULTING_FOUNDING_1997`, etc.)
+
+**Deploy (VPS — after merge to `main`):**
+```bash
+psql "$DATABASE_URL" -f db/migrations/revenue-checkout.sql
+for wf in clx-public-checkout-v1.json clx-public-checkout-complete-v1.json; do
+  bash scripts/n8n/ship.sh --branch main "$wf"
+done
+```
+Then Cloudflare Pages rebuilds `site/products/sentinel.html` + `site/welcome.html` from `main`.
+
+**Verify (Stripe TEST mode first):** open `crystallux.org/products/sentinel.html` → click "Start with Growth" → Stripe Checkout opens → pay with test card `4242 4242 4242 4242` → land on `welcome.html` → see "You're in / Payment received". Confirm the subscription in Stripe + the product on the buyer's `auth_users.products` (or a `source='paid_checkout'` lead). Existing `clx-stripe-webhook-v1` continues to handle renewals/cancels.
+
+**Deferred:** Stripe Tax (`automatic_tax` omitted for now so the first checkout can't be blocked by tax config — enable later per STRIPE_PRODUCTS_SPEC); auto-emailing a magic-link login to brand-new buyers (today they use /login.html "Forgot password", or Mary's 1-click provision from the flagged lead).
+
+---
+
 ## 0y. LUXI self-serve web bidding (fund-guaranteed auto-bid) — added 2026-05-30
 
 Public page `site/luxi-bid.html?a=<auction_id>` lets a real bidder set a max + enter a card; we authorize a Stripe **hold** (manual capture) up to their max, register a card-backed proxy, and on close capture the winner / release losers. First Stripe.js integration in the repo. CSP (`site/_headers`) updated for `js.stripe.com` + `api.stripe.com`.

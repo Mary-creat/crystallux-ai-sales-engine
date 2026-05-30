@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Welcome to Crystallux</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self';">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; font-family:Inter,system-ui,sans-serif; background:#0f172a; color:#e2e8f0; display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
+  .card { background:#fff; color:#0f172a; max-width:480px; width:100%; border-radius:16px; padding:36px 30px; box-shadow:0 20px 60px rgba(0,0,0,.4); text-align:center; }
+  .mark { width:56px;height:56px;border-radius:14px;background:#0f172a;color:#fff;font-weight:800;font-size:26px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px; }
+  h1 { font-size:24px; margin:0 0 8px; }
+  p { color:#475569; font-size:15px; line-height:1.55; }
+  .ok { color:#16a34a; font-weight:700; }
+  .btn { display:inline-block; margin-top:18px; padding:13px 22px; background:#0f172a; color:#fff; text-decoration:none; border-radius:10px; font-weight:700; }
+  .muted { font-size:13px; color:#94a3b8; margin-top:18px; }
+  .spin { display:inline-block;width:16px;height:16px;border:3px solid #cbd5e1;border-top-color:#0f172a;border-radius:50%;animation:s .7s linear infinite;vertical-align:-3px; }
+  @keyframes s { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="mark">C</div>
+  <div id="content"><p><span class="spin"></span> Confirming your subscription…</p></div>
+</div>
+<script>
+var API = 'https://automation.crystallux.org/webhook';
+var sid = new URLSearchParams(location.search).get('session_id') || '';
+var labels = { sentinel: 'Sentinel', sales_engine: 'the Sales Engine' };
+
+(async function(){
+  var el = document.getElementById('content');
+  if (!sid){ el.innerHTML = '<h1>Thanks!</h1><p>Your subscription is being set up. We\'ll email you shortly.</p><a class="btn" href="/login.html">Sign in</a>'; return; }
+  try {
+    var r = await fetch(API + '/public/checkout-complete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sid }) });
+    var d = await r.json();
+    if (!d || !d.ok){ el.innerHTML = '<h1>Payment received ✓</h1><p>We\'re finishing your setup and will email you shortly with how to log in.</p>'; return; }
+    var prod = labels[d.product] || 'your subscription';
+    if (d.account){
+      el.innerHTML = '<h1>You\'re in! <span class="ok">✓</span></h1>' +
+        '<p>Your subscription to <b>' + prod + '</b> is active and added to your account (' + (d.email||'') + ').</p>' +
+        '<a class="btn" href="/login.html">Go to sign in</a>' +
+        '<div class="muted">Use your existing password, or "Forgot password" to set one.</div>';
+    } else {
+      el.innerHTML = '<h1>Payment received ✓</h1>' +
+        '<p>Welcome to <b>' + prod + '</b>! We\'re provisioning your account for <b>' + (d.email||'you') + '</b> and will email your login within minutes.</p>' +
+        '<div class="muted">Questions? Reply to your receipt email and we\'ll jump in.</div>';
+    }
+  } catch(e){
+    el.innerHTML = '<h1>Payment received ✓</h1><p>Your card was charged successfully. We\'ll email your login shortly.</p>';
+  }
+})();
+</script>
+</body>
+</html>

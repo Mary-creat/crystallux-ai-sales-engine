@@ -1,0 +1,77 @@
+{
+  "id": "wfPublicCheckoutV1",
+  "name": "CLX - Public Checkout v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "public/checkout", "responseMode": "responseNode", "options": {} },
+      "id": "pco-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 300],
+      "webhookId": "clx-public-checkout-001",
+      "notes": "DEACTIVATED. PUBLIC. Creates a Stripe Checkout Session (subscription) for a plan. Body: { plan, email? }. Returns { url }. Needs STRIPE_SECRET_KEY + the matching STRIPE_PRICE_* env var. Stripe Checkout collects the email if not passed."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst plan = String(body.plan || '').trim();\nconst email = String(body.email || '').trim();\n// plan -> { price env var name, product entitlement granted on payment }\nconst PLAN_MAP = {\n  sentinel_starter: { env: 'STRIPE_PRICE_SENTINEL_STARTER', product: 'sentinel' },\n  sentinel_growth:  { env: 'STRIPE_PRICE_SENTINEL_GROWTH',  product: 'sentinel' },\n  sentinel_scale:   { env: 'STRIPE_PRICE_SENTINEL_SCALE',   product: 'sentinel' },\n  consulting_founding_1997:        { env: 'STRIPE_PRICE_CONSULTING_FOUNDING_1997',        product: 'sales_engine' },\n  real_estate_founding_1497:       { env: 'STRIPE_PRICE_REAL_ESTATE_FOUNDING_1497',       product: 'sales_engine' },\n  construction_1497:               { env: 'STRIPE_PRICE_CONSTRUCTION_1497',               product: 'sales_engine' },\n  dental_founding_1497:            { env: 'STRIPE_PRICE_DENTAL_FOUNDING_1497',            product: 'sales_engine' },\n  insurance_broker_founding_1997:  { env: 'STRIPE_PRICE_INSURANCE_BROKER_FOUNDING_1997',  product: 'sales_engine' }\n};\nconst m = PLAN_MAP[plan];\nif (!m) return { json: { ok: false, status: 400, error: 'Unknown plan: ' + (plan || '(missing)') } };\nreturn { json: { ok: true, plan: plan, email: email, price_env: m.env, product: m.product } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pco-0002", "name": "Resolve Plan", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }
+      },
+      "id": "pco-0003", "name": "IF Valid", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.stripe.com/v1/checkout/sessions",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" },
+          { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ] },
+        "sendBody": true, "specifyBody": "string",
+        "body": "={{ 'mode=subscription&line_items[0][price]=' + ($env[$json.price_env] || '') + '&line_items[0][quantity]=1' + ($json.email ? '&customer_email=' + encodeURIComponent($json.email) : '') + '&subscription_data[trial_period_days]=14&allow_promotion_codes=true&metadata[selected_plan]=' + encodeURIComponent($json.plan) + '&metadata[product]=' + encodeURIComponent($json.product) + '&success_url=' + encodeURIComponent('https://crystallux.org/welcome.html?session_id=') + '{CHECKOUT_SESSION_ID}' + '&cancel_url=' + encodeURIComponent('https://crystallux.org/products/') }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pco-0004", "name": "Create Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [900, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $input.item.json || {};\nif (s.error) {\n  const msg = s.error.message || s.error.type || 'Stripe error';\n  // Most common: the STRIPE_PRICE_* env var isn't set yet.\n  return { json: { ok: false, status: 502, error: msg.indexOf('price') !== -1 ? 'Pricing not configured yet for this plan (set the STRIPE_PRICE_* env var in n8n).' : ('Stripe: ' + msg) } };\n}\nif (!s.url) return { json: { ok: false, status: 502, error: 'Stripe did not return a checkout URL (is STRIPE_SECRET_KEY set?)' } };\nreturn { json: { ok: true, status: 200, url: s.url, session_id: s.id } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pco-0005", "name": "Shape", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1140, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": "={{ $json.status || 200 }}", "responseHeaders": { "entries": [
+          { "name": "Access-Control-Allow-Origin", "value": "*" },
+          { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+          { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+        ] } }
+      },
+      "id": "pco-0006", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}", "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] } }
+      },
+      "id": "pco-0007", "name": "Respond Error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [900, 440]
+    }
+  ],
+  "connections": {
+    "Webhook":      { "main": [[{ "node": "Resolve Plan", "type": "main", "index": 0 }]] },
+    "Resolve Plan": { "main": [[{ "node": "IF Valid",     "type": "main", "index": 0 }]] },
+    "IF Valid": { "main": [
+      [{ "node": "Create Session", "type": "main", "index": 0 }],
+      [{ "node": "Respond Error",  "type": "main", "index": 0 }]
+    ] },
+    "Create Session": { "main": [[{ "node": "Shape",   "type": "main", "index": 0 }]] },
+    "Shape":          { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

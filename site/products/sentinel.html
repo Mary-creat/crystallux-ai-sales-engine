@@ -6,7 +6,7 @@
 <link rel="canonical" href="https://crystallux.org/products/sentinel.html">
 <meta property="og:title" content="Sentinel | AI DevOps Employee | Crystallux">
 <meta property="og:description" content="Stop being on-call at 3am. From $299/month. White-label for agencies." />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com; frame-src https://calendly.com; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com https://automation.crystallux.org; frame-src https://calendly.com; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/site.css">
@@ -226,7 +226,7 @@
         <li>Email support, business hours</li>
         <li>30-day audit log retention</li>
       </ul>
-      <a href="/contact.html?plan=sentinel-starter" class="tier-cta">Start with Starter</a>
+      <a href="#" data-plan="sentinel_starter" class="tier-cta">Start with Starter</a>
     </div>
 
     <div class="tier featured">
@@ -244,7 +244,7 @@
         <li>Priority support, business hours</li>
         <li>90-day audit log retention</li>
       </ul>
-      <a href="/contact.html?plan=sentinel-growth" class="tier-cta">Start with Growth</a>
+      <a href="#" data-plan="sentinel_growth" class="tier-cta">Start with Growth</a>
     </div>
 
     <div class="tier">
@@ -263,7 +263,7 @@
         <li>2-year immutable audit log retention</li>
         <li>Custom integrations + on-prem deployment option</li>
       </ul>
-      <a href="/contact.html?plan=sentinel-scale" class="tier-cta">Start with Scale</a>
+      <a href="#" data-plan="sentinel_scale" class="tier-cta">Start with Scale</a>
     </div>
 
   </div>
@@ -308,4 +308,26 @@
 </footer>
 
 <script src="/assets/site.js"></script>
+<script>
+// Wire pricing CTAs to Stripe Checkout. Stripe collects the email on its hosted page.
+document.querySelectorAll('[data-plan]').forEach(function(el){
+  el.addEventListener('click', async function(e){
+    e.preventDefault();
+    if (el.dataset.busy) return; el.dataset.busy = '1';
+    var orig = el.textContent; el.textContent = 'Redirecting…';
+    try {
+      var r = await fetch('https://automation.crystallux.org/webhook/public/checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: el.getAttribute('data-plan') })
+      });
+      var d = await r.json();
+      if (d && d.ok && d.url) { window.location.href = d.url; return; }
+      alert((d && d.error) || 'Checkout is being set up — please book a demo and we\'ll get you started.');
+    } catch (err) {
+      alert('Network error — please try again or book a demo.');
+    }
+    el.textContent = orig; el.dataset.busy = '';
+  });
+});
+</script>
 </body></html>

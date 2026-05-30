@@ -1,0 +1,94 @@
+{
+  "id": "wfPublicCheckoutCompleteV1",
+  "name": "CLX - Public Checkout Complete v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "public/checkout-complete", "responseMode": "responseNode", "options": {} },
+      "id": "pcc-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 300],
+      "webhookId": "clx-public-checkout-complete-001",
+      "notes": "DEACTIVATED. PUBLIC. Called by the welcome page after Checkout. Verifies the session is complete with Stripe, then grants the product (clx_provision_paid_checkout). Body: { session_id }. Needs STRIPE_SECRET_KEY."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst sid = String(body.session_id || '').trim();\nif (!sid || sid.indexOf('cs_') !== 0) return { json: { ok: false, status: 400, error: 'valid session_id required' } };\nreturn { json: { session_id: sid } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pcc-0002", "name": "Extract", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.stripe.com/v1/checkout/sessions/' + $json.session_id }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pcc-0003", "name": "Stripe Get Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $input.item.json || {};\nif (s.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (s.error.message || 'lookup failed') } };\nif (!s.id) return { json: { ok: false, status: 404, error: 'Checkout session not found' } };\n// A subscription with a trial completes without an immediate charge, so check\n// session.status === 'complete' (not payment_status).\nif (s.status !== 'complete') return { json: { ok: false, status: 402, error: 'Checkout not complete (status: ' + s.status + ')' } };\nconst meta = s.metadata || {};\nconst email = (s.customer_details && s.customer_details.email) || s.customer_email || '';\nconst product = String(meta.product || '');\nif (!email) return { json: { ok: false, status: 400, error: 'No email on the session' } };\nif (!product) return { json: { ok: false, status: 400, error: 'No product on the session' } };\nreturn { json: { ok: true, email: email, product: product, plan: String(meta.selected_plan || '') } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pcc-0004", "name": "Verify", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }
+      },
+      "id": "pcc-0005", "name": "IF Verified", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/clx_provision_paid_checkout",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Accept", "value": "application/json" }] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_email: $json.email, p_product: $json.product, p_plan: $json.plan }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "pcc-0006", "name": "Provision RPC", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 220],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let r = $input.item.json; if (Array.isArray(r)) r = r[0] || {};\nconst v = $('Verify').item.json;\nif (r == null || typeof r !== 'object' || r.ok === false) {\n  // Payment is real even if provisioning hiccuped — never tell the buyer it failed.\n  return { json: { ok: true, status: 200, product: v.product, email: v.email, account: false, note: 'pending_setup' } };\n}\nreturn { json: { ok: true, status: 200, product: r.product || v.product, email: v.email, account: !!r.account } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "pcc-0007", "name": "Shape", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1620, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200, "responseHeaders": { "entries": [
+          { "name": "Access-Control-Allow-Origin", "value": "*" },
+          { "name": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+          { "name": "Access-Control-Allow-Headers", "value": "Content-Type" }
+        ] } }
+      },
+      "id": "pcc-0008", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1860, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}", "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] } }
+      },
+      "id": "pcc-0009", "name": "Respond Error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1380, 440]
+    }
+  ],
+  "connections": {
+    "Webhook":           { "main": [[{ "node": "Extract",           "type": "main", "index": 0 }]] },
+    "Extract":           { "main": [[{ "node": "Stripe Get Session", "type": "main", "index": 0 }]] },
+    "Stripe Get Session":{ "main": [[{ "node": "Verify",            "type": "main", "index": 0 }]] },
+    "Verify":            { "main": [[{ "node": "IF Verified",       "type": "main", "index": 0 }]] },
+    "IF Verified": { "main": [
+      [{ "node": "Provision RPC", "type": "main", "index": 0 }],
+      [{ "node": "Respond Error", "type": "main", "index": 0 }]
+    ] },
+    "Provision RPC": { "main": [[{ "node": "Shape",     "type": "main", "index": 0 }]] },
+    "Shape":         { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
