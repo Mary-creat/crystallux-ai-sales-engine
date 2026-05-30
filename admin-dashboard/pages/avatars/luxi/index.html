@@ -140,6 +140,20 @@
           <input type="number" id="newSnipeWin" min="0" step="1" value="30" class="clx-input">
         </div>
       </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label for="newListingType">Sale type</label>
+          <select id="newListingType" class="clx-input">
+            <option value="auction" selected>Auction only</option>
+            <option value="both">Auction + Buy Now</option>
+            <option value="buy_now">Buy Now only (no bidding)</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label for="newBuyNow">Buy Now price ($, required for Buy Now)</label>
+          <input type="number" id="newBuyNow" min="0" step="1" class="clx-input" placeholder="e.g. 250">
+        </div>
+      </div>
       <div id="createError" style="color:#dc2626;font-size:13px;display:none"></div>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button type="submit" class="clx-btn clx-btn-primary">Create auction</button>
@@ -223,8 +237,15 @@ async function submitCreate(e) {
     min_increment_cents:  Math.round((parseFloat(document.getElementById('newMinIncr').value)  || 1) * 100),
     scheduled_open_at:    new Date(openLocal).toISOString(),
     scheduled_close_at:   new Date(closeLocal).toISOString(),
-    anti_snipe_window_seconds: parseInt(document.getElementById('newSnipeWin').value, 10) || 30
+    anti_snipe_window_seconds: parseInt(document.getElementById('newSnipeWin').value, 10) || 30,
+    listing_type: document.getElementById('newListingType').value || 'auction'
   };
+  var buyNowVal = parseFloat(document.getElementById('newBuyNow').value);
+  if (!isNaN(buyNowVal) && buyNowVal > 0) body.buy_now_price_cents = Math.round(buyNowVal * 100);
+  if ((body.listing_type === 'buy_now' || body.listing_type === 'both') && !body.buy_now_price_cents) {
+    errEl.style.display = 'block'; errEl.textContent = 'Buy Now price is required for this sale type.';
+    return;
+  }
   var token = localStorage.getItem('clx_session_token') || '';
   var btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true; btn.textContent = 'Creating…';

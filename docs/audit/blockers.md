@@ -20,16 +20,20 @@ git fetch origin scale-sprint-v1 && git checkout scale-sprint-v1 && git pull ori
 psql "$DATABASE_URL" -f db/migrations/avatars-platform-schema.sql
 psql "$DATABASE_URL" -f db/migrations/luxi-auction-tick-functions.sql
 psql "$DATABASE_URL" -f db/migrations/luxi-anti-snipe-function.sql
+psql "$DATABASE_URL" -f db/migrations/luxi-buy-now-and-proxy-bids.sql   # Buy Now + auto-bid
 psql "$DATABASE_URL" -f db/migrations/luxi-demo-auction-seed.sql
 psql "$DATABASE_URL" -c "UPDATE avatars SET active=true WHERE avatar_name='LUXI';"
 
-# Ship + activate the 6 LUXI workflows
+# Ship + activate the 8 LUXI workflows (6 core + buy-now + proxy-bid)
 for wf in clx-admin-luxi-auctions-list-v1.json clx-admin-luxi-place-bid-v1.json \
           clx-admin-luxi-auction-manage-v1.json clx-luxi-auction-tick-v1.json \
-          clx-luxi-bid-parser-v1.json clx-luxi-stripe-capture-v1.json; do
+          clx-luxi-bid-parser-v1.json clx-luxi-stripe-capture-v1.json \
+          clx-admin-luxi-buy-now-v1.json clx-admin-luxi-proxy-bid-v1.json; do
   bash scripts/n8n/ship.sh --branch scale-sprint-v1 "$wf"
 done
 ```
+
+**Outright sales (Buy Now) + auto-bid (proxy) — added 2026-05-30.** The migration adds `listing_type` + `buy_now_price_cents` to auctions, an `auction_proxy_bids` table, and the resolution engine (`luxi_apply_proxy_bids` runs each auction tick). Create-auction modal now has a Sale type (auction / buy_now / both) + Buy Now price; the live page gains a **Buy now** button and a **Set auto-bid** (max) form. The auto-bid *logic* works for the operator-trusted manual model with no key. The **`STRIPE_SECRET_KEY`** is what upgrades it to fund-guaranteed self-serve bidding (card pre-auth holds, column `auction_proxy_bids.stripe_payment_intent_id` reserved) + Buy Now / winner capture — that self-serve card-collection UI is the next layer.
 
 **Then:** open `admin.crystallux.org/pages/avatars/luxi/index.html` → the DEMO auction shows under "Live now". Open `.../luxi/live.html` → place a test bid → confirm the high bid updates.
 

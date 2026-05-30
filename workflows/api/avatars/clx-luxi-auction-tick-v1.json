@@ -22,6 +22,35 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_apply_all_proxy_bids",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept",       "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "lat-0001a",
+      "name": "Apply Proxy Bids",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 260],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_tick_anti_snipe_extension",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
@@ -90,6 +119,9 @@
   ],
   "connections": {
     "Schedule (every 5 min)": {
+      "main": [[{ "node": "Apply Proxy Bids", "type": "main", "index": 0 }]]
+    },
+    "Apply Proxy Bids": {
       "main": [[{ "node": "Anti-Snipe Extension", "type": "main", "index": 0 }]]
     },
     "Anti-Snipe Extension": {

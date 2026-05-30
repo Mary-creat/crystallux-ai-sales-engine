@@ -1,0 +1,148 @@
+{
+  "id": "wfAdminLuxiProxyBidV1",
+  "name": "CLX - Admin LUXI Proxy Bid v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/luxi/proxy-bid",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "alpx-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "clx-admin-luxi-proxy-bid-001",
+      "notes": "DEACTIVATED. Admin-gated auto-bid (proxy/max bid). Registers a bidder's MAX for an auction; the engine then auto-bids one increment above the competition up to that max. Body: { auction_id, bidder_handle, platform, max_amount (dollars) | max_cents }."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body    = $input.item.json.body    || {};\nconst auth    = headers['authorization'] || headers['Authorization'] || '';\nconst token   = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst auctionId = String(body.auction_id || '').trim();\nconst handle    = String(body.bidder_handle || '').trim();\nconst platform  = String(body.platform || 'manual').trim().toLowerCase();\nlet maxCents = body.max_cents != null ? parseInt(body.max_cents, 10) : null;\nif ((maxCents == null || isNaN(maxCents)) && body.max_amount != null) {\n  const d = parseFloat(String(body.max_amount).replace(/[^0-9.]/g, ''));\n  if (!isNaN(d) && d > 0) maxCents = Math.round(d * 100);\n}\nif (!auctionId) return { json: { ok: false, status: 400, error: 'auction_id required' } };\nif (!handle)    return { json: { ok: false, status: 400, error: 'bidder_handle required' } };\nif (maxCents == null || isNaN(maxCents) || maxCents <= 0) return { json: { ok: false, status: 400, error: 'a positive max (max_amount or max_cents) is required' } };\nreturn { json: { token: token, auction_id: auctionId, handle: handle, platform: platform, max_cents: maxCents } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alpx-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "alpx-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 400],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row  = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nconst x = $('Extract').item.json;\nreturn { json: { ok: true, auction_id: x.auction_id, handle: x.handle, platform: x.platform, max_cents: x.max_cents } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alpx-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }],
+          "combinator": "and"
+        }
+      },
+      "id": "alpx-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_set_proxy_bid_by_handle",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Accept", "value": "application/json" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_auction_id: $json.auction_id, p_platform: $json.platform, p_handle: $json.handle, p_max_cents: $json.max_cents }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "alpx-0006",
+      "name": "Set Proxy RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 320],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let r = $input.item.json;\nif (Array.isArray(r)) r = r[0] || {};\nif (r == null || typeof r !== 'object') r = { ok: false, status: 500, error: 'Unexpected DB response' };\nif (r.ok) {\n  const res = r.resolution || {};\n  return { json: { ok: true, status: 200, max_cents: r.max_cents, max_display: r.max_cents != null ? ('$' + (r.max_cents/100).toFixed(2)) : null, auto_bid_placed: !!res.auto_bid, new_high_cents: res.amount_cents != null ? res.amount_cents : null, new_high_display: res.amount_cents != null ? ('$' + (res.amount_cents/100).toFixed(2)) : null } };\n}\nreturn { json: { ok: false, status: r.status || 500, error: r.error || 'Auto-bid failed' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alpx-0007",
+      "name": "Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": "={{ $json.status || 200 }}" }
+      },
+      "id": "alpx-0008",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1820, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": { "responseCode": "={{ $json.status || 401 }}" }
+      },
+      "id": "alpx-0009",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 560]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Extract",          "type": "main", "index": 0 }]] },
+    "Extract":          { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
+    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
+    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
+    "IF Admin OK": {
+      "main": [
+        [{ "node": "Set Proxy RPC",  "type": "main", "index": 0 }],
+        [{ "node": "Respond Error",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Set Proxy RPC": { "main": [[{ "node": "Shape",   "type": "main", "index": 0 }]] },
+    "Shape":         { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

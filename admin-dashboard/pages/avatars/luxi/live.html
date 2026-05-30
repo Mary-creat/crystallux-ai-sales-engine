@@ -173,26 +173,47 @@ function render() {
     if (a.extensions_used > 0) html += '<span style="color:#dc2626">+' + a.extensions_used + ' ext</span>';
     html += '</div>';
 
-    // Bid entry form
-    html += '<form class="lv-form" data-auction-id="' + clxComp.escapeHtml(a.id) + '">';
-    html += '<input class="lv-handle" placeholder="@bidder_handle" required>';
-    html += '<select class="lv-plat">';
+    // Shared platform <option> list
+    var po = '';
     ['tiktok_comment','instagram_dm','facebook_comment','youtube','sms','whatsapp','web_form','manual'].forEach(function (p) {
-      html += '<option value="' + p + '">' + p + '</option>';
+      po += '<option value="' + p + '">' + p + '</option>';
     });
-    html += '</select>';
+    var aid = clxComp.escapeHtml(a.id);
+
+    // 1. Manual bid entry
+    html += '<form class="lv-form lv-bidform" data-auction-id="' + aid + '">';
+    html += '<input class="lv-handle" placeholder="@bidder_handle" required>';
+    html += '<select class="lv-plat">' + po + '</select>';
     html += '<input class="lv-input" placeholder="raw text e.g. BID 50">';
     html += '<input class="lv-amt" placeholder="$" type="number" min="0" step="0.01">';
     html += '<button type="submit">Place bid</button>';
     html += '</form>';
-    html += '<div class="lv-feedback" data-feedback-for="' + clxComp.escapeHtml(a.id) + '"></div>';
+
+    // 2. Auto-bid (proxy / max). Engine bids up to this max on the bidder's behalf.
+    html += '<form class="lv-form lv-proxy" data-auction-id="' + aid + '">';
+    html += '<input class="lv-handle" placeholder="@bidder_handle (auto-bid)" required>';
+    html += '<select class="lv-plat">' + po + '</select>';
+    html += '<input class="lv-amt" placeholder="max $" type="number" min="0" step="0.01" required style="width:110px">';
+    html += '<button type="submit" style="background:#0ea5e9" title="System auto-bids up to this max on the bidder\'s behalf">Set auto-bid</button>';
+    html += '</form>';
+
+    // 3. Buy Now — only when the item carries a buy-now price
+    if (a.buy_now_price_cents && (a.listing_type === 'buy_now' || a.listing_type === 'both')) {
+      html += '<form class="lv-form lv-buynow" data-auction-id="' + aid + '">';
+      html += '<input class="lv-handle" placeholder="@buyer_handle" required>';
+      html += '<select class="lv-plat">' + po + '</select>';
+      html += '<button type="submit" style="background:#059669">Buy now ' + fmtMoney(a.buy_now_price_cents) + '</button>';
+      html += '</form>';
+    }
+
+    html += '<div class="lv-feedback" data-feedback-for="' + aid + '"></div>';
     html += '</div>';
   });
   html += '</div>';
   el.innerHTML = html;
-  el.querySelectorAll('form.lv-form').forEach(function (f) {
-    f.addEventListener('submit', function (e) { submitBid(e, f); });
-  });
+  el.querySelectorAll('form.lv-bidform').forEach(function (f) { f.addEventListener('submit', function (e) { submitBid(e, f); }); });
+  el.querySelectorAll('form.lv-proxy').forEach(function (f) { f.addEventListener('submit', function (e) { submitProxy(e, f); }); });
+  el.querySelectorAll('form.lv-buynow').forEach(function (f) { f.addEventListener('submit', function (e) { submitBuyNow(e, f); }); });
 }
 
 async function submitBid(e, form) {
@@ -246,6 +267,67 @@ async function submitBid(e, form) {
     showFb(fb, 'error', 'Network: ' + (err && err.message || err));
   }
   STATE.busy[auctionId] = false;
+  btn.disabled = false; btn.textContent = orig;
+}
+
+async function submitProxy(e, form) {
+  e.preventDefault();
+  var auctionId = form.dataset.auctionId;
+  var fb = document.querySelector('[data-feedback-for="' + auctionId + '"]');
+  fb.style.display = 'none'; fb.classList.remove('ok', 'error');
+  var handle  = form.querySelector('.lv-handle').value.trim();
+  var plat    = form.querySelector('.lv-plat').value;
+  var maxStr  = form.querySelector('.lv-amt').value;
+  var maxCents = maxStr ? Math.round(parseFloat(maxStr) * 100) : null;
+  if (!handle) { showFb(fb, 'error', 'Bidder handle required.'); return; }
+  if (!maxCents || maxCents <= 0) { showFb(fb, 'error', 'Enter a max dollar amount.'); return; }
+  var btn = form.querySelector('button'); btn.disabled = true; var orig = btn.textContent; btn.textContent = '…';
+  var token = localStorage.getItem('clx_session_token') || '';
+  try {
+    var r = await fetch('https://automation.crystallux.org/webhook/admin/luxi/proxy-bid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ auction_id: auctionId, bidder_handle: handle, platform: plat, max_cents: maxCents })
+    });
+    var text = await r.text(); var d = null; try { d = text ? JSON.parse(text) : null; } catch (_) {}
+    if (!r.ok || !d || !d.ok) {
+      showFb(fb, 'error', (d && d.error) || ('HTTP ' + r.status));
+    } else {
+      var msg = '✓ auto-bid set for ' + handle + ', max ' + d.max_display;
+      if (d.auto_bid_placed) msg += ' · now leading at ' + d.new_high_display;
+      showFb(fb, 'ok', msg);
+      form.querySelector('.lv-amt').value = '';
+      load(true);
+    }
+  } catch (err) { showFb(fb, 'error', 'Network: ' + (err && err.message || err)); }
+  btn.disabled = false; btn.textContent = orig;
+}
+
+async function submitBuyNow(e, form) {
+  e.preventDefault();
+  var auctionId = form.dataset.auctionId;
+  var fb = document.querySelector('[data-feedback-for="' + auctionId + '"]');
+  fb.style.display = 'none'; fb.classList.remove('ok', 'error');
+  var handle = form.querySelector('.lv-handle').value.trim();
+  var plat   = form.querySelector('.lv-plat').value;
+  if (!handle) { showFb(fb, 'error', 'Buyer handle required.'); return; }
+  if (!window.confirm('Confirm Buy Now sale to ' + handle + '? This closes the auction immediately.')) return;
+  var btn = form.querySelector('button'); btn.disabled = true; var orig = btn.textContent; btn.textContent = '…';
+  var token = localStorage.getItem('clx_session_token') || '';
+  try {
+    var r = await fetch('https://automation.crystallux.org/webhook/admin/luxi/buy-now', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ auction_id: auctionId, buyer_handle: handle, platform: plat })
+    });
+    var text = await r.text(); var d = null; try { d = text ? JSON.parse(text) : null; } catch (_) {}
+    if (!r.ok || !d || !d.ok) {
+      showFb(fb, 'error', (d && d.error) || ('HTTP ' + r.status));
+    } else {
+      showFb(fb, 'ok', '✓ SOLD to ' + handle + ' at ' + d.amount_display + ' (Buy Now)');
+      load(true);
+    }
+  } catch (err) { showFb(fb, 'error', 'Network: ' + (err && err.message || err)); }
   btn.disabled = false; btn.textContent = orig;
 }
 
