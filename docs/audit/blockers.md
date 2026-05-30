@@ -22,7 +22,7 @@ for wf in clx-luxi-public-auction-v1.json clx-luxi-public-create-intent-v1.json 
           clx-luxi-public-confirm-bid-v1.json clx-luxi-proxy-settle-v1.json \
           clx-luxi-public-buy-now-intent-v1.json clx-luxi-public-buy-now-confirm-v1.json \
           clx-luxi-public-stream-v1.json clx-admin-luxi-stream-manage-v1.json; do
-  bash scripts/n8n/ship.sh --branch scale-sprint-v1 "$wf"
+  bash scripts/n8n/ship.sh --branch main "$wf"
 done
 ```
 Then ensure `site/luxi-bid.html` deploys via Cloudflare Pages (it's in `site/`), and purge cache if needed.
@@ -45,7 +45,8 @@ LUXI's auction engine is **fully built** (create → bid → anti-snipe → auto
 
 ```bash
 cd /tmp/clx-latest 2>/dev/null || cd ~/crystallux-deploy 2>/dev/null || cd ~/crystallux-ai-sales-engine
-git fetch origin scale-sprint-v1 && git checkout scale-sprint-v1 && git pull origin scale-sprint-v1
+# DEPLOY BRANCH IS main. Merge scale-sprint-v1 -> main first (Mary), then:
+git fetch origin main && git checkout main && git pull origin main
 
 # Migrations + demo auction (idempotent)
 psql "$DATABASE_URL" -f db/migrations/avatars-platform-schema.sql
@@ -60,7 +61,7 @@ for wf in clx-admin-luxi-auctions-list-v1.json clx-admin-luxi-place-bid-v1.json 
           clx-admin-luxi-auction-manage-v1.json clx-luxi-auction-tick-v1.json \
           clx-luxi-bid-parser-v1.json clx-luxi-stripe-capture-v1.json \
           clx-admin-luxi-buy-now-v1.json clx-admin-luxi-proxy-bid-v1.json; do
-  bash scripts/n8n/ship.sh --branch scale-sprint-v1 "$wf"
+  bash scripts/n8n/ship.sh --branch main "$wf"
 done
 ```
 
@@ -1175,7 +1176,9 @@ as fallback. v2 returns 422 if no products exist for the requested product_type.
 ## 16. Deploy insurance-mga-dashboard frontend (Cloudflare)
 
 11 new pages + 3 shared file edits (api.js, components-mga.js, nav.html).
-Cloudflare Pages auto-deploys on push to `scale-sprint-v1`. After deploy:
+Cloudflare Pages deploys from **`main`** (the production/deploy branch). Work
+lands on `scale-sprint-v1`; nothing deploys until Mary merges it into `main`.
+After the merge + deploy:
 
 - Hard-refresh `mga.crystallux.org` (Ctrl+Shift+R) to bust cache.
 - Verify the new sidebar entries render for `info@crystallux.org`
