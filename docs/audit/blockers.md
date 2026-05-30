@@ -6,6 +6,40 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0x. LUXI go-live — migrations + activate 6 workflows (added 2026-05-30)
+
+LUXI's auction engine is **fully built** (create → bid → anti-snipe → auto-close → winner → Stripe capture is real code, not stubs) but **dormant**. Live video streaming is NOT built (Phase 2) — for launch, the operator streams externally (e.g. TikTok Live) and enters bids via the built live page. **Minimal manual-bid launch needs NO Stripe/secret keys** (settle with winner out-of-band; the capture cron simply finds no holds and no-ops).
+
+**Run on the VPS** (secrets stay server-side):
+
+```bash
+cd /tmp/clx-latest 2>/dev/null || cd ~/crystallux-deploy 2>/dev/null || cd ~/crystallux-ai-sales-engine
+git fetch origin scale-sprint-v1 && git checkout scale-sprint-v1 && git pull origin scale-sprint-v1
+
+# Migrations + demo auction (idempotent)
+psql "$DATABASE_URL" -f db/migrations/avatars-platform-schema.sql
+psql "$DATABASE_URL" -f db/migrations/luxi-auction-tick-functions.sql
+psql "$DATABASE_URL" -f db/migrations/luxi-anti-snipe-function.sql
+psql "$DATABASE_URL" -f db/migrations/luxi-demo-auction-seed.sql
+psql "$DATABASE_URL" -c "UPDATE avatars SET active=true WHERE avatar_name='LUXI';"
+
+# Ship + activate the 6 LUXI workflows
+for wf in clx-admin-luxi-auctions-list-v1.json clx-admin-luxi-place-bid-v1.json \
+          clx-admin-luxi-auction-manage-v1.json clx-luxi-auction-tick-v1.json \
+          clx-luxi-bid-parser-v1.json clx-luxi-stripe-capture-v1.json; do
+  bash scripts/n8n/ship.sh --branch scale-sprint-v1 "$wf"
+done
+```
+
+**Then:** open `admin.crystallux.org/pages/avatars/luxi/index.html` → the DEMO auction shows under "Live now". Open `.../luxi/live.html` → place a test bid → confirm the high bid updates.
+
+**Deferred (NOT needed for a manual-bid launch today):**
+- `STRIPE_SECRET_KEY` env var → only needed when auto-capturing card payments. Also note: payment *holds* aren't auto-created yet (no pre-authorization workflow) — Phase 1.5.
+- `INTERNAL_BID_PARSER_SECRET` env var → only for auto-ingesting platform comments via `/luxi/bid-parse`. Manual entry via live.html does not use it.
+- Live video streaming, bidder verification tiers, outbid/winner notifications → Phase 2.
+
+---
+
 ## 0w. import-leads UNIQUE(company) clash — re-import bulk-import workflow (added 2026-05-30)
 
 The admin **import-leads** feature (`POST /webhook/admin/bulk-import-leads`) rejected inserts with `duplicate key value violates unique constraint "leads_company_unique"` (Postgres 23505). Cause: the importer defaulted a blank `company` to the shared literal `'Existing client'`, so every blank- or shared-company row collided. The `UNIQUE(company)` constraint is **intentional** (the B2B one-lead-per-company dedup the protected Lead Research v2 pipeline relies on — `docs/architecture/migrations/v2.1_smart_scanning.sql:133`), so the fix is in the importer, not the constraint. Now each imported person's `company` is disambiguated by their unique email; the real company name is preserved in `notes`.
