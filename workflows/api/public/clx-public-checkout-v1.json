@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const s = $input.item.json || {};\nif (s.error) {\n  const msg = s.error.message || s.error.type || 'Stripe error';\n  // Most common: the STRIPE_PRICE_* env var isn't set yet.\n  return { json: { ok: false, status: 502, error: msg.indexOf('price') !== -1 ? 'Pricing not configured yet for this plan (set the STRIPE_PRICE_* env var in n8n).' : ('Stripe: ' + msg) } };\n}\nif (!s.url) return { json: { ok: false, status: 502, error: 'Stripe did not return a checkout URL (is STRIPE_SECRET_KEY set?)' } };\nreturn { json: { ok: true, status: 200, url: s.url, session_id: s.id } };",
+        "jsCode": "const s = $input.item.json || {};\nif (s.error) {\n  const msg = s.error.message || s.error.type || 'Stripe error';\n  // Most common: the STRIPE_PRICE_* env var isn't set yet.\n  return { json: { ok: false, status: 400, error: msg.indexOf('price') !== -1 ? 'Pricing not configured yet for this plan (set the STRIPE_PRICE_* env var in n8n).' : ('Stripe: ' + msg) } };\n}\nif (!s.url) return { json: { ok: false, status: 400, error: 'Stripe did not return a checkout URL (is STRIPE_SECRET_KEY set?)' } };\nreturn { json: { ok: true, status: 200, url: s.url, session_id: s.id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "pco-0005", "name": "Shape", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1140, 220]
