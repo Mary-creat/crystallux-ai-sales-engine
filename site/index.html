@@ -100,6 +100,17 @@
   @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
   @media (prefers-reduced-motion: reduce){ .hero-aurora::before,.hero-aurora::after,.marquee-track{animation:none;} }
 
+  /* Split section: text + product visual (Stripe-style alternating) */
+  .split-sec { padding:clamp(36px,5vw,60px) 20px; background:#fbfaff; }
+  .split-inner { max-width:1080px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center; }
+  .email-mock { background:#fff; border:1px solid #e9e3fb; border-radius:16px; box-shadow:0 18px 50px rgba(15,23,42,.12); overflow:hidden; }
+  .email-top { background:#faf9ff; border-bottom:1px solid #efeafe; padding:14px 18px; font-size:13px; color:#64748b; }
+  .email-top b { color:#232233; }
+  .email-body { padding:20px 22px; font-size:14px; color:#334155; line-height:1.65; }
+  .email-body .hl { background:#ede9fe; color:#5b21b6; padding:0 4px; border-radius:4px; }
+  .email-cta { display:inline-block; margin-top:14px; background:#7c3aed; color:#fff; padding:9px 16px; border-radius:8px; font-size:13px; font-weight:700; }
+  @media (max-width:768px){ .split-inner{grid-template-columns:1fr; gap:26px;} }
+
   /* Trusted-by client strip */
   .clients-strip { background:#fff; padding:24px 20px 6px; text-align:center; }
   .clients-inner { display:flex; align-items:center; justify-content:center; gap:14px 32px; flex-wrap:wrap; }
@@ -319,6 +330,25 @@
     </div>
     <div class="clx-center clx-mt-lg">
       <a href="features.html" class="btn-secondary">See all features &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<section class="split-sec">
+  <div class="split-inner">
+    <div>
+      <div class="clx-eyebrow">Outreach that sounds like you</div>
+      <h2 class="clx-h2">Every message, written for one person.</h2>
+      <p class="clx-subhead">It researches each lead and writes a note that reads like a peer wrote it. Specific, human, and never templated.</p>
+    </div>
+    <div class="email-mock">
+      <div class="email-top">To: <b>sarah@northbridge.com</b> &nbsp;&middot;&nbsp; <b>Quick idea for renewal season</b></div>
+      <div class="email-body">
+        Hi Sarah,<br><br>
+        Saw <span class="hl">Northbridge just opened a second office</span>, congratulations. Most brokers your size lose evenings chasing renewals by hand. We book <span class="hl">20+ qualified meetings a month</span> for brokers like you, hands free.<br><br>
+        Worth a quick 15 minutes?
+        <br><span class="email-cta">Book a time</span>
+      </div>
     </div>
   </div>
 </section>

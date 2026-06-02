@@ -758,7 +758,7 @@ address { font-style: normal; }
 .hero {
   /* Responsive hero padding (was: 128px / 96px fixed which felt empty on desktop).
      Min 48px on mobile, max 80px on desktop, smooth scaling between. */
-  padding: clamp(48px, 7vw, 80px) 0 clamp(40px, 6vw, 64px) 0;
+  padding: clamp(36px, 5vw, 60px) 0 clamp(32px, 4.5vw, 48px) 0;
   background: var(--bg-default);
   position: relative;
   overflow: hidden;
