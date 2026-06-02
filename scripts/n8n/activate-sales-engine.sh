@@ -32,6 +32,12 @@ TARGETS=(
   "CLX - Pipeline Update v2"
   "CLX - Reply Ingestion v1"
   "CLX - Booking v2"
+  # --- Market Intelligence layer (optional enhancement; auto-tunes campaigns
+  #     from real-world signals). Safe to leave on; needs its own data keys to
+  #     do anything. Comment these three out if you want core lead-gen only. ---
+  "CLX - Signal Ingestion v1"
+  "CLX - Signal Intelligence v1"
+  "CLX - Intelligence Upsell Detector v1"
 )
 
 echo "================================================================"
