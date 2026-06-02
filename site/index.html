@@ -22,6 +22,32 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<style>
+  /* Premium hero product mockup: a clean, framed look at the real dashboard. */
+  .hero-mockup.hx-frame { aspect-ratio:auto; padding:0; background:#fff; }
+  .hx-chrome { display:flex; align-items:center; gap:7px; padding:12px 16px; background:#faf9ff; border-bottom:1px solid #efeafe; }
+  .hx-dot { width:10px; height:10px; border-radius:50%; }
+  .hx-dot:nth-child(1){background:#ff5f57} .hx-dot:nth-child(2){background:#febc2e} .hx-dot:nth-child(3){background:#28c840}
+  .hx-url { margin-left:10px; font-size:12px; color:#8b86a5; background:#fff; border:1px solid #efeafe; border-radius:6px; padding:4px 12px; font-family:var(--font-mono,ui-monospace,monospace); }
+  .hx-body { padding:20px; background:#fbfaff; }
+  .hx-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .hx-title { font-size:16px; font-weight:800; color:#1a1330; }
+  .hx-badge { font-size:11px; font-weight:700; color:#7c3aed; background:#ede9fe; padding:4px 11px; border-radius:999px; }
+  .hx-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+  .hx-stat { background:#fff; border:1px solid #efeafe; border-radius:12px; padding:14px; }
+  .hx-stat .hx-n { font-size:22px; font-weight:800; color:#1a1330; line-height:1; }
+  .hx-stat .hx-l { font-size:11px; color:#8b86a5; margin-top:5px; }
+  .hx-stat-accent { background:linear-gradient(135deg,#7c3aed,#6d28d9); border-color:transparent; }
+  .hx-stat-accent .hx-n { color:#fff; }
+  .hx-stat-accent .hx-l { color:#fff; opacity:.85; }
+  .hx-chart { display:flex; align-items:flex-end; gap:8px; height:68px; background:#fff; border:1px solid #efeafe; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .hx-bar { flex:1; background:#ede9fe; border-radius:5px 5px 0 0; }
+  .hx-bar.hx-bar-on { background:linear-gradient(180deg,#8b5cf6,#7c3aed); }
+  .hx-leads { display:flex; flex-direction:column; gap:8px; }
+  .hx-lead { display:flex; align-items:center; justify-content:space-between; background:#fff; border:1px solid #efeafe; border-radius:10px; padding:10px 14px; font-size:13px; color:#1a1330; font-weight:600; }
+  .hx-pill { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background:#dcfce7; color:#15803d; }
+  .hx-pill-soft { background:#ede9fe; color:#6d28d9; }
+</style>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -98,7 +124,30 @@
       </div>
     </div>
     <aside class="hero-visual">
-      <img class="hero-mockup-img" src="assets/dashboard-mockup.svg" alt="Crystallux dashboard preview showing 20+ qualified meetings per month, 5 active industries, 24-hour activation, and the 30-day guarantee window." loading="eager" width="800" height="600">
+      <div class="hero-mockup hx-frame" role="img" aria-label="Crystallux dashboard showing 2,518 leads found, 213 replied, 47 meetings booked, and a list of booked calls.">
+        <div class="hx-chrome"><span class="hx-dot"></span><span class="hx-dot"></span><span class="hx-dot"></span><span class="hx-url">app.crystallux.org</span></div>
+        <div class="hx-body">
+          <div class="hx-head"><div class="hx-title">Overview</div><div class="hx-badge">Live</div></div>
+          <div class="hx-stats">
+            <div class="hx-stat"><div class="hx-n">2,518</div><div class="hx-l">Leads found</div></div>
+            <div class="hx-stat"><div class="hx-n">213</div><div class="hx-l">Replied</div></div>
+            <div class="hx-stat hx-stat-accent"><div class="hx-n">47</div><div class="hx-l">Meetings booked</div></div>
+          </div>
+          <div class="hx-chart">
+            <div class="hx-bar" style="height:40%"></div>
+            <div class="hx-bar" style="height:55%"></div>
+            <div class="hx-bar" style="height:47%"></div>
+            <div class="hx-bar" style="height:70%"></div>
+            <div class="hx-bar" style="height:60%"></div>
+            <div class="hx-bar hx-bar-on" style="height:85%"></div>
+            <div class="hx-bar hx-bar-on" style="height:100%"></div>
+          </div>
+          <div class="hx-leads">
+            <div class="hx-lead"><span>Northbridge Insurance</span><span class="hx-pill">Call booked</span></div>
+            <div class="hx-lead"><span>Apex Movers</span><span class="hx-pill hx-pill-soft">Replied</span></div>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
 </section>
