@@ -2,56 +2,122 @@
 <html lang="en"><head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Compare Insurance Quotes | Crystallux Marketplace</title>
-<meta name="description" content="Compare estimated insurance premiums from 5+ Canadian carriers in 60 seconds. Auto, home, tenant, and travel insurance. Free, no obligation, LLQP-licensed advisor follow-up.">
+<meta name="description" content="Compare estimated insurance premiums from 5+ Canadian carriers in 60 seconds. Auto, home, tenant, travel, life, and business insurance. Free, no obligation, LLQP-licensed advisor follow-up.">
 <link rel="canonical" href="https://insurance.crystallux.org/compare/">
 <meta property="og:title" content="Compare Canadian Insurance Quotes — Free in 60 Seconds">
-<meta property="og:description" content="See estimated premiums from 5+ carriers side-by-side. Auto, home, tenant, travel.">
+<meta property="og:description" content="See estimated premiums from 5+ carriers side-by-side. Auto, home, tenant, travel, life, business.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/styles.css">
 <link rel="stylesheet" href="/assets/css/compare.css">
+<style>
+  .mkt-hero { background:linear-gradient(135deg,#11235e 0%, #1e3a8a 55%, #2a4cad 100%); color:#fff; padding:64px 20px 56px; text-align:center; position:relative; overflow:hidden; }
+  .mkt-hero::after { content:""; position:absolute; right:-80px; top:-80px; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle,rgba(251,191,36,.22),transparent 70%); }
+  .mkt-hero .inner { max-width:820px; margin:0 auto; position:relative; }
+  .mkt-eyebrow { display:inline-block; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#fcd34d; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.4); padding:6px 14px; border-radius:999px; }
+  .mkt-hero h1 { font-size:46px; font-weight:800; line-height:1.08; margin:18px 0 14px; color:#fff; letter-spacing:-.02em; }
+  .mkt-hero h1 .gold { color:#fcd34d; }
+  .mkt-hero p { font-size:19px; line-height:1.55; color:#dbe4f7; max-width:600px; margin:0 auto 26px; }
+  .mkt-cta { display:inline-block; background:#fbbf24; color:#11235e; font-weight:800; font-size:17px; padding:15px 34px; border-radius:12px; text-decoration:none; box-shadow:0 12px 30px rgba(251,191,36,.35); transition:transform .15s; }
+  .mkt-cta:hover { transform:translateY(-2px); }
+  .mkt-chips { display:flex; flex-wrap:wrap; justify-content:center; gap:10px 16px; margin-top:26px; }
+  .mkt-chip { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:#eaf0fb; }
+  .mkt-chip .dot { width:8px; height:8px; border-radius:50%; background:#34d399; }
+
+  .mkt-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; max-width:1120px; margin:0 auto; }
+  .mkt-tile { display:flex; flex-direction:column; background:#fff; border:1px solid #e6e9f0; border-radius:18px; padding:28px 26px; text-decoration:none; color:inherit; box-shadow:0 4px 18px rgba(17,35,94,.06); transition:transform .18s, box-shadow .18s, border-color .18s; border-top:4px solid transparent; }
+  .mkt-tile:hover { transform:translateY(-6px); box-shadow:0 22px 48px rgba(17,35,94,.14); border-color:#cdd6ea; }
+  .mkt-tile .ico { width:54px; height:54px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; margin-bottom:16px; }
+  .mkt-tile h3 { font-size:21px; font-weight:800; color:#11235e; margin:0 0 8px; }
+  .mkt-tile p { font-size:14.5px; color:#475569; line-height:1.55; margin:0; flex:1; }
+  .mkt-tile .go { margin-top:18px; font-weight:800; font-size:14.5px; color:#1e3a8a; }
+  .mkt-tile .go::after { content:" \2192"; }
+  .t-auto{border-top-color:#2563eb} .t-auto .ico{background:#dbeafe;color:#2563eb}
+  .t-home{border-top-color:#0ea5e9} .t-home .ico{background:#e0f2fe;color:#0ea5e9}
+  .t-tenant{border-top-color:#10b981} .t-tenant .ico{background:#d1fae5;color:#10b981}
+  .t-travel{border-top-color:#f59e0b} .t-travel .ico{background:#fef3c7;color:#b45309}
+  .t-life{border-top-color:#7c3aed} .t-life .ico{background:#ede9fe;color:#7c3aed}
+  .t-biz{border-top-color:#e11d48} .t-biz .ico{background:#ffe4e6;color:#e11d48}
+
+  .mkt-trust { background:#0f1f4d; color:#fff; padding:26px 20px; }
+  .mkt-trust .row { max-width:1000px; margin:0 auto; display:grid; grid-template-columns:repeat(4,1fr); gap:20px; text-align:center; }
+  .mkt-trust .n { font-size:26px; font-weight:800; color:#fcd34d; }
+  .mkt-trust .l { font-size:13px; color:#cdd6ea; margin-top:4px; }
+  @media (max-width:640px){ .mkt-hero h1{font-size:34px;} .mkt-trust .row{grid-template-columns:repeat(2,1fr);} }
+</style>
 </head><body>
 
 <header class="site-header"><div class="container nav"><a class="brand" href="/"><img src="/assets/images/logo.png" alt="Crystallux Financial Services" class="brand-logo" style="height:46px;width:auto;display:block"></a><nav class="nav-links" aria-label="Primary"><a href="/compare/">Compare</a><a href="/life-insurance.html">Life</a><a href="/travel-insurance.html">Travel</a><a href="/auto-insurance.html">Auto &amp; Home</a><a href="/business-insurance.html">Business</a><a href="/how-it-works.html">How it works</a><a href="/about.html">About</a></nav><div class="nav-cta"><a href="/contact.html" class="btn btn--ghost btn--sm">Talk to advisor</a><a href="/compare/" class="btn btn--primary btn--sm">Compare quotes</a></div></div></header>
 
-<section class="hero" style="padding:60px 0 36px;">
-  <div class="container" style="max-width:880px;text-align:center;">
-    <span class="eyebrow">Free comparison · No obligation</span>
-    <h1 style="margin-top:10px;">Compare Canadian insurance quotes in 60 seconds.</h1>
-    <p class="lead">See estimated premiums from 5+ Canadian carriers side-by-side. Pick the deal that fits. A licensed advisor handles the rest — no fees, no pressure.</p>
+<section class="mkt-hero">
+  <div class="inner">
+    <span class="mkt-eyebrow">Free · No obligation · 60 seconds</span>
+    <h1>Compare. Save. <span class="gold">Done in 60 seconds.</span></h1>
+    <p>See estimated premiums from 5+ Canadian carriers side-by-side, then pick the one that fits. A licensed advisor handles the rest, with no fees and no pressure.</p>
+    <a href="#categories" class="mkt-cta">Start comparing</a>
+    <div class="mkt-chips">
+      <span class="mkt-chip"><span class="dot"></span>5+ Canadian carriers</span>
+      <span class="mkt-chip"><span class="dot"></span>FSRA licensed</span>
+      <span class="mkt-chip"><span class="dot"></span>$0 fees to you</span>
+      <span class="mkt-chip"><span class="dot"></span>LLQP-certified advisors</span>
+    </div>
   </div>
 </section>
 
-<section class="section" style="padding-top:0;">
-  <div class="container" style="max-width:1100px;">
-    <div class="compare-grid">
+<section class="mkt-trust">
+  <div class="row">
+    <div><div class="n">5+</div><div class="l">Carriers compared</div></div>
+    <div><div class="n">60 sec</div><div class="l">To your quotes</div></div>
+    <div><div class="n">$0</div><div class="l">Fees to you, ever</div></div>
+    <div><div class="n">FSRA</div><div class="l">Licensed &amp; regulated</div></div>
+  </div>
+</section>
 
-      <a href="/compare/auto.html" class="compare-tile">
-        <div class="tile-emoji">🚗</div>
+<section class="section" id="categories" style="padding:48px 20px;">
+  <div class="container" style="max-width:1120px;">
+    <div class="section-head" style="text-align:center;margin-bottom:28px;"><div class="eyebrow">What do you want to cover?</div><h2 style="margin-top:8px;">Pick a category and compare in seconds.</h2></div>
+    <div class="mkt-grid">
+
+      <a href="/compare/auto.html" class="mkt-tile t-auto">
+        <div class="ico">🚗</div>
         <h3>Auto insurance</h3>
-        <p>Liability, collision, comprehensive. Compare 5 Canadian auto carriers based on your vehicle, driving history, and postal code.</p>
-        <span class="tile-cta">Compare auto quotes →</span>
+        <p>Liability, collision, comprehensive. Compare carriers on your vehicle, driving history, and postal code.</p>
+        <span class="go">Compare auto quotes</span>
       </a>
 
-      <a href="/compare/home.html" class="compare-tile">
-        <div class="tile-emoji">🏠</div>
+      <a href="/compare/home.html" class="mkt-tile t-home">
+        <div class="ico">🏠</div>
         <h3>Home insurance</h3>
-        <p>Dwelling, contents, liability. Comprehensive Canadian home cover including water damage, fire, theft. Compare 5 carriers in seconds.</p>
-        <span class="tile-cta">Compare home quotes →</span>
+        <p>Dwelling, contents, liability. Water damage, fire, and theft cover compared across carriers in seconds.</p>
+        <span class="go">Compare home quotes</span>
       </a>
 
-      <a href="/compare/tenant.html" class="compare-tile">
-        <div class="tile-emoji">🔑</div>
+      <a href="/compare/tenant.html" class="mkt-tile t-tenant">
+        <div class="ico">🔑</div>
         <h3>Tenant insurance</h3>
-        <p>Contents, liability, additional living expenses if your unit becomes unlivable. Required by most Canadian landlords.</p>
-        <span class="tile-cta">Compare tenant quotes →</span>
+        <p>Contents, liability, and living expenses if your unit becomes unlivable. Required by most landlords.</p>
+        <span class="go">Compare tenant quotes</span>
       </a>
 
-      <a href="/compare/travel.html" class="compare-tile">
-        <div class="tile-emoji">✈️</div>
+      <a href="/compare/travel.html" class="mkt-tile t-travel">
+        <div class="ico">✈️</div>
         <h3>Travel insurance</h3>
-        <p>Emergency medical to $10M, trip cancellation, baggage. Single-trip, multi-trip annual, or Super Visa for visiting parents.</p>
-        <span class="tile-cta">Compare travel quotes →</span>
+        <p>Emergency medical, trip cancellation, baggage. Single-trip, annual, or Super Visa for visiting parents.</p>
+        <span class="go">Compare travel quotes</span>
+      </a>
+
+      <a href="/life-insurance.html" class="mkt-tile t-life">
+        <div class="ico">❤️</div>
+        <h3>Life insurance</h3>
+        <p>Term and permanent cover to protect your family or your business. Compare rates from top Canadian insurers.</p>
+        <span class="go">Compare life quotes</span>
+      </a>
+
+      <a href="/business-insurance.html" class="mkt-tile t-biz">
+        <div class="ico">🏢</div>
+        <h3>Business insurance</h3>
+        <p>Liability, property, and key-person cover for your company. Right-sized protection, compared and priced.</p>
+        <span class="go">Compare business quotes</span>
       </a>
 
     </div>
@@ -62,11 +128,11 @@
   <div class="container" style="max-width:980px;">
     <div class="section-head"><div class="eyebrow">How it works</div><h2>From form to quote in under 60 seconds.</h2></div>
     <div class="grid grid--3">
-      <div class="feature-card"><h3>1. Fill the form</h3><p>30 seconds. Vehicle, postal code, driving history — only what's needed for an accurate estimate.</p></div>
-      <div class="feature-card"><h3>2. Compare 5 carriers</h3><p>We search 5+ Canadian carriers and show estimated premiums side-by-side. Lowest is highlighted.</p></div>
-      <div class="feature-card"><h3>3. Pick + talk to an advisor</h3><p>Click any quote. A licensed Canadian advisor handles the rest. No fees, no pressure, no captive carrier sales pitch.</p></div>
+      <div class="feature-card"><h3>1. Fill the form</h3><p>30 seconds. Only what's needed for an accurate estimate, nothing more.</p></div>
+      <div class="feature-card"><h3>2. Compare carriers</h3><p>We search 5+ Canadian carriers and show estimated premiums side-by-side. The lowest is highlighted.</p></div>
+      <div class="feature-card"><h3>3. Pick and talk to an advisor</h3><p>Click any quote. A licensed Canadian advisor takes it from there. No fees, no pressure, no captive sales pitch.</p></div>
     </div>
-    <p style="text-align:center;color:var(--text-muted);font-size:0.88rem;margin-top:18px;">All premiums shown are estimates. Final pricing is subject to underwriting + insurer approval.</p>
+    <p style="text-align:center;color:var(--text-muted);font-size:0.88rem;margin-top:18px;">All premiums shown are estimates. Final pricing is subject to underwriting and insurer approval.</p>
   </div>
 </section>
 
