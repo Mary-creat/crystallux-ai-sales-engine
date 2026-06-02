@@ -80,6 +80,25 @@
   .video-play::after { content:''; border-style:solid; border-width:13px 0 13px 22px; border-color:transparent transparent transparent #7c3aed; margin-left:6px; }
   .video-poster .vp-label { color:#c4b5fd; font-size:14px; font-weight:600; margin-top:18px; }
   @media (max-width:600px){ .video-band h2{font-size:28px;} }
+
+  /* Animated hero gradient (Stripe-style motion), subtle + light */
+  .hero-aurora { position:absolute; inset:-25% -10%; z-index:0; pointer-events:none; filter:blur(80px); opacity:.5; }
+  .hero-aurora::before, .hero-aurora::after { content:''; position:absolute; border-radius:50%; }
+  .hero-aurora::before { width:48%; height:62%; left:4%; top:-8%; background:radial-gradient(circle,#c4b5fd 0%, transparent 70%); animation:auroraA 18s ease-in-out infinite alternate; }
+  .hero-aurora::after { width:44%; height:58%; right:2%; top:8%; background:radial-gradient(circle,#a5c8fd 0%, transparent 70%); animation:auroraB 22s ease-in-out infinite alternate; }
+  @keyframes auroraA { 0%{transform:translate(0,0) scale(1)} 100%{transform:translate(14%,16%) scale(1.18)} }
+  @keyframes auroraB { 0%{transform:translate(0,0) scale(1.12)} 100%{transform:translate(-12%,12%) scale(1)} }
+
+  /* Scrolling channel strip (honest "everywhere" motion) */
+  .marquee-section { background:#fff; border-bottom:1px solid #eef1f5; padding:26px 0 30px; text-align:center; }
+  .marquee-label { font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; margin:0 0 16px; }
+  .marquee { overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent); mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent); }
+  .marquee-track { display:flex; gap:14px; width:max-content; animation:marquee 32s linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state:paused; }
+  .marquee-chip { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; background:#f7f6fc; border:1px solid #eee9fb; border-radius:999px; font-size:14px; font-weight:600; color:#334155; white-space:nowrap; }
+  .marquee-chip .mdot { width:7px; height:7px; border-radius:50%; background:#7c3aed; flex-shrink:0; }
+  @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  @media (prefers-reduced-motion: reduce){ .hero-aurora::before,.hero-aurora::after,.marquee-track{animation:none;} }
 </style>
 <script type="application/ld+json">
 {
@@ -131,6 +150,7 @@
 </header>
 
 <section class="hero">
+  <div class="hero-aurora" aria-hidden="true"></div>
   <div class="clx-container">
     <div class="hero-content">
       <div class="hero-eyebrow">
@@ -193,6 +213,34 @@
   <span class="cred-item"><span class="cdot cdot-4"></span>CASL Compliant</span>
   <span class="cred-item"><span class="cdot cdot-5"></span>2,518 businesses found</span>
 </div></section>
+
+<section class="marquee-section">
+  <p class="marquee-label">One engine, every channel your customers use</p>
+  <div class="marquee"><div class="marquee-track">
+    <span class="marquee-chip"><span class="mdot"></span>Email</span>
+    <span class="marquee-chip"><span class="mdot"></span>LinkedIn</span>
+    <span class="marquee-chip"><span class="mdot"></span>SMS</span>
+    <span class="marquee-chip"><span class="mdot"></span>WhatsApp</span>
+    <span class="marquee-chip"><span class="mdot"></span>Voice calls</span>
+    <span class="marquee-chip"><span class="mdot"></span>Personal video</span>
+    <span class="marquee-chip"><span class="mdot"></span>TikTok</span>
+    <span class="marquee-chip"><span class="mdot"></span>Instagram</span>
+    <span class="marquee-chip"><span class="mdot"></span>Facebook</span>
+    <span class="marquee-chip"><span class="mdot"></span>YouTube</span>
+    <span class="marquee-chip"><span class="mdot"></span>Calendly</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>Email</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>LinkedIn</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>SMS</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>WhatsApp</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>Voice calls</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>Personal video</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>TikTok</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>Instagram</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>Facebook</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>YouTube</span>
+    <span class="marquee-chip" aria-hidden="true"><span class="mdot"></span>Calendly</span>
+  </div></div>
+</section>
 
 <section class="clx-section">
   <div class="clx-container">

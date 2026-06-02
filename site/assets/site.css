@@ -108,7 +108,7 @@
   --bg-subtle:   var(--bg-secondary);
   --bg-elevated: var(--color-neutral-0);
 
-  --text-primary:   var(--color-neutral-900);
+  --text-primary:   #232233;
   --text-secondary: var(--color-neutral-600);
   --text-tertiary:  var(--color-neutral-500);
   --text-muted:     var(--color-neutral-500);
@@ -2380,5 +2380,17 @@ address { font-style: normal; }
 .clx-cta-band .clx-btn-primary:hover {
   background: var(--color-brand-50);
   color: var(--color-brand-800);
+}
+
+/* Refined heading sheen ("shine"): a soft dark-to-violet gradient on the big
+   display headings. Softer than flat black, with a premium polished finish. */
+.hero-title,
+.section-title,
+.clx-h2 {
+  background: linear-gradient(112deg, #232233 0%, #3a2d63 58%, #5b21b6 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
