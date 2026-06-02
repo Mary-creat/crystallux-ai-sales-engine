@@ -200,7 +200,8 @@
 
   /* ── Founder line (human credibility) ── */
   .founder { max-width:760px; margin:0 auto; display:flex; align-items:center; gap:18px; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:20px 24px; }
-  .founder .face { width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,#0f4c81,#1a6fa5); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; flex-shrink:0; }
+  .founder .face { width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#0f4c81,#1a6fa5); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; flex-shrink:0; overflow:hidden; }
+  .founder .face img { width:100%; height:100%; object-fit:cover; display:block; }
   .founder .q { margin:0; font-size:15px; color:#334155; line-height:1.55; }
   .founder .by { margin:8px 0 0; font-size:13px; color:#64748b; font-weight:600; }
   @media (max-width:560px){ .founder{flex-direction:column; text-align:center;} }
@@ -225,9 +226,9 @@
   </div>
   <div class="product-hero-visual">
     <div class="step"><strong>08:00.</strong> Daily morning briefing in your inbox</div>
-    <div class="step"><strong>11:42.</strong> Cost spike on workflow X — auto-flagged</div>
+    <div class="step"><strong>11:42.</strong> Cost spike on workflow X, auto-flagged</div>
     <div class="step"><strong>22:07.</strong> Failed cron auto-restarted</div>
-    <div class="step"><strong>03:24.</strong> Real sev-1 — only THIS wakes you up</div>
+    <div class="step"><strong>03:24.</strong> Real sev-1, and only this wakes you up</div>
   </div>
 </div></section>
 
@@ -256,19 +257,19 @@
       <div class="app-main">
         <div class="briefing">
           <div class="t">Daily briefing · 08:00</div>
-          <p>Quiet night. 47 jobs ran, all green. One cost spike on the enrichment workflow (auto-flagged, within budget). A stuck cron self-healed at 22:07. Nothing needs you this morning — you're clear to focus on product.</p>
+          <p>Quiet night. 47 jobs ran, all green. One cost spike on the enrichment workflow (auto-flagged, within budget). A stuck cron self-healed at 22:07. Nothing needs you this morning, so you're clear to focus on product.</p>
         </div>
         <div class="feed">
-          <div class="row"><span class="badge b-ok">Resolved</span><span class="msg">Nightly backup completed — 12.4 GB</span><span class="time">02:00</span></div>
-          <div class="row"><span class="badge b-cost">Cost</span><span class="msg">Enrichment API 3.1× baseline — flagged, under budget</span><span class="time">11:42</span></div>
+          <div class="row"><span class="badge b-ok">Resolved</span><span class="msg">Nightly backup completed, 12.4 GB</span><span class="time">02:00</span></div>
+          <div class="row"><span class="badge b-cost">Cost</span><span class="msg">Enrichment API 3.1× baseline, flagged, under budget</span><span class="time">11:42</span></div>
           <div class="row"><span class="badge b-heal">Self-healed</span><span class="msg">Stuck cron <em>lead-scan</em> restarted automatically</span><span class="time">22:07</span></div>
           <div class="row"><span class="badge b-ok">Resolved</span><span class="msg">Expiring TLS cert renewed 9 days early</span><span class="time">04:15</span></div>
-          <div class="row"><span class="badge b-sev">Sev-1 · paged you</span><span class="msg">Payments webhook down — escalated to your phone</span><span class="time">03:24</span></div>
+          <div class="row"><span class="badge b-sev">Sev-1 · paged you</span><span class="msg">Payments webhook down, escalated to your phone</span><span class="time">03:24</span></div>
         </div>
       </div>
     </div>
   </div>
-  <p class="app-caption">A real view of the Sentinel overview. Your data, your workflows, your overnight shift — summarized.</p>
+  <p class="app-caption">A real view of the Sentinel overview. Your data, your workflows, your overnight shift, all in one place.</p>
 </div></section>
 
 <section class="proofstrip"><div class="proofstrip-inner">
@@ -366,7 +367,7 @@
   <div class="whitelabel-card">
     <div>
       <h3>🏷️ White-label for agencies + MSPs</h3>
-      <p>Deploy Sentinel under your own brand. Manage all your clients from one console. Your customers see your logo, your domain, your branding — Crystallux runs invisibly underneath.</p>
+      <p>Deploy Sentinel under your own brand. Manage all your clients from one console. Your customers see your logo, your domain, your branding. Crystallux runs invisibly underneath.</p>
       <div class="wl-features">Includes: multi-tenant console · co-branded reports · custom subdomain · revenue share OR per-tenant license · partner enablement · joint go-to-market</div>
     </div>
     <a href="/contact.html?plan=sentinel-whitelabel" class="wl-cta">Talk about white-label</a>
@@ -377,34 +378,34 @@
 </section>
 
 <section class="product-section" style="background:#f9fafb; max-width:none; margin:0;"><div style="max-width:1100px; margin:0 auto;">
-  <h2>The CFO math</h2>
-  <p class="lead">A senior DevOps hire costs $180K + benefits. Sentinel Growth replaces 60-70% of their tier-1 work for $12K/year.</p>
+  <h2>Let's do the math</h2>
+  <p class="lead">A senior DevOps hire costs around $180K a year plus benefits. Sentinel Growth covers most of that everyday work for $12K a year.</p>
   <table class="compare-table" style="margin-top:20px;">
-    <thead><tr><th>Option</th><th>Annual cost</th><th>Coverage</th></tr></thead>
+    <thead><tr><th>Your option</th><th>Cost per year</th><th>What you get</th></tr></thead>
     <tbody>
-      <tr><td>Hire 1 senior DevOps engineer</td><td>~$240K loaded</td><td>40 hrs/week + on-call burnout</td></tr>
-      <tr><td>Hire 5 engineers (full coverage)</td><td>~$1.2M loaded</td><td>24/7 coverage + management overhead</td></tr>
-      <tr><td><strong>Sentinel Growth + 1 engineer</strong></td><td><strong>~$252K total</strong></td><td><strong>Same throughput as 5 engineers, no on-call burnout</strong></td></tr>
-      <tr><td><strong>Sentinel Growth (no human)</strong></td><td><strong>$12K</strong></td><td><strong>70% of capability — gap is novel architecture decisions</strong></td></tr>
+      <tr><td><strong>Sentinel Growth on its own</strong></td><td><strong>$12K</strong></td><td><strong>Handles most of the everyday work. You only step in for the big architecture calls.</strong></td></tr>
+      <tr><td>One senior DevOps engineer</td><td>About $240K</td><td>40 hours a week, and they still burn out being on call.</td></tr>
+      <tr><td><strong>Sentinel Growth plus one engineer</strong></td><td><strong>About $252K</strong></td><td><strong>The output of five engineers, with nobody stuck on call at 3am.</strong></td></tr>
+      <tr><td>Five engineers for full coverage</td><td>About $1.2M</td><td>Round the clock cover, plus the cost and overhead of managing a team.</td></tr>
     </tbody>
   </table>
 </div></section>
 
-<!-- Human credibility. Replace the initials .face with a real photo when ready:
-     <img class="face" src="/products/assets/mary.jpg" alt="Mary Akintunde"> (keep width/height 54px, border-radius:50%). -->
+<!-- Your photo: drop a square photo at  site/products/assets/mary.jpg  and it
+     appears automatically here. Until the file exists, it shows your initial "M". -->
 <section class="product-section" style="padding-top:0;">
   <div class="founder">
-    <div class="face">M</div>
+    <div class="face"><img src="/products/assets/mary.jpg" alt="Mary Akintunde, Founder" onerror="this.remove();this.parentNode.textContent='M';"></div>
     <div>
-      <p class="q">"I built Sentinel because I was the 3am on-call. I run a lean operation and I couldn't afford a DevOps team — but I couldn't afford an outage either. So I built the engineer I needed."</p>
-      <p class="by">— Mary Akintunde, Founder, Crystallux</p>
+      <p class="q">"I built Sentinel because I was the one getting woken up at 3am. I run a lean operation and couldn't afford a DevOps team, but I couldn't afford an outage either. So I built the engineer I needed."</p>
+      <p class="by">Mary Akintunde, Founder, Crystallux</p>
     </div>
   </div>
 </section>
 
 <section class="product-section"><div class="cta-section">
   <h2>Stop being on-call at 3am.</h2>
-  <p>15-minute call. We look at your current alerts, runbook gaps, the tier-1 incidents that wake you up. You leave with a clear picture of whether Sentinel fits — no pitch, no slides.</p>
+  <p>15-minute call. We look at your current alerts, runbook gaps, the tier-1 incidents that wake you up. You leave with a clear picture of whether Sentinel fits. No pitch, no slides.</p>
   <a href="/book.html">Book a discovery call</a>
 </div></section>
 
@@ -429,9 +430,9 @@ document.querySelectorAll('[data-plan]').forEach(function(el){
       });
       var d = await r.json();
       if (d && d.ok && d.url) { window.location.href = d.url; return; }
-      alert((d && d.error) || 'Checkout is being set up — please book a demo and we\'ll get you started.');
+      alert((d && d.error) || 'Checkout is being set up. Please book a demo and we\'ll get you started.');
     } catch (err) {
-      alert('Network error — please try again or book a demo.');
+      alert('Network error. Please try again or book a demo.');
     }
     el.textContent = orig; el.dataset.busy = '';
   });

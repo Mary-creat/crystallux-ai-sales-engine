@@ -55,7 +55,8 @@
   @media (max-width:720px){ .proofstrip-inner{grid-template-columns:repeat(2,1fr); gap:22px;} }
 
   .founder { max-width:760px; margin:0 auto; display:flex; align-items:center; gap:18px; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:20px 24px; }
-  .founder .face { width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,#0f4c81,#1a6fa5); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; flex-shrink:0; }
+  .founder .face { width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#0f4c81,#1a6fa5); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; flex-shrink:0; overflow:hidden; }
+  .founder .face img { width:100%; height:100%; object-fit:cover; display:block; }
   .founder .q { margin:0; font-size:15px; color:#334155; line-height:1.55; }
   .founder .by { margin:8px 0 0; font-size:13px; color:#64748b; font-weight:600; }
   @media (max-width:560px){ .founder{flex-direction:column; text-align:center;} }
@@ -93,7 +94,7 @@
   <div class="showcase-head">
     <div class="eyebrow">See it working</div>
     <h2>Here's what you actually log into.</h2>
-    <p>Every business it found, how warm each one is, who's written back, and the calls it put on your calendar — all on one screen.</p>
+    <p>Every business it found, how warm each one is, who's written back, and the calls it put on your calendar, all on one screen.</p>
   </div>
   <div class="app-frame">
     <div class="app-chrome">
@@ -126,13 +127,13 @@
       </div>
     </div>
   </div>
-  <p class="app-caption">A look at the leads page — the kind of businesses the engine finds, scores, and books calls with for you.</p>
+  <p class="app-caption">A look at the leads page. These are the kind of businesses the engine finds, scores, and books calls with for you.</p>
 </div></section>
 
 <section class="proofstrip"><div class="proofstrip-inner">
   <div><div class="num">2,518</div><div class="lbl">Businesses the engine has already found</div></div>
-  <div><div class="num">6 ways</div><div class="lbl">It reaches out — email, text, WhatsApp, LinkedIn, calls, even video</div></div>
-  <div><div class="num">12 steps</div><div class="lbl">From finding a lead to booking the call — all on its own</div></div>
+  <div><div class="num">6 ways</div><div class="lbl">It reaches out by email, text, WhatsApp, LinkedIn, calls, even video</div></div>
+  <div><div class="num">12 steps</div><div class="lbl">From finding a lead to booking the call, all on its own</div></div>
   <div><div class="num">Round the clock</div><div class="lbl">It keeps working while you sleep</div></div>
 </div></section>
 
@@ -190,14 +191,14 @@
   <p class="pricing-note">Volume tiers + per-seat pricing coming with public launch.</p>
 </div></section>
 
-<!-- Human credibility. Replace the initials .face with a real photo when ready:
-     <img class="face" src="/products/assets/mary.jpg" alt="Mary Akintunde"> (keep width/height 54px, border-radius:50%). -->
+<!-- Your photo: drop a square photo at  site/products/assets/mary.jpg  and it
+     appears automatically here. Until the file exists, it shows your initial "M". -->
 <section class="product-section" style="padding-top:0;">
   <div class="founder">
-    <div class="face">M</div>
+    <div class="face"><img src="/products/assets/mary.jpg" alt="Mary Akintunde, Founder" onerror="this.remove();this.parentNode.textContent='M';"></div>
     <div>
-      <p class="q">"I run a one-person company. I can't be the marketer, the sales rep, and the closer all at the same time — so I built something that finds the customers and starts the conversations for me. This is the engine I run my own business on."</p>
-      <p class="by">— Mary Akintunde, Founder, Crystallux</p>
+      <p class="q">"I run a one-person company. I can't be the marketer, the sales rep, and the closer all at the same time, so I built something that finds the customers and starts the conversations for me. This is the engine I run my own business on."</p>
+      <p class="by">Mary Akintunde, Founder, Crystallux</p>
     </div>
   </div>
 </section>
