@@ -4,13 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Industries | Crystallux</title>
-<meta name="description" content="Seven verticals live on Crystallux. Each with its own overlay: pain signals, tone, compliance, and pricing. Insurance brokers is the most mature showcase vertical." />
+<meta name="description" content="Crystallux is built for your industry. Each one gets its own language, compliance rules, and the right channels to reach people. Insurance brokers is the most established." />
 <meta name="author" content="Crystallux Inc.">
 <link rel="canonical" href="https://crystallux.org/industries/index.html">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://crystallux.org/industries/index.html">
 <meta property="og:title" content="Industries | Crystallux">
-<meta property="og:description" content="Universal engine. Seven verticals. Each with its own voice.">
+<meta property="og:description" content="One engine, built for your industry.">
 <meta property="og:image" content="https://crystallux.org/assets/og-image.png">
 <meta property="og:site_name" content="Crystallux">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com; frame-src https://calendly.com; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;">
@@ -18,6 +18,40 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/site.css">
+<style>
+  body { background:#fbfcfe; }
+  .ind-hero { text-align:center; padding:76px 20px 8px; max-width:800px; margin:0 auto; }
+  .ind-hero .ind-eyebrow { font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#8b5cf6; }
+  .ind-hero h1 { font-size:48px; font-weight:800; color:#0b1b2b; margin:14px 0 16px; line-height:1.06; letter-spacing:-0.02em; }
+  .ind-hero p { font-size:19px; color:#475569; line-height:1.6; margin:0 auto; max-width:600px; }
+
+  .ind-wrap { max-width:1120px; margin:0 auto; padding:44px 20px 20px; }
+  .ind-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:20px; }
+  .ind-card { background:#fff; border:1px solid #eef1f5; border-radius:18px; padding:28px 26px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(15,23,42,.05); transition:transform .18s, box-shadow .18s, border-color .18s; text-decoration:none; color:inherit; position:relative; }
+  .ind-card:hover { transform:translateY(-5px); box-shadow:0 20px 46px rgba(15,23,42,.11); border-color:#ddd6fe; }
+  .ind-card.featured { border:2px solid #7c3aed; }
+  .ind-badge { display:inline-block; align-self:flex-start; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#7c3aed; background:#ede9fe; padding:4px 11px; border-radius:999px; margin-bottom:14px; }
+  .ind-badge.muted { color:#64748b; background:#f1f5f9; }
+  .ind-icon { width:50px; height:50px; border-radius:13px; background:#ede9fe; color:#7c3aed; display:flex; align-items:center; justify-content:center; margin-bottom:16px; }
+  .ind-icon svg { width:25px; height:25px; }
+  .ind-title { font-size:19px; font-weight:800; color:#0b1b2b; margin:0 0 8px; }
+  .ind-desc { font-size:14.5px; color:#475569; line-height:1.55; margin:0; flex:1; }
+  .ind-metric { margin-top:18px; padding-top:16px; border-top:1px solid #f1f5f9; }
+  .ind-metric .m-val { font-size:22px; font-weight:800; color:#7c3aed; line-height:1; }
+  .ind-metric .m-lbl { font-size:13px; color:#64748b; margin-top:4px; }
+  .ind-link { margin-top:18px; font-size:14px; font-weight:700; color:#7c3aed; }
+  .ind-link::after { content:' \2192'; }
+  .ind-card.wait { background:#faf9fc; border-style:dashed; border-color:#e2ddf2; box-shadow:none; }
+  .ind-card.wait:hover { transform:none; box-shadow:none; border-color:#ddd6fe; }
+
+  .ind-bespoke { max-width:1120px; margin:32px auto 0; background:linear-gradient(135deg,#0b1b2b 0%, #2d2459 100%); color:#fff; border-radius:22px; padding:40px 36px; display:flex; align-items:center; justify-content:space-between; gap:28px; flex-wrap:wrap; }
+  .ind-bespoke h3 { font-size:24px; font-weight:800; margin:0 0 8px; color:#fff; }
+  .ind-bespoke p { font-size:15px; color:#cdd9e6; margin:0; max-width:640px; line-height:1.6; }
+  .ind-bespoke a { white-space:nowrap; padding:14px 26px; background:#fff; color:#3b2570; border-radius:11px; font-weight:700; text-decoration:none; font-size:15px; }
+  .ind-bespoke a:hover { background:#f3f0ff; }
+
+  @media (max-width:600px){ .ind-hero{padding-top:52px;} .ind-hero h1{font-size:36px;} .ind-bespoke{flex-direction:column; text-align:center; align-items:stretch;} }
+</style>
 </head>
 <body>
 
@@ -41,109 +75,88 @@
   </div>
 </header>
 
-<section class="industries">
-  <div class="clx-container">
-    <div class="section-header">
-      <span class="eyebrow">Built for your industry</span>
-      <h1 class="section-title">Universal core. Vertical-specific depth.</h1>
-      <p class="section-subtitle">The Crystallux engine is one platform. Each vertical gets its own overlay: pain signals, tone, compliance, pricing.</p>
-    </div>
+<main>
 
-    <div class="industries-grid">
-      <a class="industry-card industry-card-featured" href="insurance-brokers.html">
-        <span class="industry-badge">Most mature vertical</span>
-        <div class="industry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-0.5-8-5-8-10V6l8-4z"/></svg>
-        </div>
-        <h3 class="industry-title">Insurance Brokers</h3>
-        <p class="industry-description">Renewal-season pipeline. Commercial and personal lines. RIBO-aware compliance.</p>
-        <div class="industry-stats">
-          <div class="industry-stat"><span class="stat-value">20+</span><span class="stat-label">qualified meetings/mo</span></div>
-          <div class="industry-stat"><span class="stat-value">$1,997</span><span class="stat-label">founding rate</span></div>
-        </div>
-        <span class="industry-link">Learn more</span>
+<section>
+  <div class="ind-hero">
+    <div class="ind-eyebrow">Built for your industry</div>
+    <h1>One engine, built for your industry.</h1>
+    <p>Crystallux runs on one core platform, then tunes it to your world: the language your customers respond to, the compliance rules you work under, and the right way to reach people.</p>
+  </div>
+
+  <div class="ind-wrap">
+    <div class="ind-grid">
+
+      <a class="ind-card featured" href="insurance-brokers.html">
+        <span class="ind-badge">Most established</span>
+        <div class="ind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-0.5-8-5-8-10V6l8-4z"/></svg></div>
+        <h3 class="ind-title">Insurance Brokers</h3>
+        <p class="ind-desc">Built for renewal season, across commercial and personal lines, with the compliance rules brokers actually work under.</p>
+        <div class="ind-metric"><div class="m-val">20+</div><div class="m-lbl">qualified meetings a month</div></div>
+        <span class="ind-link">Learn more</span>
       </a>
 
-      <a class="industry-card" href="consulting.html">
-        <div class="industry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9-9 9z"/></svg>
-        </div>
-        <h3 class="industry-title">Consulting</h3>
-        <p class="industry-description">Boutique firms, solo strategists, fractional execs. Discovery calls with decision-makers, not gatekeepers.</p>
-        <div class="industry-stats">
-          <div class="industry-stat"><span class="stat-value">20</span><span class="stat-label">discovery calls/mo</span></div>
-          <div class="industry-stat"><span class="stat-value">$1,997</span><span class="stat-label">founding rate</span></div>
-        </div>
-        <span class="industry-link">Learn more</span>
+      <a class="ind-card" href="consulting.html">
+        <div class="ind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9-9 9z"/></svg></div>
+        <h3 class="ind-title">Consulting</h3>
+        <p class="ind-desc">For boutique firms, solo strategists, and fractional execs. Discovery calls with real decision-makers, not gatekeepers.</p>
+        <div class="ind-metric"><div class="m-val">20</div><div class="m-lbl">discovery calls a month</div></div>
+        <span class="ind-link">Learn more</span>
       </a>
 
-      <a class="industry-card" href="construction.html">
-        <div class="industry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
-        </div>
-        <h3 class="industry-title">Construction and Contracting</h3>
-        <p class="industry-description">Homeowners planning renovations 30 to 60 days before they start calling contractors. You get them first.</p>
-        <div class="industry-stats">
-          <div class="industry-stat"><span class="stat-value">20</span><span class="stat-label">renovation leads/mo</span></div>
-          <div class="industry-stat"><span class="stat-value">$1,497</span><span class="stat-label">founding rate</span></div>
-        </div>
-        <span class="industry-link">Learn more</span>
+      <a class="ind-card" href="construction.html">
+        <div class="ind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></div>
+        <h3 class="ind-title">Construction and Contracting</h3>
+        <p class="ind-desc">Reach homeowners planning a renovation a month or two before they start calling contractors. You get to them first.</p>
+        <div class="ind-metric"><div class="m-val">20</div><div class="m-lbl">renovation leads a month</div></div>
+        <span class="ind-link">Learn more</span>
       </a>
 
-      <a class="industry-card" href="real-estate.html">
-        <div class="industry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9v9a1 1 0 01-1 1h-5v-7H10v7H5a1 1 0 01-1-1z"/></svg>
-        </div>
-        <h3 class="industry-title">Real Estate Agents and Brokers</h3>
-        <p class="industry-description">Sellers 30 to 60 days before they hit the MLS. RECO-aware compliance. DNCL-checked voice outreach.</p>
-        <div class="industry-stats">
-          <div class="industry-stat"><span class="stat-value">15</span><span class="stat-label">listing appts/mo</span></div>
-          <div class="industry-stat"><span class="stat-value">$1,497</span><span class="stat-label">founding rate</span></div>
-        </div>
-        <span class="industry-link">Learn more</span>
+      <a class="ind-card" href="real-estate.html">
+        <div class="ind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9v9a1 1 0 01-1 1h-5v-7H10v7H5a1 1 0 01-1-1z"/></svg></div>
+        <h3 class="ind-title">Real Estate Agents and Brokers</h3>
+        <p class="ind-desc">Reach sellers a month or two before they list, in your farm area, with calling that is done compliantly and done right.</p>
+        <div class="ind-metric"><div class="m-val">15</div><div class="m-lbl">listing appointments a month</div></div>
+        <span class="ind-link">Learn more</span>
       </a>
 
-      <a class="industry-card" href="dental.html">
-        <div class="industry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3c-2 0-4 1.5-4 5 0 4 2 8 3 12 .5 2 2 2 2 0 0-3 1-6 3-6s3 3 3 6c0 2 1.5 2 2 0 1-4 3-8 3-12 0-3.5-2-5-4-5-1.5 0-3 1-4 1s-2.5-1-4-1z"/></svg>
-        </div>
-        <h3 class="industry-title">Dental Practices</h3>
-        <p class="industry-description">New-patient consults, not chair-side marketing. Families and cosmetic-case candidates. Per-province regulatory compliance reviewed.</p>
-        <div class="industry-stats">
-          <div class="industry-stat"><span class="stat-value">30</span><span class="stat-label">new-patient consults/mo</span></div>
-          <div class="industry-stat"><span class="stat-value">$1,497</span><span class="stat-label">founding rate</span></div>
-        </div>
-        <span class="industry-link">Learn more</span>
+      <a class="ind-card" href="dental.html">
+        <div class="ind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3c-2 0-4 1.5-4 5 0 4 2 8 3 12 .5 2 2 2 2 0 0-3 1-6 3-6s3 3 3 6c0 2 1.5 2 2 0 1-4 3-8 3-12 0-3.5-2-5-4-5-1.5 0-3 1-4 1s-2.5-1-4-1z"/></svg></div>
+        <h3 class="ind-title">Dental Practices</h3>
+        <p class="ind-desc">New-patient consults, not chair-side marketing. Families and cosmetic cases, reviewed against the rules in your province.</p>
+        <div class="ind-metric"><div class="m-val">30</div><div class="m-lbl">new-patient consults a month</div></div>
+        <span class="ind-link">Learn more</span>
       </a>
 
-      <article class="industry-card industry-card-waitlist">
-        <span class="industry-badge industry-badge-muted">Waiting list</span>
-        <h3 class="industry-title">Moving and Cleaning Services</h3>
-        <p class="industry-description">$997 per month founding tier. Activating after the top 4 verticals hit sustained scale.</p>
-        <a class="industry-link" href="mailto:info@crystallux.org?subject=Waiting%20list%20-%20moving%20or%20cleaning">Join waiting list</a>
+      <article class="ind-card wait">
+        <span class="ind-badge muted">Waiting list</span>
+        <div class="ind-icon" aria-hidden="true" style="background:#f1f5f9;color:#94a3b8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg></div>
+        <h3 class="ind-title">Moving and Cleaning Services</h3>
+        <p class="ind-desc">Opening up once the first five industries hit steady scale. Join the list and we will reach out when it goes live.</p>
+        <a class="ind-link" href="mailto:info@crystallux.org?subject=Waiting%20list%20-%20moving%20or%20cleaning">Join the waiting list</a>
       </article>
 
-      <article class="industry-card industry-card-waitlist">
-        <span class="industry-badge industry-badge-muted">Waiting list</span>
-        <h3 class="industry-title">Legal (solo and boutique firms)</h3>
-        <p class="industry-description">Compliance-first intake pipeline. Every template pre-reviewed against your law society's advertising rules.</p>
-        <a class="industry-link" href="mailto:info@crystallux.org?subject=Waiting%20list%20-%20legal">Join waiting list</a>
+      <article class="ind-card wait">
+        <span class="ind-badge muted">Waiting list</span>
+        <div class="ind-icon" aria-hidden="true" style="background:#f1f5f9;color:#94a3b8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg></div>
+        <h3 class="ind-title">Legal (solo and boutique firms)</h3>
+        <p class="ind-desc">A compliance-first intake pipeline, with every message pre-reviewed against your law society's advertising rules.</p>
+        <a class="ind-link" href="mailto:info@crystallux.org?subject=Waiting%20list%20-%20legal">Join the waiting list</a>
       </article>
+
     </div>
 
-    <div class="industries-bespoke">
-      <div class="bespoke-content">
-        <h3 class="bespoke-title">Don't see your industry?</h3>
-        <p class="bespoke-description">Crystallux is a universal engine. Bespoke vertical onboarding ships a custom overlay (pain-signal taxonomy, tone, compliance, channel mix) in 2 to 3 weeks.</p>
+    <div class="ind-bespoke">
+      <div>
+        <h3>Don't see your industry?</h3>
+        <p>Crystallux works in any industry. We can build a custom version for yours, the language, the compliance, and the right channels, in about two to three weeks.</p>
       </div>
-      <div class="bespoke-cta">
-        <span class="bespoke-price">$2,500 one-time</span>
-        <a href="../contact.html" class="btn-secondary">Request a vertical</a>
-      </div>
+      <a href="../contact.html">Request your industry</a>
     </div>
   </div>
 </section>
 
+</main>
 
 <footer class="clx-footer">
   <div class="clx-footer-grid">
