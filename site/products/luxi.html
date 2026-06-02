@@ -33,19 +33,19 @@
     <div class="step"><strong>0:00.</strong> Auction goes live across 4 platforms</div>
     <div class="step"><strong>0:42.</strong> Bid pulled from TikTok comment</div>
     <div class="step"><strong>4:55.</strong> Anti-snipe extends close +30s</div>
-    <div class="step"><strong>5:25.</strong> Bidder pays via Stripe PaymentIntent</div>
+    <div class="step"><strong>5:25.</strong> Bidder pays instantly by card</div>
     <div class="step"><strong>5:30.</strong> Winner notified, fulfillment fires</div>
   </div>
 </div></section>
 
 <section class="product-section">
   <h2>What it does</h2>
-  <p class="lead">LUXI is the live-commerce equivalent of an auctioneer plus a stripe terminal plus a CRM. One auction per item, across every platform, with no manual reconciliation.</p>
+  <p class="lead">LUXI is the live-commerce equivalent of an auctioneer, a card terminal, and a customer list rolled into one. One auction per item, across every platform, with no manual matching of payments.</p>
   <div class="features-grid">
     <div class="feature-card"><div class="feature-card-emoji">🎤</div><h3>Multi-platform live</h3><p>One auction broadcasts to TikTok Live, Instagram Live, Facebook Live, and YouTube simultaneously, with an AI co-host that can answer questions live.</p></div>
-    <div class="feature-card"><div class="feature-card-emoji">💬</div><h3>Comment-to-bid parsing</h3><p>Bid parser watches comments across every platform. Identifies bid amount + bidder handle. Registers new bidders automatically with SHA-256 identity hash.</p></div>
+    <div class="feature-card"><div class="feature-card-emoji">💬</div><h3>Comment-to-bid parsing</h3><p>Bid parser watches comments across every platform. Identifies bid amount + bidder handle. Registers new bidders automatically and recognises them across every platform.</p></div>
     <div class="feature-card"><div class="feature-card-emoji">⏱️</div><h3>Anti-snipe extension</h3><p>Bid lands within the anti-snipe window? Auto-extends the close by configurable seconds. Caps at max-extensions to prevent runaway auctions.</p></div>
-    <div class="feature-card"><div class="feature-card-emoji">💳</div><h3>Stripe capture on win</h3><p>Winning bid triggers Stripe PaymentIntent capture. Outbid holds release automatically. No manual reconciliation, no chargebacks from confused bidders.</p></div>
+    <div class="feature-card"><div class="feature-card-emoji">💳</div><h3>Stripe capture on win</h3><p>The winning bid is charged automatically, and holds on everyone who was outbid release on their own. No manual matching, no chargebacks from confused bidders.</p></div>
     <div class="feature-card"><div class="feature-card-emoji">🖥️</div><h3>Manual bid entry</h3><p>Some bids come from off-platform DMs or in-person buyers. Admin page lets you enter manual bids during the live, attributed correctly.</p></div>
     <div class="feature-card"><div class="feature-card-emoji">📊</div><h3>Post-auction analytics</h3><p>Engagement per platform, bid velocity, winner profile, conversion funnel. Refine the next auction with the previous one's data.</p></div>
   </div>
@@ -81,7 +81,7 @@
     <ul>
       <li>Unlimited auctions</li>
       <li>Multi-platform bid parsing (free APIs only initially)</li>
-      <li>Anti-snipe + multi-extension logic</li>
+      <li>Automatic time extensions on last-second bids</li>
       <li>Stripe capture + outbid release</li>
       <li>Manual bid entry admin UI</li>
       <li>Post-auction analytics dashboard</li>
