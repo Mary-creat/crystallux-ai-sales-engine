@@ -60,6 +60,25 @@
   .founder .q { margin:0; font-size:15px; color:#334155; line-height:1.55; }
   .founder .by { margin:8px 0 0; font-size:13px; color:#64748b; font-weight:600; }
   @media (max-width:560px){ .founder{flex-direction:column; text-align:center;} }
+
+  /* ── Pricing tiers ── */
+  .tiers-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; margin-top:24px; max-width:1100px; margin-left:auto; margin-right:auto; }
+  .tier { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:28px 24px; display:flex; flex-direction:column; position:relative; transition:transform .15s, box-shadow .15s; }
+  .tier:hover { transform:translateY(-3px); box-shadow:0 12px 32px rgba(15,23,42,.08); }
+  .tier.featured { border:2px solid #0f4c81; background:linear-gradient(180deg,#fafafa 0%,#fff 100%); }
+  .tier.featured::before { content:'Most popular'; position:absolute; top:-12px; left:50%; transform:translateX(-50%); padding:5px 14px; background:#0f4c81; color:#fff; font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; border-radius:999px; white-space:nowrap; }
+  .tier .tier-name { font-size:.82rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#64748b; margin-bottom:8px; }
+  .tier .tier-price { font-size:2.4rem; font-weight:800; color:#0f172a; line-height:1; margin-bottom:4px; }
+  .tier .tier-price span { font-size:1rem; color:#64748b; font-weight:500; }
+  .tier .tier-price-sub { font-size:.85rem; color:#64748b; margin-bottom:18px; }
+  .tier .tier-summary { font-size:.92rem; color:#334155; margin-bottom:18px; min-height:48px; }
+  .tier ul { list-style:none; padding:0; margin:0 0 24px 0; flex:1; }
+  .tier ul li { font-size:.9rem; color:#334155; padding:7px 0 7px 22px; position:relative; line-height:1.45; }
+  .tier ul li::before { content:'✓'; position:absolute; left:0; color:#10b981; font-weight:700; }
+  .tier .tier-cta { display:block; padding:12px 18px; text-align:center; border-radius:8px; background:#f1f5f9; color:#0f172a; text-decoration:none; font-weight:600; font-size:.92rem; transition:background .15s; }
+  .tier .tier-cta:hover { background:#e2e8f0; }
+  .tier.featured .tier-cta { background:#0f4c81; color:#fff; }
+  .tier.featured .tier-cta:hover { background:#0d3f6b; }
 </style>
 </head><body>
 
@@ -173,22 +192,60 @@
 
 <section class="product-section" style="background:#f9fafb; max-width:none; margin:0;"><div style="max-width:1100px; margin:0 auto;">
   <h2 style="text-align:center;">Pricing</h2>
-  <div class="pricing-card">
-    <div class="badge">Sales Engine</div>
-    <h3>Talk to me</h3>
-    <div class="price-meta">Pricing depends on volume (leads per month), channels enabled, and number of niches. Pilot programs available.</div>
-    <ul>
-      <li>Unlimited niches + cities</li>
-      <li>All 6 outreach channels</li>
-      <li>Apollo + behavioral intelligence + market signals</li>
-      <li>Reply ingestion + booking automation</li>
-      <li>Pre-meeting briefing AI + post-call analyzer</li>
-      <li>Admin + client + supervisor dashboards</li>
-      <li>Sentinel cost + health monitoring included</li>
-    </ul>
-    <a href="/contact.html">Get pricing</a>
+  <p class="lead" style="text-align:center; margin-left:auto; margin-right:auto;">Simple monthly plans in Canadian dollars. Start small and move up as the pipeline grows. Every plan starts with a short call so we set it up around your business.</p>
+
+  <div class="tiers-grid">
+
+    <div class="tier">
+      <div class="tier-name">Starter</div>
+      <div class="tier-price">$299<span>/mo</span></div>
+      <div class="tier-price-sub">Test the engine in one niche</div>
+      <p class="tier-summary">Get the pipeline running for a single industry in your local cities, so you can see real leads land before you scale.</p>
+      <ul>
+        <li>One niche, up to three cities</li>
+        <li>Lead discovery, enrichment and scoring</li>
+        <li>Email and SMS outreach</li>
+        <li>Reply handling and booking</li>
+        <li>Daily summary in your inbox</li>
+      </ul>
+      <a href="/book.html" class="tier-cta">Start with Starter</a>
+    </div>
+
+    <div class="tier featured">
+      <div class="tier-name">Growth</div>
+      <div class="tier-price">$1,434<span>/mo</span></div>
+      <div class="tier-price-sub">Where most operators land</div>
+      <p class="tier-summary">The full machine across several niches and all six channels. This is the plan that runs your outbound for you, day and night.</p>
+      <ul>
+        <li>Up to five niches, unlimited local cities</li>
+        <li>All six channels: email, text, WhatsApp, LinkedIn, calls, video</li>
+        <li>Behavioural intelligence and market signals</li>
+        <li>Pre-call briefings and post-call analysis</li>
+        <li>Client dashboard and reporting</li>
+        <li>Priority support</li>
+      </ul>
+      <a href="/book.html" class="tier-cta">Start with Growth</a>
+    </div>
+
+    <div class="tier">
+      <div class="tier-name">Scale</div>
+      <div class="tier-price">$3,456<span>/mo</span></div>
+      <div class="tier-price-sub">Full operation and agencies</div>
+      <p class="tier-summary">For high-volume operations or agencies running the engine for their own clients, with white-label and dedicated tuning.</p>
+      <ul>
+        <li>Unlimited niches and cities</li>
+        <li>All channels, plus white-label client tenants</li>
+        <li>Admin, client and supervisor dashboards</li>
+        <li>Sentinel health and cost monitoring included</li>
+        <li>Monthly tuning review with our team</li>
+        <li>Priority support, extended hours</li>
+      </ul>
+      <a href="/book.html" class="tier-cta">Start with Scale</a>
+    </div>
+
   </div>
-  <p class="pricing-note">Volume tiers + per-seat pricing coming with public launch.</p>
+
+  <p class="pricing-note">Prices in CAD per month. Annual billing saves you more. Want a custom setup or higher volume? <a href="/contact.html" style="color:#0f4c81;">Tell us what you need</a>.</p>
 </div></section>
 
 <!-- Your photo: drop a square photo at  site/products/assets/mary.jpg  and it
