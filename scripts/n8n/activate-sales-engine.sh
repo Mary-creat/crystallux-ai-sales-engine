@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Activate the Sales Engine: turns ON the public signup workflow and the full
-# lead-gen pipeline (find -> research -> score -> signal -> route -> write ->
-# send -> reply -> book -> pipeline-update).
+# Activate the Sales Engine: turns ON the public signup workflow, the full
+# lead-gen pipeline, and (optionally) the market-intelligence layer.
 #
-# ACTIVATE-ONLY. This flips each workflow's "active" toggle via the n8n REST
-# API. It does NOT import, overwrite, or modify any workflow definition, so it
-# is safe to run against the protected production workflows. It is idempotent:
-# anything already on is left alone.
+# ACTIVATE-ONLY. Flips each workflow's "active" toggle via the n8n REST API by
+# workflow id. It does NOT import, overwrite, or modify any definition, so it is
+# safe for the protected production workflows. Idempotent.
+#
+# Pure curl — no node/jq/python needed on the host.
 #
 # Run on the VPS:
-#   N8N_API_KEY=... bash scripts/n8n/activate-sales-engine.sh
-# (N8N_API_KEY is the same key ship.sh uses. If you already export it in your
-#  shell / .env, you can just run: bash scripts/n8n/activate-sales-engine.sh)
+#   N8N_API_KEY=yourkey bash scripts/n8n/activate-sales-engine.sh
 
 set -uo pipefail
 # Reach n8n at the same public URL ship.sh uses (the management API is not
@@ -19,77 +17,53 @@ set -uo pipefail
 N8N_URL="${N8N_URL:-${CLX_N8N_PUBLIC_URL:-https://automation.crystallux.org}}"
 : "${N8N_API_KEY:?Set N8N_API_KEY first (same key ship.sh uses for activation)}"
 
-# Exact workflow names to switch ON, in pipeline order.
-TARGETS=(
-  "CLX - Public Client Signup v1"
-  "CLX - B2C Discovery v2.1"
-  "CLX - City Scan Discovery"
-  "CLX - Email Scraper v3"
-  "CLX - Lead Research v2"
-  "CLX - Lead Scoring v2"
-  "CLX - Business Signal Detection v2"
-  "CLX - Campaign Router v2"
-  "CLX - Outreach Generation v2"
-  "CLX - Outreach Sender v2"
-  "CLX - Pipeline Update v2"
-  "CLX - Reply Ingestion v1"
-  "CLX - Booking v2"
-  # --- Market Intelligence layer (optional enhancement; auto-tunes campaigns
-  #     from real-world signals). Safe to leave on; needs its own data keys to
-  #     do anything. Comment these three out if you want core lead-gen only. ---
-  "CLX - Signal Ingestion v1"
-  "CLX - Signal Intelligence v1"
-  "CLX - Intelligence Upsell Detector v1"
+# "<workflow id>|<readable label>", in pipeline order.
+IDS=(
+  "wfPublicClientSignup|Public Client Signup v1"
+  "clx-b2c-discovery-v2.1|B2C Discovery v2.1"
+  "clx-city-scan-discovery|City Scan Discovery"
+  "clx-email-scraper-v3|Email Scraper v3"
+  "clx-lead-research-v2|Lead Research v2"
+  "clx-lead-scoring-v2|Lead Scoring v2"
+  "clx-business-signal-detection-v2|Business Signal Detection v2"
+  "clx-campaign-router-v2|Campaign Router v2"
+  "clx-outreach-generation-v2|Outreach Generation v2"
+  "clx-outreach-sender-v2|Outreach Sender v2"
+  "clx-pipeline-update-v2|Pipeline Update v2"
+  "clx-reply-ingestion-v1|Reply Ingestion v1"
+  "clx-booking-v2|Booking v2"
+  "clx-signal-ingestion-v1|Signal Ingestion v1 (market intel)"
+  "clx-signal-intelligence-v1|Signal Intelligence v1 (market intel)"
+  "clx-intelligence-upsell-detector-v1|Intelligence Upsell Detector v1 (market intel)"
 )
 
 echo "================================================================"
-echo " Activating the Sales Engine (signup + lead-gen pipeline)"
-echo " Activate-only: no workflow definitions are changed."
+echo " Activating the Sales Engine (signup + lead-gen + market intel)"
+echo " Activate-only, by id, via the n8n REST API. No definitions changed."
+echo " n8n: $N8N_URL"
 echo "================================================================"
-echo "Fetching workflow list from n8n..."
 
-ALL=$(curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" "$N8N_URL/api/v1/workflows?limit=250")
-if [ -z "$ALL" ] || ! echo "$ALL" | grep -q '"data"'; then
-  echo "ERROR: could not read workflows from n8n at $N8N_URL."
-  echo "Check N8N_API_KEY and that n8n is running."
-  exit 1
-fi
-
-on=0; already=0; missing=0; failed=0
-
-for name in "${TARGETS[@]}"; do
-  # Find id + active state for the workflow with this exact name.
-  read -r id active < <(printf '%s' "$ALL" | NAME="$name" node -e '
-    let d=""; process.stdin.on("data",c=>d+=c).on("end",()=>{
-      const ws=(JSON.parse(d).data||[]);
-      const w=ws.find(x=>x.name===process.env.NAME);
-      if(w) process.stdout.write(w.id+" "+w.active);
-    });')
-
-  if [ -z "${id:-}" ]; then
-    echo "  [?] not found in n8n: $name"
-    missing=$((missing+1)); continue
-  fi
-  if [ "${active:-}" = "true" ]; then
-    echo "  [=] already on:      $name"
-    already=$((already+1)); continue
-  fi
-
-  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+on=0; problem=0
+for row in "${IDS[@]}"; do
+  id="${row%%|*}"; label="${row#*|}"
+  code=$(curl -s -o /tmp/clx_act.json -w "%{http_code}" -X POST \
     -H "X-N8N-API-KEY: $N8N_API_KEY" \
     "$N8N_URL/api/v1/workflows/$id/activate")
   if [ "$code" = "200" ]; then
-    echo "  [+] ACTIVATED:       $name"
+    echo "  [+] ON:          $label"
     on=$((on+1))
   else
-    echo "  [x] FAILED ($code):    $name"
-    failed=$((failed+1))
+    snip=$(head -c 140 /tmp/clx_act.json 2>/dev/null | tr -d '\n')
+    echo "  [x] HTTP $code:    $label   $snip"
+    problem=$((problem+1))
   fi
 done
 
 echo "================================================================"
-echo " Activated: $on   Already on: $already   Not found: $missing   Failed: $failed"
+echo " ON: $on    Problems: $problem    (of ${#IDS[@]})"
 echo "================================================================"
-echo "Next: make sure your ANTHROPIC + GOOGLE keys reach n8n, a Gmail account"
-echo "is connected for sending, and one clients row is active with an industry,"
-echo "city, calendar link, and notification email. Then discovery will run."
+echo "Next steps to make leads flow:"
+echo "  1. n8n credentials: set 'Google Maps' + 'Claude Anthropic' (HTTP Header Auth)."
+echo "  2. Connect a Gmail in n8n for sending outreach."
+echo "  3. Add one active clients row (industry, city, calendar link, notify email)."
+echo "Then discovery runs on its schedule and leads land in the client's pipeline."
