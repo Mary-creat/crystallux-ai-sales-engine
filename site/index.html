@@ -50,7 +50,7 @@
 
   /* Credentials strip: real, colorful, honest */
   .cred-strip { background:#fff; border-top:1px solid #eef1f5; border-bottom:1px solid #eef1f5; }
-  .cred-inner { max-width:1120px; margin:0 auto; padding:20px; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:14px 30px; }
+  .cred-inner { max-width:1120px; margin:0 auto; padding:15px 20px; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 30px; }
   .cred-lead { font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#94a3b8; }
   .cred-item { display:inline-flex; align-items:center; gap:9px; font-size:14px; font-weight:600; color:#334155; }
   .cred-item .cdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
@@ -90,8 +90,8 @@
   @keyframes auroraB { 0%{transform:translate(0,0) scale(1.12)} 100%{transform:translate(-12%,12%) scale(1)} }
 
   /* Scrolling channel strip (honest "everywhere" motion) */
-  .marquee-section { background:#fff; border-bottom:1px solid #eef1f5; padding:26px 0 30px; text-align:center; }
-  .marquee-label { font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; margin:0 0 16px; }
+  .marquee-section { background:#fff; border-bottom:1px solid #eef1f5; padding:18px 0 22px; text-align:center; }
+  .marquee-label { font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; margin:0 0 14px; }
   .marquee { overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent); mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent); }
   .marquee-track { display:flex; gap:14px; width:max-content; animation:marquee 32s linear infinite; }
   .marquee:hover .marquee-track { animation-play-state:paused; }
@@ -99,6 +99,13 @@
   .marquee-chip .mdot { width:7px; height:7px; border-radius:50%; background:#7c3aed; flex-shrink:0; }
   @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
   @media (prefers-reduced-motion: reduce){ .hero-aurora::before,.hero-aurora::after,.marquee-track{animation:none;} }
+
+  /* Trusted-by client strip */
+  .clients-strip { background:#fff; padding:24px 20px 6px; text-align:center; }
+  .clients-inner { display:flex; align-items:center; justify-content:center; gap:14px 32px; flex-wrap:wrap; }
+  .clients-label { font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#94a3b8; }
+  .client-mark { font-size:25px; font-weight:800; letter-spacing:-.02em; color:#232233; opacity:.82; }
+  .client-mark img { height:32px; width:auto; display:block; }
 </style>
 <script type="application/ld+json">
 {
@@ -204,6 +211,14 @@
     </aside>
   </div>
 </section>
+
+<!-- Real client logos: drop image files at /assets/clients/<name>.png and replace each
+     wordmark with <span class="client-mark"><img src="/assets/clients/eazer.png" alt="eaZer"></span> -->
+<section class="clients-strip"><div class="clients-inner">
+  <span class="clients-label">Trusted by</span>
+  <span class="client-mark">eaZer</span>
+  <span class="client-mark">Letro</span>
+</div></section>
 
 <section class="cred-strip"><div class="cred-inner">
   <span class="cred-lead">Built to be trusted</span>
