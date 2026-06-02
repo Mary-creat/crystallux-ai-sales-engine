@@ -18,6 +18,24 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<style>
+  .htimeline { max-width:760px; margin:0 auto; padding:8px 0; }
+  .hstep { position:relative; padding:0 0 30px 64px; }
+  .hstep:not(:last-child)::before { content:''; position:absolute; left:23px; top:50px; bottom:0; width:2px; background:linear-gradient(#ddd6fe,#eef1f5); }
+  .hstep .hnum { position:absolute; left:0; top:0; width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; color:#fff; box-shadow:0 8px 20px rgba(124,58,237,.22); }
+  .hstep:nth-child(6n+1) .hnum{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+  .hstep:nth-child(6n+2) .hnum{background:linear-gradient(135deg,#2563eb,#0ea5e9)}
+  .hstep:nth-child(6n+3) .hnum{background:linear-gradient(135deg,#0ea5e9,#06b6d4)}
+  .hstep:nth-child(6n+4) .hnum{background:linear-gradient(135deg,#10b981,#059669)}
+  .hstep:nth-child(6n+5) .hnum{background:linear-gradient(135deg,#f59e0b,#f97316)}
+  .hstep:nth-child(6n+6) .hnum{background:linear-gradient(135deg,#ec4899,#db2777)}
+  .hstep .hday { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#8b5cf6; margin-bottom:3px; }
+  .hstep h3 { font-size:20px; font-weight:800; color:#232233; margin:0 0 8px; }
+  .hstep p { font-size:15px; color:#475569; line-height:1.6; margin:0; }
+  .hstep .hcard { margin-top:12px; background:#faf9ff; border:1px solid #eee9fb; border-radius:12px; padding:13px 16px; font-size:14px; color:#334155; line-height:1.55; }
+  .hstep .hcard b { color:#232233; }
+  .hiw-hero-cta { display:flex; gap:12px; flex-wrap:wrap; margin-top:24px; }
+</style>
 </head>
 <body>
 
@@ -45,66 +63,76 @@
 <section class="clx-section">
   <div class="clx-container-narrow">
     <div class="clx-eyebrow">How it works</div>
-    <h1 class="clx-h1" style="font-size: 44px;">From contract to full pipeline in 21 days.</h1>
-    <p class="clx-subhead clx-mt-md">Here is exactly what happens after you sign. No mystery. No "it depends." A clear timeline with a guarantee at the end.</p>
+    <h1 class="clx-h1" style="font-size: 44px;">From signing up to a full pipeline in 21 days.</h1>
+    <p class="clx-subhead clx-mt-md">Here is exactly what happens after you sign up. No mystery, no "it depends." A clear timeline, with a guarantee at the end.</p>
+    <div class="hiw-hero-cta">
+      <a href="book.html" class="btn-primary btn-lg">Book a demo</a>
+      <a href="pricing.html" class="btn-link">See pricing &rarr;</a>
+    </div>
   </div>
 </section>
 
 <section class="clx-section-compact">
-  <div class="clx-container-narrow">
-    <h2 class="clx-h2">Day 0. Contract and onboarding call</h2>
-    <p class="clx-lead clx-mb-md">Sign the agreement. 30-minute onboarding call that same day or the next. We capture your ICP (top 3 customer types, size, service area, vertical), channel preferences (email always on; LinkedIn, SMS, voice, video opt-in), Calendly URL, sender-email config, and any existing leads you want preserved.</p>
-    <div class="clx-card"><h3 class="clx-h3" style="font-size: 16px;">What you bring</h3><p style="font-size: 14px; color: var(--ink-3);">Your Calendly link, access to a business email for outreach delivery, and a 1-sentence description of your top 3 customer types.</p></div>
-  </div>
-</section>
+  <div class="htimeline">
 
-<section class="clx-section-compact">
-  <div class="clx-container-narrow">
-    <h2 class="clx-h2">Day 1 to 3. Prospect sourcing</h2>
-    <p class="clx-lead clx-mb-md">We load the first 50 prospects matching your ICP using built-in lead intelligence and vertical-specific intent signals. Lead research runs overnight: our AI engine drafts a one-paragraph summary and the most relevant pain signal for each prospect.</p>
-    <div class="clx-card"><h3 class="clx-h3" style="font-size: 16px;">What you see</h3><p style="font-size: 14px; color: var(--ink-3);">Your dashboard URL is live. 50 researched leads waiting. Review them, flag any off-target ones, and we refine the filter.</p></div>
-  </div>
-</section>
+    <div class="hstep">
+      <div class="hnum">1</div>
+      <div class="hday">Day 0</div>
+      <h3>Sign up and onboarding call</h3>
+      <p>Sign the agreement, then a 30-minute call the same day or the next. We capture who your best customers are, which channels to use, your calendar link, and any leads you want to keep.</p>
+      <div class="hcard"><b>What you bring:</b> your calendar link, a business email for sending, and one sentence on your top three customer types.</div>
+    </div>
 
-<section class="clx-section-compact">
-  <div class="clx-container-narrow">
-    <h2 class="clx-h2">Day 4 to 7. First outreach</h2>
-    <p class="clx-lead clx-mb-md">Our AI engine generates the first batch of personalised outreach: emails (always), plus any channels you have activated. You review the first 10 to 15 drafts. Flag anything that feels off. We tune the prompt. Once approved, the platform sends.</p>
-    <div class="clx-card"><h3 class="clx-h3" style="font-size: 16px;">Peer-reviewed copy</h3><p style="font-size: 14px; color: var(--ink-3);">A founding insurance broker rated our cold outreach 9.5 out of 10 and said it was the first one that sounded like a peer, not a vendor. That is the bar.</p></div>
-  </div>
-</section>
+    <div class="hstep">
+      <div class="hnum">2</div>
+      <div class="hday">Day 1 to 3</div>
+      <h3>We find your first prospects</h3>
+      <p>We load the first 50 prospects that match your ideal customer, then research each one overnight: a short summary and the single most relevant reason they might buy.</p>
+      <div class="hcard"><b>What you see:</b> your dashboard is live with 50 researched leads. Review them, flag any that are off, and we tighten the filter.</div>
+    </div>
 
-<section class="clx-section-compact">
-  <div class="clx-container-narrow">
-    <h2 class="clx-h2">Day 7 to 14. Replies and follow-ups</h2>
-    <p class="clx-lead clx-mb-md">Qualified replies flow into your Calendly and notification email. The platform runs day-3 and day-7 follow-ups automatically on non-responders. You only step in at the conversation stage. No time on copy, cadence, or follow-up timing.</p>
-  </div>
-</section>
+    <div class="hstep">
+      <div class="hnum">3</div>
+      <div class="hday">Day 4 to 7</div>
+      <h3>First outreach goes out</h3>
+      <p>The engine writes the first batch of personal outreach: emails always, plus any channels you turned on. You review the first 10 to 15, flag anything off, we tune it, and it sends.</p>
+      <div class="hcard">An early broker rated our cold outreach <b>9.5 out of 10</b> and said it was the first that sounded like a peer, not a vendor. That is the bar.</div>
+    </div>
 
-<section class="clx-section-compact">
-  <div class="clx-container-narrow">
-    <h2 class="clx-h2">Day 14. First checkpoint call</h2>
-    <p class="clx-lead clx-mb-md">15-minute call. Wins, metrics review, blockers, one optimisation for the next week. Weekly cadence continues through month 3, then scales to bi-weekly.</p>
-  </div>
-</section>
+    <div class="hstep">
+      <div class="hnum">4</div>
+      <div class="hday">Day 7 to 14</div>
+      <h3>Replies and follow-ups</h3>
+      <p>Interested replies land on your calendar and in your inbox. The engine follows up on its own on day 3 and day 7 with anyone who did not reply. You only step in for the actual conversation.</p>
+    </div>
 
-<section class="clx-section-compact">
-  <div class="clx-container-narrow">
-    <h2 class="clx-h2">Day 21. Full pipeline running</h2>
-    <p class="clx-lead clx-mb-md">By the end of week 3, you have a consistent daily outreach flow, qualified meetings booking on your calendar, and a reliable week-over-week cadence. The guarantee window runs through day 30. If we have not hit your vertical's target by then, your next month is free.</p>
+    <div class="hstep">
+      <div class="hnum">5</div>
+      <div class="hday">Day 14</div>
+      <h3>First checkpoint call</h3>
+      <p>A 15-minute call: your wins, the numbers, anything in the way, and one improvement for the week ahead. Weekly through month three, then every two weeks.</p>
+    </div>
+
+    <div class="hstep">
+      <div class="hnum">6</div>
+      <div class="hday">Day 21</div>
+      <h3>Full pipeline running</h3>
+      <p>By the end of week three you have a steady daily flow of outreach, qualified meetings booking onto your calendar, and a reliable rhythm. The guarantee runs through day 30: if we have not hit your target, your next month is free.</p>
+    </div>
+
   </div>
 </section>
 
 <section class="clx-section-compact" style="background: var(--surface-2);">
   <div class="clx-container-narrow">
-    <h2 class="clx-h2">Universal engine, vertical-specific depth</h2>
-    <p class="clx-lead">The Crystallux engine is one platform. Every vertical has its own overlay: pain-signal taxonomy, outreach tone, compliance constraints (RIBO for insurance, RCDSO for dental, LSO for legal), preferred channel mix, and pricing. You are not getting a generic SaaS tool tuned with a config flag. You are getting copy that reads like a peer in your trade wrote it.</p>
-    <div class="clx-center clx-mt-md"><a href="industries/index.html" class="clx-btn clx-btn-secondary">See all 7 verticals &rarr;</a></div>
+    <h2 class="clx-h2">One engine, tuned to your industry</h2>
+    <p class="clx-lead">Crystallux is one platform, shaped to your industry: the pain points your customers feel, the tone that lands, the compliance rules you work under, and the right channels to reach them. You are not getting a generic tool with a setting flipped. You are getting outreach that reads like someone in your trade wrote it.</p>
+    <div class="clx-center clx-mt-md"><a href="industries/index.html" class="clx-btn clx-btn-secondary">See all industries &rarr;</a></div>
   </div>
 </section>
 
 <section class="clx-cta-band">
-  <h2>Ready to see it for your vertical?</h2>
+  <h2>Ready to see it for your business?</h2>
   <p>20-minute demo. We walk through the dashboard, a sample live outreach, and a straight answer on fit.</p>
   <a href="book.html" class="clx-btn clx-btn-primary clx-btn-lg">Book a demo &rarr;</a>
 </section>
