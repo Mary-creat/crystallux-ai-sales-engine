@@ -88,6 +88,12 @@ p { margin: 0 0 1em; }
   color: #fff; display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 1.05rem;
 }
+/* Real logo image. Clipped to a perfect circle so corners never show a box,
+   with a soft lift so it stays crisp on any header background. */
+.brand-logo {
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.18);
+}
 .nav-links { display: flex; align-items: center; gap: 16px; flex-wrap: nowrap; }
 .nav-links a { color: var(--text); font-weight: 500; font-size: 0.88rem; white-space: nowrap; }
 .nav-links a:hover { color: var(--navy); }
