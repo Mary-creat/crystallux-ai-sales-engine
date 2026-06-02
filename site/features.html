@@ -18,6 +18,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<style>
+  /* Active, colorful feature cards */
+  .clx-grid-3 .clx-card { transition:transform .15s, box-shadow .15s; border-top:3px solid transparent; }
+  .clx-grid-3 .clx-card:hover { transform:translateY(-4px); box-shadow:0 16px 40px rgba(15,23,42,.1); }
+  .clx-grid-3 .clx-card:nth-child(3n+1) { border-top-color:#7c3aed; }
+  .clx-grid-3 .clx-card:nth-child(3n+2) { border-top-color:#2563eb; }
+  .clx-grid-3 .clx-card:nth-child(3n+3) { border-top-color:#10b981; }
+  .clx-grid-3 .clx-card:nth-child(3n+1) .clx-feature-icon { background:#ede9fe; color:#7c3aed; }
+  .clx-grid-3 .clx-card:nth-child(3n+2) .clx-feature-icon { background:#dbeafe; color:#2563eb; }
+  .clx-grid-3 .clx-card:nth-child(3n+3) .clx-feature-icon { background:#d1fae5; color:#10b981; }
+  .feat-hero-cta { display:flex; gap:12px; flex-wrap:wrap; margin-top:24px; }
+</style>
 </head>
 <body>
 
@@ -45,8 +57,12 @@
 <section class="clx-section">
   <div class="clx-container-narrow">
     <div class="clx-eyebrow">Features</div>
-    <h1 class="clx-h1" style="font-size: 44px;">Every capability Crystallux ships. No upsell gates.</h1>
-    <p class="clx-subhead clx-mt-md">Founding clients get the full platform. The only thing that changes at higher tiers is send volume, add-on channels, and strategic support.</p>
+    <h1 class="clx-h1" style="font-size: 44px;">Everything you need to fill your calendar.</h1>
+    <p class="clx-subhead clx-mt-md">Every client gets the full platform from day one. The only thing that changes on bigger plans is how much you send, which channels you add, and how much hands-on support you want.</p>
+    <div class="feat-hero-cta">
+      <a href="book.html" class="btn-primary btn-lg">Book a demo</a>
+      <a href="pricing.html" class="btn-link">See pricing &rarr;</a>
+    </div>
   </div>
 </section>
 
@@ -57,17 +73,17 @@
       <div class="clx-card">
         <div class="clx-feature-icon">A</div>
         <h3 class="clx-h3">Built-in lead intelligence</h3>
-        <p class="clx-lead">Every lead gets firmographic enrichment: company size, industry, org chart, decision-maker titles. Filtered to your exact ICP.</p>
+        <p class="clx-lead">Every lead comes with the details that matter: company size, industry, who is in charge, and the right person to contact. Matched to your ideal customer.</p>
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">L</div>
         <h3 class="clx-h3">LinkedIn sourcing</h3>
-        <p class="clx-lead">Sales Navigator-quality targeting. Decision-maker filters cut noise by 80 percent. The names you get are worth the outreach.</p>
+        <p class="clx-lead">Pinpoint targeting that cuts the noise by 80 percent, so every name you get is actually worth reaching out to.</p>
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">&#10022;</div>
         <h3 class="clx-h3">Intent signals</h3>
-        <p class="clx-lead">Per-vertical signals surface leads 30 to 60 days before they start shopping: renewal-window timing, renovation-planning signals, pre-MLS listings, treatment-plan gaps.</p>
+        <p class="clx-lead">Smart signals surface people a month or two before they start shopping: renewals coming up, renovations being planned, homes about to list, and more.</p>
       </div>
     </div>
   </div>
@@ -84,8 +100,8 @@
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">&#9768;</div>
-        <h3 class="clx-h3">Niche overlays</h3>
-        <p class="clx-lead">Seven vertical overlays govern tone, pain-signal taxonomy, compliance constraints, and channel mix. One universal engine. Seven distinct voices.</p>
+        <h3 class="clx-h3">Built for your industry</h3>
+        <p class="clx-lead">The engine adapts to your industry: the tone, the pain points, the compliance rules, and the right channels. One engine, every industry.</p>
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">&#10003;</div>
@@ -100,11 +116,11 @@
   <div class="clx-container">
     <h2 class="clx-h2">Multi-channel delivery</h2>
     <div class="clx-grid-3 clx-mt-md">
-      <div class="clx-card"><div class="clx-feature-icon">&#9993;</div><h3 class="clx-h3">Email</h3><p class="clx-lead">Gmail-delivered, warmed-up, deliverability-monitored. First channel on every plan.</p></div>
+      <div class="clx-card"><div class="clx-feature-icon">&#9993;</div><h3 class="clx-h3">Email</h3><p class="clx-lead">Sent from a real, warmed-up inbox and monitored so your emails actually land. Included on every plan.</p></div>
       <div class="clx-card"><div class="clx-feature-icon">in</div><h3 class="clx-h3">LinkedIn outreach</h3><p class="clx-lead">Connection requests plus first-message sequences. Compliant with LinkedIn's automation policies.</p></div>
       <div class="clx-card"><div class="clx-feature-icon">sms</div><h3 class="clx-h3">SMS and WhatsApp</h3><p class="clx-lead">Delivered with strict CASL consent checks. Critical for residential verticals.</p></div>
-      <div class="clx-card"><div class="clx-feature-icon">&#9990;</div><h3 class="clx-h3">AI voice outreach</h3><p class="clx-lead">AI voice calls with DNCL compliance gate. Canadian-specific: real CRTC check required before activation.</p></div>
-      <div class="clx-card"><div class="clx-feature-icon">&#9658;</div><h3 class="clx-h3">Personalised video</h3><p class="clx-lead">60-second peer-to-peer scripts tuned per lead. Your replica, our engine.</p></div>
+      <div class="clx-card"><div class="clx-feature-icon">&#9990;</div><h3 class="clx-h3">AI voice outreach</h3><p class="clx-lead">AI voice calls that respect do-not-call rules wherever they run.</p></div>
+      <div class="clx-card"><div class="clx-feature-icon">&#9658;</div><h3 class="clx-h3">Personalised video</h3><p class="clx-lead">60-second personal videos tuned to each lead. Your face, our engine.</p></div>
       <div class="clx-card"><div class="clx-feature-icon">&#8629;</div><h3 class="clx-h3">Unified reply routing</h3><p class="clx-lead">Every reply, regardless of channel, routes to your calendar and notification inbox within minutes.</p></div>
     </div>
   </div>
@@ -127,17 +143,17 @@
       <div class="clx-card">
         <div class="clx-feature-icon">&#9651;</div>
         <h3 class="clx-h3">Error monitoring</h3>
-        <p class="clx-lead">Every platform failure, rate-limit breach, and deliverability flag surfaces on the dashboard with severity-based thresholds.</p>
+        <p class="clx-lead">If anything goes wrong, a failure, a slowdown, or a delivery issue, you see it on the dashboard right away.</p>
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">&#128274;</div>
         <h3 class="clx-h3">Client isolation</h3>
-        <p class="clx-lead">Row-level security hardened. Every client sees their own data only. Separate dashboard URL per client.</p>
+        <p class="clx-lead">Locked down so every client sees only their own data, on their own private dashboard.</p>
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">&#10022;</div>
         <h3 class="clx-h3">Admin Copilot</h3>
-        <p class="clx-lead">For operators: conversational AI for database queries, error troubleshooting, and platform Q and A. Admin-only.</p>
+        <p class="clx-lead">Ask it anything about your account in plain English. For operators only.</p>
       </div>
       <div class="clx-card">
         <div class="clx-feature-icon">&#128197;</div>
