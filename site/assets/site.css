@@ -2367,7 +2367,7 @@ address { font-style: normal; }
 
 /* Refine the dark CTA band. Keep it gray-950 not violet. */
 .clx-cta-band {
-  background: linear-gradient(180deg, var(--color-gray-900) 0%, var(--color-gray-950) 100%);
+  background: linear-gradient(135deg, var(--color-brand-600) 0%, var(--color-brand-800) 100%);
 }
 
 /* Ensure btn-primary hover on the CTA band stays readable */
