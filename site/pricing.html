@@ -4,13 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Pricing | Crystallux</title>
-<meta name="description" content="Canadian pricing across 7 active verticals. $997 to $1,997 per month founding rates. 14-day trial. Guarantee or your next month is free." />
+<meta name="description" content="Simple, honest pricing for every Crystallux product. Subscribe monthly, pay only when you earn, or get a plan built around you. All prices in Canadian dollars." />
 <meta name="author" content="Crystallux Inc.">
 <link rel="canonical" href="https://crystallux.org/pricing.html">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://crystallux.org/pricing.html">
 <meta property="og:title" content="Pricing | Crystallux">
-<meta property="og:description" content="Canadian pricing across 7 active verticals. Guarantee or your next month is free.">
+<meta property="og:description" content="Simple, honest pricing. Subscribe monthly, pay by commission, or get a custom plan. All in CAD.">
 <meta property="og:image" content="https://crystallux.org/assets/og-image.png">
 <meta property="og:site_name" content="Crystallux">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://assets.calendly.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.calendly.com; frame-src https://calendly.com; form-action 'self' https://calendly.com; base-uri 'self'; upgrade-insecure-requests;">
@@ -18,6 +18,48 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<style>
+  body { background:#fbfcfe; }
+  .pp-hero { text-align:center; padding:84px 20px 8px; max-width:800px; margin:0 auto; }
+  .pp-hero .pp-eyebrow { font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#1a6fa5; }
+  .pp-hero h1 { font-size:52px; font-weight:800; color:#0b1b2b; margin:14px 0 16px; line-height:1.05; letter-spacing:-0.02em; }
+  .pp-hero p { font-size:19px; color:#475569; line-height:1.6; margin:0 auto; max-width:600px; }
+  .pp-trust { margin-top:24px; font-size:14px; color:#64748b; }
+  .pp-trust b { color:#0b1b2b; font-weight:700; }
+
+  .pp-wrap { max-width:1080px; margin:0 auto; padding:40px 20px 20px; }
+  .pp-section-label { text-align:center; font-size:13px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#94a3b8; margin:52px 0 6px; }
+  .pp-section-title { text-align:center; font-size:30px; font-weight:800; color:#0b1b2b; margin:0 0 34px; letter-spacing:-0.01em; }
+
+  .pp-flagship { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:24px; }
+  .pp-card { background:#fff; border:1px solid #eef1f5; border-radius:20px; padding:34px 30px; display:flex; flex-direction:column; box-shadow:0 4px 24px rgba(15,23,42,.05); transition:transform .18s, box-shadow .18s; }
+  .pp-card:hover { transform:translateY(-5px); box-shadow:0 22px 50px rgba(15,23,42,.12); }
+  .pp-card .pp-name { font-size:24px; font-weight:800; color:#0b1b2b; }
+  .pp-card .pp-tag { font-size:15px; color:#475569; margin:6px 0 20px; line-height:1.5; }
+  .pp-card .pp-from { font-size:14px; color:#64748b; }
+  .pp-card .pp-from b { font-size:40px; font-weight:800; color:#0b1b2b; letter-spacing:-0.02em; }
+  .pp-tiers { list-style:none; padding:0; margin:18px 0 26px; }
+  .pp-tiers li { display:flex; justify-content:space-between; align-items:center; font-size:15px; color:#334155; padding:11px 0; border-bottom:1px solid #f1f5f9; }
+  .pp-tiers li:last-child { border-bottom:none; }
+  .pp-tiers li b { color:#0b1b2b; font-weight:700; }
+  .pp-cta { margin-top:auto; display:block; text-align:center; padding:15px; border-radius:12px; background:#0f4c81; color:#fff; text-decoration:none; font-weight:700; font-size:16px; transition:background .15s; }
+  .pp-cta:hover { background:#0d3f6b; }
+
+  .pp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px; }
+  .pp-mini { background:#fff; border:1px solid #eef1f5; border-radius:16px; padding:24px 22px; display:flex; flex-direction:column; box-shadow:0 2px 14px rgba(15,23,42,.04); transition:transform .15s, box-shadow .15s; }
+  .pp-mini:hover { transform:translateY(-4px); box-shadow:0 14px 36px rgba(15,23,42,.1); }
+  .pp-mini .pp-name { font-size:18px; font-weight:800; color:#0b1b2b; }
+  .pp-mini .pp-tag { font-size:13.5px; color:#475569; margin:5px 0 14px; line-height:1.45; flex:1; }
+  .pp-mini .pp-model { font-size:13px; font-weight:700; color:#1a6fa5; margin-bottom:14px; }
+  .pp-mini a.pp-mini-cta { display:block; text-align:center; padding:11px; border-radius:10px; background:#f1f5f9; color:#0f4c81; text-decoration:none; font-weight:700; font-size:14px; transition:background .15s; }
+  .pp-mini a.pp-mini-cta:hover { background:#e6edf5; }
+
+  .pp-guarantee { max-width:900px; margin:60px auto 0; background:linear-gradient(135deg,#0b1b2b 0%, #0f3a5f 100%); color:#fff; border-radius:22px; padding:46px 36px; text-align:center; }
+  .pp-guarantee h3 { font-size:26px; margin:0 0 12px; color:#fff; font-weight:800; }
+  .pp-guarantee p { font-size:16px; color:#cdd9e6; margin:0 auto; max-width:580px; line-height:1.65; }
+
+  @media (max-width:600px){ .pp-hero { padding-top:56px; } .pp-hero h1 { font-size:38px; } }
+</style>
 </head>
 <body>
 
@@ -42,135 +84,111 @@
   </div>
 </header>
 
-<section class="pricing">
-  <div class="clx-container">
-    <div class="section-header">
-      <span class="eyebrow">Pricing</span>
-      <h1 class="section-title">Choose your tier. Upgrade anytime.</h1>
-      <p class="section-subtitle">Founding rates locked for 12 months. Standard rates apply after Year 1. Billed monthly in CAD plus GST and HST. Cancel any time with 30 days' notice.</p>
-    </div>
+<main>
 
-    <div class="pricing-grid">
-      <article class="pricing-tier">
-        <header class="tier-header">
-          <h3 class="tier-name">Basic</h3>
-          <p class="tier-tagline">Lead generation engine</p>
-          <div class="tier-price">
-            <span class="price-amount">$1,497</span>
-            <span class="price-period">per month CAD</span>
-          </div>
-          <p class="tier-price-note">Founding rate. Standard $1,997/mo after Year 1.</p>
-        </header>
-        <ul class="tier-features">
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 20+ qualified meetings per month</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 5-channel multi-channel outreach</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> AI-powered personalisation</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Calendar booking automation</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Vertical-specific overlay</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Weekly check-in calls</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 30-day guarantee</li>
-        </ul>
-        <footer class="tier-footer">
-          <a href="book.html" class="btn-secondary btn-block">Book a demo</a>
-        </footer>
-      </article>
-
-      <article class="pricing-tier pricing-tier-featured">
-        <div class="tier-badge">Most popular</div>
-        <header class="tier-header">
-          <h3 class="tier-name">Tier A</h3>
-          <p class="tier-tagline">Sales Intelligence Suite</p>
-          <div class="tier-price">
-            <span class="price-amount">$3,497</span>
-            <span class="price-period">per month CAD</span>
-          </div>
-          <p class="tier-price-note">Founding rate. Standard $3,997/mo after Year 1.</p>
-        </header>
-        <p class="tier-includes">Everything in Basic, plus:</p>
-        <ul class="tier-features">
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Closing Intelligence (script library and objection handlers)</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Calendar Restructuring (no-show recovery)</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Morning Priority Tasks (AI-prioritised day plan)</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Daily AI coaching insights</li>
-        </ul>
-        <footer class="tier-footer">
-          <a href="book.html" class="btn-primary btn-block">Book a demo</a>
-        </footer>
-      </article>
-
-      <article class="pricing-tier">
-        <header class="tier-header">
-          <h3 class="tier-name">Tier B+C</h3>
-          <p class="tier-tagline">Premium intelligence</p>
-          <div class="tier-price">
-            <span class="price-amount">$6,997</span>
-            <span class="price-period">per month CAD</span>
-          </div>
-          <p class="tier-price-note">Founding rate. Standard $8,997/mo after Year 1.</p>
-        </header>
-        <p class="tier-includes">Everything in Tier A, plus:</p>
-        <ul class="tier-features">
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Geographic Optimization (route optimiser)</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Productivity Tracking (consent-gated)</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Listening Intelligence (real-time call analysis)</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Real-time Script Suggestions during calls</li>
-          <li><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Post-call AI coaching</li>
-        </ul>
-        <footer class="tier-footer">
-          <a href="book.html" class="btn-secondary btn-block">Book a demo</a>
-        </footer>
-      </article>
-    </div>
-
-    <div class="pricing-addon">
-      <div class="addon-content">
-        <h3 class="addon-title">Market Intelligence add-on</h3>
-        <p class="addon-description">Real-time campaign scaling based on news, weather, and economic signals affecting your industry.</p>
-      </div>
-      <div class="addon-cta">
-        <span class="addon-price">+$2,000 per month</span>
-        <a href="contact.html" class="btn-link">Add to any tier</a>
-      </div>
-    </div>
-
-    <div class="pricing-guarantee">
-      <h3 class="guarantee-title">Our guarantee</h3>
-      <p class="guarantee-text">Every vertical has a specific 30-day target. Miss it and your next month is free. No partial credits. No future discounts. Your card does not get charged.</p>
-    </div>
+<section>
+  <div class="pp-hero">
+    <div class="pp-eyebrow">Pricing</div>
+    <h1>Simple, honest pricing.</h1>
+    <p>Pick what fits how you work. Subscribe monthly, pay only when you earn, or get a plan built around you. Every price is in Canadian dollars.</p>
+    <div class="pp-trust">Built and running in Canada. The engine has already found <b>2,518</b> businesses and counting.</div>
   </div>
-</section>
 
-<section class="clx-section-compact">
-  <div class="clx-container">
-    <h2 class="clx-h2">Targets and guarantees by vertical</h2>
-    <table class="clx-table clx-mt-md">
-      <thead>
-        <tr>
-          <th>Vertical</th>
-          <th>Founding price</th>
-          <th>Target outcome</th>
-          <th>Guarantee</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td><strong>Insurance Brokers</strong></td><td>$1,997/mo</td><td>20 qualified meetings per month</td><td>10 in first 30 days or next month free</td></tr>
-        <tr><td><strong>Consulting</strong></td><td>$1,997/mo</td><td>20 discovery calls with decision-makers</td><td>10 in first 30 days or next month free</td></tr>
-        <tr><td><strong>Construction</strong></td><td>$1,497/mo</td><td>20 qualified renovation leads per month</td><td>10 in first 30 days or next month free</td></tr>
-        <tr><td><strong>Real Estate</strong></td><td>$1,497/mo</td><td>15 seller listing appointments per month</td><td>5 in first 30 days or next month free</td></tr>
-        <tr><td><strong>Dental</strong></td><td>$1,497/mo</td><td>30 new-patient consults per month</td><td>15 in first 30 days or next month free</td></tr>
-        <tr><td><strong>Moving</strong></td><td>$997/mo</td><td>30 qualified move leads per month</td><td>15 in first 30 days or next month free</td></tr>
-        <tr><td><strong>Cleaning</strong></td><td>$997/mo</td><td>25 recurring-contract leads per month</td><td>10 in first 30 days or next month free</td></tr>
-      </tbody>
-    </table>
-    <p class="clx-lead clx-mt-md" style="font-size: 13px; color: var(--muted);">Legal vertical: waiting list. Compliance-first template bank in development with partnering law-society counsel.</p>
+  <div class="pp-wrap">
+
+    <div class="pp-section-label">Subscribe and go</div>
+    <h2 class="pp-section-title">Pay monthly, start today</h2>
+    <div class="pp-flagship">
+
+      <div class="pp-card">
+        <div class="pp-name">Sales Engine</div>
+        <div class="pp-tag">Finds your customers and books the calls, around the clock.</div>
+        <div class="pp-from">from <b>$499</b> /mo</div>
+        <ul class="pp-tiers">
+          <li><span>Starter</span><b>$499/mo</b></li>
+          <li><span>Growth</span><b>$1,499/mo</b></li>
+          <li><span>Scale</span><b>$3,999/mo</b></li>
+        </ul>
+        <a href="products/sales-engine.html" class="pp-cta">See Sales Engine plans</a>
+      </div>
+
+      <div class="pp-card">
+        <div class="pp-name">Sentinel</div>
+        <div class="pp-tag">Your around-the-clock on-call engineer, without hiring a team.</div>
+        <div class="pp-from">from <b>$299</b> /mo</div>
+        <ul class="pp-tiers">
+          <li><span>Starter</span><b>$299/mo</b></li>
+          <li><span>Growth</span><b>$999/mo</b></li>
+          <li><span>Scale</span><b>$2,499/mo</b></li>
+        </ul>
+        <a href="products/sentinel.html" class="pp-cta">See Sentinel plans</a>
+      </div>
+
+    </div>
+
+    <div class="pp-section-label">More ways to grow</div>
+    <h2 class="pp-section-title">Priced to fit your business</h2>
+    <div class="pp-grid">
+
+      <div class="pp-mini">
+        <div class="pp-name">LUXI</div>
+        <div class="pp-tag">An AI host that live-sells and auctions your products on every platform.</div>
+        <div class="pp-model">Live commerce</div>
+        <a href="products/luxi.html" class="pp-mini-cta">How LUXI works</a>
+      </div>
+
+      <div class="pp-mini">
+        <div class="pp-name">MGA</div>
+        <div class="pp-tag">The complete operating system for running an insurance MGA.</div>
+        <div class="pp-model">Commission based</div>
+        <a href="products/mga.html" class="pp-mini-cta">Explore MGA</a>
+      </div>
+
+      <div class="pp-mini">
+        <div class="pp-name">AVA</div>
+        <div class="pp-tag">Builds your expert presence on social, on autopilot.</div>
+        <div class="pp-model">Custom plan</div>
+        <a href="products/ava.html" class="pp-mini-cta">Explore AVA</a>
+      </div>
+
+      <div class="pp-mini">
+        <div class="pp-name">Smart Quote</div>
+        <div class="pp-tag">Instant, accurate quotes that turn visitors into customers.</div>
+        <div class="pp-model">Custom plan</div>
+        <a href="products/smart-quote.html" class="pp-mini-cta">Explore Smart Quote</a>
+      </div>
+
+      <div class="pp-mini">
+        <div class="pp-name">MAXI</div>
+        <div class="pp-tag">One playbook engine, adapted to your industry.</div>
+        <div class="pp-model">Custom plan</div>
+        <a href="products/maxi.html" class="pp-mini-cta">Explore MAXI</a>
+      </div>
+
+      <div class="pp-mini">
+        <div class="pp-name">CIRO</div>
+        <div class="pp-tag">The operations manager that never sleeps.</div>
+        <div class="pp-model">Custom plan</div>
+        <a href="products/ciro.html" class="pp-mini-cta">Explore CIRO</a>
+      </div>
+
+    </div>
+
+    <div class="pp-guarantee">
+      <h3>Our promise</h3>
+      <p>Every plan starts with a clear goal we agree on together. If Crystallux is not pulling its weight in the first 30 days, we make it right or your next month is free. No partial credits, no fine print, no games.</p>
+    </div>
+
   </div>
 </section>
 
 <section class="clx-cta-band">
-  <h2>Only 20 founding slots per vertical.</h2>
-  <p>Founding rate locks for 12 months. When the window closes, the standard rate becomes the new minimum.</p>
-  <a href="book.html" class="clx-btn clx-btn-primary clx-btn-lg">Book a demo &rarr;</a>
+  <h2>Not sure which one fits?</h2>
+  <p>Tell us what you are trying to grow, and we will point you to the right product. No pressure, no slides.</p>
+  <a href="book.html" class="clx-btn clx-btn-primary clx-btn-lg">Book a quick call &rarr;</a>
 </section>
+
+</main>
 
 <footer class="clx-footer">
   <div class="clx-footer-grid">
