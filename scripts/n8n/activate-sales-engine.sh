@@ -14,7 +14,9 @@
 #  shell / .env, you can just run: bash scripts/n8n/activate-sales-engine.sh)
 
 set -uo pipefail
-N8N_URL="${N8N_URL:-http://localhost:5678}"
+# Reach n8n at the same public URL ship.sh uses (the management API is not
+# published on localhost from the host). Override with N8N_URL if needed.
+N8N_URL="${N8N_URL:-${CLX_N8N_PUBLIC_URL:-https://automation.crystallux.org}}"
 : "${N8N_API_KEY:?Set N8N_API_KEY first (same key ship.sh uses for activation)}"
 
 # Exact workflow names to switch ON, in pipeline order.
