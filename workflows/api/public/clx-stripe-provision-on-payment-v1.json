@@ -1,0 +1,128 @@
+{
+  "id": "wfStripeProvisionOnPaymentV1",
+  "name": "CLX - Stripe Provision On Payment v1",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "public/stripe/provision", "responseMode": "responseNode", "options": {} },
+      "id": "spp-0001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [200, 300],
+      "webhookId": "clx-stripe-provision-on-payment-001",
+      "notes": "DEACTIVATED. PUBLIC. Configure a Stripe webhook endpoint at this URL (event: checkout.session.completed). On a paid Payment Link, auto-provisions the buyer. Needs STRIPE_SECRET_KEY + POSTMARK_API_TOKEN. Each Payment Link must carry metadata 'product' (e.g. sales_engine) and optionally 'selected_plan'."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only act on completed checkouts. Pull the session id to re-verify with Stripe.\nconst body = $input.item.json.body || $input.item.json || {};\nconst type = body.type || '';\nif (type !== 'checkout.session.completed') {\n  return { json: { ignore: true, status: 200, note: 'ignored event ' + (type || 'unknown') } };\n}\nconst obj = (body.data && body.data.object) || {};\nconst sid = String(obj.id || '').trim();\nif (sid.indexOf('cs_') !== 0) return { json: { ignore: true, status: 200, note: 'no checkout session id' } };\nreturn { json: { ignore: false, session_id: sid } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "spp-0002", "name": "Extract Event", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c0", "leftValue": "={{ $json.ignore }}", "rightValue": false, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }
+      },
+      "id": "spp-0003", "name": "IF Actionable", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.stripe.com/v1/checkout/sessions/' + $json.session_id }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}" }] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "spp-0004", "name": "Stripe Get Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Re-verify with Stripe (don't trust the raw webhook body), then map to a product.\nconst s = $input.item.json || {};\nif (s.error) return { json: { ok: false, status: 400, error: 'Stripe: ' + (s.error.message || 'lookup failed') } };\nif (!s.id) return { json: { ok: false, status: 404, error: 'Checkout session not found' } };\nif (s.status !== 'complete') return { json: { ok: false, status: 402, error: 'Checkout not complete (status ' + s.status + ')' } };\nconst meta = s.metadata || {};\nconst email = (s.customer_details && s.customer_details.email) || s.customer_email || '';\nconst product = String(meta.product || '').trim();\nconst plan = String(meta.selected_plan || meta.plan || '').trim();\nif (!email) return { json: { ok: false, status: 400, error: 'No email on the session' } };\nif (!product) return { json: { ok: false, status: 400, error: 'No product metadata on the Payment Link (add metadata product=...)' } };\nreturn { json: { ok: true, email: email, product: product, plan: plan } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "spp-0005", "name": "Verify + Map", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 240]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }
+      },
+      "id": "spp-0006", "name": "IF Valid", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [1340, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/clx_provision_paid_buyer",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Accept", "value": "application/json" }] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_email: $json.email, p_product: $json.product, p_plan: $json.plan }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "spp-0007", "name": "Provision RPC", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1560, 160],
+      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the buyer welcome (with a set-password link via the normal forgot-password\n// flow) and the internal notification. Provisioning never fails the buyer's experience.\nlet r = $input.item.json; if (Array.isArray(r)) r = r[0] || {};\nconst v = $('Verify + Map').item.json;\nconst email = v.email; const product = v.product; const plan = v.plan || '';\nconst created = r && r.account_created;\nconst prettyProduct = product.replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());\nconst setPw = 'https://crystallux.org/forgot-password.html';\nconst login = 'https://crystallux.org/login.html';\nconst buyerHtml = '<p>Welcome to Crystallux \\u2014 your <strong>' + prettyProduct + '</strong> account is ready.</p>' +\n  '<p>Two quick steps to get in:</p>' +\n  '<ol><li>Set your password: <a href=\"' + setPw + '\">' + setPw + '</a> (enter this email, ' + email + ').</li>' +\n  '<li>Log in: <a href=\"' + login + '\">' + login + '</a> and you will land on your dashboard.</li></ol>' +\n  '<p>A specialist will also reach out within 24 hours to tailor it to your business. Questions? Just reply.</p>';\nconst maryHtml = '<p>\\uD83D\\uDCB0 New PAID signup auto-provisioned.</p>' +\n  '<ul><li>Email: <strong>' + email + '</strong></li><li>Product: ' + product + (plan ? ' (' + plan + ')' : '') + '</li>' +\n  '<li>New account: ' + (created ? 'yes' : 'existing, product added') + '</li></ul>' +\n  '<p>Set their industry + city to start lead-gen.</p>';\nreturn { json: {\n  notify_to_mary: { From: 'info@crystallux.org', To: 'info@crystallux.org', Subject: 'New paid signup: ' + email + ' (' + product + ')', HtmlBody: maryHtml, MessageStream: 'outbound' },\n  welcome_to_buyer: { From: 'info@crystallux.org', To: email, Subject: 'Your Crystallux account is ready', HtmlBody: buyerHtml, MessageStream: 'outbound' },\n  email: email, product: product, account_created: !!created\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "spp-0008", "name": "Build Emails", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1780, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }, { "name": "Content-Type", "value": "application/json" }, { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_API_TOKEN }}" }] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.notify_to_mary) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "spp-0009", "name": "Notify Mary", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2000, 80]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }, { "name": "Content-Type", "value": "application/json" }, { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_API_TOKEN }}" }] },
+        "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($('Build Emails').item.json.welcome_to_buyer) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "spp-0010", "name": "Welcome Buyer", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2000, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, provisioned: true, email: $('Build Emails').item.json.email }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "spp-0011", "name": "Respond OK", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [2220, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, ignored: true }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "spp-0012", "name": "Respond Ignored", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [880, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": { "responseCode": "={{ $json.status || 400 }}" }
+      },
+      "id": "spp-0013", "name": "Respond Error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1560, 360]
+    }
+  ],
+  "connections": {
+    "Webhook":            { "main": [[{ "node": "Extract Event", "type": "main", "index": 0 }]] },
+    "Extract Event":      { "main": [[{ "node": "IF Actionable", "type": "main", "index": 0 }]] },
+    "IF Actionable":      { "main": [
+      [{ "node": "Stripe Get Session", "type": "main", "index": 0 }],
+      [{ "node": "Respond Ignored", "type": "main", "index": 0 }]
+    ] },
+    "Stripe Get Session": { "main": [[{ "node": "Verify + Map", "type": "main", "index": 0 }]] },
+    "Verify + Map":       { "main": [[{ "node": "IF Valid", "type": "main", "index": 0 }]] },
+    "IF Valid": { "main": [
+      [{ "node": "Provision RPC", "type": "main", "index": 0 }],
+      [{ "node": "Respond Error", "type": "main", "index": 0 }]
+    ] },
+    "Provision RPC": { "main": [[{ "node": "Build Emails", "type": "main", "index": 0 }]] },
+    "Build Emails":  { "main": [[{ "node": "Notify Mary", "type": "main", "index": 0 }]] },
+    "Notify Mary":   { "main": [[{ "node": "Welcome Buyer", "type": "main", "index": 0 }]] },
+    "Welcome Buyer": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
