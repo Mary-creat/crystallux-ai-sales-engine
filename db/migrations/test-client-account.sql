@@ -13,12 +13,15 @@
 -- Make sure pgcrypto is available (idempotent — schema-level)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- NOTE: auth_users has no `active` column. The gating column is `email_verified`
+-- (see docs/architecture/migrations/2026-04-28-authentication.sql). Setting it
+-- true so the test login is not bounced to the verify-email screen.
 INSERT INTO auth_users (
   email,
   password_hash,
   user_role,
   client_id,
-  active,
+  email_verified,
   created_at
 ) VALUES (
   'testclient@crystallux.org',
@@ -29,17 +32,17 @@ INSERT INTO auth_users (
   NOW()
 )
 ON CONFLICT (email) DO UPDATE
-  SET password_hash = EXCLUDED.password_hash,
-      user_role     = EXCLUDED.user_role,
-      client_id     = EXCLUDED.client_id,
-      active        = EXCLUDED.active;
+  SET password_hash  = EXCLUDED.password_hash,
+      user_role      = EXCLUDED.user_role,
+      client_id      = EXCLUDED.client_id,
+      email_verified = EXCLUDED.email_verified;
 
 -- Verify
 SELECT
   email,
   user_role,
   client_id,
-  active,
+  email_verified,
   created_at,
   -- Confirm the bcrypt hash verifies the chosen password
   (password_hash = crypt('TestPass2026#', password_hash)) AS password_verifies
