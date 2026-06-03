@@ -170,24 +170,12 @@
   --max:        1200px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary:   var(--color-neutral-950);
-    --bg-secondary: var(--color-neutral-900);
-    --bg-accent:    var(--color-neutral-800);
-
-    --text-primary:   var(--color-neutral-50);
-    --text-secondary: var(--color-neutral-300);
-    --text-muted:     var(--color-neutral-400);
-
-    --border-default:  var(--color-neutral-800);
-    --border-emphasis: var(--color-neutral-700);
-
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
-  }
-}
+/* Dark-mode token overrides removed on purpose. The marketing site is designed
+   light (white sections, dark text). When a visitor's OS was set to dark mode,
+   these overrides flipped the text to near-white while the section backgrounds
+   stayed white — making the copy fade out and become unreadable. We force the
+   intended light theme everywhere instead. */
+:root { color-scheme: light; }
 
 /* ─── Reset ─── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
