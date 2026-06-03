@@ -65,6 +65,11 @@
           <label class="clx-switch"><input type="checkbox" id="bookingAlerts"><span class="slider"></span></label>
           <label for="bookingAlerts" style="margin:0;cursor:pointer">Real-time alerts when a meeting is booked</label>
         </div>
+        <div class="clx-field">
+          <label for="bookingLink">Your booking link (Calendly or Cal.com)</label>
+          <input class="clx-input" type="url" id="bookingLink" placeholder="https://calendly.com/your-name/30min" autocomplete="url" />
+          <p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0">When an interested lead is ready to meet, we automatically email them this link so they book straight onto your own calendar. Paste your full Calendly or Cal.com link.</p>
+        </div>
         <button type="submit" class="clx-btn clx-btn-primary" id="saveBtn" style="display:inline-flex;align-items:center;gap:8px">
           <span id="saveIcon"></span>Save changes
         </button>
@@ -142,11 +147,13 @@ async function load(user) {
   __orig = {
     notification_email: c.notification_email || user.email || '',
     daily_digest: !!c.daily_digest_opt_in,
-    booking_alerts: !!c.booking_alerts_opt_in
+    booking_alerts: !!c.booking_alerts_opt_in,
+    calendly_link: c.calendly_link || ''
   };
   document.getElementById('notifEmail').value = __orig.notification_email;
   document.getElementById('dailyDigest').checked = __orig.daily_digest;
   document.getElementById('bookingAlerts').checked = __orig.booking_alerts;
+  document.getElementById('bookingLink').value = __orig.calendly_link;
 }
 
 async function save(e) {
@@ -157,7 +164,8 @@ async function save(e) {
   var body = {
     notification_email: document.getElementById('notifEmail').value.trim(),
     daily_digest_opt_in: document.getElementById('dailyDigest').checked,
-    booking_alerts_opt_in: document.getElementById('bookingAlerts').checked
+    booking_alerts_opt_in: document.getElementById('bookingAlerts').checked,
+    calendly_link: document.getElementById('bookingLink').value.trim()
   };
   var res = await clxApi.clientPost('settings', body);
   btn.disabled = false;
