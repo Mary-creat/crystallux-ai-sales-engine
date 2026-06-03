@@ -108,10 +108,10 @@
   --bg-subtle:   var(--bg-secondary);
   --bg-elevated: var(--color-neutral-0);
 
-  --text-primary:   #232233;
-  --text-secondary: var(--color-neutral-600);
-  --text-tertiary:  var(--color-neutral-500);
-  --text-muted:     var(--color-neutral-500);
+  --text-primary:   #1c1b29;
+  --text-secondary: var(--color-neutral-700);
+  --text-tertiary:  var(--color-neutral-600);
+  --text-muted:     var(--color-neutral-600);
   --text-on-brand:  var(--color-neutral-0);
 
   --border-subtle:   var(--color-neutral-200);
@@ -1042,8 +1042,8 @@ address { font-style: normal; }
 .feature-title {
   font-family: var(--font-heading);
   font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  font-weight: var(--weight-bold);
+  color: var(--color-brand-700);
   letter-spacing: var(--tracking-headline);
   margin: 0;
 }
