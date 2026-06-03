@@ -6,6 +6,35 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0aa. Self-serve onboarding — pay/signup → auto-account → login → access — added 2026-06-02
+
+Closes the "money while you sleep" loop. Two halves, both committed (`4e38057` paid, `10def4a` trial):
+
+- **Paid buyers** (`clx-stripe-provision-on-payment-v1` + `clx_provision_paid_buyer`): a paid Stripe Payment Link → re-verify the session with Stripe → create the buyer's tenant + verified client login + grant the product → email them a "set your password + log in" link. Existing accounts just get the product added.
+- **Free signups / trial login** (`clx-public-client-signup-v1` updated + `clx_provision_trial_signup`): the public signup form now creates a real **trial** account (tenant `active=false` so the engine doesn't run/bill an unpaid trial) + a verified, loggable login, and the welcome email carries the set-password CTA. Fixes the old bug where the signup's raw `auth_users` insert had no `client_id` (CHECK violation → no account ever created → couldn't log in).
+
+Both let the buyer set their password via the existing forgot-password flow (`site/forgot-password.html`). No paid features for trials until upgrade.
+
+**Mary's setup (Supabase + n8n + Stripe — secrets stay server-side):**
+1. **Apply both migrations** in Supabase SQL editor:
+   - `db/migrations/auto-provision-paid-buyer.sql`
+   - `db/migrations/provision-trial-signup.sql`
+2. **Ship both workflows** (after merge to `main`):
+   ```bash
+   for wf in clx-stripe-provision-on-payment-v1.json clx-public-client-signup-v1.json; do
+     N8N_API_KEY="$KEY" bash scripts/n8n/ship.sh --branch main "$wf"
+   done
+   ```
+   (Restart n8n after, so the new `public/stripe/provision` webhook registers.)
+3. **Stripe (paid path only):**
+   - Developers → Webhooks → Add endpoint: `https://automation.crystallux.org/webhook/public/stripe/provision`, event **`checkout.session.completed`**.
+   - On each Payment Link → Metadata: `product` = the product key (`sales_engine`, `sentinel`, …); optionally `selected_plan`.
+4. Needs `STRIPE_SECRET_KEY` + `POSTMARK_API_TOKEN` in n8n env (both already required elsewhere).
+
+**Verify:** (trial) submit the signup form → get the "set your password" email → set password → log in → land on dashboard. (paid) Stripe TEST mode → pay a link with metadata `product` → buyer gets the welcome email + a new verified `auth_users` row + `clients` tenant.
+
+---
+
 ## 0z. Revenue wiring — self-serve Stripe Checkout for Sentinel (+ Sales Engine) — added 2026-05-30
 
 Turns the live products into paying subscriptions. Sentinel's pricing CTAs ($299 / $999 / $2,499) now start a **Stripe Checkout** (14-day trial); on success the buyer lands on `site/welcome.html`, which verifies the session and grants the product onto `auth_users.products` (existing account) or drops a flagged PAID lead for Mary (new buyer). LUXI is already transaction-based (Buy Now/auto-bid captures, §0y); Sales Engine plans stay demo-led but the same checkout works for them via `STRIPE_PRICE_*`.
