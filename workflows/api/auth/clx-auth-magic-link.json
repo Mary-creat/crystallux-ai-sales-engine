@@ -70,13 +70,25 @@
     },
     {
       "parameters": {
-        "jsCode": "// PLACEHOLDER — wire to email provider in Phase 1 follow-up.\n// Build the click URL (this is what lands in the user's inbox):\nconst t = $('Mint Token').item.json;\nconst clickUrl = 'https://crystallux.org/auth/magic-link-verify.html?token=' + encodeURIComponent(t.token);\nreturn { json: {\n  to: t.email,\n  subject: 'Your Crystallux sign-in link',\n  text: 'Click to sign in (valid 15 min):\\n' + clickUrl,\n  click_url: clickUrl,\n  delivery: 'PLACEHOLDER — not actually sent. Replace this Code node with a real email node (Postmark/SendGrid/SMTP) before going live.'\n} };",
-        "mode": "runOnceForEachItem"
+        "method": "POST",
+        "url": "https://api.postmarkapp.com/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/json" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ From: 'info@crystallux.org', To: $('Mint Token').item.json.email, Subject: 'Your Crystallux sign-in link', HtmlBody: '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#0f172a;line-height:1.6;max-width:560px\"><p>Click below to sign in (the link is valid for 15 minutes):</p><p style=\"margin:26px 0\"><a href=\"https://crystallux.org/auth/magic-link-verify.html?token=' + encodeURIComponent($('Mint Token').item.json.token) + '\" style=\"display:inline-block;background:#7C3AED;color:#fff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none\">Sign in &#8594;</a></p><p style=\"font-size:13px;color:#64748b\">Or paste this link into your browser:<br>https://crystallux.org/auth/magic-link-verify.html?token=' + encodeURIComponent($('Mint Token').item.json.token) + '</p><p style=\"font-size:13px;color:#94a3b8;margin-top:20px\">If you did not request this, you can safely ignore this email.</p></div>', TextBody: 'Sign in to Crystallux (valid 15 min):\\n\\nhttps://crystallux.org/auth/magic-link-verify.html?token=' + encodeURIComponent($('Mint Token').item.json.token) + '\\n\\nIf you did not request this, ignore this email.', MessageStream: 'outbound' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "auth-ml-0005",
-      "name": "Send Email (placeholder)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "Send Magic Link Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [1120, 200]
     },
     {
@@ -111,8 +123,8 @@
                                            [ { "node": "Insert Magic Link",         "type": "main", "index": 0 } ],
                                            [ { "node": "Respond 4xx",               "type": "main", "index": 0 } ]
                                          ] },
-    "Insert Magic Link":        { "main": [[ { "node": "Send Email (placeholder)",  "type": "main", "index": 0 } ]] },
-    "Send Email (placeholder)": { "main": [[ { "node": "Respond OK",                "type": "main", "index": 0 } ]] }
+    "Insert Magic Link":        { "main": [[ { "node": "Send Magic Link Email",      "type": "main", "index": 0 } ]] },
+    "Send Magic Link Email":    { "main": [[ { "node": "Respond OK",                "type": "main", "index": 0 } ]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false

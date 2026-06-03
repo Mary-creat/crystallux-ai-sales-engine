@@ -26,6 +26,25 @@ echo
 bash "$DIR/activate-admin.sh"
 
 echo
+echo "=== Auth (login, magic link, password reset, verification) ==="
+AUTH=(
+  "clxAuthLoginV1|Login"
+  "clxAuthMagicLinkV1|Magic-link request (sends sign-in email)"
+  "clxAuthMagicLinkVerifyV1|Magic-link verify"
+  "clxAuthPasswordResetRequestV1|Password-reset request (sends set-password email)"
+  "clxAuthPasswordResetCompleteV1|Password-reset complete"
+  "clxAuthResendVerificationV1|Resend verification"
+  "clxEmailSendPostmark|Email send (Postmark) sub-workflow"
+)
+for row in "${AUTH[@]}"; do
+  id="${row%%|*}"; label="${row#*|}"
+  code=$(curl -s -o /tmp/clx_all.json -w "%{http_code}" -X POST \
+    -H "X-N8N-API-KEY: $N8N_API_KEY" "$N8N_URL/api/v1/workflows/$id/activate")
+  if [ "$code" = "200" ]; then echo "  [+] ON:        $label"
+  else echo "  [x] HTTP $code:  $label   $(head -c 140 /tmp/clx_all.json | tr -d '\n')"; fi
+done
+
+echo
 echo "=== Stripe + self-serve onboarding ==="
 EXTRAS=(
   "clx-stripe-webhook-v1|Stripe lifecycle (cancels / failed payments)"
