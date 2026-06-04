@@ -32,6 +32,28 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-06-04 — Self-serve loop closed + auth email fix + Command Center + insurance go-to-market
+
+### What shipped
+- **Self-serve onboarding, end to end** (`4e38057`, `10def4a`): pay a Stripe link OR fill the signup form → account auto-created → "set your password + log in" email → dashboard. New RPCs `clx_provision_paid_buyer` + `clx_provision_trial_signup` (free signups get a verified *trial* tenant, `active=false` so the engine doesn't bill them). Fixed the old signup bug (raw `auth_users` insert had no `client_id` → CHECK violation → no account ever created).
+- **Auth emails were placeholders** (`b091adc`): `clx-auth-password-reset-request` and `clx-auth-magic-link` minted tokens then hit a Code node literally named "Send Email (placeholder)" that never sent. Wired both to Postmark. *This is why set-password/login emails never arrived.*
+- **Stripe provisioning auto-detects the product** (`80e3024`) from the purchased line-item name (no Payment-Link metadata needed) + one-shot `scripts/n8n/activate-all.sh`.
+- **Booking self-serve** (`a032e44`): clients submit their own Calendly/Cal.com link in dashboard Settings → flows into `clients.calendly_link` → the Booking workflow emails interested leads that link.
+- **Calendly fixed** (`8fc1e6b`) to the real event `calendly.com/crystallux-info/30min`; homepage got a "Start free" CTA (`fc5dddf`) → `join-client.html` (was orphaned).
+- **Readability** (`eff5bcf`,`111eba2`,`dbf2e09`): killed a `prefers-color-scheme: dark` block that faded text on white; darkened body text; violet card titles; fixed faint labels.
+- **Business Command Center** (`6320984`,`2791333`): new admin page (★ in nav) showing every money-maker — what it does, how it makes money, Live/Ready/Dormant/To-build — plus integrations status and the full build backlog. **Mary's single source of truth for "what's next."**
+
+### What got unblocked / decided
+- **The publish:workflow fix:** webhooks weren't registering after re-ship because the n8n API key was 401 and the SQL-fallback only set `active=1` without a published version ("Active version not found"). `docker exec n8n n8n publish:workflow --id=<id>` + restart fixed it. **The API key is dead — use `publish:workflow` via CLI to activate, not REST.**
+- **Gmail connected** (the keystone) — outreach can now send. **NewsAPI + OpenWeather keys done** (Market Intelligence ready).
+- **Go-to-market locked:** engine finds **businesses (B2B)**; consumers (patients/homeowners/etc.) come only from ads/inbound, never scraping. For consumer-service clients, deliver **referral-partner businesses + marketing**, not scraped consumer lists. **Insurance first** (Mary = agent #1, GTA), then logistics, then digital-marketing/referrals. Cold outreach stays **plain/personal**; welcome emails are the colorful ones.
+
+### What Mary needs to do next
+- **Redeploy** (Cloudflare) `admin.crystallux.org` + `app.crystallux.org` + `crystallux.org` so the Command Center, booking field, and readability fixes go live.
+- **Insurance loop:** run the `SELECT` of clients+`channel_credentials` → set her `daily_send_limit = 25` (default is 450) → **test-send to herself** → ramp.
+- **SPF/DKIM/DMARC** for `crystalluxfinancial.org` (her agent-#1 send domain).
+- Integration keys per the Command Center (HeyGen, Twilio, socials) when ready. See [docs/audit/blockers.md](audit/blockers.md) §0aa and the `project-build-backlog` memory.
+
 ## 2026-05-30 (later) — LUXI: Buy Now + auto-bid + self-serve card-backed web bidding
 
 Built LUXI's commercial layer on top of the existing auction engine. Three increments, all on `scale-sprint-v1`, all dormant (`active:false`) pending Mary's VPS deploy.
