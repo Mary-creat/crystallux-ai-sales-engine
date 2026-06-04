@@ -26,12 +26,16 @@
   document.getElementById('contactForm').addEventListener('submit', function(e){
     e.preventDefault();
     var fd = new FormData(e.target);
-    var body = { company: fd.get('company'), name: fd.get('name'), email: fd.get('email'), phone: fd.get('phone'), role: fd.get('role'), message: fd.get('message'), source: 'insurer-marketing' };
+    // Carrier inquiry → the live MGA apply endpoint (form_type 'carrier').
+    var body = { form_type: 'carrier', full_name: fd.get('name'), email: fd.get('email'), company: fd.get('company'), phone: fd.get('phone'), role: fd.get('role'), message: fd.get('message'), form_source: 'insurer-marketing' };
     var out = document.getElementById('result');
     out.textContent = 'Sending…';
-    // POSTs to the existing lead-intake endpoint (universal). Falls back to mailto on network failure.
-    fetch('https://automation.crystallux.org/webhook/auth/lead-intake', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
-      .then(function(){ out.textContent = 'Thanks. we will be in touch within 2 business days.'; e.target.reset(); })
+    fetch('https://automation.crystallux.org/webhook/public/mga/apply', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return { ok: r.ok, d: d }; }); })
+      .then(function(res){
+        if (res.ok && res.d.ok !== false) { out.textContent = 'Thanks. We will be in touch within 2 business days.'; e.target.reset(); }
+        else { out.innerHTML = (res.d.error || 'Something went wrong') + '. Or email <a href="mailto:partnerships@crystallux.org">partnerships@crystallux.org</a>.'; }
+      })
       .catch(function(){ out.innerHTML = 'Network error. Please email us directly at <a href="mailto:partnerships@crystallux.org">partnerships@crystallux.org</a>.'; });
   });
 })();
