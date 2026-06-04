@@ -16,6 +16,7 @@
   .cc-live    { background:#dcfce7; color:#15803d; }
   .cc-ready   { background:#fef3c7; color:#b45309; }
   .cc-dormant { background:#ede9fe; color:#6d28d9; }
+  .cc-todo    { background:#e0e7ff; color:#4338ca; }
   .cc-section-label { font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#6d28d9; margin:30px 0 6px; }
   .cc-section-sub { font-size:13.5px; color:#52525b; margin:0 0 16px; }
   .cc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
@@ -65,6 +66,7 @@
         <span class="cc-badge cc-live">● Live</span><span style="color:#52525b">running now</span>
         <span class="cc-badge cc-ready">● Ready</span><span style="color:#52525b">built, just flip it on</span>
         <span class="cc-badge cc-dormant">● Dormant</span><span style="color:#52525b">built, needs setup/keys</span>
+        <span class="cc-badge cc-todo">● To build</span><span style="color:#52525b">not built yet — pick next</span>
       </div>
 
       <div id="ccBody"></div>
@@ -106,6 +108,27 @@ var GROUPS = [
     { name:'Sentinel', status:'dormant', how:'AI DevOps employee for SMBs — monitoring, uptime, ops automation.', money:'$499 / $1,499 / $3,999 self-serve (Stripe).', need:'Needs Stripe prices + env vars.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
     { name:'LUXI (live commerce)', status:'dormant', how:'Live auctions + Buy-Now + auto-bid with Stripe capture.', money:'Transaction fees / margin on every sale.', need:'Needs VPS deploy + Stripe key.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
   ]},
+  { label: 'Integrations & keys', sub:'Green = connected. Violet = sign up + add the key to unlock the dormant feature it powers. (Pricing/Stripe handled separately.)', items: [
+    { name:'Gmail — outreach sending', status:'live', how:'Sends your cold outreach from your inbox.', money:'Powers the Sales Engine.', act:{label:'Connected', href:'/pages/command-center.html'} },
+    { name:'Google Maps', status:'live', how:'Finds local businesses during discovery.', money:'Powers lead discovery.', act:{label:'Connected', href:'/pages/command-center.html'} },
+    { name:'NewsAPI + OpenWeather', status:'live', how:'News + weather signals.', money:'Powers Market Intelligence.', act:{label:'Connected', href:'/pages/market-intelligence.html'} },
+    { name:'Calendly', status:'live', how:'calendly.com/crystallux-info/30min — your sales calendar.', money:'Books your sales calls.', act:{label:'Connected', href:'/pages/command-center.html'} },
+    { name:'Postmark · Claude · Stripe · Supabase', status:'live', how:'Email delivery, AI, payments, database.', money:'Core plumbing — all live.', act:{label:'Connected', href:'/pages/command-center.html'} },
+    { name:'HeyGen', status:'dormant', how:'AI avatar video generation.', money:'Unlocks Content + Video + AVA.', need:'Sign up (~$99–330/mo) → add HEYGEN_API_KEY.', act:{label:'Add key', href:'/pages/workflows.html'} },
+    { name:'Twilio', status:'dormant', how:'WhatsApp + voice messaging.', money:'Unlocks WhatsApp / Voice AI.', need:'Sign up → SID + AUTH_TOKEN + PHONE_NUMBER.', act:{label:'Add key', href:'/pages/workflows.html'} },
+    { name:'LinkedIn · Meta (FB+IG) · YouTube · TikTok · X', status:'dormant', how:'Auto-publishing + comment monitoring across socials.', money:'Unlocks the Content/Social engine.', need:'Free developer signups → client IDs + secrets.', act:{label:'Add keys', href:'/pages/workflows.html'} },
+    { name:'ElevenLabs', status:'dormant', how:'Premium AI voice for calls.', money:'Better inbound/outbound calls.', need:'Sign up (~$22/mo) → add key.', act:{label:'Add key', href:'/pages/workflows.html'} },
+    { name:'Restream', status:'dormant', how:'Live camera-on broadcast for LUXI.', money:'Live commerce shows.', need:'Sign up → RESTREAM_API_KEY.', act:{label:'Add key', href:'/pages/workflows.html'} },
+    { name:'Apollo · Hunter.io · Cloudflare R2', status:'dormant', how:'B2B enrichment, email finding, media storage.', money:'Deeper lead data + file storage.', need:'Verify Apollo key; add Hunter + R2 if/when needed.', act:{label:'Verify', href:'/pages/workflows.html'} },
+  ]},
+  { label: 'Build backlog — not built yet', sub:'When you power on, pick the next one here and just point me to it. Listed in priority order.', items: [
+    { name:'AI chat in this dashboard (talk to me here)', status:'todo', how:'Intercom-style chat wired to your MCP tools, so you give me commands in the dashboard instead of copying terminal scripts.', money:'Ends the copy-paste pain — your #1 ask.', act:{label:'Build next', href:'/pages/command-center.html'} },
+    { name:'DevOps Digital Employee', status:'todo', how:'Auto-restarts failed workflows, watches quotas/balances, sends a daily health briefing.', money:'Removes your system-health mental load.', act:{label:'Planned', href:'/pages/command-center.html'} },
+    { name:'COO / CMO Digital Employee', status:'todo', how:'Pipeline health, revenue forecast, content QA, multi-channel brand watch, weekly business review.', money:'You get decisions, not raw data.', act:{label:'Planned', href:'/pages/command-center.html'} },
+    { name:'Email/SMS voice audit + brand voice doc', status:'todo', how:'Strip em-dashes + robotic openings so every template sounds like you; document the brand voice.', money:'Higher reply rates; consistent brand.', act:{label:'Planned', href:'/pages/command-center.html'} },
+    { name:'Security audit (node-by-node)', status:'todo', how:'Auth gates, input validation, tenant isolation, webhook signatures on every workflow.', money:'Locked tight before customers touch it.', act:{label:'Planned', href:'/pages/command-center.html'} },
+    { name:'End-to-end smoke test (4 roles)', status:'todo', how:'Walk client / advisor / carrier / quote journeys live and fix any breakage. Also fix the dead insurers.crystallux.org contact form.', money:'Confidence that signups will not break.', act:{label:'Planned', href:'/pages/command-center.html'} },
+  ]},
   { label: 'Platform plumbing (already live)', sub:'The machinery that makes everything run — no action needed.', items: [
     { name:'Self-serve signup + paid', status:'live', how:'Pay a link or sign up → account auto-created → login emailed → dashboard access. Hands-free.', money:'Converts visitors into paying clients automatically.', act:{label:'Clients', href:'/pages/clients.html'} },
     { name:'Booking automation', status:'live', how:'Interested leads are auto-emailed the right Calendly/Cal.com link and book directly onto the calendar.', money:'Turns replies into booked revenue with zero manual work.', act:{label:'Clients', href:'/pages/clients.html'} },
@@ -113,19 +136,19 @@ var GROUPS = [
 ];
 
 function badge(s){
-  var m = { live:['cc-live','Live'], ready:['cc-ready','Ready'], dormant:['cc-dormant','Dormant'] }[s] || ['cc-dormant','Dormant'];
+  var m = { live:['cc-live','Live'], ready:['cc-ready','Ready'], dormant:['cc-dormant','Dormant'], todo:['cc-todo','To build'] }[s] || ['cc-dormant','Dormant'];
   return '<span class="cc-badge '+m[0]+'">● '+m[1]+'</span>';
 }
 function esc(t){ return clxComp && clxComp.escapeHtml ? clxComp.escapeHtml(t) : String(t); }
 
 function render(){
-  var counts = { live:0, ready:0, dormant:0, total:0 };
+  var counts = { live:0, ready:0, dormant:0, todo:0, total:0 };
   GROUPS.forEach(function(g){ g.items.forEach(function(i){ counts[i.status]++; counts.total++; }); });
   document.getElementById('ccSummary').innerHTML =
-    stat(counts.total, 'Money-makers built', '#6d28d9') +
     stat(counts.live, 'Live now', '#15803d') +
     stat(counts.ready, 'Ready to flip on', '#b45309') +
-    stat(counts.dormant, 'Dormant (need setup)', '#7c3aed');
+    stat(counts.dormant, 'Dormant (need keys)', '#7c3aed') +
+    stat(counts.todo, 'Still to build', '#4338ca');
 
   var html = '';
   GROUPS.forEach(function(g){
