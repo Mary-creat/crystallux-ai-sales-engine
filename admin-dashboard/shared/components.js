@@ -16,6 +16,7 @@
   //    exist when they do.
   global.CLX_FALLBACK_NAV =
     '<div class="clx-nav-section">Admin</div>' +
+    '<a class="clx-nav-item" href="/pages/command-center.html"><span class="clx-nav-icon">★</span>Command Center</a>' +
     '<a class="clx-nav-item" href="/pages/overview.html"><span class="clx-nav-icon">◉</span>Overview</a>' +
     '<a class="clx-nav-item" href="/pages/clients.html"><span class="clx-nav-icon">▤</span>Clients</a>' +
     '<a class="clx-nav-item" href="/pages/leads.html"><span class="clx-nav-icon">◍</span>Leads</a>' +

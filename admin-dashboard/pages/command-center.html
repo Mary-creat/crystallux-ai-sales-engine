@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Command Center · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+  .cc-legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 18px; font-size:13px; }
+  .cc-badge { display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:11px; letter-spacing:.04em; text-transform:uppercase; padding:3px 10px; border-radius:999px; }
+  .cc-live    { background:#dcfce7; color:#15803d; }
+  .cc-ready   { background:#fef3c7; color:#b45309; }
+  .cc-dormant { background:#ede9fe; color:#6d28d9; }
+  .cc-section-label { font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#6d28d9; margin:30px 0 6px; }
+  .cc-section-sub { font-size:13.5px; color:#52525b; margin:0 0 16px; }
+  .cc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+  .cc-card { background:#fff; border:1px solid #e9e3fb; border-radius:16px; padding:20px; display:flex; flex-direction:column; box-shadow:0 4px 16px rgba(91,33,182,.05); transition:transform .15s, box-shadow .15s; }
+  .cc-card:hover { transform:translateY(-3px); box-shadow:0 16px 36px rgba(91,33,182,.12); }
+  .cc-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .cc-name { font-size:16.5px; font-weight:800; color:#1c1b29; margin:0; }
+  .cc-how { font-size:13.5px; color:#3f3f46; line-height:1.55; margin:0 0 12px; }
+  .cc-money { font-size:13px; color:#15803d; font-weight:700; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:9px; padding:8px 11px; line-height:1.45; margin:0 0 14px; }
+  .cc-money .lbl { display:block; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#16a34a; margin-bottom:2px; }
+  .cc-act { margin-top:auto; display:inline-flex; align-items:center; gap:7px; font-size:13.5px; font-weight:700; color:#6d28d9; text-decoration:none; }
+  .cc-act:hover { color:#5b21b6; }
+  .cc-need { font-size:12px; color:#a16207; margin:0 0 12px; }
+  .cc-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-bottom:6px; }
+</style>
+</head>
+<body>
+
+<header class="clx-topbar">
+  <div class="clx-topbar-left">
+    <button class="clx-icon-btn clx-burger" id="clxBurger" aria-label="Open navigation">☰</button>
+    <a href="/pages/overview.html" class="clx-logo">
+      <span class="clx-logo-mark">C</span>Crystallux <span class="clx-role-pill">Admin</span>
+    </a>
+  </div>
+  <div class="clx-topbar-right" id="clxTopbarRight">
+    <span class="clx-user-chip"><span class="clx-spinner"></span></span>
+  </div>
+</header>
+
+<div class="clx-shell">
+  <nav class="clx-sidebar" id="clxSidebar" aria-label="Admin navigation"></nav>
+  <div class="clx-backdrop" id="clxBackdrop"></div>
+
+  <main class="clx-main">
+    <div class="clx-content">
+      <div class="clx-page-head">
+        <div>
+          <h1 class="clx-page-title">Command Center</h1>
+          <div class="clx-page-sub">Your whole business on one screen — every money-maker, how it works, and what's live vs dormant.</div>
+        </div>
+      </div>
+
+      <div id="ccSummary" class="cc-summary clx-stat-grid"></div>
+
+      <div class="cc-legend">
+        <span class="cc-badge cc-live">● Live</span><span style="color:#52525b">running now</span>
+        <span class="cc-badge cc-ready">● Ready</span><span style="color:#52525b">built, just flip it on</span>
+        <span class="cc-badge cc-dormant">● Dormant</span><span style="color:#52525b">built, needs setup/keys</span>
+      </div>
+
+      <div id="ccBody"></div>
+    </div>
+  </main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+clxAuth.require('admin').then(function (user) {
+  clxComp.injectNav(document.getElementById('clxSidebar'));
+  clxComp.renderTopbarUser(document.getElementById('clxTopbarRight'));
+  render();
+});
+
+// Your business, as built. Edit this list as states change.
+// status: 'live' | 'ready' | 'dormant'
+var GROUPS = [
+  { label: 'Core money services', sub: 'The five productized offerings. This is the bulk of your recurring revenue.', items: [
+    { name: 'Pipeline · Sales Engine', status:'live', how:'Done-for-you AI: finds businesses, emails them, AI qualifies replies, books meetings on a calendar, chases no-shows.', money:'$1,497 – $5,997 / mo per client (10–50 booked meetings).', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+    { name: 'Content', status:'dormant', how:'AI generates emails, LinkedIn/IG posts, carousels, video scripts — then auto-publishes across 6 platforms.', money:'$497 – $2,997 / mo per client.', need:'Needs HeyGen + Buffer + connected social accounts.', act:{label:'Activation steps', href:'/pages/workflows.html'} },
+    { name: 'Coach', status:'dormant', how:'AI coaching + accountability for solo operators: goals, calendar coaching, weekly check-ins, playbooks.', money:'$197 – $997 / mo per user.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+    { name: 'Manager', status:'dormant', how:'AI team-management briefings: productivity, leaderboards, at-risk alerts for leaders with 5+ people.', money:'$497 – $2,997 / mo per team.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+    { name: 'Operator (Enterprise bundle)', status:'dormant', how:'All four services combined — sold to MGAs, brokerages, franchises.', money:'$5,997 – $25,000 / mo.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+  ]},
+  { label: 'Insurance & MGA', sub:'Your moat — licensed, with infrastructure no generic tool has.', items: [
+    { name: 'MGA — sub-agent overrides', status:'ready', how:'Recruit licensed sub-agents; the engine feeds them leads; they write policies; you earn an override on every one.', money:'$100 – $300 override per policy + volume bonuses + your own book.', act:{label:'Advisors & leads', href:'/pages/overview.html'} },
+    { name:'Smart Quote (consumer funnel)', status:'dormant', how:'insurance.crystallux.org quote/compare pages capture real individuals wanting insurance → become leads → book your calendar.', money:'Commission per policy written. Needs traffic (ads/SEO) to feed it.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+  ]},
+  { label: 'Growth engines', sub:'Marketing + reach. Turn these on after the cash is flowing.', items: [
+    { name:'Social / Content publishing', status:'dormant', how:'Auto-posts AI content to LinkedIn, Facebook, Instagram, TikTok, X, YouTube + monitors and replies to comments.', money:'Sold as Content service; also markets YOU to attract clients.', need:'Needs HeyGen + Buffer + connect each account.', act:{label:'Activation steps', href:'/pages/workflows.html'} },
+    { name:'Video generation', status:'dormant', how:'Personalized AI avatar videos for outreach, follow-ups, even birthday messages.', money:'Differentiator in outreach; part of Content.', need:'Needs HeyGen key.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+    { name:'WhatsApp / Voice AI', status:'dormant', how:'AI handles conversations + inbound calls over WhatsApp and phone.', money:'Higher reply + booking rates; premium add-on.', need:'Needs Twilio account + number.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+    { name:'Market Intelligence', status:'ready', how:'Pulls news + signals (GDELT, NewsAPI, Bank of Canada, weather) for triggered, timely outreach.', money:'Behavioral Intelligence add-on: $1,500 – $3,500 / mo.', act:{label:'Open Market Intelligence', href:'/pages/market-intelligence.html'} },
+  ]},
+  { label: 'Standalone products', sub:'Sold on their own, outside the core services.', items: [
+    { name:'Sentinel', status:'dormant', how:'AI DevOps employee for SMBs — monitoring, uptime, ops automation.', money:'$499 / $1,499 / $3,999 self-serve (Stripe).', need:'Needs Stripe prices + env vars.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+    { name:'LUXI (live commerce)', status:'dormant', how:'Live auctions + Buy-Now + auto-bid with Stripe capture.', money:'Transaction fees / margin on every sale.', need:'Needs VPS deploy + Stripe key.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
+  ]},
+  { label: 'Platform plumbing (already live)', sub:'The machinery that makes everything run — no action needed.', items: [
+    { name:'Self-serve signup + paid', status:'live', how:'Pay a link or sign up → account auto-created → login emailed → dashboard access. Hands-free.', money:'Converts visitors into paying clients automatically.', act:{label:'Clients', href:'/pages/clients.html'} },
+    { name:'Booking automation', status:'live', how:'Interested leads are auto-emailed the right Calendly/Cal.com link and book directly onto the calendar.', money:'Turns replies into booked revenue with zero manual work.', act:{label:'Clients', href:'/pages/clients.html'} },
+  ]},
+];
+
+function badge(s){
+  var m = { live:['cc-live','Live'], ready:['cc-ready','Ready'], dormant:['cc-dormant','Dormant'] }[s] || ['cc-dormant','Dormant'];
+  return '<span class="cc-badge '+m[0]+'">● '+m[1]+'</span>';
+}
+function esc(t){ return clxComp && clxComp.escapeHtml ? clxComp.escapeHtml(t) : String(t); }
+
+function render(){
+  var counts = { live:0, ready:0, dormant:0, total:0 };
+  GROUPS.forEach(function(g){ g.items.forEach(function(i){ counts[i.status]++; counts.total++; }); });
+  document.getElementById('ccSummary').innerHTML =
+    stat(counts.total, 'Money-makers built', '#6d28d9') +
+    stat(counts.live, 'Live now', '#15803d') +
+    stat(counts.ready, 'Ready to flip on', '#b45309') +
+    stat(counts.dormant, 'Dormant (need setup)', '#7c3aed');
+
+  var html = '';
+  GROUPS.forEach(function(g){
+    html += '<div class="cc-section-label">'+esc(g.label)+'</div>';
+    html += '<div class="cc-section-sub">'+esc(g.sub)+'</div>';
+    html += '<div class="cc-grid">';
+    g.items.forEach(function(i){
+      html += '<div class="cc-card">' +
+        '<div class="cc-card-top"><h3 class="cc-name">'+esc(i.name)+'</h3>'+badge(i.status)+'</div>' +
+        '<p class="cc-how">'+esc(i.how)+'</p>' +
+        '<div class="cc-money"><span class="lbl">How it makes money</span>'+esc(i.money)+'</div>' +
+        (i.need ? '<p class="cc-need">⚙ '+esc(i.need)+'</p>' : '') +
+        '<a class="cc-act" href="'+i.act.href+'">'+esc(i.act.label)+' →</a>' +
+      '</div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('ccBody').innerHTML = html;
+}
+function stat(n, label, color){
+  return '<div class="clx-stat-card"><div class="clx-stat-value" style="color:'+color+'">'+n+'</div><div class="clx-stat-label">'+label+'</div></div>';
+}
+</script>
+</body>
+</html>
