@@ -135,6 +135,10 @@ p { margin: 0 0 1em; }
 @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
 .hero h1 { margin-bottom: 20px; }
 .hero .lead { margin-bottom: 32px; max-width: 580px; }
+/* On centered heroes (team / about / how-it-works) the 580px lead must center
+   under the heading, not sit pinned left. Targets only center-aligned heroes. */
+.hero .container[style*="text-align:center"] .lead,
+.hero [style*="text-align: center"] .lead { margin-left: auto; margin-right: auto; }
 .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
 .hero-trust { display: flex; gap: 24px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-muted); }
 .hero-trust strong { color: var(--text); }
