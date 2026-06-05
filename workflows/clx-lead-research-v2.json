@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&select=id,full_name,email,company,industry,job_title,city,product_type,niche,linkedin_url,apollo_org_id,company_size&limit=25",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&select=id,full_name,email,company,industry,job_title,city,product_type,linkedin_url,apollo_org_id,company_size&limit=25",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,

@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&select=id,client_id,full_name,email,company,company_size,industry,job_title,city,country,product_type,lead_type,niche,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing,apollo_enriched_at,apollo_org_id,linkedin_url,mobile_phone,direct_phone,preferred_channel,lead_segment,clients(channels_enabled,video_enabled,focus_segments)&limit=100",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&select=id,client_id,full_name,email,company,company_size,industry,job_title,city,country,product_type,lead_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing,apollo_enriched_at,apollo_org_id,linkedin_url,mobile_phone,direct_phone,preferred_channel,lead_segment,clients(channels_enabled,video_enabled,focus_segments)&limit=100",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,

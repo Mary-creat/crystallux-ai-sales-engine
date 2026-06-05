@@ -37,7 +37,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/call_transcript_chunks?id=eq.{{ $json.chunk_id }}&select=client_id,lead_id,clients(id,vertical,niche_name,realtime_script_suggestions_enabled),leads(id,vertical,niche,industry)&limit=1",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/call_transcript_chunks?id=eq.{{ $json.chunk_id }}&select=client_id,lead_id,clients(id,vertical,niche_name,realtime_script_suggestions_enabled),leads(id,vertical,industry)&limit=1",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,

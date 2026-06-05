@@ -56,7 +56,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,full_name,email,company,industry,job_title,city,product_type,lead_score,niche,preferred_channel,lead_status,campaign_name,campaign_value_proposition,campaign_call_to_action,channels_attempted,video_status,video_request_id,apollo_enriched_at,clients(video_enabled,video_monthly_cap,calendly_link,notification_email)&limit=1",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,full_name,email,company,industry,job_title,city,product_type,lead_score,preferred_channel,lead_status,campaign_name,campaign_value_proposition,campaign_call_to_action,channels_attempted,video_status,video_request_id,apollo_enriched_at,clients(video_enabled,video_monthly_cap,calendly_link,notification_email)&limit=1",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
