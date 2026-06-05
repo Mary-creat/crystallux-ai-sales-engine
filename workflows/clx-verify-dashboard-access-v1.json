@@ -72,7 +72,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.{{ $json.client_id || '00000000-0000-0000-0000-000000000000' }}&select=id,dashboard_token&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -87,8 +87,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -111,7 +111,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -141,8 +141,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "notes": "Writes to admin_action_log table. That table is added by the Admin Copilot migration (future). Until applied, this node fails silently via continueOnFail — access verification itself still proceeds."
@@ -164,38 +164,62 @@
     "Access Verification Webhook (DEACTIVATED)": {
       "main": [
         [
-          { "node": "Parse + Rate Limit", "type": "main", "index": 0 }
+          {
+            "node": "Parse + Rate Limit",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Parse + Rate Limit": {
       "main": [
         [
-          { "node": "IF Skip", "type": "main", "index": 0 }
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Skip": {
       "main": [
         [
-          { "node": "Rate-Limit Response", "type": "main", "index": 0 }
+          {
+            "node": "Rate-Limit Response",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Lookup Client Token", "type": "main", "index": 0 }
+          {
+            "node": "Lookup Client Token",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Lookup Client Token": {
       "main": [
         [
-          { "node": "Build Response", "type": "main", "index": 0 }
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Build Response": {
       "main": [
         [
-          { "node": "Log Access Attempt", "type": "main", "index": 0 }
+          {
+            "node": "Log Access Attempt",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

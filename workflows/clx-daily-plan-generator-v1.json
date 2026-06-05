@@ -3,26 +3,42 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [ { "field": "hours", "hoursInterval": 24, "triggerAtHour": 7 } ] }
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24,
+              "triggerAtHour": 7
+            }
+          ]
+        }
       },
       "id": "clx-dpg-v1-0001",
       "name": "Schedule Trigger (DEACTIVATED)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "notes": "DEACTIVATED. When activated: fires daily at 07:00 local and generates one daily_task_plan row per active client. Mary receives a summary via email once that path is wired (Phase 11)."
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "clx-daily-plan",
-        "options": { "responseData": "={{ JSON.stringify({ ok: true, plan_id: $('Build Response').first().json.plan_id, task_count: $('Build Response').first().json.task_count, summary: $('Build Response').first().json.summary }) }}" }
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: true, plan_id: $('Build Response').first().json.plan_id, task_count: $('Build Response').first().json.task_count, summary: $('Build Response').first().json.summary }) }}"
+        }
       },
       "id": "clx-dpg-v1-0002",
       "name": "Manual Trigger (Webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 560],
+      "position": [
+        200,
+        560
+      ],
       "webhookId": "clx-dpg-v1-0002-webhook",
       "notes": "Body: { client_id (required), agent_id (optional, defaults to NULL — client-wide plan), plan_date (optional ISO date, defaults today) }. Used by the dashboard's 'Today's Plan' panel to refresh on demand."
     },
@@ -35,14 +51,30 @@
       "name": "Parse Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 480]
+      "position": [
+        440,
+        480
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-dpg-if-multi", "leftValue": "={{ $json._multi }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-dpg-if-multi",
+              "leftValue": "={{ $json._multi }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -52,26 +84,43 @@
       "name": "IF Multi (Schedule)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [680, 480]
+      "position": [
+        680,
+        480
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?active=eq.true&select=id,client_name&limit=200",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx-dpg-v1-0005",
       "name": "Fetch Active Clients",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 400],
+      "position": [
+        920,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -82,16 +131,26 @@
       "name": "Fan Out Clients",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/compute_daily_tasks",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_client_id: $json.client_id, p_limit: 25 }) }}",
@@ -101,10 +160,17 @@
       "name": "Compute Tasks (RPC)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 480],
+      "position": [
+        1400,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -115,7 +181,10 @@
       "name": "Prep Claude Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 480]
+      "position": [
+        1640,
+        480
+      ]
     },
     {
       "parameters": {
@@ -126,8 +195,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "anthropic-version", "value": "2023-06-01" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
           ]
         },
         "sendBody": true,
@@ -139,7 +214,10 @@
       "name": "Claude Rerank",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1880, 480],
+      "position": [
+        1880,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "notes": "TODO: Bind 'Anthropic API' credential. No block yet — workflow falls back to base rank via Parse + Fallback."
@@ -153,19 +231,28 @@
       "name": "Parse + Fallback",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 480]
+      "position": [
+        2120,
+        480
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/upsert_daily_plan",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "params=single-object" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
           ]
         },
         "sendBody": true,
@@ -177,10 +264,17 @@
       "name": "Upsert Plan",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2360, 480],
+      "position": [
+        2360,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -191,26 +285,150 @@
       "name": "Build Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2600, 480]
+      "position": [
+        2600,
+        480
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
-    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
-    "Parse Input":                    { "main": [[ { "node": "IF Multi (Schedule)", "type": "main", "index": 0 } ]] },
-    "IF Multi (Schedule)":            { "main": [[ { "node": "Fetch Active Clients", "type": "main", "index": 0 } ], [ { "node": "Compute Tasks (RPC)", "type": "main", "index": 0 } ]] },
-    "Fetch Active Clients":           { "main": [[ { "node": "Fan Out Clients", "type": "main", "index": 0 } ]] },
-    "Fan Out Clients":                { "main": [[ { "node": "Compute Tasks (RPC)", "type": "main", "index": 0 } ]] },
-    "Compute Tasks (RPC)":            { "main": [[ { "node": "Prep Claude Prompt", "type": "main", "index": 0 } ]] },
-    "Prep Claude Prompt":             { "main": [[ { "node": "Claude Rerank", "type": "main", "index": 0 } ]] },
-    "Claude Rerank":                  { "main": [[ { "node": "Parse + Fallback", "type": "main", "index": 0 } ]] },
-    "Parse + Fallback":               { "main": [[ { "node": "Upsert Plan", "type": "main", "index": 0 } ]] },
-    "Upsert Plan":                    { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input": {
+      "main": [
+        [
+          {
+            "node": "IF Multi (Schedule)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Multi (Schedule)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Active Clients",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute Tasks (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Clients": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan Out Clients": {
+      "main": [
+        [
+          {
+            "node": "Compute Tasks (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Tasks (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Prep Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Claude Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Rerank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Rerank": {
+      "main": [
+        [
+          {
+            "node": "Parse + Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + Fallback": {
+      "main": [
+        [
+          {
+            "node": "Upsert Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Plan": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-daily-plan-generator-v1",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "id": "clx-daily-plan-generator-v1",
   "tags": []
 }

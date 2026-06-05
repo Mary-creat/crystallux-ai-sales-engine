@@ -5,7 +5,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "hours", "hoursInterval": 6 }
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
           ]
         }
       },
@@ -13,7 +16,10 @@
       "name": "Schedule Trigger (DEACTIVATED)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "notes": "DEACTIVATED. Runs every 6 hours, batches unprocessed raw signals, analyses via Claude Sonnet 4.5, writes to market_signals_processed. Requires ANTHROPIC_API_KEY in .env + 'Anthropic API' credential bound to Claude Analyze node. Cost estimate: ~$0.005 per signal × 50 signals/batch × 4 batches/day = ~$1/day."
     },
     {
@@ -21,7 +27,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?processed=eq.false&fetched_at=lt.{{ encodeURIComponent(new Date(Date.now() - 10 * 60 * 1000).toISOString()) }}&order=fetched_at.asc&select=id,source,external_id,raw_payload,raw_url,fetched_at&limit=50",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -29,11 +35,16 @@
       "name": "Fetch Unprocessed Signals",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 400],
+      "position": [
+        440,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "notes": "Only selects signals older than 10 min so a still-in-progress ingestion run doesn't get partially processed."
     },
@@ -42,11 +53,14 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/niche_overlays?is_active=eq.true&select=vertical,niche_display_name,lead_target_type,pain_signals",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -55,11 +69,16 @@
       "name": "Fetch Active Verticals",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 600],
+      "position": [
+        440,
+        600
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -70,14 +89,30 @@
       "name": "Fan Out Signals",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 500]
+      "position": [
+        680,
+        500
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-sin-cond-empty", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-sin-cond-empty",
+              "leftValue": "={{ $json._empty }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -87,7 +122,10 @@
       "name": "IF Empty",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [920, 500]
+      "position": [
+        920,
+        500
+      ]
     },
     {
       "parameters": {
@@ -98,7 +136,10 @@
       "name": "Split In Batches (5)",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [1160, 600]
+      "position": [
+        1160,
+        600
+      ]
     },
     {
       "parameters": {
@@ -109,7 +150,10 @@
       "name": "Build Claude Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1400, 600]
+      "position": [
+        1400,
+        600
+      ]
     },
     {
       "parameters": {
@@ -120,8 +164,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "anthropic-version", "value": "2023-06-01" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
           ]
         },
         "sendBody": true,
@@ -135,7 +185,10 @@
       "name": "Claude Analyze Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 600],
+      "position": [
+        1640,
+        600
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "notes": "TODO: Bind 'Anthropic API' credential (HTTP Header Auth, header name: x-api-key, value: $ANTHROPIC_API_KEY). Same credential bound in clx-copilot-* workflows. No credentials block attached yet."
@@ -149,14 +202,30 @@
       "name": "Parse + Validate Claude",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1880, 600]
+      "position": [
+        1880,
+        600
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-sin-cond-review", "leftValue": "={{ $json.needs_review }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-sin-cond-review",
+              "leftValue": "={{ $json.needs_review }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -166,19 +235,28 @@
       "name": "IF Needs Review",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2120, 600]
+      "position": [
+        2120,
+        600
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -190,11 +268,16 @@
       "name": "Log Processing Failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2360, 460],
+      "position": [
+        2360,
+        460
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -202,12 +285,18 @@
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?id=eq.{{ $json.raw_signal_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -219,11 +308,16 @@
       "name": "Mark Raw Processed (Error Path)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 460],
+      "position": [
+        2600,
+        460
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -235,19 +329,28 @@
       "name": "Prep Processed Row",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2360, 700]
+      "position": [
+        2360,
+        700
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -259,11 +362,16 @@
       "name": "Insert Processed Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 700],
+      "position": [
+        2600,
+        700
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -271,12 +379,18 @@
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw?id=eq.{{ $json.raw_signal_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -288,19 +402,37 @@
       "name": "Mark Raw Processed (OK Path)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2840, 700],
+      "position": [
+        2840,
+        700
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-sin-cond-high", "leftValue": "={{ $json.hasVeryHighImpact }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-sin-cond-high",
+              "leftValue": "={{ $json.hasVeryHighImpact }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -310,19 +442,28 @@
       "name": "IF Very High Impact",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [3080, 700]
+      "position": [
+        3080,
+        700
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -334,11 +475,16 @@
       "name": "Alert High Impact",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3320, 620],
+      "position": [
+        3320,
+        620
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -346,12 +492,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -363,11 +515,16 @@
       "name": "Log Cost + Audit",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3320, 780],
+      "position": [
+        3320,
+        780
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "notes": "Logs to admin_action_log with action_type='vertical_generated' — closest existing enum value. Cost estimate rough: (tokens/1M) × $3/M blended input+output. Actual cost tracking via Anthropic dashboard."
     },
@@ -377,34 +534,253 @@
       "name": "Batch Continue",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [3560, 700]
+      "position": [
+        3560,
+        700
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch Unprocessed Signals", "type": "main", "index": 0 }, { "node": "Fetch Active Verticals", "type": "main", "index": 0 } ]] },
-    "Fetch Unprocessed Signals":      { "main": [[ { "node": "Fan Out Signals", "type": "main", "index": 0 } ]] },
-    "Fetch Active Verticals":         { "main": [[ { "node": "Fan Out Signals", "type": "main", "index": 0 } ]] },
-    "Fan Out Signals":                { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
-    "IF Empty":                       { "main": [[], [ { "node": "Split In Batches (5)", "type": "main", "index": 0 } ]] },
-    "Split In Batches (5)":           { "main": [[], [ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
-    "Build Claude Prompt":            { "main": [[ { "node": "Claude Analyze Signal", "type": "main", "index": 0 } ]] },
-    "Claude Analyze Signal":          { "main": [[ { "node": "Parse + Validate Claude", "type": "main", "index": 0 } ]] },
-    "Parse + Validate Claude":        { "main": [[ { "node": "IF Needs Review", "type": "main", "index": 0 } ]] },
-    "IF Needs Review":                { "main": [[ { "node": "Log Processing Failure", "type": "main", "index": 0 } ], [ { "node": "Prep Processed Row", "type": "main", "index": 0 } ]] },
-    "Log Processing Failure":         { "main": [[ { "node": "Mark Raw Processed (Error Path)", "type": "main", "index": 0 } ]] },
-    "Mark Raw Processed (Error Path)":{ "main": [[ { "node": "Batch Continue", "type": "main", "index": 0 } ]] },
-    "Prep Processed Row":             { "main": [[ { "node": "Insert Processed Signal", "type": "main", "index": 0 } ]] },
-    "Insert Processed Signal":        { "main": [[ { "node": "Mark Raw Processed (OK Path)", "type": "main", "index": 0 } ]] },
-    "Mark Raw Processed (OK Path)":   { "main": [[ { "node": "IF Very High Impact", "type": "main", "index": 0 } ]] },
-    "IF Very High Impact":            { "main": [[ { "node": "Alert High Impact", "type": "main", "index": 0 } ], [ { "node": "Log Cost + Audit", "type": "main", "index": 0 } ]] },
-    "Alert High Impact":              { "main": [[ { "node": "Log Cost + Audit", "type": "main", "index": 0 } ]] },
-    "Log Cost + Audit":               { "main": [[ { "node": "Batch Continue", "type": "main", "index": 0 } ]] },
-    "Batch Continue":                 { "main": [[ { "node": "Split In Batches (5)", "type": "main", "index": 0 } ]] }
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unprocessed Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Active Verticals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unprocessed Signals": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Verticals": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan Out Signals": {
+      "main": [
+        [
+          {
+            "node": "IF Empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Empty": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Split In Batches (5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches (5)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Analyze Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Analyze Signal": {
+      "main": [
+        [
+          {
+            "node": "Parse + Validate Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + Validate Claude": {
+      "main": [
+        [
+          {
+            "node": "IF Needs Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Needs Review": {
+      "main": [
+        [
+          {
+            "node": "Log Processing Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Processed Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Processing Failure": {
+      "main": [
+        [
+          {
+            "node": "Mark Raw Processed (Error Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Raw Processed (Error Path)": {
+      "main": [
+        [
+          {
+            "node": "Batch Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Processed Row": {
+      "main": [
+        [
+          {
+            "node": "Insert Processed Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Processed Signal": {
+      "main": [
+        [
+          {
+            "node": "Mark Raw Processed (OK Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Raw Processed (OK Path)": {
+      "main": [
+        [
+          {
+            "node": "IF Very High Impact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Very High Impact": {
+      "main": [
+        [
+          {
+            "node": "Alert High Impact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Cost + Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert High Impact": {
+      "main": [
+        [
+          {
+            "node": "Log Cost + Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Cost + Audit": {
+      "main": [
+        [
+          {
+            "node": "Batch Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Continue": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches (5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-signal-intelligence-v1",
-  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
   "id": "clx-signal-intelligence-v1",
   "tags": []
 }

@@ -49,7 +49,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?or=(email.is.null,email.eq.)&email_enriched=eq.false&do_not_contact=eq.false&website=not.is.null&or=(lead_type.is.null,lead_type.neq.test)&select=id,full_name,company,industry,city,website,lead_status&limit=50",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "options": {}
       },
       "id": "clx-es-0002",
@@ -63,8 +63,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -441,7 +441,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -467,8 +467,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -524,7 +524,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -550,8 +550,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -607,7 +607,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -633,8 +633,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -690,7 +690,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -720,8 +720,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     }

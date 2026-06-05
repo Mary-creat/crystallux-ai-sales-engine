@@ -83,7 +83,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?video_request_id=eq.{{ $json.video_id }}&select=id,client_id,full_name,email,company,city,industry,job_title,video_request_id,campaign_value_proposition,campaign_call_to_action,clients(calendly_link,notification_email,company_name)&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -98,8 +98,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -155,7 +155,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -185,8 +185,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -195,7 +195,7 @@
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_generation_log?request_id=eq.{{ $json.video_request_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -225,8 +225,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -268,7 +268,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -298,8 +298,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -386,7 +386,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/outreach_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -416,8 +416,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -440,7 +440,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -466,8 +466,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -509,7 +509,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -539,8 +539,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -560,124 +560,204 @@
     "Tavus Callback Webhook (DEACTIVATED)": {
       "main": [
         [
-          { "node": "Normalize Payload", "type": "main", "index": 0 }
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Normalize Payload": {
       "main": [
         [
-          { "node": "IF Skip", "type": "main", "index": 0 }
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Skip": {
       "main": [
         [
-          { "node": "Ignore Non-Terminal", "type": "main", "index": 0 }
+          {
+            "node": "Ignore Non-Terminal",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Fetch Lead By Request ID", "type": "main", "index": 0 }
+          {
+            "node": "Fetch Lead By Request ID",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Fetch Lead By Request ID": {
       "main": [
         [
-          { "node": "Correlate Lead", "type": "main", "index": 0 }
+          {
+            "node": "Correlate Lead",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Correlate Lead": {
       "main": [
         [
-          { "node": "IF Correlation Failed", "type": "main", "index": 0 }
+          {
+            "node": "IF Correlation Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Correlation Failed": {
       "main": [
         [
-          { "node": "Log Correlation Miss", "type": "main", "index": 0 }
+          {
+            "node": "Log Correlation Miss",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Update Video Gen Log", "type": "main", "index": 0 }
+          {
+            "node": "Update Video Gen Log",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Update Video Gen Log": {
       "main": [
         [
-          { "node": "IF Tavus Failed", "type": "main", "index": 0 }
+          {
+            "node": "IF Tavus Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Tavus Failed": {
       "main": [
         [
-          { "node": "Log Tavus Terminal Failure", "type": "main", "index": 0 }
+          {
+            "node": "Log Tavus Terminal Failure",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Build Video Email HTML", "type": "main", "index": 0 }
+          {
+            "node": "Build Video Email HTML",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Build Video Email HTML": {
       "main": [
         [
-          { "node": "Build Gmail Raw Message", "type": "main", "index": 0 }
+          {
+            "node": "Build Gmail Raw Message",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Build Gmail Raw Message": {
       "main": [
         [
-          { "node": "Send Video Email", "type": "main", "index": 0 }
+          {
+            "node": "Send Video Email",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Send Video Email": {
       "main": [
         [
-          { "node": "Handle Gmail Send Result", "type": "main", "index": 0 }
+          {
+            "node": "Handle Gmail Send Result",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Handle Gmail Send Result": {
       "main": [
         [
-          { "node": "Log Central Outreach", "type": "main", "index": 0 }
+          {
+            "node": "Log Central Outreach",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Log Central Outreach": {
       "main": [
         [
-          { "node": "Prep Update Lead", "type": "main", "index": 0 }
+          {
+            "node": "Prep Update Lead",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Prep Update Lead": {
       "main": [
         [
-          { "node": "RPC Update Lead", "type": "main", "index": 0 }
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "RPC Update Lead": {
       "main": [
         [
-          { "node": "IF Send Failed", "type": "main", "index": 0 }
+          {
+            "node": "IF Send Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Send Failed": {
       "main": [
         [
-          { "node": "Log Send Failure", "type": "main", "index": 0 }
+          {
+            "node": "Log Send Failure",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Run Summary", "type": "main", "index": 0 }
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

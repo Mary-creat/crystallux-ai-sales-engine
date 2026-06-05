@@ -5,13 +5,18 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "call/finalized",
-        "options": { "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, call_id: $('Build Response').first().json.call_id, event_id: $('Build Response').first().json.event_id || null, error: $('Build Response').first().json.error || null }) }}" }
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, call_id: $('Build Response').first().json.call_id, event_id: $('Build Response').first().json.event_id || null, error: $('Build Response').first().json.error || null }) }}"
+        }
       },
       "id": "clx-pca-v1-0001",
       "name": "Finalize Webhook (DEACTIVATED)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-pca-v1-0001-webhook",
       "notes": "DEACTIVATED. POST /webhook/call/finalized body: { call_id, agent_id, lead_id, duration_seconds }. Fired by Vapi (or operator) when a call ends. Runs Claude Sonnet full analysis + writes call_event_log + optional manager coaching email."
     },
@@ -24,26 +29,43 @@
       "name": "Parse Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 400]
+      "position": [
+        440,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/call_transcript_chunks?call_id=eq.{{ $json.call_id }}&order=chunk_sequence.asc&select=chunk_sequence,speaker,transcript_text,sentiment,sentiment_score,detected_intent,detected_topics&limit=2000",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx-pca-v1-0003",
       "name": "Fetch All Chunks",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 400],
+      "position": [
+        680,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -54,14 +76,30 @@
       "name": "Prep Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 400]
+      "position": [
+        920,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-pca-if-skip", "leftValue": "={{ $json._skip || false }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-pca-if-skip",
+              "leftValue": "={{ $json._skip || false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -71,7 +109,10 @@
       "name": "IF Skip",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
@@ -82,8 +123,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "anthropic-version", "value": "2023-06-01" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
           ]
         },
         "sendBody": true,
@@ -95,7 +142,10 @@
       "name": "Claude Sonnet Analyze",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 480],
+      "position": [
+        1400,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "notes": "TODO: Bind 'Anthropic API' credential. Falls back to heuristic-only analysis if Claude unbound."
@@ -109,19 +159,28 @@
       "name": "Parse Analysis",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 480]
+      "position": [
+        1640,
+        480
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/finalize_call_analysis",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "params=single-object" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
           ]
         },
         "sendBody": true,
@@ -133,10 +192,17 @@
       "name": "Finalize Call (RPC)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1880, 480],
+      "position": [
+        1880,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -147,23 +213,117 @@
       "name": "Build Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 480]
+      "position": [
+        2120,
+        480
+      ]
     }
   ],
   "connections": {
-    "Finalize Webhook (DEACTIVATED)": { "main": [[ { "node": "Parse Input", "type": "main", "index": 0 } ]] },
-    "Parse Input":                    { "main": [[ { "node": "Fetch All Chunks", "type": "main", "index": 0 } ]] },
-    "Fetch All Chunks":               { "main": [[ { "node": "Prep Prompt", "type": "main", "index": 0 } ]] },
-    "Prep Prompt":                    { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
-    "IF Skip":                        { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ], [ { "node": "Claude Sonnet Analyze", "type": "main", "index": 0 } ]] },
-    "Claude Sonnet Analyze":          { "main": [[ { "node": "Parse Analysis", "type": "main", "index": 0 } ]] },
-    "Parse Analysis":                 { "main": [[ { "node": "Finalize Call (RPC)", "type": "main", "index": 0 } ]] },
-    "Finalize Call (RPC)":            { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+    "Finalize Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Chunks": {
+      "main": [
+        [
+          {
+            "node": "Prep Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Prompt": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claude Sonnet Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Sonnet Analyze": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "Finalize Call (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Call (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-post-call-analyzer-v1",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "id": "clx-post-call-analyzer-v1",
   "tags": []
 }

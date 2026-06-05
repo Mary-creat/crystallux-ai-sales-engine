@@ -72,12 +72,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -96,8 +102,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -110,7 +116,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
           ]
         },
         "sendBody": true,
@@ -153,7 +162,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
           ]
         },
         "sendBody": true,
@@ -192,12 +204,18 @@
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.{{ $json.client_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -216,8 +234,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -244,7 +262,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -284,73 +305,117 @@
     "Manual Trigger (DEACTIVATED)": {
       "main": [
         [
-          { "node": "Resolve Inputs", "type": "main", "index": 0 }
+          {
+            "node": "Resolve Inputs",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Resolve Inputs": {
       "main": [
         [
-          { "node": "IF Skip", "type": "main", "index": 0 }
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Skip": {
       "main": [
         [
-          { "node": "Log Invalid Input", "type": "main", "index": 0 }
+          {
+            "node": "Log Invalid Input",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Create Stripe Customer", "type": "main", "index": 0 }
+          {
+            "node": "Create Stripe Customer",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Create Stripe Customer": {
       "main": [
         [
-          { "node": "Parse Customer Response", "type": "main", "index": 0 }
+          {
+            "node": "Parse Customer Response",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Parse Customer Response": {
       "main": [
         [
-          { "node": "Create Stripe Subscription", "type": "main", "index": 0 }
+          {
+            "node": "Create Stripe Subscription",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Create Stripe Subscription": {
       "main": [
         [
-          { "node": "Parse Subscription Response", "type": "main", "index": 0 }
+          {
+            "node": "Parse Subscription Response",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Parse Subscription Response": {
       "main": [
         [
-          { "node": "Update Client Row", "type": "main", "index": 0 }
+          {
+            "node": "Update Client Row",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Update Client Row": {
       "main": [
         [
-          { "node": "Build Welcome Email", "type": "main", "index": 0 }
+          {
+            "node": "Build Welcome Email",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Build Welcome Email": {
       "main": [
         [
-          { "node": "Send Welcome Email", "type": "main", "index": 0 }
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Send Welcome Email": {
       "main": [
         [
-          { "node": "Run Summary", "type": "main", "index": 0 }
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

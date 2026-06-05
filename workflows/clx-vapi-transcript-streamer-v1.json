@@ -12,7 +12,10 @@
       "name": "Vapi Webhook (DEACTIVATED)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-vts-v1-0001-webhook",
       "notes": "DEACTIVATED. POST /webhook/vapi/transcript-stream. Vapi emits one event per transcript chunk (~1s cadence). We validate HMAC, run consent gates, queue async classification, and return 200 fast (<200ms target) so Vapi doesn't back off."
     },
@@ -25,7 +28,10 @@
       "name": "Verify HMAC",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 400],
+      "position": [
+        440,
+        400
+      ],
       "notes": "TODO: set VAPI_WEBHOOK_SECRET in n8n env. Until set, node runs in placeholder mode and accepts all requests — do NOT activate this workflow without the secret."
     },
     {
@@ -37,19 +43,28 @@
       "name": "Extract Chunk",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/process_transcript_chunk",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "params=single-object" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
           ]
         },
         "sendBody": true,
@@ -61,10 +76,17 @@
       "name": "Process Chunk (RPC)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 400],
+      "position": [
+        920,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } },
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "notes": "RPC short-circuits to NULL if the client lacks listening_intelligence_enabled OR the agent lacks call_recording_consent. Either way this node returns 200 — the transcript is simply discarded."
     },
     {
@@ -76,14 +98,30 @@
       "name": "Parse RPC",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-vts-if-accepted", "leftValue": "={{ $json.accepted === true }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-vts-if-accepted",
+              "leftValue": "={{ $json.accepted === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -93,24 +131,39 @@
       "name": "IF Accepted",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1400, 400]
+      "position": [
+        1400,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "=http://localhost:5678/webhook/transcript/classify",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ chunk_id: $json.chunk_id }) }}",
-        "options": { "timeout": 500 }
+        "options": {
+          "timeout": 500
+        }
       },
       "id": "clx-vts-v1-0007",
       "name": "Trigger Classifier (async)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 320],
+      "position": [
+        1640,
+        320
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "notes": "Fire-and-forget call to the real-time classifier. 500ms timeout keeps the Vapi round-trip under the <200ms budget goal even when the classifier is slow or down. Swap the URL to the n8n production origin at activation."
@@ -119,28 +172,114 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, accepted: $('Parse RPC').first().json.accepted, chunk_id: $('Parse RPC').first().json.chunk_id || null }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "clx-vts-v1-0008",
       "name": "Respond 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1880, 400]
+      "position": [
+        1880,
+        400
+      ]
     }
   ],
   "connections": {
-    "Vapi Webhook (DEACTIVATED)": { "main": [[ { "node": "Verify HMAC", "type": "main", "index": 0 } ]] },
-    "Verify HMAC":                { "main": [[ { "node": "Extract Chunk", "type": "main", "index": 0 } ]] },
-    "Extract Chunk":              { "main": [[ { "node": "Process Chunk (RPC)", "type": "main", "index": 0 } ]] },
-    "Process Chunk (RPC)":        { "main": [[ { "node": "Parse RPC", "type": "main", "index": 0 } ]] },
-    "Parse RPC":                  { "main": [[ { "node": "IF Accepted", "type": "main", "index": 0 } ]] },
-    "IF Accepted":                { "main": [[ { "node": "Trigger Classifier (async)", "type": "main", "index": 0 } ], [ { "node": "Respond 200", "type": "main", "index": 0 } ]] },
-    "Trigger Classifier (async)": { "main": [[ { "node": "Respond 200", "type": "main", "index": 0 } ]] }
+    "Vapi Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Verify HMAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify HMAC": {
+      "main": [
+        [
+          {
+            "node": "Extract Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Chunk": {
+      "main": [
+        [
+          {
+            "node": "Process Chunk (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Chunk (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Parse RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse RPC": {
+      "main": [
+        [
+          {
+            "node": "IF Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Accepted": {
+      "main": [
+        [
+          {
+            "node": "Trigger Classifier (async)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Classifier (async)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-vapi-transcript-streamer-v1",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "id": "clx-vapi-transcript-streamer-v1",
   "tags": []
 }

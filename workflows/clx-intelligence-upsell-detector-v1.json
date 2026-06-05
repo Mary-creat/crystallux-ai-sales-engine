@@ -5,7 +5,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "cronExpression", "expression": "0 9 * * 0" }
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 0"
+            }
           ]
         }
       },
@@ -13,7 +16,10 @@
       "name": "Weekly Schedule Trigger (DEACTIVATED)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "notes": "DEACTIVATED. Runs Sunday 09:00 in server TZ. Identifies Crystallux clients NOT on Intelligence tier who would have benefited from 3+ active signals this week. Output: one summary email to info@crystallux.org so Mary can follow up with an upsell pitch."
     },
     {
@@ -21,11 +27,14 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/admin_execute_select",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -44,7 +53,9 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "notes": "Uses admin_execute_select RPC (from admin-copilot migration) as a SELECT-safe executor. Returns clients with 3+ signals in the past week where intelligence_tier_enabled=false."
     },
@@ -64,9 +75,22 @@
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-iud-cond-skip", "leftValue": "={{ $json._skip }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-iud-cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -101,7 +125,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -120,7 +147,9 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "gmailOAuth2": { "name": "Gmail" }
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
       }
     },
     {
@@ -128,12 +157,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/admin_action_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -152,21 +187,85 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     }
   ],
   "connections": {
-    "Weekly Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Query Missed Signal Clients", "type": "main", "index": 0 } ]] },
-    "Query Missed Signal Clients":           { "main": [[ { "node": "Build Upsell Email", "type": "main", "index": 0 } ]] },
-    "Build Upsell Email":                    { "main": [[ { "node": "IF Skip", "type": "main", "index": 0 } ]] },
-    "IF Skip":                               { "main": [[ { "node": "No Candidates This Week", "type": "main", "index": 0 } ], [ { "node": "Send Upsell Summary", "type": "main", "index": 0 } ]] },
-    "Send Upsell Summary":                   { "main": [[ { "node": "Log Audit", "type": "main", "index": 0 } ]] }
+    "Weekly Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Query Missed Signal Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Missed Signal Clients": {
+      "main": [
+        [
+          {
+            "node": "Build Upsell Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Upsell Email": {
+      "main": [
+        [
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Skip": {
+      "main": [
+        [
+          {
+            "node": "No Candidates This Week",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Upsell Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Upsell Summary": {
+      "main": [
+        [
+          {
+            "node": "Log Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-intelligence-upsell-detector-v1",
-  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
   "id": "clx-intelligence-upsell-detector-v1",
   "tags": []
 }

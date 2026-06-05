@@ -74,12 +74,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -98,8 +104,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -108,12 +114,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/stripe_events_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal,resolution=ignore-duplicates"
+            }
           ]
         },
         "sendBody": true,
@@ -132,8 +144,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -156,12 +168,18 @@
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?stripe_customer_id=eq.{{ $json.stripe_customer_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -180,17 +198,29 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-sw-cond-sub-deleted", "leftValue": "={{ $json.is_subscription_deleted }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-sw-cond-sub-deleted",
+              "leftValue": "={{ $json.is_subscription_deleted }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -200,38 +230,61 @@
       "name": "IF Subscription Deleted",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1640, 700]
+      "position": [
+        1640,
+        700
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?stripe_customer_id=eq.{{ $('Dispatch Event Type').item.json.stripe_customer_id }}&select=id",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx-sw-0013",
       "name": "Lookup Client For Suspend",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1880, 760],
+      "position": [
+        1880,
+        760
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?client_id=eq.{{ ($json[0] && $json[0].id) || 'none' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -243,19 +296,33 @@
       "name": "Suspend Auth Users",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2120, 760],
+      "position": [
+        2120,
+        760
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/revoke_sessions_for_client",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_client_id: ($('Lookup Client For Suspend').item.json[0] && $('Lookup Client For Suspend').item.json[0].id) || null }) }}",
@@ -265,10 +332,17 @@
       "name": "Revoke Sessions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2360, 760],
+      "position": [
+        2360,
+        760
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -308,12 +382,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -332,8 +412,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -342,12 +422,18 @@
         "method": "PATCH",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/stripe_events_log?stripe_event_id=eq.{{ $('Verify Signature').first().json.event_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -366,8 +452,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -387,100 +473,164 @@
     "Stripe Webhook (DEACTIVATED)": {
       "main": [
         [
-          { "node": "Verify Signature", "type": "main", "index": 0 }
+          {
+            "node": "Verify Signature",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Verify Signature": {
       "main": [
         [
-          { "node": "IF Unverified", "type": "main", "index": 0 }
+          {
+            "node": "IF Unverified",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Unverified": {
       "main": [
         [
-          { "node": "Log Unverified", "type": "main", "index": 0 }
+          {
+            "node": "Log Unverified",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Insert Events Log", "type": "main", "index": 0 }
+          {
+            "node": "Insert Events Log",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Insert Events Log": {
       "main": [
         [
-          { "node": "Dispatch Event Type", "type": "main", "index": 0 }
+          {
+            "node": "Dispatch Event Type",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Dispatch Event Type": {
       "main": [
         [
-          { "node": "Patch Client Row", "type": "main", "index": 0 }
+          {
+            "node": "Patch Client Row",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Patch Client Row": {
       "main": [
         [
-          { "node": "IF Subscription Deleted", "type": "main", "index": 0 }
+          {
+            "node": "IF Subscription Deleted",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Subscription Deleted": {
       "main": [
         [
-          { "node": "Lookup Client For Suspend", "type": "main", "index": 0 }
+          {
+            "node": "Lookup Client For Suspend",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "IF Payment Failed", "type": "main", "index": 0 }
+          {
+            "node": "IF Payment Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Lookup Client For Suspend": {
       "main": [
         [
-          { "node": "Suspend Auth Users", "type": "main", "index": 0 }
+          {
+            "node": "Suspend Auth Users",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Suspend Auth Users": {
       "main": [
         [
-          { "node": "Revoke Sessions", "type": "main", "index": 0 }
+          {
+            "node": "Revoke Sessions",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Revoke Sessions": {
       "main": [
         [
-          { "node": "IF Payment Failed", "type": "main", "index": 0 }
+          {
+            "node": "IF Payment Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Payment Failed": {
       "main": [
         [
-          { "node": "Log Payment Failed", "type": "main", "index": 0 }
+          {
+            "node": "Log Payment Failed",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Mark Event Processed", "type": "main", "index": 0 }
+          {
+            "node": "Mark Event Processed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Log Payment Failed": {
       "main": [
         [
-          { "node": "Mark Event Processed", "type": "main", "index": 0 }
+          {
+            "node": "Mark Event Processed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Mark Event Processed": {
       "main": [
         [
-          { "node": "Run Summary", "type": "main", "index": 0 }
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

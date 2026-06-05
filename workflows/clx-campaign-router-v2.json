@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&select=id,client_id,full_name,email,company,company_size,industry,job_title,city,country,product_type,lead_type,niche,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing,apollo_enriched_at,apollo_org_id,linkedin_url,mobile_phone,direct_phone,preferred_channel,lead_segment,clients(channels_enabled,video_enabled,focus_segments)&limit=100",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -39,8 +39,8 @@
         300
       ],
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "continueOnFail": true,
@@ -181,7 +181,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.{{ encodeURIComponent(new Date().toISOString()) }}&affected_verticals=cs.%5B%7B%22vertical%22%3A%22{{ encodeURIComponent($json.vertical || $json.niche || 'insurance_broker') }}%22%7D%5D&select=id,headline,affected_verticals,messaging_angle,suggested_pain_signals,confidence,expires_at&order=processed_at.desc&limit=5",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -196,8 +196,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "notes": "B.9c addition. Queries market_signals_processed for active, non-expired signals whose affected_verticals JSONB contains the lead's vertical. Returns up to 5 most recent. On failure (market_signals_processed table missing — pre-B.9 DB state), continueOnFail routes through to downstream nodes which gracefully treat empty signals array as no-intelligence-applied."
@@ -207,7 +207,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/client_signal_preferences?client_id=eq.{{ $('Decide Channel').item.json.client_id || '' }}&vertical=eq.{{ encodeURIComponent($('Decide Channel').item.json.vertical || $('Decide Channel').item.json.niche || 'insurance_broker') }}&select=auto_scale_enabled,manual_multiplier_override,max_multiplier_cap,excluded_signal_types&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -222,8 +222,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "notes": "B.9c addition. Client preferences for signal-driven routing. Missing row = apply defaults (auto_scale_enabled=true, max_multiplier_cap=3.0, no excluded types)."
@@ -247,12 +247,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/signal_routing_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -271,8 +277,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "notes": "B.9c addition. Writes to signal_routing_log only when intelligence_applied=true. Parallel to Prep Update Campaign so the insert doesn't block the main flow."
@@ -282,7 +288,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -308,8 +314,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },

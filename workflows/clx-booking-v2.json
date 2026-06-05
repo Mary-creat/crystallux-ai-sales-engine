@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Replied&unsubscribed=eq.false&do_not_contact=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,industry,product_type,reply_text,research_summary,likely_business_need,lead_score,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact&limit=10",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -39,8 +39,8 @@
         300
       ],
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "continueOnFail": true,
@@ -252,7 +252,7 @@
         "method": "GET",
         "url": "={{ $json.client_id ? 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + $json.client_id + '&select=*&limit=1' : 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?product_type=eq.' + ($json.product_type || '') + '&active=eq.true&select=*&limit=1' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -265,8 +265,8 @@
         200
       ],
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "onError": "continueRegularOutput",
@@ -308,7 +308,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -427,7 +430,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -453,8 +456,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -477,7 +480,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -503,8 +506,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -524,7 +527,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Booking%20Sent&meeting_scheduled=eq.false&do_not_contact=eq.false&booking_email_sent_at=lt.{{ encodeURIComponent(new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) }}&select=id,client_id,full_name,email,company,industry,product_type,channels_attempted,video_status,booking_email_sent_at,clients(video_enabled)&limit=10",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -539,8 +542,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "notes": "Part B.7. 48h Video Fallback. Queries leads that received a Calendly link >48h ago with no booking. Execute Workflow node below hands them off to clx-video-outreach-v1 (which is active:false; this branch is dormant until video is activated)."

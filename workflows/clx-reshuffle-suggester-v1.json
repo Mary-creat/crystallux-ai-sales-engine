@@ -5,13 +5,18 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "clx-reshuffle",
-        "options": { "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, reshuffle_id: $('Build Response').first().json.reshuffle_id, candidates: $('Build Response').first().json.candidates, error: $('Build Response').first().json.error || null }) }}" }
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: $('Build Response').first().json.ok, reshuffle_id: $('Build Response').first().json.reshuffle_id, candidates: $('Build Response').first().json.candidates, error: $('Build Response').first().json.error || null }) }}"
+        }
       },
       "id": "clx-rs-v1-0001",
       "name": "Reshuffle Webhook (DEACTIVATED)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-rs-v1-0001-webhook",
       "notes": "DEACTIVATED. Body: { client_id, vacated_appointment_id, vacated_reason ('cancellation'|'no_show'|'reschedule'|'manual'), slot_start (ISO), slot_end (ISO), token }. Returns ranked candidate leads + reshuffle_log row id."
     },
@@ -24,17 +29,25 @@
       "name": "Validate + Parse",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 400]
+      "position": [
+        440,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_reshuffle_candidates",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [ { "name": "Content-Type", "value": "application/json" } ]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
@@ -45,10 +58,17 @@
       "name": "Fetch Candidates (RPC)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 400],
+      "position": [
+        680,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -59,14 +79,30 @@
       "name": "Shape Suggestions",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 400]
+      "position": [
+        920,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-rs-if-any", "leftValue": "={{ $json.suggestions.length }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+            {
+              "id": "clx-rs-if-any",
+              "leftValue": "={{ $json.suggestions.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -76,19 +112,28 @@
       "name": "IF Any Candidates",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/record_reshuffle",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "params=single-object" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
           ]
         },
         "sendBody": true,
@@ -100,22 +145,35 @@
       "name": "Record Reshuffle",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 320],
+      "position": [
+        1400,
+        320
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -127,10 +185,17 @@
       "name": "Log RESHUFFLE_NO_CANDIDATES",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 480],
+      "position": [
+        1400,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -141,22 +206,106 @@
       "name": "Build Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 400]
+      "position": [
+        1640,
+        400
+      ]
     }
   ],
   "connections": {
-    "Reshuffle Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Parse", "type": "main", "index": 0 } ]] },
-    "Validate + Parse":                { "main": [[ { "node": "Fetch Candidates (RPC)", "type": "main", "index": 0 } ]] },
-    "Fetch Candidates (RPC)":          { "main": [[ { "node": "Shape Suggestions", "type": "main", "index": 0 } ]] },
-    "Shape Suggestions":               { "main": [[ { "node": "IF Any Candidates", "type": "main", "index": 0 } ]] },
-    "IF Any Candidates":               { "main": [[ { "node": "Record Reshuffle", "type": "main", "index": 0 } ], [ { "node": "Log RESHUFFLE_NO_CANDIDATES", "type": "main", "index": 0 } ]] },
-    "Record Reshuffle":                { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
-    "Log RESHUFFLE_NO_CANDIDATES":     { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] }
+    "Reshuffle Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Validate + Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Parse": {
+      "main": [
+        [
+          {
+            "node": "Fetch Candidates (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Candidates (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Shape Suggestions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Suggestions": {
+      "main": [
+        [
+          {
+            "node": "IF Any Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Any Candidates": {
+      "main": [
+        [
+          {
+            "node": "Record Reshuffle",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log RESHUFFLE_NO_CANDIDATES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Reshuffle": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log RESHUFFLE_NO_CANDIDATES": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-reshuffle-suggester-v1",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "id": "clx-reshuffle-suggester-v1",
   "tags": []
 }

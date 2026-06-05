@@ -5,7 +5,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "hours", "hoursInterval": 1 }
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
           ]
         }
       },
@@ -13,7 +16,10 @@
       "name": "Schedule Trigger (DEACTIVATED)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "notes": "DEACTIVATED until Mary configures API keys and activates. Fires hourly. Ingests from GDELT (free), NewsAPI (free 100/day), OpenWeatherMap (free 1000/day), Bank of Canada (free), Statistics Canada (free), FSRA RSS (free). Google Trends requires pytrends server or SerpAPI — placeholder only. Configure NEWSAPI_KEY + OPENWEATHER_KEY in .env and create n8n credentials 'NewsAPI' + 'OpenWeatherMap' before activating."
     },
     {
@@ -24,7 +30,10 @@
       "name": "Prep Ingestion Targets",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 400]
+      "position": [
+        440,
+        400
+      ]
     },
     {
       "parameters": {
@@ -35,7 +44,10 @@
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ]
     },
     {
       "parameters": {
@@ -44,21 +56,34 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "User-Agent", "value": "Crystallux-SignalIngestion/1 (info@crystallux.org)" },
-            { "name": "Accept", "value": "application/json, text/xml, application/xml" }
+            {
+              "name": "User-Agent",
+              "value": "Crystallux-SignalIngestion/1 (info@crystallux.org)"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/xml, application/xml"
+            }
           ]
         },
         "sendQuery": false,
         "options": {
           "timeout": 30000,
-          "response": { "response": { "neverError": true } }
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "clx-si-0004",
       "name": "Fetch Source",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 400],
+      "position": [
+        920,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "retryOnFail": true,
@@ -73,14 +98,30 @@
       "name": "Normalize Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-si-cond-skip", "leftValue": "={{ $json._error || $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-si-cond-skip",
+              "leftValue": "={{ $json._error || $json._empty }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -90,19 +131,28 @@
       "name": "IF Empty or Error",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1400, 400]
+      "position": [
+        1400,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -114,11 +164,16 @@
       "name": "Log Ingestion Failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 260],
+      "position": [
+        1640,
+        260
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -126,12 +181,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_raw",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal,resolution=ignore-duplicates" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal,resolution=ignore-duplicates"
+            }
           ]
         },
         "sendBody": true,
@@ -143,11 +204,16 @@
       "name": "Insert Raw Signal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 540],
+      "position": [
+        1640,
+        540
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "notes": "Prefer header 'resolution=ignore-duplicates' so the composite unique on (source, external_id) dedupes across hourly runs without raising an error."
     },
@@ -157,7 +223,10 @@
       "name": "Batch Continue",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1880, 540]
+      "position": [
+        1880,
+        540
+      ]
     },
     {
       "parameters": {
@@ -167,23 +236,125 @@
       "name": "Summarize Run",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 540]
+      "position": [
+        2120,
+        540
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Prep Ingestion Targets", "type": "main", "index": 0 } ]] },
-    "Prep Ingestion Targets":         { "main": [[ { "node": "Split In Batches", "type": "main", "index": 0 } ]] },
-    "Split In Batches":               { "main": [[ { "node": "Summarize Run", "type": "main", "index": 0 } ], [ { "node": "Fetch Source", "type": "main", "index": 0 } ]] },
-    "Fetch Source":                   { "main": [[ { "node": "Normalize Payload", "type": "main", "index": 0 } ]] },
-    "Normalize Payload":              { "main": [[ { "node": "IF Empty or Error", "type": "main", "index": 0 } ]] },
-    "IF Empty or Error":              { "main": [[ { "node": "Log Ingestion Failure", "type": "main", "index": 0 } ], [ { "node": "Insert Raw Signal", "type": "main", "index": 0 } ]] },
-    "Insert Raw Signal":              { "main": [[ { "node": "Batch Continue", "type": "main", "index": 0 } ]] },
-    "Batch Continue":                 { "main": [[ { "node": "Split In Batches", "type": "main", "index": 0 } ]] }
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Prep Ingestion Targets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Ingestion Targets": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Summarize Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Source": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "IF Empty or Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Empty or Error": {
+      "main": [
+        [
+          {
+            "node": "Log Ingestion Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Raw Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Raw Signal": {
+      "main": [
+        [
+          {
+            "node": "Batch Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Continue": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-signal-ingestion-v1",
-  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
   "id": "clx-signal-ingestion-v1",
   "tags": []
 }

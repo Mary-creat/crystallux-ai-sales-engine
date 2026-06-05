@@ -5,7 +5,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "minutes", "minutesInterval": 5 }
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
           ]
         }
       },
@@ -13,7 +16,10 @@
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
@@ -24,7 +30,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -33,9 +42,14 @@
       "name": "List Unread Messages",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 300],
+      "position": [
+        440,
+        300
+      ],
       "credentials": {
-        "gmailOAuth2": { "name": "Gmail" }
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
       },
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -48,7 +62,10 @@
       "name": "Split Messages",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
@@ -59,7 +76,10 @@
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [920, 300]
+      "position": [
+        920,
+        300
+      ]
     },
     {
       "parameters": {
@@ -70,7 +90,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -79,9 +102,14 @@
       "name": "Get Message Metadata",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1160, 300],
+      "position": [
+        1160,
+        300
+      ],
       "credentials": {
-        "gmailOAuth2": { "name": "Gmail" }
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
       },
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -94,18 +122,24 @@
       "name": "Extract Sender",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1400, 300]
+      "position": [
+        1400,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?email=eq.' + encodeURIComponent($json.from_email) + '&select=id,full_name,company,client_id,lead_status,total_emails_sent&limit=1' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -114,9 +148,14 @@
       "name": "Match Lead by Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 300],
+      "position": [
+        1640,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -129,18 +168,30 @@
       "name": "Check Match",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1880, 300]
+      "position": [
+        1880,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx-ri-v1-cond-matched",
               "leftValue": "={{ $json.matched }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -151,18 +202,24 @@
       "name": "IF Matched",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2120, 300]
+      "position": [
+        2120,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -174,9 +231,14 @@
       "name": "Mark Lead Replied",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2360, 300],
+      "position": [
+        2360,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true
     },
@@ -186,7 +248,10 @@
       "name": "Skip Unmatched",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2360, 500]
+      "position": [
+        2360,
+        500
+      ]
     },
     {
       "parameters": {},
@@ -194,48 +259,147 @@
       "name": "Loop Done",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [920, 500]
+      "position": [
+        920,
+        500
+      ]
     }
   ],
   "connections": {
     "Schedule Trigger": {
-      "main": [[{ "node": "List Unread Messages", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "List Unread Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "List Unread Messages": {
-      "main": [[{ "node": "Split Messages", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split Messages": {
-      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split In Batches": {
       "main": [
-        [{ "node": "Loop Done", "type": "main", "index": 0 }],
-        [{ "node": "Get Message Metadata", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Loop Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Message Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Get Message Metadata": {
-      "main": [[{ "node": "Extract Sender", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extract Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Sender": {
-      "main": [[{ "node": "Match Lead by Email", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Match Lead by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Match Lead by Email": {
-      "main": [[{ "node": "Check Match", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Check Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Check Match": {
-      "main": [[{ "node": "IF Matched", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Matched": {
       "main": [
-        [{ "node": "Mark Lead Replied", "type": "main", "index": 0 }],
-        [{ "node": "Skip Unmatched", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Mark Lead Replied",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Mark Lead Replied": {
-      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Skip Unmatched": {
-      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,

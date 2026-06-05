@@ -16,18 +16,24 @@
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_daily_send_count",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -39,9 +45,14 @@
       "name": "Check Daily Send Limit",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 300],
+      "position": [
+        440,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
@@ -52,18 +63,30 @@
       "name": "Parse Send Limit",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx07v2-cond-can-send",
               "leftValue": "={{ $json.can_send }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -74,7 +97,10 @@
       "name": "IF Under Limit",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [920, 300]
+      "position": [
+        920,
+        300
+      ]
     },
     {
       "parameters": {},
@@ -82,18 +108,24 @@
       "name": "Daily Limit Reached",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [920, 500]
+      "position": [
+        920,
+        500
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Outreach%20Ready&unsubscribed=eq.false&do_not_contact=eq.false&reply_detected=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,city,industry,client_id,email_subject,email_body,followup_message,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact,clients(notification_email,calendly_link)&limit=5",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -102,21 +134,35 @@
       "name": "Get Outreach Ready Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1160, 300],
+      "position": [
+        1160,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       }
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx07v2-cond-leads-found",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -127,7 +173,10 @@
       "name": "IF Leads Found",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1400, 300]
+      "position": [
+        1400,
+        300
+      ]
     },
     {
       "parameters": {},
@@ -135,7 +184,10 @@
       "name": "No Outreach Leads",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1400, 500]
+      "position": [
+        1400,
+        500
+      ]
     },
     {
       "parameters": {
@@ -146,7 +198,10 @@
       "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [1640, 300]
+      "position": [
+        1640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -156,7 +211,10 @@
       "name": "Send Batch Complete",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 500]
+      "position": [
+        1640,
+        500
+      ]
     },
     {
       "parameters": {},
@@ -164,7 +222,10 @@
       "name": "Notify Hook (Future)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1880, 500]
+      "position": [
+        1880,
+        500
+      ]
     },
     {
       "parameters": {
@@ -175,7 +236,10 @@
       "name": "Wait 30s",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1880, 300],
+      "position": [
+        1880,
+        300
+      ],
       "webhookId": "clx07v2-wait-webhook-001"
     },
     {
@@ -186,18 +250,30 @@
       "name": "Safety Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 300]
+      "position": [
+        2120,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx07v2-cond-not-skipped",
               "leftValue": "={{ $json.skip }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "notEqual", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -208,19 +284,28 @@
       "name": "IF Safe To Send",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2360, 300]
+      "position": [
+        2360,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -232,9 +317,14 @@
       "name": "Skip Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 500],
+      "position": [
+        2600,
+        500
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true
     },
@@ -246,7 +336,10 @@
       "name": "Build Gmail Raw Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2480, 300]
+      "position": [
+        2480,
+        300
+      ]
     },
     {
       "parameters": {
@@ -257,7 +350,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -269,9 +365,14 @@
       "name": "Send Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 300],
+      "position": [
+        2600,
+        300
+      ],
       "credentials": {
-        "gmailOAuth2": { "name": "Gmail" }
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
       },
       "continueOnFail": true
     },
@@ -283,18 +384,30 @@
       "name": "Handle Send Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2840, 300]
+      "position": [
+        2840,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx07v2-cond-send-ok",
               "leftValue": "={{ $json.send_ok }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -305,7 +418,10 @@
       "name": "IF Send OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [3080, 300]
+      "position": [
+        3080,
+        300
+      ]
     },
     {
       "parameters": {
@@ -315,18 +431,24 @@
       "name": "Calculate Follow Up",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3320, 300]
+      "position": [
+        3320,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead_after_send",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -338,9 +460,14 @@
       "name": "Update Lead RPC",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3560, 300],
+      "position": [
+        3560,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -353,19 +480,28 @@
       "name": "Build Send Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3800, 300]
+      "position": [
+        3800,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -377,9 +513,14 @@
       "name": "Log Send Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [4040, 300],
+      "position": [
+        4040,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true
     },
@@ -389,18 +530,24 @@
       "name": "Notify Client (Future)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [4280, 300]
+      "position": [
+        4280,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/mark_lead_send_failed",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -412,9 +559,14 @@
       "name": "Mark Send Failed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3080, 500],
+      "position": [
+        3080,
+        500
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true
     },
@@ -423,12 +575,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -440,97 +598,306 @@
       "name": "Log Send Error",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3320, 500],
+      "position": [
+        3320,
+        500
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true
     }
   ],
   "connections": {
     "Schedule Trigger": {
-      "main": [[{ "node": "Check Daily Send Limit", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Check Daily Send Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Check Daily Send Limit": {
-      "main": [[{ "node": "Parse Send Limit", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Send Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Send Limit": {
-      "main": [[{ "node": "IF Under Limit", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Under Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Under Limit": {
       "main": [
-        [{ "node": "Get Outreach Ready Leads", "type": "main", "index": 0 }],
-        [{ "node": "Daily Limit Reached", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Get Outreach Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Daily Limit Reached",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Get Outreach Ready Leads": {
-      "main": [[{ "node": "IF Leads Found", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Leads Found": {
       "main": [
-        [{ "node": "Split In Batches", "type": "main", "index": 0 }],
-        [{ "node": "No Outreach Leads", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Outreach Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Split In Batches": {
       "main": [
-        [{ "node": "Send Batch Complete", "type": "main", "index": 0 }],
-        [{ "node": "Wait 30s", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Send Batch Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 30s",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Send Batch Complete": {
-      "main": [[{ "node": "Notify Hook (Future)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Notify Hook (Future)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Wait 30s": {
-      "main": [[{ "node": "Safety Check", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Safety Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Safety Check": {
-      "main": [[{ "node": "IF Safe To Send", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Safe To Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Safe To Send": {
       "main": [
-        [{ "node": "Skip Lead", "type": "main", "index": 0 }],
-        [{ "node": "Build Gmail Raw Message", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Skip Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Gmail Raw Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Build Gmail Raw Message": {
-      "main": [[{ "node": "Send Email", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Skip Lead": {
-      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Send Email": {
-      "main": [[{ "node": "Handle Send Result", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Handle Send Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Send Result": {
-      "main": [[{ "node": "IF Send OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Send OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Send OK": {
       "main": [
-        [{ "node": "Calculate Follow Up", "type": "main", "index": 0 }],
-        [{ "node": "Mark Send Failed", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Calculate Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Calculate Follow Up": {
-      "main": [[{ "node": "Update Lead RPC", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Update Lead RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Update Lead RPC": {
-      "main": [[{ "node": "Build Send Log", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Send Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Send Log": {
-      "main": [[{ "node": "Log Send Success", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Log Send Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Log Send Success": {
-      "main": [[{ "node": "Notify Client (Future)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Notify Client (Future)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Notify Client (Future)": {
-      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Mark Send Failed": {
-      "main": [[{ "node": "Log Send Error", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Log Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Log Send Error": {
-      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,

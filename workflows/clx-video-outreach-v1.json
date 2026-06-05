@@ -58,7 +58,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.{{ $json.lead_id }}&select=id,client_id,full_name,email,company,industry,job_title,city,product_type,lead_score,niche,preferred_channel,lead_status,campaign_name,campaign_value_proposition,campaign_call_to_action,channels_attempted,video_status,video_request_id,apollo_enriched_at,clients(video_enabled,video_monthly_cap,calendly_link,notification_email)&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -73,8 +73,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -97,7 +97,7 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/niche_overlays?niche_name=eq.{{ encodeURIComponent($json.niche || $json.product_type || 'insurance_broker') }}&select=video_script_template&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -120,8 +120,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -130,7 +130,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/get_monthly_video_count",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -156,8 +156,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -213,7 +213,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -243,8 +243,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -367,7 +367,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/video_generation_log",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -397,8 +397,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -421,7 +421,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -447,8 +447,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -490,7 +490,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -520,8 +520,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
@@ -541,132 +541,212 @@
     "Schedule Trigger (DEACTIVATED)": {
       "main": [
         [
-          { "node": "Resolve Input", "type": "main", "index": 0 }
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Manual Trigger (Webhook)": {
       "main": [
         [
-          { "node": "Resolve Input", "type": "main", "index": 0 }
+          {
+            "node": "Resolve Input",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Resolve Input": {
       "main": [
         [
-          { "node": "Fetch Lead + Client", "type": "main", "index": 0 }
+          {
+            "node": "Fetch Lead + Client",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Fetch Lead + Client": {
       "main": [
         [
-          { "node": "Normalize Lead", "type": "main", "index": 0 }
+          {
+            "node": "Normalize Lead",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Normalize Lead": {
       "main": [
         [
-          { "node": "Fetch Niche Overlay", "type": "main", "index": 0 }
+          {
+            "node": "Fetch Niche Overlay",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Fetch Niche Overlay": {
       "main": [
         [
-          { "node": "Check Monthly Video Count", "type": "main", "index": 0 }
+          {
+            "node": "Check Monthly Video Count",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Check Monthly Video Count": {
       "main": [
         [
-          { "node": "Monthly Cap Gate", "type": "main", "index": 0 }
+          {
+            "node": "Monthly Cap Gate",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Monthly Cap Gate": {
       "main": [
         [
-          { "node": "IF Skip", "type": "main", "index": 0 }
+          {
+            "node": "IF Skip",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Skip": {
       "main": [
         [
-          { "node": "Log Preflight Skip", "type": "main", "index": 0 }
+          {
+            "node": "Log Preflight Skip",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Interpolate Script", "type": "main", "index": 0 }
+          {
+            "node": "Interpolate Script",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Interpolate Script": {
       "main": [
         [
-          { "node": "Compose Video Script (Claude)", "type": "main", "index": 0 }
+          {
+            "node": "Compose Video Script (Claude)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Compose Video Script (Claude)": {
       "main": [
         [
-          { "node": "Parse Claude Response", "type": "main", "index": 0 }
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Parse Claude Response": {
       "main": [
         [
-          { "node": "Tavus Generate Video", "type": "main", "index": 0 }
+          {
+            "node": "Tavus Generate Video",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Tavus Generate Video": {
       "main": [
         [
-          { "node": "Parse Tavus Response", "type": "main", "index": 0 }
+          {
+            "node": "Parse Tavus Response",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Parse Tavus Response": {
       "main": [
         [
-          { "node": "Insert Video Generation Log", "type": "main", "index": 0 }
+          {
+            "node": "Insert Video Generation Log",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Insert Video Generation Log": {
       "main": [
         [
-          { "node": "Prep Update Lead", "type": "main", "index": 0 }
+          {
+            "node": "Prep Update Lead",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Prep Update Lead": {
       "main": [
         [
-          { "node": "RPC Update Lead", "type": "main", "index": 0 }
+          {
+            "node": "RPC Update Lead",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "RPC Update Lead": {
       "main": [
         [
-          { "node": "IF Generation Failed", "type": "main", "index": 0 }
+          {
+            "node": "IF Generation Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "IF Generation Failed": {
       "main": [
         [
-          { "node": "Log Generation Failure", "type": "main", "index": 0 }
+          {
+            "node": "Log Generation Failure",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Run Summary", "type": "main", "index": 0 }
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

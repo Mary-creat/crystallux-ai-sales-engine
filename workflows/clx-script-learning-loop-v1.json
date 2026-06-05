@@ -3,26 +3,42 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [ { "field": "hours", "hoursInterval": 24, "triggerAtHour": 2 } ] }
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24,
+              "triggerAtHour": 2
+            }
+          ]
+        }
       },
       "id": "clx-sll-v1-0001",
       "name": "Schedule Trigger (DEACTIVATED)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "notes": "DEACTIVATED. Runs daily at 02:00. Refreshes conversion_rate on closing_scripts / objection_handlers using the last 90 days of script_suggestion_log outcomes (minimum 3 suggestions per script)."
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "script/learning/run",
-        "options": { "responseData": "={{ JSON.stringify({ ok: true, updated: $('Refresh Rates').first().json || 0 }) }}" }
+        "options": {
+          "responseData": "={{ JSON.stringify({ ok: true, updated: $('Refresh Rates').first().json || 0 }) }}"
+        }
       },
       "id": "clx-sll-v1-0002",
       "name": "Manual Trigger (Webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 560],
+      "position": [
+        200,
+        560
+      ],
       "webhookId": "clx-sll-v1-0002-webhook"
     },
     {
@@ -30,12 +46,18 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/refresh_script_conversion_rates",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "params=single-object" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
           ]
         },
         "sendBody": true,
@@ -47,29 +69,50 @@
       "name": "Refresh Rates",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 480],
+      "position": [
+        440,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/script_suggestion_log?select=script_id,script_type,agent_action&suggested_at=gte.{{ encodeURIComponent(new Date(Date.now()-90*86400000).toISOString()) }}&limit=5000",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "clx-sll-v1-0004",
       "name": "Fetch Recent Suggestions",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 480],
+      "position": [
+        680,
+        480
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -80,14 +123,30 @@
       "name": "Detect Problem Scripts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 480]
+      "position": [
+        920,
+        480
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-sll-if-problems", "leftValue": "={{ $json.problem_count }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+            {
+              "id": "clx-sll-if-problems",
+              "leftValue": "={{ $json.problem_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -97,19 +156,28 @@
       "name": "IF Any Problems",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1160, 480]
+      "position": [
+        1160,
+        480
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -121,24 +189,96 @@
       "name": "Log Problem Scripts",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 400],
+      "position": [
+        1400,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "Supabase Crystallux" } }
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     }
   ],
   "connections": {
-    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Refresh Rates", "type": "main", "index": 0 } ]] },
-    "Manual Trigger (Webhook)":       { "main": [[ { "node": "Refresh Rates", "type": "main", "index": 0 } ]] },
-    "Refresh Rates":                  { "main": [[ { "node": "Fetch Recent Suggestions", "type": "main", "index": 0 } ]] },
-    "Fetch Recent Suggestions":       { "main": [[ { "node": "Detect Problem Scripts", "type": "main", "index": 0 } ]] },
-    "Detect Problem Scripts":         { "main": [[ { "node": "IF Any Problems", "type": "main", "index": 0 } ]] },
-    "IF Any Problems":                { "main": [[ { "node": "Log Problem Scripts", "type": "main", "index": 0 } ], []] }
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Refresh Rates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Refresh Rates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Rates": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent Suggestions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent Suggestions": {
+      "main": [
+        [
+          {
+            "node": "Detect Problem Scripts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Problem Scripts": {
+      "main": [
+        [
+          {
+            "node": "IF Any Problems",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Any Problems": {
+      "main": [
+        [
+          {
+            "node": "Log Problem Scripts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-script-learning-loop-v1",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "id": "clx-script-learning-loop-v1",
   "tags": []
 }

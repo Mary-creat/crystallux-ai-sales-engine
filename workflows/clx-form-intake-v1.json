@@ -12,7 +12,10 @@
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "webhookId": "clx-form-intake-webhook-001"
     },
     {
@@ -24,18 +27,30 @@
       "name": "Validate Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 300]
+      "position": [
+        440,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx-fi-v1-cond-valid",
               "leftValue": "={{ $json.valid }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -46,18 +61,24 @@
       "name": "IF Valid",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?client_slug=eq.' + encodeURIComponent($json.client_slug) + '&select=id,client_name,vertical,active&limit=1' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -66,9 +87,14 @@
       "name": "Resolve Client by Slug",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 300],
+      "position": [
+        920,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -82,18 +108,30 @@
       "name": "Attach Client Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 300]
+      "position": [
+        1160,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "clx-fi-v1-cond-client",
               "leftValue": "={{ $json.valid }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -104,18 +142,24 @@
       "name": "IF Client Resolved",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1400, 300]
+      "position": [
+        1400,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/insert_lead_if_not_exists",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -127,9 +171,14 @@
       "name": "Insert Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 300],
+      "position": [
+        1640,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
       },
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -144,7 +193,10 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1880, 300]
+      "position": [
+        1880,
+        300
+      ]
     },
     {
       "parameters": {
@@ -157,7 +209,10 @@
       "name": "Respond Validation Error",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [680, 500]
+      "position": [
+        680,
+        500
+      ]
     },
     {
       "parameters": {
@@ -170,36 +225,103 @@
       "name": "Respond Client Error",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1400, 500]
+      "position": [
+        1400,
+        500
+      ]
     }
   ],
   "connections": {
     "Webhook Trigger": {
-      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Validate Payload": {
-      "main": [[{ "node": "IF Valid", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Valid": {
       "main": [
-        [{ "node": "Resolve Client by Slug", "type": "main", "index": 0 }],
-        [{ "node": "Respond Validation Error", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Resolve Client by Slug",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Resolve Client by Slug": {
-      "main": [[{ "node": "Attach Client Context", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Attach Client Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Attach Client Context": {
-      "main": [[{ "node": "IF Client Resolved", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "IF Client Resolved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "IF Client Resolved": {
       "main": [
-        [{ "node": "Insert Lead", "type": "main", "index": 0 }],
-        [{ "node": "Respond Client Error", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Insert Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Client Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Insert Lead": {
-      "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,

@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Campaign%20Assigned&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,campaign_name,campaign_value_proposition,campaign_pain_point,campaign_call_to_action,campaign_tone,vertical&limit=25",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
         "options": {}
       },
@@ -39,8 +39,8 @@
         300
       ],
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "continueOnFail": true,
@@ -114,11 +114,14 @@
         "method": "GET",
         "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/niche_overlays?niche_name=eq.' + ($('Split In Batches').item.json.vertical || $json.vertical || 'insurance_broker') + '&select=claude_system_prompt,outreach_tone,pain_signals,offer_mapping' }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -132,8 +135,8 @@
         300
       ],
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "continueOnFail": true,
@@ -159,11 +162,14 @@
         "method": "GET",
         "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/market_signals_processed?active=eq.true&expires_at=gt.{{ encodeURIComponent(new Date().toISOString()) }}&affected_verticals=cs.%5B%7B%22vertical%22%3A%22{{ encodeURIComponent(($('Wait').item.json.vertical) || ($('Wait').item.json.niche) || 'insurance_broker') }}%22%7D%5D&select=id,headline,summary,affected_verticals,messaging_angle,suggested_pain_signals,confidence,expires_at&order=processed_at.desc&limit=1",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {}
@@ -179,8 +185,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       },
       "notes": "B.9c addition. Refetches the single highest-priority active signal for this lead's vertical at generation time. Graceful fallback: failure or empty result -> the Merge Signal Context node keeps the overlay prompt unchanged."
@@ -297,7 +303,7 @@
         "method": "POST",
         "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/update_lead",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -323,8 +329,8 @@
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase Crystallux"
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
         }
       }
     },
