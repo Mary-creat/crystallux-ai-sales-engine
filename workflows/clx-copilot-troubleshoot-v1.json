@@ -241,14 +241,14 @@
     },
     "IF Authorized": {
       "main": [
-        [],
         [
           {
             "node": "Fetch Context Errors",
             "type": "main",
             "index": 0
           }
-        ]
+        ],
+        []
       ]
     },
     "Fetch Context Errors": {

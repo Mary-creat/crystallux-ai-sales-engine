@@ -202,14 +202,14 @@
     },
     "IF Authorized": {
       "main": [
-        [],
         [
           {
             "node": "Gather Context",
             "type": "main",
             "index": 0
           }
-        ]
+        ],
+        []
       ]
     },
     "Gather Context": {

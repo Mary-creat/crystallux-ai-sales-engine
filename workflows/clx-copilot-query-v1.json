@@ -238,14 +238,14 @@
     },
     "IF Authorized": {
       "main": [
-        [],
         [
           {
             "node": "Claude Generate SQL",
             "type": "main",
             "index": 0
           }
-        ]
+        ],
+        []
       ]
     },
     "Claude Generate SQL": {
