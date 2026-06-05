@@ -13,7 +13,10 @@
       "name": "Copilot Troubleshoot Webhook (DEACTIVATED)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-ct-0001-webhook",
       "notes": "DEACTIVATED. Body: { token, error_id (optional), description (optional) }. Exactly one of error_id or description required."
     },
@@ -26,14 +29,30 @@
       "name": "Validate + Route",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 400]
+      "position": [
+        440,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-ct-cond-auth", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-ct-cond-auth",
+              "leftValue": "={{ $json._authorized }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -43,7 +62,10 @@
       "name": "IF Authorized",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ]
     },
     {
       "parameters": {
@@ -58,11 +80,16 @@
       "name": "Fetch Context Errors",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 400],
+      "position": [
+        920,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
       }
     },
     {
@@ -74,7 +101,10 @@
       "name": "Build Claude Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
@@ -85,8 +115,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "anthropic-version", "value": "2023-06-01" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
           ]
         },
         "sendBody": true,
@@ -98,10 +134,18 @@
       "name": "Claude Diagnose",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 400],
+      "position": [
+        1400,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "notes": "TODO: Bind 'Anthropic API' credential."
+      "notes": "TODO: Bind 'Anthropic API' credential.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Claude Anthropic"
+        }
+      }
     },
     {
       "parameters": {
@@ -112,7 +156,10 @@
       "name": "Parse + Safety",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 400]
+      "position": [
+        1640,
+        400
+      ]
     },
     {
       "parameters": {
@@ -123,7 +170,10 @@
       "name": "Build Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1880, 400]
+      "position": [
+        1880,
+        400
+      ]
     },
     {
       "parameters": {
@@ -134,8 +184,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -147,28 +203,119 @@
       "name": "Log to admin_action_log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2120, 400],
+      "position": [
+        2120,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
       }
     }
   ],
   "connections": {
-    "Copilot Troubleshoot Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Route", "type": "main", "index": 0 } ]] },
-    "Validate + Route":   { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
-    "IF Authorized":      { "main": [[], [ { "node": "Fetch Context Errors", "type": "main", "index": 0 } ]] },
-    "Fetch Context Errors":{ "main": [[ { "node": "Build Claude Prompt", "type": "main", "index": 0 } ]] },
-    "Build Claude Prompt":{ "main": [[ { "node": "Claude Diagnose", "type": "main", "index": 0 } ]] },
-    "Claude Diagnose":    { "main": [[ { "node": "Parse + Safety", "type": "main", "index": 0 } ]] },
-    "Parse + Safety":     { "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
-    "Build Response":     { "main": [[ { "node": "Log to admin_action_log", "type": "main", "index": 0 } ]] }
+    "Copilot Troubleshoot Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Validate + Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Route": {
+      "main": [
+        [
+          {
+            "node": "IF Authorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Authorized": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch Context Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Context Errors": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Diagnose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Diagnose": {
+      "main": [
+        [
+          {
+            "node": "Parse + Safety",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + Safety": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Log to admin_action_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-copilot-troubleshoot-v1",
-  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
   "id": "clx-copilot-troubleshoot-v1",
   "tags": []
 }

@@ -13,7 +13,10 @@
       "name": "Copilot Query Webhook (DEACTIVATED)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-cq-0001-webhook",
       "notes": "DEACTIVATED. Body: { token, question, panel_context (optional) }. Admin token validated against MARY_MASTER_TOKEN before Claude is called."
     },
@@ -26,14 +29,30 @@
       "name": "Validate + Parse",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 400]
+      "position": [
+        440,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "clx-cq-cond-auth", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "clx-cq-cond-auth",
+              "leftValue": "={{ $json._authorized }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -43,7 +62,10 @@
       "name": "IF Authorized",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ]
     },
     {
       "parameters": {
@@ -54,8 +76,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "anthropic-version", "value": "2023-06-01" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
           ]
         },
         "sendBody": true,
@@ -67,10 +95,18 @@
       "name": "Claude Generate SQL",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 400],
+      "position": [
+        920,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "notes": "TODO: Bind 'Anthropic API' credential (HTTP Header Auth, header name: x-api-key, value: $ANTHROPIC_API_KEY). No credentials block yet."
+      "notes": "TODO: Bind 'Anthropic API' credential (HTTP Header Auth, header name: x-api-key, value: $ANTHROPIC_API_KEY). No credentials block yet.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Claude Anthropic"
+        }
+      }
     },
     {
       "parameters": {
@@ -81,7 +117,10 @@
       "name": "Parse + Validate SQL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 400]
+      "position": [
+        1160,
+        400
+      ]
     },
     {
       "parameters": {
@@ -92,7 +131,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -104,11 +146,16 @@
       "name": "Execute Safe SELECT",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1400, 400],
+      "position": [
+        1400,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
       }
     },
     {
@@ -120,7 +167,10 @@
       "name": "Build Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 400]
+      "position": [
+        1640,
+        400
+      ]
     },
     {
       "parameters": {
@@ -131,8 +181,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -144,27 +200,108 @@
       "name": "Log to admin_action_log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1880, 400],
+      "position": [
+        1880,
+        400
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpHeaderAuth": { "name": "Supabase Crystallux" }
+        "httpHeaderAuth": {
+          "name": "Supabase Crystallux"
+        }
       }
     }
   ],
   "connections": {
-    "Copilot Query Webhook (DEACTIVATED)": { "main": [[ { "node": "Validate + Parse", "type": "main", "index": 0 } ]] },
-    "Validate + Parse":   { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
-    "IF Authorized":      { "main": [[], [ { "node": "Claude Generate SQL", "type": "main", "index": 0 } ]] },
-    "Claude Generate SQL":{ "main": [[ { "node": "Parse + Validate SQL", "type": "main", "index": 0 } ]] },
-    "Parse + Validate SQL":{ "main": [[ { "node": "Execute Safe SELECT", "type": "main", "index": 0 } ]] },
-    "Execute Safe SELECT":{ "main": [[ { "node": "Build Response", "type": "main", "index": 0 } ]] },
-    "Build Response":     { "main": [[ { "node": "Log to admin_action_log", "type": "main", "index": 0 } ]] }
+    "Copilot Query Webhook (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Validate + Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Parse": {
+      "main": [
+        [
+          {
+            "node": "IF Authorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Authorized": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Claude Generate SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Generate SQL": {
+      "main": [
+        [
+          {
+            "node": "Parse + Validate SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + Validate SQL": {
+      "main": [
+        [
+          {
+            "node": "Execute Safe SELECT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Safe SELECT": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Log to admin_action_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "versionId": "clx-copilot-query-v1",
-  "meta": { "templateCredsSetupCompleted": false, "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "3f3f6370fc2e867943491172b687727f653843d554f7415f38ca14c384f12f38"
+  },
   "id": "clx-copilot-query-v1",
   "tags": []
 }
