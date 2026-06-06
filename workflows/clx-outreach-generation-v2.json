@@ -189,7 +189,8 @@
           "name": "Supabase Crystallux Custom"
         }
       },
-      "notes": "B.9c addition. Refetches the single highest-priority active signal for this lead's vertical at generation time. Graceful fallback: failure or empty result -> the Merge Signal Context node keeps the overlay prompt unchanged."
+      "notes": "B.9c addition. Refetches the single highest-priority active signal for this lead's vertical at generation time. Graceful fallback: failure or empty result -> the Merge Signal Context node keeps the overlay prompt unchanged.",
+      "alwaysOutputData": true
     },
     {
       "parameters": {

@@ -200,7 +200,8 @@
           "name": "Supabase Crystallux Custom"
         }
       },
-      "notes": "B.9c addition. Queries market_signals_processed for active, non-expired signals whose affected_verticals JSONB contains the lead's vertical. Returns up to 5 most recent. On failure (market_signals_processed table missing — pre-B.9 DB state), continueOnFail routes through to downstream nodes which gracefully treat empty signals array as no-intelligence-applied."
+      "notes": "B.9c addition. Queries market_signals_processed for active, non-expired signals whose affected_verticals JSONB contains the lead's vertical. Returns up to 5 most recent. On failure (market_signals_processed table missing — pre-B.9 DB state), continueOnFail routes through to downstream nodes which gracefully treat empty signals array as no-intelligence-applied.",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -226,7 +227,8 @@
           "name": "Supabase Crystallux Custom"
         }
       },
-      "notes": "B.9c addition. Client preferences for signal-driven routing. Missing row = apply defaults (auto_scale_enabled=true, max_multiplier_cap=3.0, no excluded types)."
+      "notes": "B.9c addition. Client preferences for signal-driven routing. Missing row = apply defaults (auto_scale_enabled=true, max_multiplier_cap=3.0, no excluded types).",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -281,7 +283,8 @@
           "name": "Supabase Crystallux Custom"
         }
       },
-      "notes": "B.9c addition. Writes to signal_routing_log only when intelligence_applied=true. Parallel to Prep Update Campaign so the insert doesn't block the main flow."
+      "notes": "B.9c addition. Writes to signal_routing_log only when intelligence_applied=true. Parallel to Prep Update Campaign so the insert doesn't block the main flow.",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
