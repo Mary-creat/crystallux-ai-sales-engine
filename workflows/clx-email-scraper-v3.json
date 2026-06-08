@@ -378,7 +378,7 @@
     {
       "parameters": {
         "jsCode": "// CLX Email Scraper v3 — Run summary (fires once Split In Batches is done)\n\nconst items = $input.all();\nconst processed = items.length;\nconst dryRun = $('Config').first().json.dry_run;\n\nconsole.log('[clx-email-scraper] Run complete. Processed ' + processed + ' leads this run. dry_run=' + dryRun);\n\nreturn {\n  json: {\n    workflow: 'clx-email-scraper-v3',\n    processed_count: processed,\n    dry_run: dryRun,\n    finished_at: new Date().toISOString()\n  }\n};",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-es-0019",
       "name": "Run Summary",
