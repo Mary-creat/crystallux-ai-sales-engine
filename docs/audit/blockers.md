@@ -6,6 +6,26 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0ab. Outreach engine LIVE end-to-end — go-live gated on Anthropic top-up + test-mode flip (added 2026-06-08)
+
+The lead → email engine now sends real, personalized outreach end-to-end, hands-free. **First live send confirmed 2026-06-08** (to the test inbox). Two fixes shipped on `scale-sprint-v1`:
+
+- **Sender (`34a9b7a`)** — `IF Safe To Send`'s boolean `skip notEqual true` check misrouted SAFE leads (`skip:false`) into Skip Lead on Mary's n8n version (boolean-coercion quirk: Safety Check stamped `skip:false` / "Safe to send" yet the lead exited the false branch). Replaced with a string check: `email_body_with_footer` **is notEmpty** — only safe leads carry a built body. Re-imported live via `docker exec n8n n8n import:workflow` + `docker restart n8n` + browser hard-refresh.
+- **Outreach Generation (`b17b194`)** — cold email #1 no longer quotes a price (Mary's call: a dollar figure scares cold prospects before they see value; price is for the call). 10-meeting guarantee kept. Added a `noDash()` sanitizer in "Parse Outreach Response" that physically strips em/en-dashes from every generated field — the model ignored the "no dashes" text rule and shipped AI-tell dashes (`cold—they'd`).
+
+**Remaining steps (Mary, in order):**
+1. **Top up Anthropic API credits.** The writer (Outreach Generation) calls Claude Haiku to write each email (~½ cent each; a $158 top-up ≈ tens of thousands of emails). The **Sender does NOT use Claude** — only the writer does. Without credits the writer can't regenerate the cleaned copy.
+2. **Regenerate the queued leads.** In Supabase: `UPDATE leads SET lead_status='Campaign Assigned' WHERE lead_status='Outreach Ready' AND email IS NOT NULL AND email <> '';` then Execute **"CLX - Outreach Generation v2"** in n8n (rebind creds if prompted: `Claude Anthropic` + `Supabase Crystallux Custom`). Leads return to "Outreach Ready" with clean copy.
+3. **Review one clean test email** in `adesholaakintunde@gmail.com` — confirm: no price, no `—` dashes, guarantee present.
+4. **GO LIVE — flip off testing mode.** In the Sender's **"Build Gmail Raw Message"** node, change the one line:
+   - FROM: `const to = 'adesholaakintunde+clxtest@gmail.com';`
+   - TO:   `const to = data.email;`
+   Easiest via the n8n UI (open the node, edit that single line, Save) — no re-import needed. After this, emails go to **real prospects** (25/day cap; `do_not_contact` / `unsubscribed` / cooldown all still enforced by Safety Check).
+
+Until step 4, every send routes to the test inbox — safe to run the whole engine without emailing real people.
+
+---
+
 ## 0aa. Self-serve onboarding — pay/signup → auto-account → login → access — added 2026-06-02
 
 Closes the "money while you sleep" loop. Two halves, both committed (`4e38057` paid, `10def4a` trial):
