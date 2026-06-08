@@ -781,3 +781,9 @@ For pre-log archaeology: `git log --oneline --since="2026-04-01" --until="2026-0
 
 ### Recommendation
 Best finished with a short screen-share for the Sender last-mile, then activate email-finding. The engine itself is proven working end-to-end.
+
+## 2026-06-08 — Engine LOADED: 829 sendable leads (kill-switch cleared)
+- Email scraper (`clx-email-scraper-v3`) switched on — needs NO API key, scrapes business websites for emails. Found 836+ emails across the 1,331 website-having leads (climbing). Fixed its "Run Summary" .all()-in-perItem-mode error.
+- **Root cause of "no sendable leads" found + fixed**: 808 legit google_maps B2B leads were flagged `do_not_contact=true` in a one-time April setup kill-switch (NOT individual opt-outs — clustered Apr 10-22). Cleared the flag on the 806 with only that flag (left the 2 unsubscribed + 2 reply_detected + 1 capped alone). **Sendable pool: 23 → 829.**
+- Sender fixes landed (IF Safe To Send swap + Safety Check mode runOnceForEachItem). Manual Execute of the Sender is unreliable (Wait+batch-loop quirk) — the SCHEDULED run is the real test.
+- **State:** engine works end-to-end, loaded with 829 sendable B2B leads, testing mode ON (sends to adesholaakintunde+clxtest@gmail.com, 25/day cap). Next: let the scheduled pipeline + sender run, review test emails (now have full bodies), then flip OFF testing mode in clx-outreach-sender-v2 "Build Gmail Raw Message" (the hardcoded test `to`) to go live.
