@@ -786,4 +786,18 @@ Best finished with a short screen-share for the Sender last-mile, then activate 
 - Email scraper (`clx-email-scraper-v3`) switched on — needs NO API key, scrapes business websites for emails. Found 836+ emails across the 1,331 website-having leads (climbing). Fixed its "Run Summary" .all()-in-perItem-mode error.
 - **Root cause of "no sendable leads" found + fixed**: 808 legit google_maps B2B leads were flagged `do_not_contact=true` in a one-time April setup kill-switch (NOT individual opt-outs — clustered Apr 10-22). Cleared the flag on the 806 with only that flag (left the 2 unsubscribed + 2 reply_detected + 1 capped alone). **Sendable pool: 23 → 829.**
 - Sender fixes landed (IF Safe To Send swap + Safety Check mode runOnceForEachItem). Manual Execute of the Sender is unreliable (Wait+batch-loop quirk) — the SCHEDULED run is the real test.
+
+## 2026-06-08 (later) — Sender last-mile ROOT CAUSE: live workflow drifted from repo
+
+Spent the session chasing "no email arrives" despite `Contacted` climbing. `scan_errors` gave the ground truth, in two layers:
+
+1. **First layer — `no_email`:** the 22 "Outreach Ready" leads were mostly `email: null` (19 of 22). The Sender pulls 5 at a time, hit the email-less ones, logged `no_email`, skipped. Cleared them back to `Scored` with `UPDATE leads SET lead_status='Scored' WHERE lead_status='Outreach Ready' AND (email IS NULL OR email='');` — left 3 with real emails (btrustlandscaping, policyarchitects ready w/ subject+body; filipa has email but no content).
+
+2. **Second layer — `unknown`:** after the cleanup, a manual Execute processed the 3 survivors and the two READY ones logged `safety_check_skip` with reason **`unknown`**. The Safety Check code **cannot emit `unknown`** — every real skip has a named reason. `unknown` only appears when a **safe lead (`skip:false`, no `reason`) is routed into "Skip Lead."** i.e. the live `IF Safe To Send` wiring is crossed (`true → Skip Lead`). Mary confirmed visually: *"the green never reaches the gmail."*
+
+**Why the live drifted:** the repo Sender (`workflows/clx-outreach-sender-v2.json`) is CORRECT (`IF Safe To Send`: `true → Build Gmail Raw Message`, `false → Skip Lead`; Safety Check `runOnceForEachItem`). The live copy was hand-edited during prior debugging and the IF branches ended up crossed. **No repo code change needed.**
+
+**The fix (handbook-canonical, per §0k/§0n — NOT manual wire-dragging, NOT ship.sh):** n8n UI → open "CLX - Outreach Sender v2" → ⋮ → **Import from File** → select `workflows/clx-outreach-sender-v2.json` → **Replace existing** → Save → re-bind creds if prompted (`Supabase Crystallux Custom` + `Gmail`) → Execute. This overwrites the crossed wires with the known-good source-of-truth version in one shot. Testing mode stays ON until a real send is confirmed via `scan_errors` (`email_sent_log` + a real `gmail_message_id`).
+
+**Lesson:** stop hand-editing the live Sender — every manual wire edit re-introduces drift. Reconcile live→repo with UI Import-Replace, the handbook-sanctioned update path.
 - **State:** engine works end-to-end, loaded with 829 sendable B2B leads, testing mode ON (sends to adesholaakintunde+clxtest@gmail.com, 25/day cap). Next: let the scheduled pipeline + sender run, review test emails (now have full bodies), then flip OFF testing mode in clx-outreach-sender-v2 "Build Gmail Raw Message" (the hardcoded test `to`) to go live.
