@@ -746,14 +746,14 @@
       "main": [
         [
           {
-            "node": "Skip Lead",
+            "node": "Build Gmail Raw Message",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Build Gmail Raw Message",
+            "node": "Skip Lead",
             "type": "main",
             "index": 0
           }
