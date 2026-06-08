@@ -262,17 +262,17 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict",
+            "typeValidation": "loose",
             "version": 2
           },
           "conditions": [
             {
               "id": "clx07v2-cond-not-skipped",
-              "leftValue": "={{ $json.skip }}",
-              "rightValue": true,
+              "leftValue": "={{ $json.email_body_with_footer }}",
+              "rightValue": "",
               "operator": {
-                "type": "boolean",
-                "operation": "notEqual",
+                "type": "string",
+                "operation": "notEmpty",
                 "singleValue": true
               }
             }
