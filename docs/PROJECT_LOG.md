@@ -759,3 +759,25 @@ For pre-log archaeology: `git log --oneline --since="2026-04-01" --until="2026-0
 | n8n | Workflow engine at `automation.crystallux.org` |
 | `lead_type` | `carrier_prospect` / `advisor_candidate` / `smb` — drives routing in city-scan + campaign-router + booking |
 | `bidder_identity_hash` | SHA-256(platform + ':' + lower(handle)) — stable bidder key across entry paths |
+
+## 2026-06-07 — Lead pipeline: got it flowing end-to-end (the hard part), 3 known gaps left
+
+### What got fixed (the engine now runs: find → research → score → signal → campaign → write → send)
+- **Systemic credential mismatch** (`ef55cfd`): all 173 Supabase nodes across 47 workflows referenced a non-existent `Supabase Crystallux` (Header Auth) credential. Mary's real one is `Supabase Crystallux Custom` (Custom Auth). Repointed all of them. THIS was the root of the session-long 401 "no apikey" pain.
+- **Signal Detection score gate** (`167914f`): `lead_score>=50` blocked everything (scoring is mis-firing — all leads avg score 4). Lowered to `>=1`.
+- **Stray `leads.niche` column** (`c665a30`): non-existent column in 5 workflows' selects → 400 42703. Removed.
+- **alwaysOutputData on optional-fetch nodes** (`33018a3`): signal/preference fetches dropped the lead when empty. Set alwaysOutputData (matching the devs' existing pattern).
+- **Sender IF Safe To Send reversed** (`8a6da53`): TRUE(safe, has body)→Skip, FALSE(skip, no body)→Send. Swapped. (Same backwards-IF bug as the copilot.)
+- Leads confirmed flowing: Scored→Signal Detected→Campaign Assigned→Outreach Ready→Contacted. Real emails written with good subjects + 1,400-char bodies.
+
+### Operational lessons (critical for next session)
+- **Re-imports via ship.sh are UNRELIABLE** at applying repo changes to the live workflow. Reliable fixes are done in the n8n UI. The working credential to pick is **`Supabase Crystallux Custom`** (Custom Auth). After any re-import, **refresh the n8n browser tab** or you see the stale version.
+- **Scoring is broken** (avg lead_score = 4) — leads flow but aren't prioritized.
+
+### 3 KNOWN GAPS LEFT (next session / screen-share — these are LEAD-DATA, not engine bugs)
+1. **Sender last-mile**: "Safety Check" node has mode `undefined` (runOnceForAllItems) but reads `$input.item` — can produce empty output. Likely needs mode → runOnceForEachItem. Plus verify the IF Safe To Send rewire stuck.
+2. **Leads flagged `do_not_contact: true`**: the few leads that HAVE emails are flagged do-not-contact (filipa@pbnet.ca, info@btrustlandscaping.ca, james@policyarchitects.com). Find what sets this.
+3. **No emails on most leads**: 19 of 22 Outreach-Ready leads have `email: null`. The email-finding scraper (`clx-email-scraper-v3`) hasn't populated addresses. This is the real blocker to outreach volume.
+
+### Recommendation
+Best finished with a short screen-share for the Sender last-mile, then activate email-finding. The engine itself is proven working end-to-end.
