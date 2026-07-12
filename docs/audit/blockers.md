@@ -24,6 +24,17 @@ The lead → email engine now sends real, personalized outreach end-to-end, hand
 
 Until step 4, every send routes to the test inbox — safe to run the whole engine without emailing real people.
 
+**Repo verification (2026-07-12) — go/no-go before topping up credits:** re-inspected both workflow files; repo side is **GO** and test-mode is safely ON, so running the whole engine now **cannot email a real prospect** (zero real-send risk until step 4):
+- `clx-outreach-sender-v2.json`: Safety Check `mode: runOnceForEachItem` ✓ · `IF Safe To Send` = string `email_body_with_footer notEmpty` ✓ · connections `TRUE → Build Gmail Raw Message`, `FALSE → Skip Lead` (not crossed) ✓ · `Build Gmail Raw Message` `to = 'adesholaakintunde+clxtest@gmail.com'` (test-mode ON) ✓
+- `clx-outreach-generation-v2.json`: prompt forbids price/dollar/fee mentions, guarantee kept ✓ · `noDash()` strips em/en-dashes on all output fields ✓
+
+**Live checks Mary should run before topping up (can't be seen from the repo):**
+1. Anthropic credit balance — console.anthropic.com → Billing (the real gate).
+2. Sendable pool: `SELECT lead_status, count(*) FROM leads WHERE email IS NOT NULL AND email <> '' AND do_not_contact IS NOT TRUE AND unsubscribed IS NOT TRUE GROUP BY lead_status ORDER BY 2 DESC;`
+3. Did test emails land: check the `+clxtest` inbox + `SELECT count(*), max(created_at) FROM email_sent_log;`
+
+> Note: fixes `34a9b7a` / `b17b194` / `99c94a4` are on `scale-sprint-v1`; `main` is still at `92a037b`. Merge scale-sprint-v1 → main to bring the deploy-branch record current (does not block go-live — the Sender fix is a live n8n workflow, not a Cloudflare deploy).
+
 ---
 
 ## 0aa. Self-serve onboarding — pay/signup → auto-account → login → access — added 2026-06-02

@@ -787,3 +787,11 @@ Best finished with a short screen-share for the Sender last-mile, then activate 
 - **Root cause of "no sendable leads" found + fixed**: 808 legit google_maps B2B leads were flagged `do_not_contact=true` in a one-time April setup kill-switch (NOT individual opt-outs — clustered Apr 10-22). Cleared the flag on the 806 with only that flag (left the 2 unsubscribed + 2 reply_detected + 1 capped alone). **Sendable pool: 23 → 829.**
 - Sender fixes landed (IF Safe To Send swap + Safety Check mode runOnceForEachItem). Manual Execute of the Sender is unreliable (Wait+batch-loop quirk) — the SCHEDULED run is the real test.
 - **State:** engine works end-to-end, loaded with 829 sendable B2B leads, testing mode ON (sends to adesholaakintunde+clxtest@gmail.com, 25/day cap). Next: let the scheduled pipeline + sender run, review test emails (now have full bodies), then flip OFF testing mode in clx-outreach-sender-v2 "Build Gmail Raw Message" (the hardcoded test `to`) to go live.
+
+## 2026-07-12 — Resume: repo re-verified GO before Anthropic top-up
+- Mary resumed and asked to check the left-off task + verify engine state before spending on credits. No code left to write — go-live is gated only on Mary's manual steps.
+- **Repo re-inspected = GO, test-mode safely ON** (so a full engine run cannot email a real prospect until step 4 flips the `to` line):
+  - `clx-outreach-sender-v2.json`: Safety Check `runOnceForEachItem`; `IF Safe To Send` = string `email_body_with_footer notEmpty`; connections `TRUE→Build Gmail`, `FALSE→Skip Lead` (not crossed); Build Gmail `to = +clxtest` (test-mode ON).
+  - `clx-outreach-generation-v2.json`: price/dollar/fee forbidden in prompt, guarantee kept, `noDash()` strips dashes on all fields.
+- **Only gate = Anthropic credits.** Live checks Mary runs before topping up: (1) console.anthropic.com Billing; (2) sendable-pool SQL on `leads`; (3) `email_sent_log` count + `+clxtest` inbox. Full runbook filed in `docs/audit/blockers.md` §0ab.
+- Housekeeping: fixes `34a9b7a`/`b17b194`/`99c94a4` live on `scale-sprint-v1`; `main` still at `92a037b` — merge to bring the deploy record current (does not block go-live).
