@@ -26,7 +26,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const h = $input.item.json.headers || {};\nconst b = $input.item.json.body || {};\nconst auth = h['authorization'] || h['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst action = String(b.action || 'queue').toLowerCase().trim();\nif (action !== 'create' && action !== 'queue') {\n  return { json: { ok: false, status: 400, error: \"action must be 'create' or 'queue'\" } };\n}\nif (action === 'queue') return { json: { token: token, action: action } };\n\n// Validate here so a bad listing never reaches the database. The RPC checks\n// again -- this is for a clear message, not for safety.\nconst title = String(b.title || '').trim();\nif (!title) return { json: { ok: false, status: 400, error: 'Title is required' } };\nconst cond = String(b.condition || 'used').toLowerCase();\nif (['new','open_box','used','as_is'].indexOf(cond) === -1) {\n  return { json: { ok: false, status: 400, error: 'Condition must be new, open_box, used or as_is' } };\n}\nconst type = String(b.listing_type || 'both').toLowerCase();\nif (['auction','buy_now','both'].indexOf(type) === -1) {\n  return { json: { ok: false, status: 400, error: 'Sale type must be auction, buy_now or both' } };\n}\nfunction cents(v){ const n = Math.round(parseFloat(v)); return isNaN(n) ? null : n; }\nconst buyNow = cents(b.buy_now_cents);\nif ((type === 'buy_now' || type === 'both') && !(buyNow > 0)) {\n  return { json: { ok: false, status: 400, error: 'A Buy Now price is required for this sale type' } };\n}\nreturn { json: {\n  token: token, action: action, title: title, condition: cond, listing_type: type,\n  description: b.description ? String(b.description).slice(0, 4000) : null,\n  category: b.category ? String(b.category).slice(0, 120) : null,\n  cost_cents: cents(b.cost_cents) || 0,\n  retail_cents: cents(b.retail_cents),\n  start_bid_cents: cents(b.start_bid_cents) || 100,\n  reserve_cents: cents(b.reserve_cents) || 0,\n  buy_now_cents: buyNow,\n  quantity: Math.max(parseInt(b.quantity, 10) || 1, 1),\n  // Units RECEIVED vs units ONE SALE transfers. Conflating these is\n  // what made a single Buy Now strip a whole pallet of stock.\n  units_per_lot: Math.max(parseInt(b.units_per_lot, 10) || 1, 1),\n  lot_number: b.lot_number ? String(b.lot_number).slice(0, 40) : null,\n  queue_position: b.queue_position != null ? parseInt(b.queue_position, 10) : null,\n  duration_mins: Math.max(parseInt(b.duration_mins, 10) || 10, 1)\n} };",
+        "jsCode": "const h = $input.item.json.headers || {};\nconst b = $input.item.json.body || {};\nconst auth = h['authorization'] || h['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst action = String(b.action || 'queue').toLowerCase().trim();\nconst KNOWN = ['create','queue','open','close','cancel'];\nif (KNOWN.indexOf(action) === -1) {\n  return { json: { ok: false, status: 400, error: 'unknown action: ' + action } };\n}\nif (action === 'queue') return { json: { token: token, action: action } };\n// Lot control. The database decides whether the move is legal -- this only\n// checks we were told which lot.\nif (action === 'open' || action === 'close' || action === 'cancel') {\n  const aid = String(b.auction_id || '').trim();\n  if (!aid) return { json: { ok: false, status: 400, error: 'auction_id required' } };\n  return { json: { token: token, action: action, auction_id: aid,\n                   duration_mins: b.duration_mins ? parseInt(b.duration_mins, 10) : null,\n                   reason: b.reason ? String(b.reason).slice(0, 300) : null } };\n}\n\n// Validate here so a bad listing never reaches the database. The RPC checks\n// again -- this is for a clear message, not for safety.\nconst title = String(b.title || '').trim();\nif (!title) return { json: { ok: false, status: 400, error: 'Title is required' } };\nconst cond = String(b.condition || 'used').toLowerCase();\nif (['new','open_box','used','as_is'].indexOf(cond) === -1) {\n  return { json: { ok: false, status: 400, error: 'Condition must be new, open_box, used or as_is' } };\n}\nconst type = String(b.listing_type || 'both').toLowerCase();\nif (['auction','buy_now','both'].indexOf(type) === -1) {\n  return { json: { ok: false, status: 400, error: 'Sale type must be auction, buy_now or both' } };\n}\nfunction cents(v){ const n = Math.round(parseFloat(v)); return isNaN(n) ? null : n; }\nconst buyNow = cents(b.buy_now_cents);\nif ((type === 'buy_now' || type === 'both') && !(buyNow > 0)) {\n  return { json: { ok: false, status: 400, error: 'A Buy Now price is required for this sale type' } };\n}\nreturn { json: {\n  token: token, action: action, title: title, condition: cond, listing_type: type,\n  description: b.description ? String(b.description).slice(0, 4000) : null,\n  category: b.category ? String(b.category).slice(0, 120) : null,\n  cost_cents: cents(b.cost_cents) || 0,\n  retail_cents: cents(b.retail_cents),\n  start_bid_cents: cents(b.start_bid_cents) || 100,\n  reserve_cents: cents(b.reserve_cents) || 0,\n  buy_now_cents: buyNow,\n  quantity: Math.max(parseInt(b.quantity, 10) || 1, 1),\n  // Units RECEIVED vs units ONE SALE transfers. Conflating these is\n  // what made a single Buy Now strip a whole pallet of stock.\n  units_per_lot: Math.max(parseInt(b.units_per_lot, 10) || 1, 1),\n  lot_number: b.lot_number ? String(b.lot_number).slice(0, 40) : null,\n  queue_position: b.queue_position != null ? parseInt(b.queue_position, 10) : null,\n  duration_mins: Math.max(parseInt(b.duration_mins, 10) || 10, 1)\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "acc-0002",
@@ -166,6 +166,75 @@
                     "id": "c1",
                     "leftValue": "={{ $json.action }}",
                     "rightValue": "queue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "open",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "open",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "close",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "close",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "cancel",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "cancel",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -323,6 +392,144 @@
         1320,
         600
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/commerce_open_lot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_auction_id: $json.auction_id, p_duration_mins: $json.duration_mins }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "acc-0013",
+      "name": "Open Lot RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        660
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Server decides: refuses a finished lot, refuses one with no stock behind it."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/commerce_close_lot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_auction_id: $json.auction_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "acc-0014",
+      "name": "Close Lot RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        800
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Brings the deadline forward; the auction tick still picks the winner and settles."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/commerce_cancel_lot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_auction_id: $json.auction_id, p_reason: $json.reason }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "acc-0015",
+      "name": "Cancel Lot RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        940
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Marks cancelled; the settle cron releases any authorizations."
     }
   ],
   "connections": {
@@ -403,6 +610,27 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Open Lot RPC",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Close Lot RPC",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel Lot RPC",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -444,6 +672,39 @@
         [
           {
             "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open Lot RPC": {
+      "main": [
+        [
+          {
+            "node": "Shape Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Lot RPC": {
+      "main": [
+        [
+          {
+            "node": "Shape Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Lot RPC": {
+      "main": [
+        [
+          {
+            "node": "Shape Create",
             "type": "main",
             "index": 0
           }

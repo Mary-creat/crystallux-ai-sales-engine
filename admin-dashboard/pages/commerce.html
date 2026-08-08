@@ -20,7 +20,25 @@
 .cm-form .full { grid-column:1/-1; }
 .cm-hint { font-size:11px; color:var(--text-muted,#6b7280); margin-top:3px; font-weight:400; }
 .cm-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-.cm-lot { border:1px solid var(--border,#e5e7eb); border-radius:9px; padding:12px 14px; margin-bottom:8px; background:#fff; }
+.cm-lot { border:1px solid var(--border,#e5e7eb); border-radius:11px; padding:13px 15px; margin-bottom:9px;
+           background:#fff; display:flex; gap:14px; align-items:flex-start;
+           transition:box-shadow .15s, border-color .15s; }
+.cm-lot:hover { box-shadow:0 3px 10px rgba(0,0,0,.05); }
+/* A live lot has to be findable in peripheral vision mid-show. */
+.cm-lot.is-live { border-left:4px solid #dc2626; background:#fffbfb; }
+.cm-lot.is-next { border-left:4px solid var(--color-brand-500,#8B5CF6); }
+.cm-lot.is-done { opacity:.6; }
+.cm-lotnum { flex:0 0 66px; font-weight:800; font-size:13px; letter-spacing:.02em;
+             color:var(--text-muted,#6b7280); padding-top:2px; }
+.cm-lotbody { flex:1; min-width:0; }
+.cm-lottitle { font-weight:700; font-size:15px; margin-bottom:3px; }
+.cm-prices { display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px; margin-top:6px; }
+.cm-price b { font-variant-numeric:tabular-nums; }
+.cm-price span { color:var(--text-muted,#6b7280); }
+.cm-warn { color:#b45309; font-size:12px; margin-top:5px; font-weight:600; }
+.cm-acts { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+.cm-btn-live { background:#dc2626 !important; color:#fff !important; border-color:#dc2626 !important; }
+.cm-clock { font-variant-numeric:tabular-nums; font-weight:700; }
 .cm-lot-head { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; }
 .cm-lotno { font-weight:800; font-size:15px; }
 .cm-money { font-variant-numeric:tabular-nums; }
@@ -149,6 +167,7 @@
         <span id="queueCount" class="cm-hint"></span>
       </div>
       <div id="queueBody"></div>
+      <div class="cm-msg" id="queueMsg"></div>
     </section>
 
     <!-- ══ Orders ═════════════════════════════════════════════════ -->
@@ -296,41 +315,109 @@
 
   // ── queue ───────────────────────────────────────────────────────
   var LOT_STYLE = {
-    scheduled: { bg: '#eff6ff', fg: '#1d4ed8', label: 'Scheduled' },
-    open:      { bg: '#fee2e2', fg: '#991b1b', label: 'LIVE' },
-    extended:  { bg: '#fef3c7', fg: '#92400e', label: 'Extended' }
+    scheduled: { bg:'#eff6ff', fg:'#1d4ed8', label:'Scheduled', cls:'is-next' },
+    open:      { bg:'#fee2e2', fg:'#991b1b', label:'LIVE NOW',  cls:'is-live' },
+    extended:  { bg:'#fef3c7', fg:'#92400e', label:'Extended',  cls:'is-live' }
   };
+
+  function countdown(iso){
+    if (!iso) return '';
+    var ms = new Date(iso).getTime() - Date.now();
+    if (isNaN(ms)) return '';
+    if (ms <= 0) return 'closing...';
+    var m = Math.floor(ms / 60000), sec = Math.floor((ms % 60000) / 1000);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  var QUEUE = [];
+
+  function renderQueue(){
+    var box = $('queueBody');
+    if (!QUEUE.length){
+      box.innerHTML = '<div class="cm-empty">Nothing queued. Add products on the Quick add tab.</div>';
+      return;
+    }
+    box.innerHTML = QUEUE.map(function(l){
+      var st = LOT_STYLE[l.status] || { bg:'#f3f4f6', fg:'#374151', label:l.status, cls:'is-done' };
+      var live = (l.status === 'open' || l.status === 'extended');
+      var pr = [];
+      if (l.start_bid_cents)     pr.push('<span class="cm-price"><span>start</span> <b>' + money(l.start_bid_cents) + '</b></span>');
+      if (l.reserve_price_cents) pr.push('<span class="cm-price"><span>reserve</span> <b>' + money(l.reserve_price_cents) + '</b></span>');
+      if (l.buy_now_price_cents) pr.push('<span class="cm-price"><span>buy now</span> <b>' + money(l.buy_now_price_cents) + '</b></span>');
+      pr.push('<span class="cm-price"><span>high bid</span> <b>' + money(l.current_high_bid_cents || 0) + '</b></span>');
+      if (l.quantity_listed > 1) pr.push('<span class="cm-price"><span>qty</span> <b>' + l.quantity_listed + '</b></span>');
+
+      var acts = [];
+      var base = 'class="clx-btn cm-lotact" style="width:auto;padding:6px 15px;font-size:12.5px"';
+      if (l.status === 'scheduled'){
+        acts.push('<button ' + base.replace('clx-btn', 'clx-btn cm-btn-live') + ' data-id="' + esc(l.id) + '" data-do="open">Go live</button>');
+        acts.push('<button class="clx-btn clx-btn-secondary cm-lotact" style="width:auto;padding:6px 13px;font-size:12.5px" data-id="' + esc(l.id) + '" data-do="cancel">Remove</button>');
+      } else if (live){
+        acts.push('<button class="clx-btn clx-btn-primary cm-lotact" style="width:auto;padding:6px 15px;font-size:12.5px" data-id="' + esc(l.id) + '" data-do="close">Sold - close now</button>');
+      }
+      acts.push('<button class="clx-btn clx-btn-secondary cm-copy" style="width:auto;padding:6px 13px;font-size:12.5px" data-id="' + esc(l.id) + '">Copy buyer link</button>');
+
+      return '<div class="cm-lot ' + st.cls + '">' +
+        '<div class="cm-lotnum">' + esc(l.lot_number || '-') + '</div>' +
+        '<div class="cm-lotbody">' +
+          '<div class="cm-lot-head">' +
+            '<span class="cm-lottitle">' + esc(l.item_title) + '</span>' +
+            '<span class="cm-pill" style="background:' + st.bg + ';color:' + st.fg + '">' + esc(st.label) +
+              (live ? ' <span class="cm-clock" data-close="' + esc(l.scheduled_close_at || '') + '">' + countdown(l.scheduled_close_at) + '</span>' : '') +
+            '</span>' +
+          '</div>' +
+          '<div class="cm-prices">' + pr.join('') + '</div>' +
+          (l.inventory_item_id ? '' : '<div class="cm-warn">No stock linked - selling this cannot deduct inventory.</div>') +
+          '<div class="cm-acts">' + acts.join('') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    Array.prototype.slice.call(document.querySelectorAll('.cm-lotact')).forEach(function(b){
+      b.addEventListener('click', async function(){
+        var act = b.dataset.do;
+        if (act === 'cancel' && !window.confirm('Remove this lot from the queue?')) return;
+        b.disabled = true;
+        var r = await post('/admin/commerce/catalog', { action: act, auction_id: b.dataset.id });
+        if (!r.ok || !r.data || !r.data.ok){
+          msg($('queueMsg'), 'err', (r.data && r.data.error) || 'Could not update the lot.');
+          b.disabled = false; return;
+        }
+        hide($('queueMsg'));
+        loadQueue();
+      });
+    });
+
+    Array.prototype.slice.call(document.querySelectorAll('.cm-copy')).forEach(function(b){
+      b.addEventListener('click', async function(){
+        var url = 'https://crystallux.org/luxi-bid.html?a=' + b.dataset.id;
+        try { await navigator.clipboard.writeText(url);
+              msg($('queueMsg'), 'ok', 'Buyer link copied. Paste it into the live chat.'); }
+        catch(e){ msg($('queueMsg'), 'err', url); }
+      });
+    });
+  }
+
+  // One timer for every clock, so a long show does not accumulate intervals.
+  setInterval(function(){
+    Array.prototype.slice.call(document.querySelectorAll('.cm-clock')).forEach(function(el){
+      el.textContent = countdown(el.dataset.close);
+    });
+  }, 1000);
+
   async function loadQueue() {
-    $('queueBody').innerHTML = '<div class="cm-empty">Loading…</div>';
+    $('queueBody').innerHTML = '<div class="cm-empty">Loading...</div>';
     var res = await post('/admin/commerce/catalog', { action: 'queue' });
     if (!res.ok || !res.data || !res.data.ok) {
       $('queueBody').innerHTML = '<div class="cm-empty">' +
         esc((res.data && res.data.error) || 'Could not load the queue.') + '</div>';
       return;
     }
-    var lots = res.data.lots || [];
-    $('queueCount').textContent = lots.length + ' lot' + (lots.length === 1 ? '' : 's') + ' waiting or live';
-    if (!lots.length) {
-      $('queueBody').innerHTML = '<div class="cm-empty">Nothing queued. Add products on the Quick add tab.</div>';
-      return;
-    }
-    $('queueBody').innerHTML = lots.map(function (l) {
-      var s = LOT_STYLE[l.status] || { bg: '#f3f4f6', fg: '#374151', label: l.status };
-      var bits = [];
-      if (l.start_bid_cents) bits.push('start ' + money(l.start_bid_cents));
-      if (l.reserve_price_cents) bits.push('reserve ' + money(l.reserve_price_cents));
-      if (l.buy_now_price_cents) bits.push('buy now ' + money(l.buy_now_price_cents));
-      if (l.current_high_bid_cents) bits.push('high ' + money(l.current_high_bid_cents));
-      if (l.quantity_listed > 1) bits.push('qty ' + l.quantity_listed);
-      if (!l.inventory_item_id) bits.push('no stock linked');
-      return '<div class="cm-lot">' +
-        '<div class="cm-lot-head">' +
-          '<span class="cm-lotno">' + esc(l.lot_number || '—') + ' &nbsp; ' + esc(l.item_title) + '</span>' +
-          '<span class="cm-pill" style="background:' + s.bg + ';color:' + s.fg + '">' + esc(s.label) + '</span>' +
-        '</div>' +
-        '<div class="cm-meta cm-money">' + esc(bits.join(' · ')) + '</div>' +
-      '</div>';
-    }).join('');
+    QUEUE = res.data.lots || [];
+    var liveN = QUEUE.filter(function(l){ return l.status === 'open' || l.status === 'extended'; }).length;
+    $('queueCount').innerHTML = QUEUE.length + ' lot' + (QUEUE.length === 1 ? '' : 's') +
+      (liveN ? ' &middot; <b style="color:#dc2626">' + liveN + ' live</b>' : ' &middot; none live');
+    renderQueue();
   }
   $('queueRefresh').addEventListener('click', loadQueue);
 
