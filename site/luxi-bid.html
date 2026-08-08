@@ -76,6 +76,7 @@
     <div class="hint" id="payCardHint">Your card is <b>authorized, not charged</b>. We hold up to your max so your bids are guaranteed. If you don't win, the hold is released; if you win, only the final price is charged.</div>
     <div id="payment-element"></div>
     <button id="payBtn">Authorize hold &amp; place auto-bid</button>
+    <button id="backBtn" style="background:transparent;color:var(--muted);border:1px solid #d4d4d8;margin-top:10px;font-weight:600">&#8592; Back &mdash; change my details</button>
     <div class="msg err" id="payErr"></div>
   </div>
 
@@ -149,11 +150,40 @@ function mountPay(clientSecret, title, hint, btnLabel){
   $('payCardHint').innerHTML = hint;
   STATE.payLabel = btnLabel;
   $('payBtn').textContent = btnLabel;
+  // Clear any element left over from a previous visit to this step, otherwise
+  // mounting a second Stripe element into the same node throws.
+  $('payment-element').innerHTML = '';
   elements = stripe.elements({ clientSecret: clientSecret, appearance:{ theme:'stripe', variables:{ colorPrimary:'#e91e63' } } });
   elements.create('payment').mount('#payment-element');
   $('bidCard').classList.add('hidden');
   $('payCard').classList.remove('hidden');
+  // Push a history entry so the browser's Back button returns to step 1
+  // instead of leaving the site mid-payment.
+  try { history.pushState({ clxStep:'pay' }, '', location.href); } catch(e){}
 }
+
+// Return to step 1 with the entered details intact. Any PaymentIntent created
+// on the way here is simply abandoned — it was never confirmed, so no hold
+// exists and Stripe expires it on its own.
+function goToStep1(){
+  if ($('payCard').classList.contains('hidden')) return false;
+  hideMsg($('payErr'));
+  try { if (elements){ var pe = elements.getElement('payment'); if (pe) pe.unmount(); } } catch(e){}
+  elements = null;
+  $('payment-element').innerHTML = '';
+  STATE.pi = null; STATE.mode = null;
+  $('payCard').classList.add('hidden');
+  $('bidCard').classList.remove('hidden');
+  var pb = $('payBtn'); pb.disabled = false;
+  if (STATE.payLabel) pb.textContent = STATE.payLabel;
+  return true;
+}
+
+$('backBtn').addEventListener('click', function(){
+  if (goToStep1()){ try { history.back(); } catch(e){} }
+});
+
+window.addEventListener('popstate', function(){ goToStep1(); });
 
 $('continueBtn').addEventListener('click', async function(){
   hideMsg($('step1Err'));
