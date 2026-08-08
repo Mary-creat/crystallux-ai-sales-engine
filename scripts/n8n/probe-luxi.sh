@@ -41,12 +41,30 @@ echo "================================================================"
 healthy=0; broken=0; unreachable=0; bad_list=""
 for row in "${PATHS[@]}"; do
   p="${row%%|*}"; label="${row#*|}"
-  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 -X POST \
+  body=$(curl -s --max-time 20 -X POST \
     -H "Authorization: Bearer junk" -H "Content-Type: application/json" \
-    -d '{}' "$BASE/$p")
+    -d '{}' -w $'\n%{http_code}' "$BASE/$p")
+  code="${body##*$'\n'}"
+  payload="${body%$'\n'*}"
+
+  # A 404 means two completely different things here, and only one is a problem:
+  #   - n8n saying the webhook is not registered  -> broken
+  #   - the workflow itself answering "Auction not found" for our junk body,
+  #     which is a CORRECT response from a healthy endpoint -> fine
+  # n8n's unregistered-webhook 404 carries a distinctive message, so match on
+  # that rather than trusting the status code alone.
+  if [ "$code" = "404" ]; then
+    if printf '%s' "$payload" | grep -qi "not registered"; then
+      printf "  [XX]  404  %-28s %s  <- NOT REGISTERED\n" "$p" "$label"
+      broken=$((broken+1)); bad_list="$bad_list $p"; continue
+    fi
+    printf "  [ok]  404  %-28s %s  (app 404: registered, no such record)\n" "$p" "$label"
+    healthy=$((healthy+1)); continue
+  fi
+
   case "$code" in
     200|400|401) printf "  [ok]  %-3s  %-28s %s\n" "$code" "$p" "$label"; healthy=$((healthy+1)) ;;
-    404)         printf "  [XX]  404  %-28s %s\n" "$p" "$label"; broken=$((broken+1)); bad_list="$bad_list $p" ;;
+    502|500)     printf "  [ok]  %-3s  %-28s %s  (routed; workflow errored - missing key?)\n" "$code" "$p" "$label"; healthy=$((healthy+1)) ;;
     000)         printf "  [??]  ---  %-28s (n8n unreachable)\n" "$p"; unreachable=$((unreachable+1)) ;;
     *)           printf "  [?]   %-3s  %-28s %s\n" "$code" "$p" "$label"; healthy=$((healthy+1)) ;;
   esac
