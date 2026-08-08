@@ -197,6 +197,10 @@
             clickable <b>▶ watch</b> link if you paste its public URL here. Leave a field blank
             and that platform is named without a link.
           </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+            <button type="button" id="stPullBtn" class="clx-btn clx-btn-secondary" style="width:auto;margin:0">&#8595; Pull from Restream</button>
+            <span id="stPullMsg" style="font-size:12px;color:#6b7280"></span>
+          </div>
           <label for="stWatchTt">Watch link — TikTok</label>
           <input type="text" id="stWatchTt" class="clx-input" placeholder="https://tiktok.com/@.../live">
           <label for="stWatchYt" style="margin-top:8px">Watch link — YouTube</label>
@@ -526,6 +530,48 @@ function closeDetail() {
   document.getElementById('streamClose').addEventListener('click', function(){ bd.classList.remove('open'); });
   document.getElementById('streamCancel').addEventListener('click', function(){ bd.classList.remove('open'); });
   bd.addEventListener('click', function(){ bd.classList.remove('open'); });
+  // Pull watch links + RTMP + stream key straight from the operator's Restream
+  // account so they don't have to paste five URLs by hand. Purely additive: it
+  // fills the same fields you can still type into, and any failure just leaves
+  // them as they were.
+  var PULL_MAP = [['stWatchTt','tiktok'],['stWatchYt','youtube'],['stWatchFb','facebook'],
+                  ['stWatchIg','instagram'],['stWatchX','x']];
+  var pullBtn = document.getElementById('stPullBtn');
+  if (pullBtn) pullBtn.addEventListener('click', async function(){
+    var b = this, m = document.getElementById('stPullMsg');
+    var label = b.textContent;
+    b.disabled = true; b.textContent = 'Pulling…';
+    m.style.color = '#6b7280'; m.textContent = '';
+    var res = await sPost('/admin/luxi/restream/channels', {});
+    b.disabled = false; b.textContent = label;
+    if (!res.ok || !res.data || !res.data.ok){
+      m.style.color = '#dc2626';
+      m.textContent = (res.data && res.data.error) || 'Could not reach Restream. Fill the links by hand.';
+      return;
+    }
+    var d = res.data, w = d.watch_urls || {}, filled = [];
+    PULL_MAP.forEach(function(p){
+      var el = document.getElementById(p[0]);
+      if (el && w[p[1]]){ el.value = w[p[1]]; filled.push(p[1]); }
+    });
+    if (d.rtmp_ingest_url) document.getElementById('stRtmp').value = d.rtmp_ingest_url;
+    if (d.stream_key) document.getElementById('stKey').value = d.stream_key;
+    // Tick the platforms Restream actually has connected, so "Broadcast to"
+    // matches reality instead of the defaults.
+    Array.prototype.slice.call(document.querySelectorAll('.stPlat')).forEach(function(c){
+      if (filled.indexOf(String(c.value).replace('_live','')) !== -1) c.checked = true;
+    });
+    if (filled.length){
+      m.style.color = '#059669';
+      m.textContent = 'Filled ' + filled.length + ' watch link' + (filled.length === 1 ? '' : 's') +
+        ' (' + filled.join(', ') + ')' + (d.stream_key ? ' + stream key' : '') + '.';
+    } else {
+      m.style.color = '#b45309';
+      m.textContent = 'Connected, but no matching live channels found (' + (d.count || 0) +
+        ' on the account). Connect your platforms in Restream, or fill the links by hand.';
+    }
+  });
+
   document.getElementById('streamForm').addEventListener('submit', async function(e){
     e.preventDefault(); sErr('');
     var platforms = Array.prototype.slice.call(document.querySelectorAll('.stPlat:checked')).map(function(c){return c.value;});

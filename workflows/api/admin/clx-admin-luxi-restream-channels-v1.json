@@ -1,0 +1,400 @@
+{
+  "name": "CLX - Admin LUXI Restream Channels v1",
+  "id": "wfAdminLuxiRestreamChannelsV1",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/luxi/restream/channels",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "alrc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        360
+      ],
+      "webhookId": "clx-admin-luxi-restream-channels-001",
+      "notes": "DEACTIVATED. Admin-gated. Reads the operator's Restream account and returns {watch_urls, rtmp_ingest_url, stream_key} so Go Live can auto-fill instead of the operator pasting five links by hand. Read-only: changes nothing in Restream."
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token: token } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alrc-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "alrc-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        360
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alrc-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "alrc-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.restream.io/v2/user/channel/all",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api"
+      },
+      "id": "alrc-0006",
+      "name": "Fetch Channels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        240
+      ],
+      "alwaysOutputData": true,
+      "notes": "OAuth2. Each channel carries url (the public watch link), streamingPlatformId and active.",
+      "credentials": {
+        "oAuth2Api": {
+          "name": "Restream OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.restream.io/v2/platform/all",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "alrc-0007",
+      "name": "Fetch Platforms",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        240
+      ],
+      "alwaysOutputData": true,
+      "notes": "Public, no auth. Maps streamingPlatformId -> platform name. Fetched live rather than hardcoded so a new platform id does not silently break the mapping."
+    },
+    {
+      "parameters": {
+        "url": "https://api.restream.io/v2/user/streamKey",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api"
+      },
+      "id": "alrc-0008",
+      "name": "Fetch Stream Key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        240
+      ],
+      "alwaysOutputData": true,
+      "notes": "OAuth2. The operator's RTMP stream key.",
+      "credentials": {
+        "oAuth2Api": {
+          "name": "Restream OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.restream.io/v2/server/all",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "alrc-0009",
+      "name": "Fetch Servers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        240
+      ],
+      "alwaysOutputData": true,
+      "notes": "Public, no auth. Ingest servers; we take Autodetect (rtmp://live.restream.io/live)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Every upstream fetch uses fullResponse, so each arrives as ONE item shaped\n// { body, statusCode, headers } instead of n8n splitting the array into many\n// items. Reference them with .first() -- .item would depend on paired-item\n// lineage, which HTTP nodes break.\nfunction res(name){\n  try { const j = $(name).first().json || {}; return { code: j.statusCode || 0, body: j.body }; }\n  catch (e) { return { code: 0, body: null }; }\n}\nfunction arr(v){ return Array.isArray(v) ? v : []; }\n\nconst ch = res('Fetch Channels');\nconst pl = res('Fetch Platforms');\nconst sk = res('Fetch Stream Key');\nconst sv = res('Fetch Servers');\n\n// Authorization problems are the common failure and deserve a clear message\n// rather than an empty list that reads as \"you have no channels\".\nif (ch.code === 401 || ch.code === 403 || sk.code === 401 || sk.code === 403) {\n  return { json: { ok: false, status: 401,\n    error: 'Restream authorization failed or expired. Re-authorize the \"Restream OAuth2\" credential in n8n (Credentials -> Restream OAuth2 -> Connect).' } };\n}\nif (ch.code && (ch.code < 200 || ch.code >= 300)) {\n  return { json: { ok: false, status: 502, error: 'Restream API error on channels (HTTP ' + ch.code + ').' } };\n}\n\n// Restream platform names -> the keys the Go Live modal and bid page use.\nconst NAME_TO_KEY = {\n  'tiktok': 'tiktok',\n  'youtube': 'youtube',\n  'youtube stream now': 'youtube',\n  'facebook': 'facebook',\n  'facebook pages': 'facebook',\n  'instagram': 'instagram',\n  'twitter': 'x',\n  'x': 'x'\n};\n\nconst idToName = {};\narr(pl.body).forEach(function(p){\n  if (p && p.id != null) idToName[String(p.id)] = String(p.name || '');\n});\n\nconst channels = [];\nconst watch_urls = {};\narr(ch.body).forEach(function(c){\n  if (!c || c.id == null) return;\n  const pname = idToName[String(c.streamingPlatformId)] || '';\n  const key = NAME_TO_KEY[pname.toLowerCase()] || null;\n  const url = String(c.url || '').trim();\n  const active = c.active !== false;\n  channels.push({\n    platform_key: key,\n    platform_name: pname || ('platform ' + c.streamingPlatformId),\n    display_name: String(c.displayName || ''),\n    url: url,\n    embed_url: String(c.embedUrl || ''),\n    active: active\n  });\n  // Only surface links we can place in a field and that are actually live.\n  if (key && url && active) watch_urls[key] = url;\n});\n\n// Stream key + ingest server are both optional: if either is missing the\n// operator just fills that field by hand, exactly as before.\nconst skBody = sk.body || {};\nconst stream_key = String(skBody.streamKey || skBody.stream_key || '');\nconst servers = arr(sv.body);\nlet ingest = '';\nfor (let i = 0; i < servers.length; i++) {\n  if (String(servers[i].name || '').toLowerCase() === 'autodetect') { ingest = String(servers[i].rtmpUrl || ''); break; }\n}\nif (!ingest && servers.length) ingest = String(servers[0].rtmpUrl || '');\n\nreturn { json: {\n  ok: true,\n  status: 200,\n  count: channels.length,\n  channels: channels,\n  watch_urls: watch_urls,\n  rtmp_ingest_url: ingest,\n  stream_key: stream_key,\n  platforms_loaded: arr(pl.body).length\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "alrc-0010",
+      "name": "Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 200 }}"
+        }
+      },
+      "id": "alrc-0011",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2440,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
+      },
+      "id": "alrc-0012",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Fetch Channels",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Channels": {
+      "main": [
+        [
+          {
+            "node": "Fetch Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Platforms": {
+      "main": [
+        [
+          {
+            "node": "Fetch Stream Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Stream Key": {
+      "main": [
+        [
+          {
+            "node": "Fetch Servers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Servers": {
+      "main": [
+        [
+          {
+            "node": "Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
