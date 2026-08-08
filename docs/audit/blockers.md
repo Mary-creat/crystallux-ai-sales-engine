@@ -6,6 +6,35 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0ad. LUXI is LIVE end-to-end (2026-08-08) — supersedes §0x and §0y
+
+Deployed and verified on live infrastructure. Card-backed auto-bid proven with a real Stripe authorization. **Nothing about LUXI is gated on Mary any more** except the cleanup items at the bottom.
+
+**What landed:**
+- **VPS had no usable checkout.** `/tmp/clx-latest` (ship.sh's default `CLX_REPO`) did not exist — `/tmp` is cleared on reboot, so every deploy since had been pulling nothing. `~/clx-fresh` was a *shallow, grafted* clone stuck at `25c0886` (Phase 2/3 era). **This is the root cause of "live workflows drifted from the repo."** Fixed with a full clone at **`/root/clx-deploy`** (permanent path). Export `CLX_REPO=/root/clx-deploy` before running ship.sh, or it silently uses the missing `/tmp` path again.
+- **7 migrations applied** to project `zqwatouqmqgkmaslydbr` with **RLS enabled on every table** (`auctions`, `avatars`, `bids`, `auction_proxy_bids`, `avatar_streaming_sessions`). Safe because n8n's `Supabase Crystallux Custom` credential carries the service_role key and bypasses RLS — verified live, not assumed.
+- **23 workflows shipped, 23/23 OK**, all 16 LUXI workflows active and routing.
+- **Verified working:** public auction lookup, Stripe Elements card field, `create-intent`, card authorization, `confirm-bid` (real hold registered in `auction_proxy_bids`), admin console, LIVE streaming banner.
+
+**Three real bugs found and fixed (`d267771`, `497889d`, `97c213c`):**
+1. `deploy-luxi-revenue.sh` shipped **13 of 16** LUXI workflows — missing `place-bid`, `bid-parser` and **`stripe-capture`**, the one that collects the money. `activate-luxi.sh` would have 404'd on all three.
+2. `ship.sh` never ran `publish:workflow`. Its REST→SQL chain leaves a workflow `active=1` with no published version → n8n boots "Active version not found" and the webhook never registers. Added the CLI step that fixed this on 2026-06-04.
+3. **Empty Supabase result returned an empty 200 instead of 404.** Supabase returns `[]` for a missing auction; n8n turns an empty array into *zero items*, so the `Shape` Code node (`runOnceForEachItem`) never ran and `Respond` never fired. The workflow's own 404 branch was unreachable in exactly the case it existed for, and the bid page showed "Could not load this auction" with no way to distinguish a missing auction from a broken endpoint. Fixed with `alwaysOutputData` on the three `Fetch Auction` nodes. Same class as `33018a3` / `0fb1b2d`.
+4. `confirm-bid` reported "max undefined" — `Respond OK` is reachable via `Cancel Old Hold` (an HTTP node), which breaks n8n's paired-item lineage, so `$('Shape').item.json` resolved to nothing and `JSON.stringify` dropped the keys. Switched to `$('Shape').first().json`.
+
+**Diagnostic tooling added:** `scripts/n8n/probe-luxi.sh` (probes all 13 LUXI webhooks; distinguishes n8n's "not registered" 404 from an application 404 by matching the response body, and treats 502 as *routed*) and `scripts/n8n/diag-luxi-webhooks.sh` (read-only; separates activation-didn't-stick from orphan `webhook_entity` rows from duplicate workflows).
+
+> **Caveat on `ship.sh`'s inline probe:** it still treats *any* 404 as "webhook did not register". After the `alwaysOutputData` fix, `auction` / `create-intent` / `buy-now-intent` correctly answer 404 to its empty-body probe, so ship.sh reports failure on a healthy deploy. Use `probe-luxi.sh` for the real verdict. Worth fixing in ship.sh itself.
+
+**Mary's remaining cleanup (not blockers, but real money):**
+1. **Cancel the uncaptured Stripe hold** from the test auto-bid — dashboard.stripe.com → Payments → the **Uncaptured** entry → Cancel. It expires by itself in ~7 days but holds the amount on her card until then.
+2. **Delete the test auction:** `DELETE FROM auctions WHERE item_title LIKE 'TEST -%';`
+3. Buy Now (`buy-now-intent` → `buy-now-confirm`) is deployed but **never exercised with real data** — the auto-bid path was tested instead. Worth one $1 purchase to close the gap.
+
+**Live Stripe keys were already in n8n** (`STRIPE_SECRET_KEY` = `sk_live_`, plus publishable + webhook secret), and `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` so `$env` reaches the Code nodes. Note `/root/.env` is shared — swapping `STRIPE_SECRET_KEY` to a test key would break live Sentinel checkout and paid-buyer provisioning for the duration.
+
+---
+
 ## 0ab. Outreach engine LIVE end-to-end — go-live gated on Anthropic top-up + test-mode flip (added 2026-06-08)
 
 The lead → email engine now sends real, personalized outreach end-to-end, hands-free. **First live send confirmed 2026-06-08** (to the test inbox). Two fixes shipped on `scale-sprint-v1`:

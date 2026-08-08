@@ -32,6 +32,29 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-08-08 — LUXI live end-to-end; found why live workflows kept drifting from the repo
+
+### What shipped
+- **LUXI deployed and verified on live infrastructure** (see `docs/audit/blockers.md` §0ad). 7 migrations applied with RLS on every table, 23 workflows shipped 23/23, all 16 LUXI workflows active and routing. Card-backed auto-bid proven with a **real Stripe authorization** on live keys.
+- **Root cause of the repo/live drift, finally.** `ship.sh` defaults `CLX_REPO=/tmp/clx-latest`, which **did not exist** — `/tmp` is cleared on reboot. The only other checkout, `~/clx-fresh`, was a shallow grafted clone stuck at `25c0886` from the Phase 2/3 era. Every "deploy" since had been pulling nothing. Fixed with a full clone at **`/root/clx-deploy`**.
+- **Four real bugs** (`d267771`, `497889d`, `97c213c`): the LUXI deploy script shipped 13 of 16 workflows (silently omitting **Stripe Capture**, the one that takes the money); `ship.sh` never ran `publish:workflow`, so its SQL fallback left workflows active with no published version; empty Supabase results returned an **empty 200 instead of 404**, making the bid page's "Could not load this auction" indistinguishable from a broken endpoint; and `confirm-bid` reported "max undefined" because an HTTP node in the path broke n8n's paired-item lineage.
+- **Two diagnostic scripts** (`b095986`, `4415007`, `8a85088`): `probe-luxi.sh` and `diag-luxi-webhooks.sh`.
+- **`main` finally caught up.** The four June sender/outreach fixes had never been merged — `main` sat at `92a037b` while `scale-sprint-v1` carried the work. Merged and pushed.
+
+### What got unblocked / decided
+- **Mary chose a $1 live auction over a test-key run.** `/root/.env` is shared, so swapping `STRIPE_SECRET_KEY` to a test key would have broken live Sentinel checkout and paid-buyer provisioning for the duration. Testing against the real configuration was both safer for customers and stronger evidence.
+- **RLS is ON for all LUXI tables** and n8n reads straight through it — the `Supabase Crystallux Custom` credential carries the service_role key. Verified against live behaviour rather than assumed.
+- **Deploy discipline:** always `export CLX_REPO=/root/clx-deploy` before `ship.sh`, and trust `probe-luxi.sh` over ship.sh's inline probe.
+
+### What got blocked or deferred
+- **`ship.sh`'s inline probe still misreports.** It treats any 404 as "webhook did not register", so after the `alwaysOutputData` fix it reports failure on three perfectly healthy endpoints. Should be taught the same body-matching logic as `probe-luxi.sh`.
+- **Buy Now was never exercised with real data** — the auto-bid path got tested instead. One $1 purchase would close it.
+
+### What Mary needs to do next
+- **Cancel the uncaptured Stripe hold** from the test bid (real money held on her card until it expires in ~7 days).
+- `DELETE FROM auctions WHERE item_title LIKE 'TEST -%';`
+- Then the Sales Engine: top up Anthropic credits → regenerate queued leads → review one clean email → flip `Build Gmail Raw Message` from the test inbox to `data.email`.
+
 ## 2026-06-04 — Self-serve loop closed + auth email fix + Command Center + insurance go-to-market
 
 ### What shipped
