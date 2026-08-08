@@ -6,7 +6,7 @@
 # via REST API PUT, activates, and probes. Stops on first failure.
 #
 # Usage on the VPS:
-#   cd /tmp/clx-latest && git pull origin main
+#   cd /root/clx-deploy && git pull origin main
 #   bash scripts/n8n/ship-em-dash-fixes.sh
 
 set -euo pipefail

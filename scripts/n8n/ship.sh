@@ -26,7 +26,9 @@
 #   7. Wait + probe the webhook to confirm it routes
 #
 # Env overrides:
-#   CLX_REPO            default: /tmp/clx-latest
+#   CLX_REPO            default: /root/clx-deploy
+#                       (NOT /tmp -- that clears on reboot, which is how
+#                        every deploy silently pulled nothing for weeks)
 #   CLX_BRANCH          default: main  (same as --branch)
 #   CLX_N8N_CONTAINER   default: n8n
 #   N8N_API_KEY         optional, used for REST-API activation
@@ -35,7 +37,7 @@
 set -uo pipefail
 
 # ─── settings ────────────────────────────────────────────────────
-REPO="${CLX_REPO:-/tmp/clx-latest}"
+REPO="${CLX_REPO:-/root/clx-deploy}"
 BRANCH="${CLX_BRANCH:-main}"
 CONTAINER="${CLX_N8N_CONTAINER:-n8n}"
 N8N_URL="${N8N_URL:-http://localhost:5678}"

@@ -14,7 +14,7 @@ Drift types:
   active_diff   — same content, but active flag differs
 
 Designed to run via cron on the VPS:
-  0 8 * * * cd /tmp/clx-latest && python3 scripts/drift/detect-workflow-drift.py
+  0 8 * * * cd /root/clx-deploy && python3 scripts/drift/detect-workflow-drift.py
 
 Env vars required:
   N8N_API_KEY          — for /api/v1/workflows endpoint
@@ -43,7 +43,7 @@ try:
 except (AttributeError, OSError):
     pass
 
-REPO_DEFAULT = os.environ.get('CLX_REPO', '/tmp/clx-latest')
+REPO_DEFAULT = os.environ.get('CLX_REPO', '/root/clx-deploy')
 N8N_URL      = os.environ.get('N8N_URL',  'https://automation.crystallux.org')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://zqwatouqmqgkmaslydbr.supabase.co')
 

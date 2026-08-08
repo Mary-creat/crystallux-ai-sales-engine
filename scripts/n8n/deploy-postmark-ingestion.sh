@@ -4,7 +4,7 @@
 # One-shot deploy for the Postmark webhook ingestion feature.
 # Idempotent — safe to re-run. Performs:
 #
-#   1. Bring /tmp/clx-latest onto the requested branch (default
+#   1. Bring /root/clx-deploy onto the requested branch (default
 #      scale-sprint-v1) and pull.
 #   2. Apply db/migrations/email-events-schema.sql to Supabase.
 #      Migration is idempotent (CREATE TABLE IF NOT EXISTS + DO blocks).
@@ -32,7 +32,7 @@
 set -uo pipefail
 
 # ─── settings ────────────────────────────────────────────────────
-REPO="${CLX_REPO:-/tmp/clx-latest}"
+REPO="${CLX_REPO:-/root/clx-deploy}"
 BRANCH="${CLX_BRANCH:-scale-sprint-v1}"
 CONTAINER="${CLX_N8N_CONTAINER:-n8n}"
 MIGRATION="db/migrations/email-events-schema.sql"
