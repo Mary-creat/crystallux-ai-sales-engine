@@ -76,7 +76,9 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "alwaysOutputData": true,
+      "notes": "alwaysOutputData: a bad token makes this RPC return an empty array, which n8n turns into ZERO items -- Check Admin never runs, nothing responds, and the caller gets a bodyless 200 instead of a 401. One empty item keeps the chain alive so the rejection is delivered."
     },
     {
       "parameters": {
