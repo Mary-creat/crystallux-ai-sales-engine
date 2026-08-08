@@ -197,10 +197,11 @@
             clickable <b>▶ watch</b> link if you paste its public URL here. Leave a field blank
             and that platform is named without a link.
           </div>
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
             <button type="button" id="stPullBtn" class="clx-btn clx-btn-secondary" style="width:auto;margin:0">&#8595; Pull from Restream</button>
             <span id="stPullMsg" style="font-size:12px;color:#6b7280"></span>
           </div>
+          <div id="stPlatformStatus" style="margin-bottom:12px"></div>
           <label for="stWatchTt">Watch link — TikTok</label>
           <input type="text" id="stWatchTt" class="clx-input" placeholder="https://tiktok.com/@.../live">
           <label for="stWatchYt" style="margin-top:8px">Watch link — YouTube</label>
@@ -213,8 +214,13 @@
           <input type="text" id="stWatchX" class="clx-input" placeholder="https://x.com/.../live">
           <label for="stRtmp" style="margin-top:14px">RTMP ingest URL (set once)</label>
           <input type="text" id="stRtmp" class="clx-input" placeholder="rtmp://live.restream.io/live">
-          <label for="stKey" style="margin-top:8px">Stream key</label>
-          <input type="text" id="stKey" class="clx-input" placeholder="from Restream / platform">
+          <label for="stKey" style="margin-top:8px">Stream key <span style="font-weight:400;color:#6b7280;font-size:12px">— secret, never stored</span></label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="password" id="stKey" class="clx-input" style="flex:1;min-width:220px" placeholder="from Restream / platform" autocomplete="off" spellcheck="false">
+            <button type="button" id="stKeyReveal" class="clx-btn clx-btn-secondary" style="width:auto;margin:0">Reveal</button>
+            <button type="button" id="stKeyCopy" class="clx-btn clx-btn-secondary" style="width:auto;margin:0">Copy</button>
+          </div>
+          <div id="stKeyMsg" style="font-size:12px;color:#6b7280;margin-top:6px"></div>
         </div>
       </details>
       <div id="streamErr" style="color:#dc2626;font-size:13px;display:none"></div>
@@ -527,9 +533,21 @@ function closeDetail() {
     sel.innerHTML = opts;
   }
   document.getElementById('streamBtn').addEventListener('click', function(){ sErr(''); fillAuctions(); refreshState(); bd.classList.add('open'); });
-  document.getElementById('streamClose').addEventListener('click', function(){ bd.classList.remove('open'); });
-  document.getElementById('streamCancel').addEventListener('click', function(){ bd.classList.remove('open'); });
-  bd.addEventListener('click', function(){ bd.classList.remove('open'); });
+  // Closing the modal wipes the stream key from the DOM. It is a secret with a
+  // long life -- anyone who has it can broadcast to every connected platform --
+  // so it should not sit in a form field after the operator walks away.
+  function closeStreamModal(){
+    bd.classList.remove('open');
+    var f = document.getElementById('stKey');
+    if (f){ f.value = ''; f.type = 'password'; }
+    var rb = document.getElementById('stKeyReveal');
+    if (rb) rb.textContent = 'Reveal';
+    var km = document.getElementById('stKeyMsg');
+    if (km) km.textContent = '';
+  }
+  document.getElementById('streamClose').addEventListener('click', closeStreamModal);
+  document.getElementById('streamCancel').addEventListener('click', closeStreamModal);
+  bd.addEventListener('click', closeStreamModal);
   // Pull watch links + RTMP + stream key straight from the operator's Restream
   // account so they don't have to paste five URLs by hand. Purely additive: it
   // fills the same fields you can still type into, and any failure just leaves
@@ -555,20 +573,115 @@ function closeDetail() {
       if (el && w[p[1]]){ el.value = w[p[1]]; filled.push(p[1]); }
     });
     if (d.rtmp_ingest_url) document.getElementById('stRtmp').value = d.rtmp_ingest_url;
-    if (d.stream_key) document.getElementById('stKey').value = d.stream_key;
-    // Tick the platforms Restream actually has connected, so "Broadcast to"
-    // matches reality instead of the defaults.
+
+    // The stream key is deliberately NOT returned here and never auto-filled.
+    // We only learn that one exists and its last four characters; the operator
+    // asks for it explicitly via Reveal/Copy below.
+    STREAM_KEY_AVAILABLE = !!d.stream_key_available;
+    var km = document.getElementById('stKeyMsg');
+    km.textContent = STREAM_KEY_AVAILABLE
+      ? ('Restream key available (' + (d.stream_key_masked || '****') + '). Use Reveal or Copy — it is never saved.')
+      : 'No key from Restream. Paste one by hand if you are streaming from elsewhere.';
+
+    // Tick only platforms that are actually READY. Ticking one that is merely
+    // CONNECTED puts a destination in the LIVE banner that cannot carry the show.
+    var readyKeys = (d.platforms || []).filter(function(p){ return p.state === 'READY'; })
+                                       .map(function(p){ return p.platform_key; });
     Array.prototype.slice.call(document.querySelectorAll('.stPlat')).forEach(function(c){
-      if (filled.indexOf(String(c.value).replace('_live','')) !== -1) c.checked = true;
+      c.checked = readyKeys.indexOf(String(c.value).replace('_live','')) !== -1;
     });
-    if (filled.length){
+
+    renderPlatformStatus(d.platforms || []);
+
+    var ready = d.ready_count || 0;
+    if (ready){
       m.style.color = '#059669';
-      m.textContent = 'Filled ' + filled.length + ' watch link' + (filled.length === 1 ? '' : 's') +
-        ' (' + filled.join(', ') + ')' + (d.stream_key ? ' + stream key' : '') + '.';
+      m.textContent = ready + ' platform' + (ready === 1 ? '' : 's') + ' ready · ' +
+        filled.length + ' watch link' + (filled.length === 1 ? '' : 's') + ' filled.';
     } else {
       m.style.color = '#b45309';
-      m.textContent = 'Connected, but no matching live channels found (' + (d.count || 0) +
-        ' on the account). Connect your platforms in Restream, or fill the links by hand.';
+      m.textContent = 'Connected to Restream but nothing is broadcast-ready yet (' +
+        (d.channels_found || 0) + ' channel(s) found). See the status list below.';
+    }
+  });
+
+  // Restream says "active" when a destination is LINKED. That is not the same
+  // as able to broadcast: TikTok gates LIVE on followers, YouTube needs 24h
+  // after first activation, Instagram refuses third-party RTMP for most
+  // accounts. Showing the distinction is the whole point of this panel.
+  var STATE_STYLE = {
+    READY:           { dot:'#059669', label:'Ready',           bg:'#ecfdf5' },
+    CONNECTED:       { dot:'#0284c7', label:'Connected',       bg:'#eff6ff' },
+    ACTION_REQUIRED: { dot:'#b45309', label:'Action required', bg:'#fffbeb' },
+    UNAVAILABLE:     { dot:'#6b7280', label:'Unavailable',     bg:'#f9fafb' },
+    ERROR:           { dot:'#dc2626', label:'Error',           bg:'#fef2f2' }
+  };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function renderPlatformStatus(list){
+    var box = document.getElementById('stPlatformStatus');
+    if (!box) return;
+    if (!list.length){ box.innerHTML = ''; return; }
+    box.innerHTML = list.map(function(p){
+      var s = STATE_STYLE[p.state] || STATE_STYLE.UNAVAILABLE;
+      var help = (p.blocking_requirements || [])[0];
+      return '<div style="display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border-radius:8px;' +
+             'background:' + s.bg + ';margin-bottom:5px;font-size:13px">' +
+             '<span style="color:' + s.dot + ';font-size:15px;line-height:1.3">&#9679;</span>' +
+             '<div style="flex:1">' +
+               '<b style="text-transform:capitalize">' + esc(p.platform_key) + '</b>' +
+               ' <span style="color:' + s.dot + ';font-weight:600">' + s.label + '</span>' +
+               '<div style="color:#6b7280;margin-top:2px">' + esc(p.detail) + '</div>' +
+               (help && help.help_url
+                 ? '<a href="' + esc(encodeURI(help.help_url)) + '" target="_blank" rel="noopener noreferrer" style="font-size:12px">How to fix</a>'
+                 : '') +
+             '</div></div>';
+    }).join('');
+  }
+
+  // ---- stream key: masked by default, fetched only on demand ---------------
+  // Never written to localStorage/sessionStorage, never logged, and cleared
+  // from the field when the modal closes.
+  var STREAM_KEY_AVAILABLE = false;
+  async function fetchStreamKey(){
+    var r = await sPost('/admin/luxi/restream/channels', { action: 'reveal_key' });
+    if (!r.ok || !r.data || !r.data.ok || !r.data.stream_key) return null;
+    return r.data.stream_key;
+  }
+  function kMsg(text, colour){
+    var el = document.getElementById('stKeyMsg');
+    el.style.color = colour || '#6b7280'; el.textContent = text;
+  }
+
+  var revealBtn = document.getElementById('stKeyReveal');
+  if (revealBtn) revealBtn.addEventListener('click', async function(){
+    var f = document.getElementById('stKey');
+    if (f.type === 'text'){ f.type = 'password'; this.textContent = 'Reveal'; return; }
+    if (!f.value && STREAM_KEY_AVAILABLE){
+      this.disabled = true; kMsg('Fetching…');
+      var k = await fetchStreamKey();
+      this.disabled = false;
+      if (!k){ kMsg('Could not fetch the key from Restream.', '#dc2626'); return; }
+      f.value = k;
+      kMsg('Revealed. It is not saved anywhere — close the modal to clear it.');
+    }
+    if (!f.value){ kMsg('Nothing to reveal.', '#b45309'); return; }
+    f.type = 'text'; this.textContent = 'Hide';
+  });
+
+  var copyBtn = document.getElementById('stKeyCopy');
+  if (copyBtn) copyBtn.addEventListener('click', async function(){
+    var f = document.getElementById('stKey');
+    var k = f.value;
+    if (!k && STREAM_KEY_AVAILABLE){ this.disabled = true; kMsg('Fetching…'); k = await fetchStreamKey(); this.disabled = false; }
+    if (!k){ kMsg('No key to copy.', '#b45309'); return; }
+    try {
+      await navigator.clipboard.writeText(k);
+      // Copied without ever displaying it, so it can go straight into OBS.
+      kMsg('Copied to clipboard. Paste it into OBS or Restream Studio.', '#059669');
+    } catch (e){
+      kMsg('Clipboard blocked by the browser — use Reveal and copy by hand.', '#b45309');
     }
   });
 

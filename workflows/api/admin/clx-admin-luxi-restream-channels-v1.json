@@ -22,11 +22,11 @@
         360
       ],
       "webhookId": "clx-admin-luxi-restream-channels-001",
-      "notes": "DEACTIVATED. Admin-gated. Reads the operator's Restream account and returns {watch_urls, rtmp_ingest_url, stream_key} so Go Live can auto-fill instead of the operator pasting five links by hand. Read-only: changes nothing in Restream."
+      "notes": "DEACTIVATED. Admin-gated. action='pull' returns watch links, RTMP ingest, per-platform readiness and a MASKED stream key. action='reveal_key' returns the raw key and is the only path that does. Read-only against Restream. The key is never persisted."
     },
     {
       "parameters": {
-        "jsCode": "const headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nreturn { json: { token: token } };",
+        "jsCode": "const headers = $input.item.json.headers || {};\nconst body = $input.item.json.body || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n// 'pull' is the default and NEVER returns the raw stream key. Revealing the key\n// is a separate, explicit action so it cannot happen as a side effect of\n// opening the Go Live modal.\nconst action = String(body.action || 'pull').toLowerCase().trim();\nif (action !== 'pull' && action !== 'reveal_key') {\n  return { json: { ok: false, status: 400, error: \"action must be 'pull' or 'reveal_key'\" } };\n}\nreturn { json: { token: token, action: action } };",
         "mode": "runOnceForEachItem"
       },
       "id": "alrc-0002",
@@ -80,7 +80,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: { ok: true, action: $('Extract').first().json.action } };",
         "mode": "runOnceForEachItem"
       },
       "id": "alrc-0004",
@@ -142,11 +142,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1340,
+        1320,
         240
       ],
       "alwaysOutputData": true,
-      "notes": "OAuth2. Each channel carries url (the public watch link), streamingPlatformId and active.",
+      "notes": "OAuth2. url per channel is the public watch link; active means LINKED, not broadcast-ready.",
       "credentials": {
         "oAuth2Api": {
           "name": "Restream OAuth2"
@@ -170,11 +170,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
+        1520,
         240
       ],
       "alwaysOutputData": true,
-      "notes": "Public, no auth. Maps streamingPlatformId -> platform name. Fetched live rather than hardcoded so a new platform id does not silently break the mapping."
+      "notes": "Public. streamingPlatformId -> name. Fetched live so a new id cannot silently break the mapping."
     },
     {
       "parameters": {
@@ -195,11 +195,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1780,
+        1720,
         240
       ],
       "alwaysOutputData": true,
-      "notes": "OAuth2. The operator's RTMP stream key.",
+      "notes": "OAuth2. SECRET. Masked before it leaves this workflow unless action='reveal_key'. Never persisted.",
       "credentials": {
         "oAuth2Api": {
           "name": "Restream OAuth2"
@@ -223,15 +223,58 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2000,
+        1920,
         240
       ],
       "alwaysOutputData": true,
-      "notes": "Public, no auth. Ingest servers; we take Autodetect (rtmp://live.restream.io/live)."
+      "notes": "Public. Ingest servers; we take Autodetect."
     },
     {
       "parameters": {
-        "jsCode": "// Every upstream fetch uses fullResponse, so each arrives as ONE item shaped\n// { body, statusCode, headers } instead of n8n splitting the array into many\n// items. Reference them with .first() -- .item would depend on paired-item\n// lineage, which HTTP nodes break.\nfunction res(name){\n  try { const j = $(name).first().json || {}; return { code: j.statusCode || 0, body: j.body }; }\n  catch (e) { return { code: 0, body: null }; }\n}\nfunction arr(v){ return Array.isArray(v) ? v : []; }\n\nconst ch = res('Fetch Channels');\nconst pl = res('Fetch Platforms');\nconst sk = res('Fetch Stream Key');\nconst sv = res('Fetch Servers');\n\n// Authorization problems are the common failure and deserve a clear message\n// rather than an empty list that reads as \"you have no channels\".\nif (ch.code === 401 || ch.code === 403 || sk.code === 401 || sk.code === 403) {\n  return { json: { ok: false, status: 401,\n    error: 'Restream authorization failed or expired. Re-authorize the \"Restream OAuth2\" credential in n8n (Credentials -> Restream OAuth2 -> Connect).' } };\n}\nif (ch.code && (ch.code < 200 || ch.code >= 300)) {\n  return { json: { ok: false, status: 502, error: 'Restream API error on channels (HTTP ' + ch.code + ').' } };\n}\n\n// Restream platform names -> the keys the Go Live modal and bid page use.\nconst NAME_TO_KEY = {\n  'tiktok': 'tiktok',\n  'youtube': 'youtube',\n  'youtube stream now': 'youtube',\n  'facebook': 'facebook',\n  'facebook pages': 'facebook',\n  'instagram': 'instagram',\n  'twitter': 'x',\n  'x': 'x'\n};\n\nconst idToName = {};\narr(pl.body).forEach(function(p){\n  if (p && p.id != null) idToName[String(p.id)] = String(p.name || '');\n});\n\nconst channels = [];\nconst watch_urls = {};\narr(ch.body).forEach(function(c){\n  if (!c || c.id == null) return;\n  const pname = idToName[String(c.streamingPlatformId)] || '';\n  const key = NAME_TO_KEY[pname.toLowerCase()] || null;\n  const url = String(c.url || '').trim();\n  const active = c.active !== false;\n  channels.push({\n    platform_key: key,\n    platform_name: pname || ('platform ' + c.streamingPlatformId),\n    display_name: String(c.displayName || ''),\n    url: url,\n    embed_url: String(c.embedUrl || ''),\n    active: active\n  });\n  // Only surface links we can place in a field and that are actually live.\n  if (key && url && active) watch_urls[key] = url;\n});\n\n// Stream key + ingest server are both optional: if either is missing the\n// operator just fills that field by hand, exactly as before.\nconst skBody = sk.body || {};\nconst stream_key = String(skBody.streamKey || skBody.stream_key || '');\nconst servers = arr(sv.body);\nlet ingest = '';\nfor (let i = 0; i < servers.length; i++) {\n  if (String(servers[i].name || '').toLowerCase() === 'autodetect') { ingest = String(servers[i].rtmpUrl || ''); break; }\n}\nif (!ingest && servers.length) ingest = String(servers[0].rtmpUrl || '');\n\nreturn { json: {\n  ok: true,\n  status: 200,\n  count: channels.length,\n  channels: channels,\n  watch_urls: watch_urls,\n  rtmp_ingest_url: ingest,\n  stream_key: stream_key,\n  platforms_loaded: arr(pl.body).length\n} };",
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_platform_requirements",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "alrc-0013",
+      "name": "Fetch Requirements",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        240
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Per-platform gates Restream cannot know about (TikTok follower minimum, YouTube 24h activation, Instagram RTMP support...). Unmet blocking requirements downgrade READY to ACTION_REQUIRED."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Every upstream fetch uses fullResponse, so each arrives as ONE item shaped\n// { body, statusCode, headers } instead of n8n splitting an array body into\n// many items. Reference with .first() -- .item depends on paired-item lineage,\n// which HTTP nodes break.\nfunction res(name){\n  try { const j = $(name).first().json || {}; return { code: j.statusCode || 0, body: j.body }; }\n  catch (e) { return { code: 0, body: null }; }\n}\nfunction arr(v){ return Array.isArray(v) ? v : []; }\n\nconst action = $('Check Admin').first().json.action || 'pull';\nconst ch = res('Fetch Channels');\nconst pl = res('Fetch Platforms');\nconst sk = res('Fetch Stream Key');\nconst sv = res('Fetch Servers');\nconst rq = res('Fetch Requirements');\n\nif (ch.code === 401 || ch.code === 403 || sk.code === 401 || sk.code === 403) {\n  return { json: { ok: false, status: 401,\n    error: 'Restream authorization failed or expired. Re-authorize the \"Restream OAuth2\" credential in n8n (Credentials -> Restream OAuth2 -> Connect).' } };\n}\nif (ch.code && (ch.code < 200 || ch.code >= 300)) {\n  return { json: { ok: false, status: 502, error: 'Restream API error on channels (HTTP ' + ch.code + ').' } };\n}\n\n// ---- the stream key: masked by default, raw only on explicit request -------\n// It is never logged and never written to a database column. On 'pull' the\n// caller learns only that a key exists and its last four characters.\nconst skBody = sk.body || {};\nconst rawKey = String(skBody.streamKey || skBody.stream_key || '');\nconst keyMasked = rawKey ? ('****' + rawKey.slice(-4)) : '';\n\nif (action === 'reveal_key') {\n  if (!rawKey) {\n    return { json: { ok: false, status: 404, error: 'Restream did not return a stream key for this account.' } };\n  }\n  return { json: { ok: true, status: 200, reveal: true, stream_key: rawKey } };\n}\n\n// ---- platform mapping ------------------------------------------------------\nconst NAME_TO_KEY = {\n  'tiktok': 'tiktok', 'youtube': 'youtube', 'youtube stream now': 'youtube',\n  'facebook': 'facebook', 'facebook pages': 'facebook',\n  'instagram': 'instagram', 'twitter': 'x', 'x': 'x'\n};\nconst ALL_KEYS = ['tiktok','youtube','facebook','instagram','x'];\n\nconst idToName = {};\narr(pl.body).forEach(function(p){ if (p && p.id != null) idToName[String(p.id)] = String(p.name || ''); });\n\n// Requirements come back as { platform_key: [ {code,label,help_url,satisfied,blocking}, ... ] }\nlet reqs = {};\nif (rq.body && typeof rq.body === 'object' && !Array.isArray(rq.body)) reqs = rq.body;\nconst reqsUnavailable = (rq.code && (rq.code < 200 || rq.code >= 300));\n\n// ---- readiness -------------------------------------------------------------\n// Restream's active flag means \"linked\", NOT \"able to broadcast\". A linked\n// TikTok account still cannot go LIVE below the follower threshold; YouTube\n// needs 24h after first activation; Instagram rejects third-party RTMP for\n// most accounts. Reporting those as READY is how a show goes dark on two\n// destinations without anyone noticing, so unmet blocking requirements\n// downgrade to ACTION_REQUIRED.\nconst byKey = {};\narr(ch.body).forEach(function(c){\n  if (!c || c.id == null) return;\n  const pname = idToName[String(c.streamingPlatformId)] || '';\n  const key = NAME_TO_KEY[pname.toLowerCase()] || null;\n  if (!key) return;\n  const url = String(c.url || '').trim();\n  const active = c.active !== false;\n  // Keep the strongest signal if an account has several channels per platform.\n  if (!byKey[key] || (active && !byKey[key].active)) {\n    byKey[key] = { platform_key: key, platform_name: pname, display_name: String(c.displayName || ''),\n                   url: url, embed_url: String(c.embedUrl || ''), active: active };\n  }\n});\n\nconst platforms = ALL_KEYS.map(function(key){\n  const c = byKey[key] || null;\n  const list = arr(reqs[key]);\n  const blockers = list.filter(function(r){ return r && r.blocking && !r.satisfied; });\n\n  let state, detail;\n  if (reqsUnavailable) {\n    state = 'ERROR';\n    detail = 'Could not read platform requirements.';\n  } else if (!c) {\n    state = 'UNAVAILABLE';\n    detail = 'Not connected in Restream.';\n  } else if (!c.active) {\n    state = 'UNAVAILABLE';\n    detail = 'Connected but disabled in Restream.';\n  } else if (blockers.length) {\n    state = 'ACTION_REQUIRED';\n    detail = blockers[0].label;\n  } else if (!c.url) {\n    state = 'CONNECTED';\n    detail = 'Linked, but Restream reports no public watch URL yet.';\n  } else {\n    state = 'READY';\n    detail = 'Connected and eligible to broadcast.';\n  }\n\n  return {\n    platform_key: key,\n    platform_name: c ? c.platform_name : key,\n    display_name: c ? c.display_name : '',\n    connected: !!c,\n    active: c ? c.active : false,\n    url: c ? c.url : '',\n    state: state,\n    detail: detail,\n    blocking_requirements: blockers.map(function(r){\n      return { code: r.code, label: r.label, help_url: r.help_url || '' };\n    })\n  };\n});\n\n// Only offer watch links for destinations that can actually carry the show.\nconst watch_urls = {};\nplatforms.forEach(function(p){ if (p.state === 'READY' && p.url) watch_urls[p.platform_key] = p.url; });\n\nconst servers = arr(sv.body);\nlet ingest = '';\nfor (let i = 0; i < servers.length; i++) {\n  if (String(servers[i].name || '').toLowerCase() === 'autodetect') { ingest = String(servers[i].rtmpUrl || ''); break; }\n}\nif (!ingest && servers.length) ingest = String(servers[0].rtmpUrl || '');\n\nreturn { json: {\n  ok: true,\n  status: 200,\n  platforms: platforms,\n  watch_urls: watch_urls,\n  ready_count: platforms.filter(function(p){ return p.state === 'READY'; }).length,\n  rtmp_ingest_url: ingest,\n  rtmp_connected: !!ingest,\n  stream_key_available: !!rawKey,\n  stream_key_masked: keyMasked,\n  channels_found: arr(ch.body).length\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "alrc-0010",
@@ -239,7 +282,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2220,
+        2320,
         240
       ]
     },
@@ -256,7 +299,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        2440,
+        2540,
         240
       ]
     },
@@ -273,7 +316,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1340,
+        1320,
         560
       ]
     }
@@ -375,6 +418,17 @@
       ]
     },
     "Fetch Servers": {
+      "main": [
+        [
+          {
+            "node": "Fetch Requirements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Requirements": {
       "main": [
         [
           {
