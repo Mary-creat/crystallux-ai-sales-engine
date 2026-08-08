@@ -216,6 +216,23 @@ if [ -n "${N8N_API_KEY:-}" ]; then
   esac
 fi
 
+# Fallback step A: n8n CLI publish:workflow.
+# The SQL fallback below only sets active=1; on recent n8n that leaves the
+# workflow with no *published version*, so it boots with "Active version not
+# found" and the webhook never registers (see docs/PROJECT_LOG.md 2026-06-04).
+# publish:workflow is what actually fixed that on live — run it alongside the
+# SQL write, not instead of it.
+if [ -z "${N8N_API_KEY:-}" ]; then
+  PUB_OUT=$(docker exec "$CONTAINER" n8n publish:workflow --id="$WF_ID" 2>&1)
+  if echo "$PUB_OUT" | grep -qiE "unknown command|not a valid command|command not found"; then
+    say "${DIM}publish:workflow not supported on this n8n version — skipping${RESET}"
+  elif echo "$PUB_OUT" | grep -qiE "error|failed"; then
+    say "${YELLOW}publish:workflow reported a problem:${RESET} ${DIM}$(echo "$PUB_OUT" | head -c 200)${RESET}"
+  else
+    ok "published workflow version via CLI"
+  fi
+fi
+
 if [ -z "${N8N_API_KEY:-}" ]; then
   VOLUME=$(docker inspect "$CONTAINER" --format '{{ (index .Mounts 0).Name }}' 2>/dev/null)
   if [ -z "$VOLUME" ]; then

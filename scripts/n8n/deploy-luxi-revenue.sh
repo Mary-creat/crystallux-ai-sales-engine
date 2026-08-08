@@ -14,10 +14,13 @@ WORKFLOWS=(
   clx-admin-luxi-auction-manage-v1.json
   clx-admin-luxi-auctions-list-v1.json
   clx-admin-luxi-buy-now-v1.json
+  clx-admin-luxi-place-bid-v1.json
   clx-admin-luxi-proxy-bid-v1.json
   clx-admin-luxi-stream-manage-v1.json
   clx-luxi-auction-tick-v1.json
   clx-luxi-proxy-settle-v1.json
+  clx-luxi-stripe-capture-v1.json
+  clx-luxi-bid-parser-v1.json
   clx-luxi-public-auction-v1.json
   clx-luxi-public-create-intent-v1.json
   clx-luxi-public-confirm-bid-v1.json
