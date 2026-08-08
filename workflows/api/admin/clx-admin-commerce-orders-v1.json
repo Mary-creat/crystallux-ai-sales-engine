@@ -1,0 +1,452 @@
+{
+  "name": "CLX - Admin Commerce Orders v1",
+  "id": "wfAdminCommerceOrdersV1",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/commerce/orders",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aco-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        360
+      ],
+      "webhookId": "clx-admin-commerce-orders-001",
+      "notes": "DEACTIVATED. Admin-gated. action='list' returns orders with their items; action='advance' moves fulfilment state via commerce_advance_order, which enforces the legal transitions and returns stock on cancel/refund."
+    },
+    {
+      "parameters": {
+        "jsCode": "const h = $input.item.json.headers || {};\nconst b = $input.item.json.body || {};\nconst auth = h['authorization'] || h['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\nconst action = String(b.action || 'list').toLowerCase().trim();\nif (action !== 'list' && action !== 'advance') {\n  return { json: { ok: false, status: 400, error: \"action must be 'list' or 'advance'\" } };\n}\nif (action === 'advance') {\n  const id = String(b.order_id || '').trim();\n  const st = String(b.status || '').trim();\n  if (!id) return { json: { ok: false, status: 400, error: 'order_id required' } };\n  if (['picking','ready','fulfilled','cancelled','refunded'].indexOf(st) === -1) {\n    return { json: { ok: false, status: 400, error: 'invalid target status' } };\n  }\n  return { json: { token: token, action: action, order_id: id, target_status: st } };\n}\nreturn { json: { token: token, action: action } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aco-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "aco-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        360
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: Object.assign({ ok: true }, $('Extract').first().json) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aco-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "aco-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "list",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "advance",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "advance",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        }
+      },
+      "id": "aco-0006",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1320,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/orders?select=id,order_number,channel,status,customer_handle,customer_email,total_cents,cost_cents,fulfilment_method,fulfilment_address,stripe_payment_intent_id,paid_at,created_at,order_items(title_snapshot,condition_snapshot,quantity,unit_price_cents)&order=created_at.desc&limit=200",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "aco-0007",
+      "name": "Query Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        240
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Orders newest first, with their line items."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/commerce_advance_order",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_order_id: $json.order_id, p_status: $json.target_status, p_actor: 'admin' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "aco-0008",
+      "name": "Advance RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        480
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Server-side transition. Refuses illegal moves; cancel/refund returns stock."
+    },
+    {
+      "parameters": {
+        "jsCode": "let rows = $input.all().map(function(i){ return i.json; });\nif (rows.length === 1 && Array.isArray(rows[0])) rows = rows[0];\nrows = rows.filter(function(x){ return x && x.id; });\nconst open = rows.filter(function(o){ return ['paid','picking','ready'].indexOf(o.status) !== -1; });\nreturn [{ json: { ok: true, status: 200, count: rows.length,\n                  outstanding: open.length, orders: rows } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "aco-0009",
+      "name": "Shape List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let r = $input.item.json;\nif (Array.isArray(r)) r = r[0] || {};\nif (r && r.body !== undefined) r = r.body;\nif (Array.isArray(r)) r = r[0] || {};\nif (!r || typeof r !== 'object') return { json: { ok: false, status: 502, error: 'Unexpected database response' } };\nreturn { json: r.ok === false ? r : Object.assign({ ok: true, status: 200 }, r) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aco-0010",
+      "name": "Shape Advance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 200 }}"
+        }
+      },
+      "id": "aco-0011",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2040,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
+      },
+      "id": "aco-0012",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [
+          {
+            "node": "Query Orders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Advance RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Orders": {
+      "main": [
+        [
+          {
+            "node": "Shape List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Advance RPC": {
+      "main": [
+        [
+          {
+            "node": "Shape Advance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape List": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Advance": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
