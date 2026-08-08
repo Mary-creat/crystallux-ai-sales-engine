@@ -137,6 +137,28 @@ function renderAuction(){
   $('aHigh').textContent = money(a.current_high_cents);
   $('aMinNext').textContent = 'Min next: ' + money(a.min_next_cents);
   if (a.closes_at){ var d=new Date(a.closes_at); if(!isNaN(d)) $('aCloses').textContent = 'Closes ' + d.toLocaleString('en-CA'); }
+
+  // A lot can close while someone is sitting on this page -- that is normal in
+  // a live show, where lots close every few minutes. refresh() runs every 7s,
+  // so take the forms away the moment it stops being live. Leaving them up
+  // means a bidder types in a card and is then refused by the server, which
+  // reads as a broken checkout rather than an auction that ended.
+  if (!a.live){
+    $('bidCard').classList.add('hidden');
+    $('payCard').classList.add('hidden');
+    hideMsg($('payErr'));
+    if (!$('closedMsg')){
+      var sold = (a.status === 'closed_sold');
+      $('auctionCard').insertAdjacentHTML('beforeend',
+        '<div id="closedMsg" class="msg ok" style="display:block;margin-top:12px;' +
+        (sold ? '' : 'background:#f4f4f5;color:#52525b') + '">' +
+        (sold ? 'This lot has sold.' : 'Bidding on this lot has closed.') +
+        ' Nothing has been charged. Stay with us — the next lot opens shortly.</div>');
+    }
+  } else {
+    var cm = $('closedMsg');
+    if (cm) cm.parentNode.removeChild(cm);
+  }
 }
 
 async function refresh(){
