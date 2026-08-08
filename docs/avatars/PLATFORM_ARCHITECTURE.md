@@ -106,9 +106,23 @@ The router is the ONE place we hard-code avatar resolution rules. Every other wo
 - **Landing surface:** new admin/marketing pages `pages/maxi/<industry>` — driven entirely by the industries + value_props tables.
 - **No regulatory wrapper** like AVA — CASL + general consumer-protection only.
 
-### LUMI, LUMA, LETY, EAZA — placeholder rows (Tranches 2–4)
+### LUMI, LUMA, LETY — placeholder rows (Tranches 2–4)
 - Rows exist in `avatars` with `active=false` and empty config jsonb. Future tranches fill in details; no new INSERTs needed.
-- EAZA is gated on Eazer API spec — see EXTENSION_PLAN T4.
+
+### EAZA — Eazer's 24/7 public face (scope confirmed by Mary 2026-08-08)
+
+The seeded row (`'EAZA' / logistics / "Eazer Delivery Voice"`, `active=false`) undersold this. EAZA is not a thin placeholder waiting on an API — it is **Eazer's always-on client-facing presence**, and most of its remit needs no Eazer API at all:
+
+- **Awareness + new developments** — announces what Eazer has shipped, where it now operates.
+- **Promotions** — campaigns and offers to merchants and end users.
+- **Driver recruitment** — the top of Eazer's driver funnel.
+- **Merchant and user management** — the 24/7 front door for both sides of the marketplace.
+
+**The boundary that matters.** EAZA *talks about* Eazer. It does not *operate* Eazer. Dispatch, driver matching, routing, tracking, proof of delivery and delivery cancellation belong to the Eazer platform, reached through the (unbuilt) Crystallux→Eazer integration layer. EAZA may report authoritative delivery state to a customer; it must never invent driver location, ETA or delivery completion. Same separation LUXI has from the auction engine.
+
+Practical consequence: **EAZA is only partly gated on the Eazer API.** Awareness, promotions and driver recruitment are content + outreach work that could run on the existing avatar content pipeline today. Only the merchant/user *management* surface and any live delivery status need the integration. EXTENSION_PLAN T4 treats the whole avatar as blocked; that is too coarse.
+
+Related: the Crystallux→Eazer delivery integration is a **separate** track from EAZA — see `docs/audit/blockers.md`. Do not conflate the voice with the dispatch integration; they share a vendor and nothing else.
 
 ## What's intentionally still legacy
 
