@@ -6,6 +6,44 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0ae. Restream auto-fill — built, gated on Mary's Restream account (added 2026-08-08)
+
+`clx-admin-luxi-restream-channels-v1` (`2694c93`) reads the operator's Restream account so **Go Live** stops asking for five hand-pasted URLs. Ships `active: false`.
+
+**Why it exists:** the watch links are what turn the bid page's LIVE banner into something clickable. Ticking a platform without pasting its URL names it with no link — which is exactly what happened to the "Buy patio" session.
+
+**What it calls** (verified live 2026-08-08):
+
+| Endpoint | Auth | Gives us |
+|---|---|---|
+| `GET /v2/user/channel/all` | OAuth2 | `url` per channel = the public watch link |
+| `GET /v2/platform/all` | **public** | `streamingPlatformId` → platform name |
+| `GET /v2/user/streamKey` | OAuth2 | stream key |
+| `GET /v2/server/all` | **public** | Autodetect RTMP ingest |
+
+Platform ids: **TikTok 67 · YouTube 5 · Facebook 37 · Instagram 73 · Twitter/X 71**. Resolved live rather than hardcoded so a new id cannot silently break the mapping.
+
+**Mary's setup:**
+1. **Restream Professional — $39/mo.** Standard caps at 3 channels; five platforms needs 5. This is a hard floor, not a preference.
+2. Connect the five platforms in Restream once.
+3. `developers.restream.io` → Applications → create an app. Redirect URI: `https://automation.crystallux.org/rest/oauth2-credential/callback`
+4. **Ship it:** `bash scripts/n8n/ship.sh clx-admin-luxi-restream-channels-v1.json` (with `CLX_REPO=/root/clx-deploy` exported).
+5. **n8n → Credentials → new "OAuth2 API", named exactly `Restream OAuth2`:**
+   - Grant Type: `Authorization Code`
+   - Authorization URL: `https://api.restream.io/oauth/authorize`
+   - Access Token URL: `https://api.restream.io/oauth/token`
+   - Scope: `channels.read stream.read`
+   - Auth method: send client credentials in body
+   - Client ID / Secret from step 3, then **Connect** and authorize in the browser.
+
+> **There is no Restream API key.** OAuth2 only. Access tokens last 1 hour, refresh tokens 1 year — n8n refreshes automatically, but the credential must be re-authorized annually.
+
+**Verify:** admin LUXI page → 🎬 Go Live → **↓ Pull from Restream**. Expect the five watch fields, RTMP and stream key to fill, and the connected platforms to tick themselves.
+
+**Safe by construction:** every field stays hand-editable, a Restream failure leaves them untouched with a plain message, and the browser never talks to Restream (n8n does) so no CSP change was needed.
+
+---
+
 ## 0ad. LUXI is LIVE end-to-end (2026-08-08) — supersedes §0x and §0y
 
 Deployed and verified on live infrastructure. Card-backed auto-bid proven with a real Stripe authorization. **Nothing about LUXI is gated on Mary any more** except the cleanup items at the bottom.
