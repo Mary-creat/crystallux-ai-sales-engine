@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Commerce · Crystallux Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://*.cloudflareinsights.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://automation.crystallux.org; base-uri 'self'; upgrade-insecure-requests;">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/layout.css">
+<style>
+.cm-tabs { display:flex; gap:4px; border-bottom:1px solid var(--border,#e5e7eb); margin-bottom:20px; }
+.cm-tab { padding:9px 16px; border:none; background:none; font:inherit; font-weight:600; font-size:14px;
+          color:var(--text-muted,#6b7280); cursor:pointer; border-bottom:2px solid transparent; }
+.cm-tab.on { color:var(--color-brand-600,#7C3AED); border-bottom-color:var(--color-brand-600,#7C3AED); }
+.cm-panel { display:none; } .cm-panel.on { display:block; }
+.cm-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px 16px; }
+.cm-form label { display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:var(--text,#111827); }
+.cm-form .full { grid-column:1/-1; }
+.cm-hint { font-size:11px; color:var(--text-muted,#6b7280); margin-top:3px; font-weight:400; }
+.cm-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.cm-lot { border:1px solid var(--border,#e5e7eb); border-radius:9px; padding:12px 14px; margin-bottom:8px; background:#fff; }
+.cm-lot-head { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.cm-lotno { font-weight:800; font-size:15px; }
+.cm-money { font-variant-numeric:tabular-nums; }
+.cm-pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; }
+.cm-meta { font-size:12px; color:var(--text-muted,#6b7280); margin-top:5px; }
+.cm-empty { padding:26px; text-align:center; color:var(--text-muted,#6b7280); font-size:14px;
+            border:1px dashed var(--border,#e5e7eb); border-radius:10px; }
+.cm-msg { margin-top:12px; padding:10px 13px; border-radius:8px; font-size:13px; display:none; }
+.cm-msg.ok { background:#dcfce7; color:#166534; } .cm-msg.err { background:#fee2e2; color:#991b1b; }
+.cm-margin { font-weight:700; }
+.cm-margin.good { color:#059669; } .cm-margin.thin { color:#b45309; } .cm-margin.loss { color:#dc2626; }
+</style>
+</head>
+<body>
+<div class="clx-shell">
+  <aside class="clx-sidebar" id="clxSidebar"></aside>
+  <main class="clx-main">
+    <header class="clx-topbar">
+      <div>
+        <h1 class="clx-page-title">Commerce</h1>
+        <p class="clx-page-sub">Load stock, run the live sale queue, fulfil orders.</p>
+      </div>
+      <div id="clxTopbarUser"></div>
+    </header>
+
+    <div class="cm-tabs">
+      <button class="cm-tab on" data-panel="add">Quick add</button>
+      <button class="cm-tab" data-panel="queue">Live sale queue</button>
+      <button class="cm-tab" data-panel="orders">Orders</button>
+    </div>
+
+    <!-- ══ Quick add ══════════════════════════════════════════════ -->
+    <section class="cm-panel on" id="panel-add">
+      <div class="clx-card" style="padding:18px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">Add a product straight into the sale queue</div>
+        <div class="cm-hint" style="margin-bottom:14px">
+          Creates the product, receives the stock and creates the lot in one step.
+          The lot starts <b>scheduled</b> &mdash; it only goes live when you open it.
+        </div>
+        <form id="addForm" class="cm-form" autocomplete="off">
+          <div class="full">
+            <label for="fTitle">Item *</label>
+            <input type="text" id="fTitle" class="clx-input" placeholder="e.g. 7-Piece Patio Dining Set" required>
+          </div>
+          <div>
+            <label for="fCondition">Condition *</label>
+            <select id="fCondition" class="clx-input">
+              <option value="new">New</option>
+              <option value="open_box">Open Box</option>
+              <option value="used" selected>Used</option>
+              <option value="as_is">Damaged / As-Is</option>
+            </select>
+          </div>
+          <div>
+            <label for="fQty">Quantity</label>
+            <input type="number" id="fQty" class="clx-input" value="1" min="1" step="1">
+            <div class="cm-hint">1 = a unique one-off unit</div>
+          </div>
+          <div>
+            <label for="fCost">What you paid (CAD)</label>
+            <input type="number" id="fCost" class="clx-input" placeholder="40.00" min="0" step="0.01">
+            <div class="cm-hint">Drives margin. Not shown to buyers.</div>
+          </div>
+          <div>
+            <label for="fRetail">Retail reference (CAD)</label>
+            <input type="number" id="fRetail" class="clx-input" placeholder="299.00" min="0" step="0.01">
+            <div class="cm-hint">What it sells for new.</div>
+          </div>
+          <div>
+            <label for="fType">Sale type *</label>
+            <select id="fType" class="clx-input">
+              <option value="both" selected>Auction + Buy Now</option>
+              <option value="auction">Auction only</option>
+              <option value="buy_now">Buy Now only</option>
+            </select>
+          </div>
+          <div>
+            <label for="fStart">Start bid (CAD)</label>
+            <input type="number" id="fStart" class="clx-input" value="1.00" min="0.01" step="0.01">
+          </div>
+          <div>
+            <label for="fReserve">Reserve (CAD)</label>
+            <input type="number" id="fReserve" class="clx-input" placeholder="0.00" min="0" step="0.01">
+            <div class="cm-hint">0 = no reserve.</div>
+          </div>
+          <div>
+            <label for="fBuyNow">Buy Now price (CAD)</label>
+            <input type="number" id="fBuyNow" class="clx-input" placeholder="129.00" min="0.01" step="0.01">
+            <div class="cm-hint">Required unless auction-only.</div>
+          </div>
+          <div>
+            <label for="fDuration">Auction length (minutes)</label>
+            <input type="number" id="fDuration" class="clx-input" value="10" min="1" step="1">
+          </div>
+          <div>
+            <label for="fLot">Lot number</label>
+            <input type="text" id="fLot" class="clx-input" placeholder="auto">
+          </div>
+          <div>
+            <label for="fCategory">Category</label>
+            <input type="text" id="fCategory" class="clx-input" placeholder="Patio &amp; Garden">
+          </div>
+          <div class="full">
+            <label for="fDesc">Description</label>
+            <textarea id="fDesc" class="clx-input" rows="2" placeholder="Condition notes, what's included, anything missing."></textarea>
+          </div>
+          <div class="full cm-row">
+            <button type="submit" class="clx-btn clx-btn-primary" style="width:auto">Add to queue</button>
+            <span id="addMargin" class="cm-hint"></span>
+          </div>
+        </form>
+        <div class="cm-msg" id="addMsg"></div>
+      </div>
+    </section>
+
+    <!-- ══ Queue ══════════════════════════════════════════════════ -->
+    <section class="cm-panel" id="panel-queue">
+      <div class="cm-row" style="margin-bottom:12px">
+        <button class="clx-btn clx-btn-secondary" style="width:auto" id="queueRefresh">Refresh</button>
+        <span id="queueCount" class="cm-hint"></span>
+      </div>
+      <div id="queueBody"></div>
+    </section>
+
+    <!-- ══ Orders ═════════════════════════════════════════════════ -->
+    <section class="cm-panel" id="panel-orders">
+      <div class="cm-row" style="margin-bottom:12px">
+        <button class="clx-btn clx-btn-secondary" style="width:auto" id="ordersRefresh">Refresh</button>
+        <span id="ordersCount" class="cm-hint"></span>
+      </div>
+      <div id="ordersBody"></div>
+      <div class="cm-msg" id="ordersMsg"></div>
+    </section>
+  </main>
+</div>
+
+<script src="/shared/auth.js"></script>
+<script src="/shared/api.js"></script>
+<script src="/shared/components.js"></script>
+<script>
+(function () {
+  'use strict';
+  clxAuth.requireAdmin && clxAuth.requireAdmin();
+  clxComp.injectNav && clxComp.injectNav();
+  clxComp.wireSidebar && clxComp.wireSidebar();
+  clxComp.renderTopbarUser && clxComp.renderTopbarUser();
+
+  var API = 'https://automation.crystallux.org/webhook';
+  function $(id) { return document.getElementById(id); }
+  function tok() { return localStorage.getItem('clx_session_token') || ''; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function money(c) {
+    return '$' + ((parseInt(c, 10) || 0) / 100).toLocaleString('en-CA',
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  // Dollars in the form, cents everywhere else. Every price crossing this
+  // boundary goes through here so a stray float never reaches the database.
+  function toCents(v) {
+    var n = parseFloat(v);
+    return isNaN(n) ? null : Math.round(n * 100);
+  }
+  function msg(el, kind, text) {
+    el.className = 'cm-msg ' + kind; el.textContent = text; el.style.display = 'block';
+  }
+  function hide(el) { el.style.display = 'none'; }
+
+  async function post(path, body) {
+    var r = await fetch(API + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok() },
+      body: JSON.stringify(body || {})
+    });
+    var t = await r.text(); var d = null;
+    try { d = t ? JSON.parse(t) : null; } catch (_) {}
+    return { ok: r.ok, status: r.status, data: d };
+  }
+
+  // ── tabs ────────────────────────────────────────────────────────
+  Array.prototype.slice.call(document.querySelectorAll('.cm-tab')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.cm-tab').forEach(function (x) { x.classList.remove('on'); });
+      document.querySelectorAll('.cm-panel').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      $('panel-' + b.dataset.panel).classList.add('on');
+      if (b.dataset.panel === 'queue') loadQueue();
+      if (b.dataset.panel === 'orders') loadOrders();
+    });
+  });
+
+  // ── live margin preview ─────────────────────────────────────────
+  // Liquidation lives or dies on margin, so show it before the item is
+  // listed rather than after it has sold.
+  function updateMargin() {
+    var cost = toCents($('fCost').value);
+    var buy = toCents($('fBuyNow').value);
+    var el = $('addMargin');
+    if (!cost || !buy) { el.textContent = ''; return; }
+    var m = buy - cost;
+    var pct = buy > 0 ? Math.round((m / buy) * 100) : 0;
+    var cls = m <= 0 ? 'loss' : (pct < 25 ? 'thin' : 'good');
+    el.innerHTML = 'At Buy Now: <span class="cm-margin ' + cls + '">' +
+      money(m) + ' (' + pct + '%)</span>' +
+      (m <= 0 ? ' &mdash; you would lose money on this' : '');
+  }
+  ['fCost', 'fBuyNow'].forEach(function (id) {
+    $(id).addEventListener('input', updateMargin);
+  });
+
+  // Buy Now is meaningless on an auction-only lot.
+  $('fType').addEventListener('change', function () {
+    var need = this.value !== 'auction';
+    $('fBuyNow').disabled = !need;
+    if (!need) { $('fBuyNow').value = ''; updateMargin(); }
+  });
+
+  // ── add ─────────────────────────────────────────────────────────
+  $('addForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    hide($('addMsg'));
+    var type = $('fType').value;
+    var buyNow = toCents($('fBuyNow').value);
+    if (type !== 'auction' && !(buyNow > 0)) {
+      msg($('addMsg'), 'err', 'A Buy Now price is required for this sale type.'); return;
+    }
+    var btn = this.querySelector('button[type=submit]');
+    btn.disabled = true; var label = btn.textContent; btn.textContent = 'Adding…';
+
+    var res = await post('/admin/commerce/catalog', {
+      action: 'create',
+      title: $('fTitle').value.trim(),
+      condition: $('fCondition').value,
+      listing_type: type,
+      quantity: parseInt($('fQty').value, 10) || 1,
+      cost_cents: toCents($('fCost').value) || 0,
+      retail_cents: toCents($('fRetail').value),
+      start_bid_cents: toCents($('fStart').value) || 100,
+      reserve_cents: toCents($('fReserve').value) || 0,
+      buy_now_cents: buyNow,
+      duration_mins: parseInt($('fDuration').value, 10) || 10,
+      lot_number: $('fLot').value.trim() || null,
+      category: $('fCategory').value.trim() || null,
+      description: $('fDesc').value.trim() || null
+    });
+
+    btn.disabled = false; btn.textContent = label;
+    if (!res.ok || !res.data || !res.data.ok) {
+      msg($('addMsg'), 'err', (res.data && res.data.error) || 'Could not add the product.');
+      return;
+    }
+    msg($('addMsg'), 'ok', 'Added as ' + (res.data.lot_number || 'a new lot') +
+      '. It is scheduled, not live &mdash; open it from the queue when you reach it.');
+    // Keep condition, type and duration: a pallet is usually more of the same.
+    ['fTitle', 'fCost', 'fRetail', 'fBuyNow', 'fLot', 'fDesc'].forEach(function (id) { $(id).value = ''; });
+    $('fQty').value = '1';
+    updateMargin();
+    $('fTitle').focus();
+  });
+
+  // ── queue ───────────────────────────────────────────────────────
+  var LOT_STYLE = {
+    scheduled: { bg: '#eff6ff', fg: '#1d4ed8', label: 'Scheduled' },
+    open:      { bg: '#fee2e2', fg: '#991b1b', label: 'LIVE' },
+    extended:  { bg: '#fef3c7', fg: '#92400e', label: 'Extended' }
+  };
+  async function loadQueue() {
+    $('queueBody').innerHTML = '<div class="cm-empty">Loading…</div>';
+    var res = await post('/admin/commerce/catalog', { action: 'queue' });
+    if (!res.ok || !res.data || !res.data.ok) {
+      $('queueBody').innerHTML = '<div class="cm-empty">' +
+        esc((res.data && res.data.error) || 'Could not load the queue.') + '</div>';
+      return;
+    }
+    var lots = res.data.lots || [];
+    $('queueCount').textContent = lots.length + ' lot' + (lots.length === 1 ? '' : 's') + ' waiting or live';
+    if (!lots.length) {
+      $('queueBody').innerHTML = '<div class="cm-empty">Nothing queued. Add products on the Quick add tab.</div>';
+      return;
+    }
+    $('queueBody').innerHTML = lots.map(function (l) {
+      var s = LOT_STYLE[l.status] || { bg: '#f3f4f6', fg: '#374151', label: l.status };
+      var bits = [];
+      if (l.start_bid_cents) bits.push('start ' + money(l.start_bid_cents));
+      if (l.reserve_price_cents) bits.push('reserve ' + money(l.reserve_price_cents));
+      if (l.buy_now_price_cents) bits.push('buy now ' + money(l.buy_now_price_cents));
+      if (l.current_high_bid_cents) bits.push('high ' + money(l.current_high_bid_cents));
+      if (l.quantity_listed > 1) bits.push('qty ' + l.quantity_listed);
+      if (!l.inventory_item_id) bits.push('no stock linked');
+      return '<div class="cm-lot">' +
+        '<div class="cm-lot-head">' +
+          '<span class="cm-lotno">' + esc(l.lot_number || '—') + ' &nbsp; ' + esc(l.item_title) + '</span>' +
+          '<span class="cm-pill" style="background:' + s.bg + ';color:' + s.fg + '">' + esc(s.label) + '</span>' +
+        '</div>' +
+        '<div class="cm-meta cm-money">' + esc(bits.join(' · ')) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  $('queueRefresh').addEventListener('click', loadQueue);
+
+  // ── orders ──────────────────────────────────────────────────────
+  var ORDER_STYLE = {
+    pending_payment: { bg: '#fef3c7', fg: '#92400e' },
+    paid:            { bg: '#dcfce7', fg: '#166534' },
+    picking:         { bg: '#eff6ff', fg: '#1d4ed8' },
+    ready:           { bg: '#ede9fe', fg: '#5b21b6' },
+    fulfilled:       { bg: '#f3f4f6', fg: '#374151' },
+    cancelled:       { bg: '#fee2e2', fg: '#991b1b' },
+    refunded:        { bg: '#fee2e2', fg: '#991b1b' }
+  };
+  // Only forward moves the server will accept. Mirrors commerce_advance_order,
+  // which is the authority -- this just avoids offering a button that errors.
+  var NEXT = {
+    paid:    [['picking', 'Start picking'], ['cancelled', 'Cancel'], ['refunded', 'Refund']],
+    picking: [['ready', 'Mark ready'], ['cancelled', 'Cancel'], ['refunded', 'Refund']],
+    ready:   [['fulfilled', 'Complete'], ['cancelled', 'Cancel'], ['refunded', 'Refund']]
+  };
+
+  async function loadOrders() {
+    hide($('ordersMsg'));
+    $('ordersBody').innerHTML = '<div class="cm-empty">Loading…</div>';
+    var res = await post('/admin/commerce/orders', { action: 'list' });
+    if (!res.ok || !res.data || !res.data.ok) {
+      $('ordersBody').innerHTML = '<div class="cm-empty">' +
+        esc((res.data && res.data.error) || 'Could not load orders.') + '</div>';
+      return;
+    }
+    var orders = res.data.orders || [];
+    $('ordersCount').textContent = res.data.outstanding + ' outstanding of ' + orders.length;
+    if (!orders.length) {
+      $('ordersBody').innerHTML = '<div class="cm-empty">No orders yet. They appear here the moment a payment is captured.</div>';
+      return;
+    }
+    $('ordersBody').innerHTML = orders.map(function (o) {
+      var s = ORDER_STYLE[o.status] || { bg: '#f3f4f6', fg: '#374151' };
+      var items = (o.order_items || []).map(function (i) {
+        return esc(i.title_snapshot) + (i.quantity > 1 ? ' ×' + i.quantity : '');
+      }).join(', ');
+      var m = (o.total_cents || 0) - (o.cost_cents || 0);
+      var pct = o.total_cents > 0 ? Math.round((m / o.total_cents) * 100) : 0;
+      var mcls = m <= 0 ? 'loss' : (pct < 25 ? 'thin' : 'good');
+      var acts = (NEXT[o.status] || []).map(function (a) {
+        return '<button class="clx-btn clx-btn-secondary cm-act" style="width:auto;padding:5px 11px;font-size:12px" ' +
+               'data-id="' + esc(o.id) + '" data-to="' + a[0] + '">' + esc(a[1]) + '</button>';
+      }).join(' ');
+      return '<div class="cm-lot">' +
+        '<div class="cm-lot-head">' +
+          '<span class="cm-lotno">' + esc(o.order_number) + ' &nbsp; ' + esc(o.customer_handle || '—') + '</span>' +
+          '<span class="cm-pill" style="background:' + s.bg + ';color:' + s.fg + '">' +
+            esc(String(o.status).replace('_', ' ')) + '</span>' +
+        '</div>' +
+        '<div class="cm-meta">' + (items || '<i>no line items</i>') + '</div>' +
+        '<div class="cm-meta cm-money">' + money(o.total_cents) +
+          ' · cost ' + money(o.cost_cents) +
+          ' · margin <span class="cm-margin ' + mcls + '">' + money(m) + ' (' + pct + '%)</span>' +
+          ' · ' + esc(o.channel) +
+          (o.fulfilment_method ? ' · ' + esc(o.fulfilment_method) : '') +
+        '</div>' +
+        (acts ? '<div class="cm-row" style="margin-top:9px">' + acts + '</div>' : '') +
+      '</div>';
+    }).join('');
+
+    Array.prototype.slice.call(document.querySelectorAll('.cm-act')).forEach(function (b) {
+      b.addEventListener('click', async function () {
+        var to = b.dataset.to;
+        if (to === 'cancelled' || to === 'refunded') {
+          // These return stock to inventory and cannot be undone from here.
+          if (!window.confirm('Mark this order ' + to + '? The stock goes back to inventory.')) return;
+        }
+        b.disabled = true;
+        var r = await post('/admin/commerce/orders', { action: 'advance', order_id: b.dataset.id, status: to });
+        if (!r.ok || !r.data || !r.data.ok) {
+          msg($('ordersMsg'), 'err', (r.data && r.data.error) || 'Could not update the order.');
+          b.disabled = false; return;
+        }
+        loadOrders();
+      });
+    });
+  }
+  $('ordersRefresh').addEventListener('click', loadOrders);
+
+  updateMargin();
+})();
+</script>
+</body>
+</html>

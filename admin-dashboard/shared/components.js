@@ -24,6 +24,7 @@
     '<a class="clx-nav-item" href="/pages/billing.html"><span class="clx-nav-icon">$</span>Billing</a>' +
     '<a class="clx-nav-item" href="/pages/carriers/overview.html"><span class="clx-nav-icon">⌂</span>Carriers</a>' +
     '<div class="clx-nav-section">Platform</div>' +
+    '<a class="clx-nav-item" href="/pages/commerce.html"><span class="clx-nav-icon">⛁</span>Commerce</a>' +
     '<a class="clx-nav-item" href="/pages/sales-engine.html"><span class="clx-nav-icon">⚡</span>Sales Engine</a>' +
     '<a class="clx-nav-item" href="/pages/onboarding.html"><span class="clx-nav-icon">◐</span>Onboarding</a>' +
     '<a class="clx-nav-item" href="/pages/sentinel.html"><span class="clx-nav-icon">◆</span>Sentinel</a>' +
