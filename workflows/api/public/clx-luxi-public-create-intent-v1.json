@@ -136,7 +136,7 @@
         },
         "sendBody": true,
         "specifyBody": "string",
-        "body": "={{ 'amount=' + $json.max_cents + '&currency=cad&capture_method=manual&automatic_payment_methods[enabled]=true&metadata[auction_id]=' + $json.auction_id + '&metadata[kind]=luxi_proxy&metadata[max_cents]=' + $json.max_cents }}",
+        "body": "={{ 'amount=' + $json.max_cents + '&currency=cad&capture_method=manual&automatic_payment_methods[enabled]=true&payment_method_options[card][request_incremental_authorization]=if_available&expand[]=latest_charge&metadata[auction_id]=' + $json.auction_id + '&metadata[kind]=luxi_proxy&metadata[max_cents]=' + $json.max_cents }}",
         "options": {
           "response": {
             "response": {
@@ -152,7 +152,8 @@
       "position": [
         1380,
         220
-      ]
+      ],
+      "notes": "Requests incremental authorization if the account supports it (IC+ pricing; Visa/MC/Amex/Discover) and expands latest_charge so capture_before comes back. Both are no-ops when unsupported."
     },
     {
       "parameters": {

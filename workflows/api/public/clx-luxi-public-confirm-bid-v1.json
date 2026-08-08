@@ -37,7 +37,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.payment_intent_id }}",
+        "url": "={{ 'https://api.stripe.com/v1/payment_intents/' + $json.payment_intent_id + '?expand[]=latest_charge' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -66,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const s = $input.item.json || {};\nconst x = $('Extract').item.json;\nif (s.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (s.error.message || 'lookup failed') } };\nif (!s.id) return { json: { ok: false, status: 400, error: 'Payment authorization not found' } };\nif (s.status !== 'requires_capture') return { json: { ok: false, status: 402, error: 'Card was not authorized (status: ' + s.status + ')' } };\nconst meta = s.metadata || {};\nif (String(meta.auction_id || '') !== x.auction_id) return { json: { ok: false, status: 400, error: 'Authorization does not match this auction' } };\nif (parseInt(s.amount, 10) !== x.max_cents) return { json: { ok: false, status: 400, error: 'Authorized amount does not match your max' } };\nreturn { json: { ok: true, auction_id: x.auction_id, handle: x.handle, max_cents: x.max_cents, payment_intent_id: x.payment_intent_id } };",
+        "jsCode": "const s = $input.item.json || {};\nconst x = $('Extract').item.json;\nif (s.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (s.error.message || 'lookup failed') } };\nif (!s.id) return { json: { ok: false, status: 400, error: 'Payment authorization not found' } };\nif (s.status !== 'requires_capture') return { json: { ok: false, status: 402, error: 'Card was not authorized (status: ' + s.status + ')' } };\nconst meta = s.metadata || {};\nif (String(meta.auction_id || '') !== x.auction_id) return { json: { ok: false, status: 400, error: 'Authorization does not match this auction' } };\nif (parseInt(s.amount, 10) !== x.max_cents) return { json: { ok: false, status: 400, error: 'Authorized amount does not match your max' } };\n\n// Stripe publishes the real deadline on the charge. Seven days is the\n// common case, not a rule -- it varies by card and merchant category, so\n// we record what Stripe says rather than computing it.\nconst ch = (s.latest_charge && typeof s.latest_charge === 'object') ? s.latest_charge : {};\nconst cd = (ch.payment_method_details && ch.payment_method_details.card) || {};\nconst captureBefore = cd.capture_before ? new Date(cd.capture_before * 1000).toISOString() : null;\nconst incStatus = (cd.incremental_authorization && cd.incremental_authorization.status) || null;\nreturn { json: { ok: true, auction_id: x.auction_id, handle: x.handle, max_cents: x.max_cents, payment_intent_id: x.payment_intent_id, capture_before: captureBefore, incremental_auth_status: incStatus } };",
         "mode": "runOnceForEachItem"
       },
       "id": "lcb-0004",
@@ -155,7 +155,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let r = $input.item.json; if (Array.isArray(r)) r = r[0] || {};\nif (r == null || typeof r !== 'object') r = { ok: false, status: 500, error: 'Unexpected DB response' };\nif (!r.ok) return { json: { ok: false, status: r.status || 500, error: r.error || 'Bid failed', has_old: false, old_pi: null } };\nconst res = r.resolution || {};\nreturn { json: {\n  ok: true, status: 200,\n  max_display: '$' + ((r.max_cents || 0) / 100).toFixed(2),\n  leading: !!res.auto_bid,\n  new_high_display: res.amount_cents != null ? ('$' + (res.amount_cents / 100).toFixed(2)) : null,\n  has_old: !!r.cancel_payment_intent,\n  old_pi: r.cancel_payment_intent || null\n} };",
+        "jsCode": "// Read the proxy RPC explicitly: Record Authorization now sits between\n// us and it, so $input is the annotation result, not the bid result.\nlet r = $('Set Web Proxy RPC').first().json; if (Array.isArray(r)) r = r[0] || {};\nif (r == null || typeof r !== 'object') r = { ok: false, status: 500, error: 'Unexpected DB response' };\nif (!r.ok) return { json: { ok: false, status: r.status || 500, error: r.error || 'Bid failed', has_old: false, old_pi: null } };\nconst res = r.resolution || {};\nreturn { json: {\n  ok: true, status: 200,\n  max_display: '$' + ((r.max_cents || 0) / 100).toFixed(2),\n  leading: !!res.auto_bid,\n  new_high_display: res.amount_cents != null ? ('$' + (res.amount_cents / 100).toFixed(2)) : null,\n  has_old: !!r.cancel_payment_intent,\n  old_pi: r.cancel_payment_intent || null\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "lcb-0007",
@@ -292,6 +292,52 @@
         1380,
         460
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_record_authorization",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_payment_intent_id: $('Verify Hold').first().json.payment_intent_id, p_capture_before: $('Verify Hold').first().json.capture_before, p_incremental: $('Verify Hold').first().json.incremental_auth_status, p_strategy: 'initial' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "lcb-0012",
+      "name": "Record Authorization",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        200
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Stores Stripe's capture_before and whether the card supports incremental authorization. Annotation only -- it never changes hold_status, so it cannot resurrect a settled hold."
     }
   ],
   "connections": {
@@ -361,7 +407,7 @@
       "main": [
         [
           {
-            "node": "Shape",
+            "node": "Record Authorization",
             "type": "main",
             "index": 0
           }
@@ -402,6 +448,17 @@
         [
           {
             "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Authorization": {
+      "main": [
+        [
+          {
+            "node": "Shape",
             "type": "main",
             "index": 0
           }
