@@ -77,12 +77,17 @@
           <div>
             <label for="fQty">Quantity</label>
             <input type="number" id="fQty" class="clx-input" value="1" min="1" step="1">
-            <div class="cm-hint">1 = a unique one-off unit</div>
+            <div class="cm-hint">Units received. Creates one lot per unit, so 5 = Lot 1&hellip;5.</div>
           </div>
           <div>
-            <label for="fCost">What you paid (CAD)</label>
+            <label for="fPerLot">Units per lot</label>
+            <input type="number" id="fPerLot" class="clx-input" value="1" min="1" step="1">
+            <div class="cm-hint">1 = sold individually. Set higher to sell as a bundle.</div>
+          </div>
+          <div>
+            <label for="fCost">What you paid <b>per unit</b> (CAD)</label>
             <input type="number" id="fCost" class="clx-input" placeholder="40.00" min="0" step="0.01">
-            <div class="cm-hint">Drives margin. Not shown to buyers.</div>
+            <div class="cm-hint">Per item, not the pallet total. Drives margin. Never shown to buyers.</div>
           </div>
           <div>
             <label for="fRetail">Retail reference (CAD)</label>
@@ -100,11 +105,12 @@
           <div>
             <label for="fStart">Start bid (CAD)</label>
             <input type="number" id="fStart" class="clx-input" value="1.00" min="0.01" step="0.01">
+            <div class="cm-hint">Where bidding <b>opens</b>. Low openings pull bidders in.</div>
           </div>
           <div>
             <label for="fReserve">Reserve (CAD)</label>
             <input type="number" id="fReserve" class="clx-input" placeholder="0.00" min="0" step="0.01">
-            <div class="cm-hint">0 = no reserve.</div>
+            <div class="cm-hint">Secret minimum you will <b>accept</b>. Below it, it does not sell. <b>0 = sells at any price.</b> Usually your cost or a little above.</div>
           </div>
           <div>
             <label for="fBuyNow">Buy Now price (CAD)</label>
@@ -225,7 +231,7 @@
     var m = buy - cost;
     var pct = buy > 0 ? Math.round((m / buy) * 100) : 0;
     var cls = m <= 0 ? 'loss' : (pct < 25 ? 'thin' : 'good');
-    el.innerHTML = 'At Buy Now: <span class="cm-margin ' + cls + '">' +
+    el.innerHTML = 'Per unit at Buy Now: <span class="cm-margin ' + cls + '">' +
       money(m) + ' (' + pct + '%)</span>' +
       (m <= 0 ? ' &mdash; you would lose money on this' : '');
   }
@@ -258,6 +264,7 @@
       condition: $('fCondition').value,
       listing_type: type,
       quantity: parseInt($('fQty').value, 10) || 1,
+      units_per_lot: parseInt($('fPerLot').value, 10) || 1,
       cost_cents: toCents($('fCost').value) || 0,
       retail_cents: toCents($('fRetail').value),
       start_bid_cents: toCents($('fStart').value) || 100,
@@ -274,8 +281,12 @@
       msg($('addMsg'), 'err', (res.data && res.data.error) || 'Could not add the product.');
       return;
     }
-    msg($('addMsg'), 'ok', 'Added as ' + (res.data.lot_number || 'a new lot') +
-      '. It is scheduled, not live &mdash; open it from the queue when you reach it.');
+    var n = res.data.lots_created || 1;
+    var extra = res.data.units_unlotted
+      ? ' ' + res.data.units_unlotted + ' unit(s) left in stock, unlotted.' : '';
+    msg($('addMsg'), 'ok', 'Created ' + n + ' lot' + (n === 1 ? '' : 's') +
+      ' starting ' + (res.data.lot_number || '') + '. Scheduled, not live &mdash; '
+      + 'open them from the queue when you reach them.' + extra);
     // Keep condition, type and duration: a pallet is usually more of the same.
     ['fTitle', 'fCost', 'fRetail', 'fBuyNow', 'fLot', 'fDesc'].forEach(function (id) { $(id).value = ''; });
     $('fQty').value = '1';
