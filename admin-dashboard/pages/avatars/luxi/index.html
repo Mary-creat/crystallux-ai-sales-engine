@@ -189,17 +189,28 @@
         <label for="stAuction">Link to auction (optional)</label>
         <select id="stAuction" class="clx-input"><option value="">— none —</option></select>
       </div>
-      <details>
-        <summary style="cursor:pointer;font-size:13px;color:#6b7280">Streaming transport (Restream / RTMP — set once)</summary>
+      <details open>
+        <summary style="cursor:pointer;font-size:13px;color:#6b7280">Public watch links + RTMP transport</summary>
         <div style="margin-top:8px">
-          <label for="stRtmp">RTMP ingest URL</label>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:8px">
+            A platform you tick above shows in the bid page's LIVE banner, but only becomes a
+            clickable <b>▶ watch</b> link if you paste its public URL here. Leave a field blank
+            and that platform is named without a link.
+          </div>
+          <label for="stWatchTt">Watch link — TikTok</label>
+          <input type="text" id="stWatchTt" class="clx-input" placeholder="https://tiktok.com/@.../live">
+          <label for="stWatchYt" style="margin-top:8px">Watch link — YouTube</label>
+          <input type="text" id="stWatchYt" class="clx-input" placeholder="https://youtube.com/@.../live">
+          <label for="stWatchFb" style="margin-top:8px">Watch link — Facebook</label>
+          <input type="text" id="stWatchFb" class="clx-input" placeholder="https://facebook.com/.../live">
+          <label for="stWatchIg" style="margin-top:8px">Watch link — Instagram</label>
+          <input type="text" id="stWatchIg" class="clx-input" placeholder="https://instagram.com/...">
+          <label for="stWatchX" style="margin-top:8px">Watch link — X</label>
+          <input type="text" id="stWatchX" class="clx-input" placeholder="https://x.com/.../live">
+          <label for="stRtmp" style="margin-top:14px">RTMP ingest URL (set once)</label>
           <input type="text" id="stRtmp" class="clx-input" placeholder="rtmp://live.restream.io/live">
           <label for="stKey" style="margin-top:8px">Stream key</label>
           <input type="text" id="stKey" class="clx-input" placeholder="from Restream / platform">
-          <label for="stWatchYt" style="margin-top:8px">Public watch link — YouTube (optional)</label>
-          <input type="text" id="stWatchYt" class="clx-input" placeholder="https://youtube.com/...">
-          <label for="stWatchTt" style="margin-top:8px">Public watch link — TikTok (optional)</label>
-          <input type="text" id="stWatchTt" class="clx-input" placeholder="https://tiktok.com/@.../live">
         </div>
       </details>
       <div id="streamErr" style="color:#dc2626;font-size:13px;display:none"></div>
@@ -519,9 +530,15 @@ function closeDetail() {
     e.preventDefault(); sErr('');
     var platforms = Array.prototype.slice.call(document.querySelectorAll('.stPlat:checked')).map(function(c){return c.value;});
     if (!platforms.length){ sErr('Pick at least one platform.'); return; }
+    // One field per platform we can broadcast to. A blank field just means that
+    // platform is named in the LIVE banner without a clickable watch link.
     var watch = {};
-    var yt = document.getElementById('stWatchYt').value.trim(); if (yt) watch.youtube = yt;
-    var tt = document.getElementById('stWatchTt').value.trim(); if (tt) watch.tiktok = tt;
+    [['stWatchTt','tiktok'],['stWatchYt','youtube'],['stWatchFb','facebook'],
+     ['stWatchIg','instagram'],['stWatchX','x']].forEach(function(pair){
+      var el = document.getElementById(pair[0]);
+      var v = el ? el.value.trim() : '';
+      if (v) watch[pair[1]] = v;
+    });
     var btn = e.target.querySelector('button[type=submit]'); btn.disabled=true; btn.textContent='Going live…';
     var res = await sPost('/admin/luxi/stream', {
       action:'start', platforms:platforms,
