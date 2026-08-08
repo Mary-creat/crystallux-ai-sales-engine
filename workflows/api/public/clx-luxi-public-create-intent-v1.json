@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.item.json.body || {};\nconst id = String(body.auction_id || '').trim();\nlet maxCents = body.max_cents != null ? parseInt(body.max_cents, 10) : null;\nif (!id) return { json: { ok: false, status: 400, error: 'auction_id required' } };\nif (maxCents == null || isNaN(maxCents) || maxCents <= 0) return { json: { ok: false, status: 400, error: 'a positive max_cents is required' } };\nif (maxCents > 5000000) return { json: { ok: false, status: 422, error: 'max exceeds the $50,000 web limit' } };\nreturn { json: { auction_id: id, max_cents: maxCents } };",
+        "jsCode": "const body = $input.item.json.body || {};\nconst id = String(body.auction_id || '').trim();\nlet maxCents = body.max_cents != null ? parseInt(body.max_cents, 10) : null;\nif (!id) return { json: { ok: false, status: 400, error: 'auction_id required' } };\nif (maxCents == null || isNaN(maxCents) || maxCents <= 0) return { json: { ok: false, status: 400, error: 'a positive max_cents is required' } };\nif (maxCents > 5000000) return { json: { ok: false, status: 422, error: 'max exceeds the $50,000 web limit' } };\nconst handle = String(body.handle || body.email || body.name || '').trim().slice(0, 120);\nreturn { json: { auction_id: id, max_cents: maxCents, handle: handle } };",
         "mode": "runOnceForEachItem"
       },
       "id": "lci-0002",
@@ -74,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let rows = $input.item.json;\nif (!Array.isArray(rows)) rows = rows && rows.id ? [rows] : [];\nif (rows.length === 0) return { json: { ok: false, status: 404, error: 'Auction not found' } };\nconst a = rows[0];\nconst x = $('Extract').item.json;\nif (a.status !== 'open' && a.status !== 'extended') return { json: { ok: false, status: 409, error: 'Auction is not accepting bids' } };\nconst high = a.current_high_bid_cents || 0;\nif (x.max_cents <= high) return { json: { ok: false, status: 422, error: 'Your max must be above the current high bid ($' + (high/100).toFixed(2) + ')' } };\nreturn { json: { ok: true, auction_id: x.auction_id, max_cents: x.max_cents } };",
+        "jsCode": "let rows = $input.item.json;\nif (!Array.isArray(rows)) rows = rows && rows.id ? [rows] : [];\nif (rows.length === 0) return { json: { ok: false, status: 404, error: 'Auction not found' } };\nconst a = rows[0];\nconst x = $('Extract').item.json;\nif (a.status !== 'open' && a.status !== 'extended') return { json: { ok: false, status: 409, error: 'Auction is not accepting bids' } };\nconst high = a.current_high_bid_cents || 0;\nif (x.max_cents <= high) return { json: { ok: false, status: 422, error: 'Your max must be above the current high bid ($' + (high/100).toFixed(2) + ')' } };\nreturn { json: { ok: true, auction_id: x.auction_id, max_cents: x.max_cents, handle: x.handle } };",
         "mode": "runOnceForEachItem"
       },
       "id": "lci-0004",
@@ -136,7 +136,7 @@
         },
         "sendBody": true,
         "specifyBody": "string",
-        "body": "={{ 'amount=' + $json.max_cents + '&currency=cad&capture_method=manual&automatic_payment_methods[enabled]=true&payment_method_options[card][request_incremental_authorization]=if_available&expand[]=latest_charge&metadata[auction_id]=' + $json.auction_id + '&metadata[kind]=luxi_proxy&metadata[max_cents]=' + $json.max_cents }}",
+        "body": "={{ $json.body }}",
         "options": {
           "response": {
             "response": {
@@ -150,14 +150,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1380,
-        220
+        1560,
+        300
       ],
-      "notes": "Requests incremental authorization if the account supports it (IC+ pricing; Visa/MC/Amex/Discover) and expands latest_charge so capture_before comes back. Both are no-ops when unsupported."
+      "notes": "Body is built upstream: a saved card is confirmed off-session here, otherwise this only creates an intent for the page to confirm."
     },
     {
       "parameters": {
-        "jsCode": "const s = $input.item.json || {};\nif (s.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (s.error.message || s.error.type || 'create failed') } };\nif (!s.id || !s.client_secret) return { json: { ok: false, status: 502, error: 'Stripe did not return a PaymentIntent (is STRIPE_SECRET_KEY set?)' } };\nreturn { json: { ok: true, status: 200, payment_intent_id: s.id, client_secret: s.client_secret } };",
+        "jsCode": "const s = $input.item.json || {};\nconst built = $('Build Intent Body').first().json;\n\nif (s.error) {\n  // An off-session confirm can be declined for authentication. That is a\n  // recoverable step, not a failure: hand back the client_secret so the\n  // bidder can complete 3DS. Until they do, the bid is NOT funded and must\n  // not count.\n  const e = s.error;\n  if (e.code === 'authentication_required' && e.payment_intent && e.payment_intent.client_secret) {\n    return { json: { ok: true, status: 200,\n      payment_intent_id: e.payment_intent.id,\n      client_secret: e.payment_intent.client_secret,\n      requires_action: true, used_saved_card: true,\n      message: 'Your bank needs to verify this. One quick step and your bid is in.' } };\n  }\n  if (built.saved) {\n    // Saved card refused for some other reason (expired, lost, insufficient\n    // funds). Do not dead-end the bidder -- let them enter another card.\n    return { json: { ok: false, status: 402, retry_with_new_card: true,\n      error: 'Your saved card was declined (' + (e.decline_code || e.code || 'declined') +\n             '). Please use another card.' } };\n  }\n  return { json: { ok: false, status: 502, error: 'Stripe: ' + (e.message || e.type || 'create failed') } };\n}\n\nif (!s.id) return { json: { ok: false, status: 502,\n  error: 'Stripe did not return a PaymentIntent (is STRIPE_SECRET_KEY set?)' } };\n\n// Saved card, already authorised: no card form, nothing more for the bidder.\nif (s.status === 'requires_capture') {\n  return { json: { ok: true, status: 200, payment_intent_id: s.id,\n    authorized: true, used_saved_card: true } };\n}\nif (s.status === 'requires_action') {\n  return { json: { ok: true, status: 200, payment_intent_id: s.id,\n    client_secret: s.client_secret, requires_action: true, used_saved_card: true,\n    message: 'Your bank needs to verify this. One quick step and your bid is in.' } };\n}\n\n// No saved card: unchanged path, the page collects one.\nreturn { json: { ok: true, status: 200, payment_intent_id: s.id,\n  client_secret: s.client_secret, used_saved_card: false } };",
         "mode": "runOnceForEachItem"
       },
       "id": "lci-0007",
@@ -165,8 +165,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1620,
-        220
+        1780,
+        300
       ]
     },
     {
@@ -226,6 +226,67 @@
         1380,
         460
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_saved_card_secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_handle: $json.handle || '' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lci-0010",
+      "name": "Saved Card Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Resolves customer + payment method server-side. A blank handle or no saved card simply falls through to collecting one."
+    },
+    {
+      "parameters": {
+        "jsCode": "// One place decides whether this bid needs a card form.\nconst v = $('Validate').first().json;\nlet sec = {};\ntry {\n  const b = ($input.item.json || {}).body;\n  sec = Array.isArray(b) ? (b[0] || {}) : (b || {});\n} catch (e) { sec = {}; }\n\nconst usable = sec.ok === true && !sec.banned && sec.customer_id && sec.payment_method_id;\n\nconst common = 'amount=' + v.max_cents + '&currency=cad&capture_method=manual'\n  + '&payment_method_options[card][request_incremental_authorization]=if_available'\n  + '&expand[]=latest_charge'\n  + '&metadata[auction_id]=' + v.auction_id\n  + '&metadata[kind]=luxi_proxy'\n  + '&metadata[max_cents]=' + v.max_cents;\n\nif (!usable) {\n  // No saved card: unchanged behaviour, the page collects one.\n  return { json: { saved: false, auction_id: v.auction_id, max_cents: v.max_cents,\n                   body: common + '&automatic_payment_methods[enabled]=true' } };\n}\n\n// Saved card: create AND confirm in one call. off_session tells Stripe the\n// bidder is not here to answer a challenge -- it may still demand one, which\n// is handled downstream rather than treated as failure.\nreturn { json: { saved: true, auction_id: v.auction_id, max_cents: v.max_cents,\n  body: common\n    + '&customer=' + encodeURIComponent(sec.customer_id)\n    + '&payment_method=' + encodeURIComponent(sec.payment_method_id)\n    + '&off_session=true&confirm=true' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lci-0011",
+      "name": "Build Intent Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
     }
   ],
   "connections": {
@@ -277,7 +338,7 @@
       "main": [
         [
           {
-            "node": "Stripe Create Intent",
+            "node": "Saved Card Lookup",
             "type": "main",
             "index": 0
           }
@@ -307,6 +368,28 @@
         [
           {
             "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saved Card Lookup": {
+      "main": [
+        [
+          {
+            "node": "Build Intent Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Intent Body": {
+      "main": [
+        [
+          {
+            "node": "Stripe Create Intent",
             "type": "main",
             "index": 0
           }

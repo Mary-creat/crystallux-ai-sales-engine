@@ -1,0 +1,745 @@
+{
+  "name": "CLX - LUXI Public Saved Card v1",
+  "id": "wfLuxiPublicSavedCardV1",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "public/luxi/saved-card",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "lsc-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "clx-luxi-public-saved-card-001",
+      "notes": "DEACTIVATED. Public. action=status|start|confirm|forget. Saves a card once via SetupIntent so a bidder does not re-enter it every lot. Returns no Stripe identifiers beyond the client_secret Elements requires."
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst action = String(body.action || 'status').toLowerCase().trim();\nif (['status','start','confirm','forget'].indexOf(action) === -1) {\n  return { json: { ok: false, status: 400, error: 'unknown action' } };\n}\nconst handle = String(body.handle || body.email || body.name || '').trim().slice(0, 120);\nif (!handle) return { json: { ok: false, status: 400, error: 'name or email required' } };\n// A saved card is only offered to someone who gave an email. A display name\n// is not an identity, and attaching a stored card to \"Dave\" would hand the\n// next Dave someone else's card.\nif (action !== 'status' && handle.indexOf('@') === -1) {\n  return { json: { ok: false, status: 400,\n    error: 'An email address is required to save a card for next time.' } };\n}\nreturn { json: {\n  action: action,\n  handle: handle,\n  setup_intent_id: String(body.setup_intent_id || '').trim(),\n  consent: body.consent === true\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lsc-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "status",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "start",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "confirm",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "confirm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "forget",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "forget",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        }
+      },
+      "id": "lsc-0003",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_saved_card",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_handle: $json.handle }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lsc-0004",
+      "name": "Saved Card RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        180
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Masked only: brand, last4, expiry. Never the payment method id."
+    },
+    {
+      "parameters": {
+        "method": "Creates a Customer. luxi_attach_stripe_customer below refuses to overwrite an existing id, so a duplicate here is harmless and never orphans a card.",
+        "url": "https://api.stripe.com/v1/customers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ 'email=' + encodeURIComponent($json.handle) + '&metadata[handle]=' + encodeURIComponent($json.handle) }}"
+      },
+      "id": "lsc-0005",
+      "name": "Stripe Ensure Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        340
+      ],
+      "alwaysOutputData": true,
+      "notes": ""
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_attach_stripe_customer",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_handle: $('Extract').first().json.handle, p_customer_id: ($json.body && $json.body.id) || null }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lsc-0006",
+      "name": "Attach Customer RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        340
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Returns the EXISTING customer id if there is one -- that is the one we use."
+    },
+    {
+      "parameters": {
+        "method": "usage=off_session is what makes the saved card chargeable later without the bidder present. Consent is recorded separately on confirm.",
+        "url": "https://api.stripe.com/v1/setup_intents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ 'customer=' + encodeURIComponent((($('Attach Customer RPC').first().json.body || [{}])[0] || {}).customer_id || '') + '&usage=off_session&automatic_payment_methods[enabled]=true' + '&metadata[handle]=' + encodeURIComponent($('Extract').first().json.handle) }}"
+      },
+      "id": "lsc-0007",
+      "name": "Stripe Create SetupIntent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        340
+      ],
+      "alwaysOutputData": true,
+      "notes": ""
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.stripe.com/v1/setup_intents/' + $json.setup_intent_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lsc-0008",
+      "name": "Stripe Get SetupIntent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        520
+      ],
+      "alwaysOutputData": true,
+      "notes": "Backend-authoritative: the browser claims success, Stripe confirms it."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.stripe.com/v1/payment_methods/' + ((($json.body || {}).payment_method) || 'pm_missing') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lsc-0009",
+      "name": "Stripe Get PaymentMethod",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        520
+      ],
+      "alwaysOutputData": true,
+      "notes": "Brand/last4/expiry for display. Read from Stripe, never from the browser."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_record_saved_card",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_handle: $('Extract').first().json.handle, p_payment_method_id: (($('Stripe Get SetupIntent').first().json.body || {}).payment_method) || null, p_brand: ((($json.body || {}).card) || {}).brand || null, p_last4: ((($json.body || {}).card) || {}).last4 || null, p_exp_month: ((($json.body || {}).card) || {}).exp_month || null, p_exp_year: ((($json.body || {}).card) || {}).exp_year || null, p_consent_text: \"I authorise Crystallux to save this card and to charge it for auctions I win, including when I am not on the site.\" }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lsc-0010",
+      "name": "Record Card RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        520
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Stores the reference and the exact consent wording."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/luxi_forget_saved_card",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_handle: $json.handle }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "lsc-0011",
+      "name": "Forget Card RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        680
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Clears our reference and returns the payment method id so Stripe can detach it."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.stripe.com/v1/payment_methods/' + (((($json.body || [{}])[0]) || {}).detach_payment_method_id || 'pm_missing') + '/detach' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.STRIPE_SECRET_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": ""
+      },
+      "id": "lsc-0012",
+      "name": "Stripe Detach PM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        680
+      ],
+      "alwaysOutputData": true,
+      "notes": "Best effort. Our reference is already gone, so a failure here cannot leave a card that still looks usable to the bidder."
+    },
+    {
+      "parameters": {
+        "jsCode": "function res(name){\n  try { const j = $(name).first().json || {}; return { code: j.statusCode || 0, body: j.body }; }\n  catch (e) { return { code: 0, body: null }; }\n}\nfunction unwrap(v){ if (Array.isArray(v)) return v[0] || {}; return v || {}; }\n\nconst x = $('Extract').first().json;\n\nif (x.action === 'status')  return { json: Object.assign({ status: 200 }, unwrap(res('Saved Card RPC').body)) };\nif (x.action === 'forget')  return { json: Object.assign({ status: 200 }, unwrap(res('Forget Card RPC').body)) };\n\nif (x.action === 'confirm') {\n  const si = res('Stripe Get SetupIntent').body || {};\n  if (si.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (si.error.message || 'lookup failed') } };\n  // The browser tells us it succeeded; Stripe decides whether it did.\n  if (si.status !== 'succeeded') {\n    return { json: { ok: false, status: 402,\n      error: 'Card setup did not complete (status: ' + si.status + ').' } };\n  }\n  const saved = unwrap(res('Record Card RPC').body);\n  if (saved.ok === false) return { json: saved };\n  return { json: { ok: true, status: 200, saved: true } };\n}\n\n// start\nconst cust = res('Stripe Ensure Customer').body || {};\nconst si   = res('Stripe Create SetupIntent').body || {};\nif (si.error) return { json: { ok: false, status: 502, error: 'Stripe: ' + (si.error.message || 'setup failed') } };\nif (!si.client_secret) return { json: { ok: false, status: 502,\n  error: 'Stripe did not return a SetupIntent (is STRIPE_SECRET_KEY set?)' } };\nreturn { json: { ok: true, status: 200,\n  setup_intent_id: si.id,\n  client_secret: si.client_secret,\n  stripe_pk: $env.STRIPE_PUBLISHABLE_KEY || '' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "lsc-0013",
+      "name": "Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 200 }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "id": "lsc-0014",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1820,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [
+          {
+            "node": "Saved Card RPC",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stripe Ensure Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stripe Get SetupIntent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Forget Card RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saved Card RPC": {
+      "main": [
+        [
+          {
+            "node": "Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Ensure Customer": {
+      "main": [
+        [
+          {
+            "node": "Attach Customer RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Customer RPC": {
+      "main": [
+        [
+          {
+            "node": "Stripe Create SetupIntent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Create SetupIntent": {
+      "main": [
+        [
+          {
+            "node": "Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Get SetupIntent": {
+      "main": [
+        [
+          {
+            "node": "Stripe Get PaymentMethod",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Get PaymentMethod": {
+      "main": [
+        [
+          {
+            "node": "Record Card RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Card RPC": {
+      "main": [
+        [
+          {
+            "node": "Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Forget Card RPC": {
+      "main": [
+        [
+          {
+            "node": "Stripe Detach PM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Detach PM": {
+      "main": [
+        [
+          {
+            "node": "Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

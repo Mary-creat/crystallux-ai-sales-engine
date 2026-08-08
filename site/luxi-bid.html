@@ -90,6 +90,7 @@
 var API = 'https://automation.crystallux.org/webhook';
 var AUCTION_ID = new URLSearchParams(location.search).get('a') || '';
 var stripe = null, elements = null, STATE = { auction: null, pi: null };
+var SAVED_CARD = null;   // set once we know this handle has one
 
 function $(id){ return document.getElementById(id); }
 function money(c){ return '$' + ((parseInt(c,10)||0)/100).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -216,11 +217,47 @@ $('continueBtn').addEventListener('click', async function(){
   var maxCents = Math.round(maxDollars*100);
   if (maxCents < STATE.auction.min_next_cents){ showMsg($('step1Err'),'err','Your max must be at least the minimum next bid ('+money(STATE.auction.min_next_cents)+').'); return; }
   var btn = $('continueBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Preparing…';
-  var res = await postJSON('/public/luxi/create-intent', { auction_id: AUCTION_ID, max_cents: maxCents });
+  // The handle is what lets the server find a saved card. Without it every
+  // bid collects a card again, which is the whole problem this solves.
+  var res = await postJSON('/public/luxi/create-intent', { auction_id: AUCTION_ID, max_cents: maxCents, handle: name });
   btn.disabled=false; btn.textContent='Continue to secure payment';
-  if (!res.ok || !res.data || !res.data.ok){ showMsg($('step1Err'),'err',(res.data&&res.data.error)||'Could not start payment.'); return; }
+  if (!res.ok || !res.data || !res.data.ok){
+    // A declined saved card is recoverable: fall through and let them enter
+    // another one rather than dead-ending the bid.
+    var e1 = (res.data && res.data.error) || 'Could not start payment.';
+    showMsg($('step1Err'), 'err', e1);
+    if (res.data && res.data.retry_with_new_card) SAVED_CARD = null;
+    return;
+  }
   STATE.mode = 'hold';
   STATE.pi = { id: res.data.payment_intent_id, max_cents: maxCents, handle: name };
+
+  // Saved card, already authorised by Stripe. No card form at all -- go
+  // straight to registering the bid.
+  if (res.data.authorized && !res.data.requires_action){
+    await finishHold();
+    return;
+  }
+
+  // Saved card, but the bank wants 3DS. NOT a rejection: authenticate, then
+  // register the bid. Until that succeeds the bid is not funded and must not
+  // count, which is why finishHold only runs after a successful result.
+  if (res.data.requires_action && res.data.client_secret){
+    showMsg($('step1Err'), 'ok', res.data.message || 'Your bank needs to verify this.');
+    var act = await stripe.handleNextAction({ clientSecret: res.data.client_secret });
+    if (act.error){
+      showMsg($('step1Err'), 'err', act.error.message || 'Verification failed. Try another card.');
+      SAVED_CARD = null;
+      return;
+    }
+    if (act.paymentIntent && act.paymentIntent.status === 'requires_capture'){
+      hideMsg($('step1Err'));
+      await finishHold();
+      return;
+    }
+    showMsg($('step1Err'), 'err', 'Verification did not complete. Your bid was not placed.');
+    return;
+  }
   mountPay(res.data.client_secret, 'Authorize a hold for your max',
     'Your card is <b>authorized, not charged</b>. We hold up to your max so your bids are guaranteed. If you don\'t win, the hold is released; if you win, only the final price is charged.',
     'Authorize hold & place auto-bid');
@@ -239,6 +276,26 @@ async function startBuyNow(){
   mountPay(res.data.client_secret, 'Complete your purchase',
     'You are buying this item now for <b>' + money(res.data.amount_cents) + '</b>. Your card is charged on confirmation.',
     'Pay & buy now');
+}
+
+// Register the auto-bid against an existing authorisation. Reached either
+// from a saved card (no form) or after the card form is completed.
+async function finishHold(){
+  var res = await postJSON('/public/luxi/confirm-bid', {
+    auction_id: AUCTION_ID, handle: STATE.pi.handle,
+    max_cents: STATE.pi.max_cents, payment_intent_id: STATE.pi.id });
+  if (!res.ok || !res.data || !res.data.ok){
+    showMsg($('step1Err'),'err',(res.data&&res.data.error)||'Could not place your bid. Your hold will auto-release.');
+    return;
+  }
+  $('bidCard').classList.add('hidden');
+  $('payCard').classList.add('hidden');
+  var d = res.data;
+  var m = '✓ Auto-bid placed, max ' + (d.max_display || money(STATE.pi.max_cents)) + '.';
+  m += d.leading ? (' You are the high bidder at ' + d.new_high_display + '!')
+                 : ' We will bid for you up to your max.';
+  showMsg($('successMsg'),'ok', m);
+  refresh();
 }
 
 $('payBtn').addEventListener('click', async function(){

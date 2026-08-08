@@ -89,14 +89,37 @@ def main(argv):
             else:
                 id_owner[wid] = name
 
+        adj = {}
         for src, conn in (d.get('connections') or {}).items():
             if src not in names:
                 problems.append('%s: connection from unknown node %r' % (name, src))
+            adj.setdefault(src, [])
             for out in conn.get('main', []):
                 for c in (out or []):
                     if c.get('node') not in names:
                         problems.append('%s: connection to unknown node %r'
                                         % (name, c.get('node')))
+                    else:
+                        adj[src].append(c['node'])
+
+        # Unreachable nodes. Rewiring a chain can orphan a node while leaving
+        # its own outgoing connections intact, so nothing else here notices --
+        # and an orphaned IF means a validation gate silently stops running.
+        triggers = [n.get('name') for n in nodes
+                    if 'trigger' in n.get('type', '').lower()
+                    or n.get('type', '').endswith('webhook')]
+        if triggers:
+            seen, stack = set(), list(triggers)
+            while stack:
+                cur = stack.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                stack.extend(adj.get(cur, []))
+            for orphan in sorted(names - seen):
+                if orphan:
+                    problems.append('%s: node %r is unreachable from any trigger'
+                                    % (name, orphan))
 
         for n in nodes:
             nname = n.get('name', '?')
