@@ -176,6 +176,9 @@
               }
             }
           ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
         }
       },
       "id": "aco-0006",
@@ -185,7 +188,8 @@
       "position": [
         1320,
         360
-      ]
+      ],
+      "notes": "fallbackOutput: Extract already rejects unknown actions, but an unmatched input here would fall out of the workflow as an empty 200 rather than an error. Belt and braces."
     },
     {
       "parameters": {
@@ -400,6 +404,13 @@
         [
           {
             "node": "Advance RPC",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
             "type": "main",
             "index": 0
           }

@@ -59,9 +59,32 @@ def node_js_ok(src, tmpdir, tag):
     return (r.stderr or '').strip().split('\n')[0][:160]
 
 
+def unguarded_switches(d):
+    """Switch nodes that can silently swallow a request.
+
+    In a responseMode=responseNode workflow, an input matching no Switch branch
+    reaches no Respond node and the caller gets a bodyless 200 -- which reads
+    as a broken endpoint rather than a rejected request. A fallbackOutput
+    routes the miss somewhere instead. Reported as a warning, not a failure:
+    several long-standing workflows have this and blocking on them would just
+    train people to ignore the tool.
+    """
+    if not any(n.get('parameters', {}).get('responseMode') == 'responseNode'
+               for n in d.get('nodes', [])):
+        return []
+    out = []
+    for n in d.get('nodes', []):
+        if n.get('type', '').endswith('.switch'):
+            fb = (n.get('parameters', {}).get('options') or {}).get('fallbackOutput')
+            if fb in (None, 'none'):
+                out.append(n.get('name', '?'))
+    return out
+
+
 def main(argv):
     paths = [p.replace('\\', '/') for p in argv[1:]]
     problems = []
+    warnings = []
     webhook_owner = {}
     id_owner = {}
     checked = 0
@@ -90,6 +113,10 @@ def main(argv):
                 id_owner[wid] = name
 
         adj = {}
+        for sw in unguarded_switches(d):
+            warnings.append('%s: Switch %r has no fallbackOutput; an unmatched '
+                            'input answers with an empty 200' % (name, sw))
+
         for src, conn in (d.get('connections') or {}).items():
             if src not in names:
                 problems.append('%s: connection from unknown node %r' % (name, src))
@@ -159,8 +186,14 @@ def main(argv):
 
     for p in problems:
         print('  ' + p)
+    if warnings:
+        print()
+        print('  warnings (not failures):')
+        for w in warnings:
+            print('    ' + w)
     print()
-    print('%d workflow(s) checked, %d problem(s)' % (checked, len(problems)))
+    print('%d workflow(s) checked, %d problem(s), %d warning(s)'
+          % (checked, len(problems), len(warnings)))
     return 1 if problems else 0
 
 

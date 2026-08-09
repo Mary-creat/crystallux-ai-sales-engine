@@ -135,6 +135,9 @@
               }
             }
           ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
         }
       },
       "id": "lsc-0003",
@@ -144,7 +147,8 @@
       "position": [
         640,
         400
-      ]
+      ],
+      "notes": "fallbackOutput: an unmatched action goes to Respond Error rather than falling out of the workflow as an empty 200."
     },
     {
       "parameters": {
@@ -574,6 +578,63 @@
         1820,
         400
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "lsc-0015",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        530,
+        400
+      ],
+      "notes": "Extract sets ok:false on a bad request. Without this the Switch matches nothing and the caller gets an empty 200."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Bad request' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "lsc-0016",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        620
+      ]
     }
   ],
   "connections": {
@@ -592,7 +653,7 @@
       "main": [
         [
           {
-            "node": "Switch Action",
+            "node": "IF Valid",
             "type": "main",
             "index": 0
           }
@@ -625,6 +686,13 @@
         [
           {
             "node": "Forget Card RPC",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
             "type": "main",
             "index": 0
           }
@@ -735,6 +803,24 @@
         [
           {
             "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid": {
+      "main": [
+        [
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
             "type": "main",
             "index": 0
           }
