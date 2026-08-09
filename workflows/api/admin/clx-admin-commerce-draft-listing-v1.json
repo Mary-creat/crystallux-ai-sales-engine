@@ -1,0 +1,360 @@
+{
+  "name": "CLX - Admin Commerce Draft Listing v1",
+  "id": "wfAdminCommerceDraftListingV1",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/commerce/draft-listing",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "acd-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        360
+      ],
+      "webhookId": "clx-admin-commerce-draft-listing-001",
+      "notes": "DEACTIVATED. Admin-gated. Photo in, DRAFT listing out. Creates nothing -- it fills the Quick add form and the operator approves. commerce_quick_list stays the only way stock is created."
+    },
+    {
+      "parameters": {
+        "jsCode": "const h = $input.item.json.headers || {};\nconst b = $input.item.json.body || {};\nconst auth = h['authorization'] || h['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\n// The page sends a data URL. Split it into the media type and payload Claude\n// wants, and refuse anything that is not an image before it reaches the model.\nconst raw = String(b.image || '').trim();\nif (!raw) return { json: { ok: false, status: 400, error: 'A photo is required' } };\nconst m = raw.match(/^data:(image\\/(?:jpeg|png|webp|gif));base64,(.+)$/);\nif (!m) return { json: { ok: false, status: 400,\n  error: 'Unsupported image. Use a JPEG, PNG, WebP or GIF photo.' } };\n\n// Claude's per-image ceiling is about 5MB; base64 inflates by ~4/3. The page\n// resizes before sending, so this only catches a page that did not.\nconst b64 = m[2];\nif (b64.length > 5 * 1024 * 1024) {\n  return { json: { ok: false, status: 413,\n    error: 'That photo is too large. Try again - the page should shrink it automatically.' } };\n}\n\nconst cost = b.cost_cents != null ? parseInt(b.cost_cents, 10) : null;\nreturn { json: {\n  token: token,\n  media_type: m[1],\n  image_b64: b64,\n  cost_cents: (cost && cost > 0) ? cost : null,\n  hint: String(b.hint || '').slice(0, 300)\n} };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acd-0002",
+      "name": "Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "acd-0008",
+      "name": "IF Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        620,
+        360
+      ],
+      "notes": "A rejected photo must get its real error, not fall through to an empty 200."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "acd-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        360
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "alwaysOutputData: a bad token returns an empty array, which n8n turns into zero items -- Check Admin would never run and the caller would get an empty 200 instead of a 401."
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.user_id || rows.id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\nreturn { json: Object.assign({ ok: true }, $('Extract').first().json) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acd-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "acd-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 1400, temperature: 0.2, system: \"You write liquidation resale listings from a photograph. You are looking at one physical item in a garage that is about to be auctioned live.\\\\n\\\\nReturn ONLY a JSON object, no prose and no code fence, with exactly these keys:\\\\ntitle            short, specific, what a buyer would search for. Brand and model if legible.\\\\ndescription      2-3 sentences. What it is, what condition you can actually SEE, what is included.\\\\ncategory         one of: Appliances, Electronics, Furniture, Patio & Garden, Tools, Home & Kitchen, Toys & Games, Sporting Goods, Fashion, Other\\\\ncondition        one of: new, open_box, used, as_is\\\\nretail_cents     integer, what it costs NEW at retail in CAD cents. Null if you cannot tell.\\\\nbuy_now_cents    integer, a fair liquidation Buy Now price in CAD cents\\\\nstart_bid_cents  integer, a deliberately low opening bid in CAD cents\\\\nreserve_cents    integer, the least it should be allowed to sell for in CAD cents\\\\ndelivery_class   one of: SMALL, STANDARD, LARGE, OVERSIZED\\\\nconfidence       one of: high, medium, low\\\\nnotes            anything the seller should check or disclose. Empty string if nothing.\nsku              short uppercase code from category and item, e.g. APPL-AIRFRY-01\nseo_keywords     array of 5-8 lowercase search terms a buyer would actually type\nsocial_caption   one caption for TikTok, Instagram and Facebook. Under 150 characters, no hashtag spam, no claim you cannot see in the photo\nlive_script      2-3 sentences for the live host to SAY while holding this item. Spoken, not written. Lead with the saving against retail, name the condition honestly, end by pointing at the bid link.\\\\n\\\\nRULES THAT MATTER:\\\\n- Judge condition from the photo alone. If you cannot see the condition, say 'used' and put that uncertainty in notes. Never claim 'new' from a photo unless it is boxed and sealed.\\\\n- Never invent a brand, model number, capacity or feature you cannot see.\\\\n- Liquidation pricing: Buy Now is typically 30-50% of retail, lower for visible wear.\\\\n- start_bid should be a small fraction of Buy Now. A low opening attracts bidders; the reserve is what protects the seller.\\\\n- If an acquisition cost is supplied, reserve must be at or above it. Selling below cost is a loss, and the seller cannot see that mistake until it is made.\\\\n- Set confidence low when the photo is unclear, and say why in notes.\", messages: [{ role: 'user', content: [   { type: 'image', source: { type: 'base64',     media_type: $json.media_type, data: $json.image_b64 } },   { type: 'text', text: \"Write the listing for this item.\"     + ($json.cost_cents ? ('\\nI paid ' + ($json.cost_cents/100).toFixed(2)        + ' CAD per unit for this.') : '')     + ($json.hint ? ('\\nSeller note: ' + $json.hint) : '') } ] }] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "acd-0006",
+      "name": "Claude Draft Listing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        260
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "anthropicApi": {
+          "name": "Claude Anthropic"
+        }
+      },
+      "notes": "Sonnet rather than Haiku: this runs once per item, not per bid, and identifying a product and pricing it is the judgement-heavy step. Cost is negligible at garage volume."
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.item.json || {};\nif (r.error) {\n  return { json: { ok: false, status: 502,\n    error: 'Claude: ' + (r.error.message || r.error.type || 'request failed') } };\n}\nlet text = '';\ntry { text = (r.content || []).map(function(c){ return c.text || ''; }).join('').trim(); }\ncatch (e) { text = ''; }\nif (!text) return { json: { ok: false, status: 502, error: 'No listing came back. Try another photo.' } };\n\n// Models sometimes fence JSON despite instructions. Take the outermost object.\nconst a = text.indexOf('{'), b = text.lastIndexOf('}');\nif (a === -1 || b === -1) return { json: { ok: false, status: 502,\n  error: 'Could not read the listing. Try again.' } };\nlet d;\ntry { d = JSON.parse(text.slice(a, b + 1)); }\ncatch (e) { return { json: { ok: false, status: 502, error: 'Could not read the listing. Try again.' } }; }\n\nfunction cents(v){ const n = parseInt(v, 10); return (isNaN(n) || n < 0) ? null : n; }\nconst COND = ['new','open_box','used','as_is'];\nconst CLASS = ['SMALL','STANDARD','LARGE','OVERSIZED'];\n\nconst cost = $('Check Admin').first().json.cost_cents;\nlet reserve = cents(d.reserve_cents);\nconst notes = [];\nif (d.notes) notes.push(String(d.notes));\n\n// The model is told this, but a listing that sells below cost is the one\n// mistake the seller cannot see until it has happened. Enforce it here too.\nif (cost && (!reserve || reserve < cost)) {\n  reserve = cost;\n  notes.push('Reserve raised to your cost so this cannot sell at a loss.');\n}\n\nlet buyNow = cents(d.buy_now_cents);\nif (cost && buyNow && buyNow <= cost) {\n  notes.push('Suggested Buy Now is at or below what you paid - raise it before listing.');\n}\n\nreturn { json: { ok: true, status: 200, draft: {\n  title: String(d.title || '').slice(0, 200),\n  description: String(d.description || '').slice(0, 2000),\n  category: String(d.category || '').slice(0, 60),\n  condition: COND.indexOf(d.condition) === -1 ? 'used' : d.condition,\n  retail_cents: cents(d.retail_cents),\n  buy_now_cents: buyNow,\n  start_bid_cents: cents(d.start_bid_cents),\n  reserve_cents: reserve,\n  delivery_class: CLASS.indexOf(d.delivery_class) === -1 ? 'STANDARD' : d.delivery_class,\n  sku: String(d.sku || '').slice(0, 40).toUpperCase(),\n  seo_keywords: Array.isArray(d.seo_keywords) ? d.seo_keywords.slice(0, 8).map(String) : [],\n  social_caption: String(d.social_caption || '').slice(0, 300),\n  live_script: String(d.live_script || '').slice(0, 600),\n  confidence: ['high','medium','low'].indexOf(d.confidence) === -1 ? 'low' : d.confidence,\n  notes: notes.join(' ')\n} } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "acd-0007",
+      "name": "Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 200 }}"
+        }
+      },
+      "id": "acd-0009",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1940,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
+      },
+      "id": "acd-0010",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1280,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "main": [
+        [
+          {
+            "node": "IF Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Claude Draft Listing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Draft Listing": {
+      "main": [
+        [
+          {
+            "node": "Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -43,6 +43,22 @@
 .cm-link.show { display:flex; }
 .cm-link input { flex:1; min-width:200px; font-size:12px; padding:6px 9px;
                  border:1px solid #d4d4d8; border-radius:7px; font-family:ui-monospace,monospace; }
+.cm-shot { border:1px dashed var(--color-brand-400,#A78BFA); background:#faf8ff;
+           border-radius:11px; padding:14px 16px; margin-bottom:16px; }
+.cm-shot-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.cm-thumb { width:74px; height:74px; object-fit:cover; border-radius:9px;
+            border:1px solid var(--border,#e5e7eb); display:none; }
+.cm-thumb.show { display:block; }
+.cm-ai { margin-top:12px; display:none; font-size:13px; }
+.cm-ai.show { display:block; }
+.cm-ai-box { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:9px;
+             padding:10px 12px; margin-top:8px; }
+.cm-ai-lbl { font-size:11px; font-weight:700; text-transform:uppercase;
+             letter-spacing:.5px; color:var(--text-muted,#6b7280); margin-bottom:4px; }
+.cm-conf { font-size:11px; font-weight:700; padding:2px 9px; border-radius:99px; }
+.cm-conf.high { background:#dcfce7; color:#166534; }
+.cm-conf.medium { background:#fef3c7; color:#92400e; }
+.cm-conf.low { background:#fee2e2; color:#991b1b; }
 /* On-air strip. Sits above the tabs and stays put, because "am I actually
    broadcasting" is the one thing you must never have to go and check. */
 .cm-onair { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
@@ -98,6 +114,27 @@
           Creates the product, receives the stock and creates the lot in one step.
           The lot starts <b>scheduled</b> &mdash; it only goes live when you open it.
         </div>
+        <div class="cm-shot">
+          <div style="font-weight:700;font-size:14px;margin-bottom:3px">Photograph it instead of typing</div>
+          <div class="cm-hint" style="margin-bottom:10px">
+            Take one clear photo. It fills the form below &mdash; you check the numbers and press Add.
+            Nothing is created until you do.
+          </div>
+          <div class="cm-shot-row">
+            <img id="shotThumb" class="cm-thumb" alt="">
+            <input type="file" id="shotFile" accept="image/*" capture="environment"
+                   style="max-width:230px;font-size:13px">
+            <input type="number" id="shotCost" class="clx-input" style="max-width:150px"
+                   placeholder="Paid per unit (CAD)" min="0" step="0.01">
+            <button type="button" id="shotBtn" class="clx-btn clx-btn-primary" style="width:auto">Read the photo</button>
+          </div>
+          <div class="cm-hint" style="margin-top:7px">
+            Telling it what you paid keeps the suggested reserve at or above your cost.
+          </div>
+          <div class="cm-msg" id="shotMsg"></div>
+          <div class="cm-ai" id="shotAi"></div>
+        </div>
+
         <form id="addForm" class="cm-form" autocomplete="off">
           <div class="full">
             <label for="fTitle">Item *</label>
@@ -328,6 +365,107 @@
     if (!need) { $('fBuyNow').value = ''; updateMargin(); }
   });
 
+  // ── photo intake ────────────────────────────────────────────────
+  // Resized in the browser before upload: a modern phone photo is 4-8MB, which
+  // is slow on a garage connection and over Claude's per-image ceiling once
+  // base64 inflates it by a third.
+  function shrink(file, maxPx){
+    return new Promise(function(resolve, reject){
+      var fr = new FileReader();
+      fr.onerror = function(){ reject(new Error('Could not read that file.')); };
+      fr.onload = function(){
+        var img = new Image();
+        img.onerror = function(){ reject(new Error('That file is not an image.')); };
+        img.onload = function(){
+          var w = img.width, h = img.height;
+          var scale = Math.min(1, maxPx / Math.max(w, h));
+          var c = document.createElement('canvas');
+          c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.82));
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  var shotFile = $('shotFile');
+  shotFile.addEventListener('change', async function(){
+    hide($('shotMsg'));
+    var f = this.files && this.files[0];
+    if (!f) return;
+    try {
+      var url = await shrink(f, 1024);
+      $('shotThumb').src = url;
+      $('shotThumb').classList.add('show');
+    } catch (e) { msg($('shotMsg'), 'err', e.message); }
+  });
+
+  $('shotBtn').addEventListener('click', async function(){
+    hide($('shotMsg'));
+    var f = shotFile.files && shotFile.files[0];
+    if (!f){ msg($('shotMsg'), 'err', 'Choose or take a photo first.'); return; }
+    var b = this; b.disabled = true; var lbl = b.textContent; b.textContent = 'Reading...';
+    try {
+      var dataUrl = await shrink(f, 1024);
+      var res = await post('/admin/commerce/draft-listing', {
+        image: dataUrl, cost_cents: toCents($('shotCost').value) });
+      b.disabled = false; b.textContent = lbl;
+      if (!res.ok || !res.data || !res.data.ok){
+        msg($('shotMsg'), 'err', (res.data && res.data.error) || 'Could not read that photo.');
+        return;
+      }
+      applyDraft(res.data.draft || {});
+    } catch (e) {
+      b.disabled = false; b.textContent = lbl;
+      msg($('shotMsg'), 'err', e.message || 'Could not read that photo.');
+    }
+  });
+
+  function dollars(c){ return (c == null) ? '' : (c / 100).toFixed(2); }
+
+  function applyDraft(d){
+    $('fTitle').value    = d.title || '';
+    $('fDesc').value     = d.description || '';
+    $('fCategory').value = d.category || '';
+    if (d.condition) $('fCondition').value = d.condition;
+    if (d.retail_cents    != null) $('fRetail').value  = dollars(d.retail_cents);
+    if (d.buy_now_cents   != null) $('fBuyNow').value  = dollars(d.buy_now_cents);
+    if (d.start_bid_cents != null) $('fStart').value   = dollars(d.start_bid_cents);
+    if (d.reserve_cents   != null) $('fReserve').value = dollars(d.reserve_cents);
+    if (d.sku)            $('fLot').value = d.sku;
+    // Cost was typed above the photo; carry it into the form so margin is right.
+    var c = toCents($('shotCost').value);
+    if (c) $('fCost').value = dollars(c);
+    updateMargin();
+
+    // Everything below is a suggestion, shown so it can be judged rather than
+    // trusted. Prices especially -- a model guessing at resale value from one
+    // photo is a starting point, not an appraisal.
+    var conf = d.confidence || 'low';
+    var box = $('shotAi');
+    var html = '<div class="cm-row"><b>Filled in below.</b>' +
+      '<span class="cm-conf ' + esc(conf) + '">' + esc(conf) + ' confidence</span>' +
+      '<span class="cm-hint">Check the prices before adding.</span></div>';
+    if (d.notes)
+      html += '<div class="cm-ai-box" style="border-color:#fcd34d;background:#fffbeb">' +
+              '<div class="cm-ai-lbl">Worth checking</div>' + esc(d.notes) + '</div>';
+    if (d.live_script)
+      html += '<div class="cm-ai-box"><div class="cm-ai-lbl">Say this on air</div>' +
+              esc(d.live_script) + '</div>';
+    if (d.social_caption)
+      html += '<div class="cm-ai-box"><div class="cm-ai-lbl">Social caption</div>' +
+              esc(d.social_caption) + '</div>';
+    if (d.seo_keywords && d.seo_keywords.length)
+      html += '<div class="cm-ai-box"><div class="cm-ai-lbl">Search terms</div>' +
+              esc(d.seo_keywords.join(', ')) + '</div>';
+    box.innerHTML = html;
+    box.classList.add('show');
+    msg($('shotMsg'), 'ok', 'Draft ready. Review the prices, then Add to queue.');
+    $('fTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   // ── add ─────────────────────────────────────────────────────────
   $('addForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -372,6 +510,10 @@
     // Keep condition, type and duration: a pallet is usually more of the same.
     ['fTitle', 'fCost', 'fRetail', 'fBuyNow', 'fLot', 'fDesc'].forEach(function (id) { $(id).value = ''; });
     $('fQty').value = '1';
+    $('shotAi').classList.remove('show');
+    $('shotThumb').classList.remove('show');
+    shotFile.value = '';
+    hide($('shotMsg'));
     updateMargin();
     $('fTitle').focus();
     // Stock just changed; do not let the Inventory tab lie about it.
