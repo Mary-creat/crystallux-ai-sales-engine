@@ -39,6 +39,17 @@
 .cm-acts { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
 .cm-btn-live { background:#dc2626 !important; color:#fff !important; border-color:#dc2626 !important; }
 .cm-clock { font-variant-numeric:tabular-nums; font-weight:700; }
+/* On-air strip. Sits above the tabs and stays put, because "am I actually
+   broadcasting" is the one thing you must never have to go and check. */
+.cm-onair { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+            padding:10px 14px; border-radius:11px; margin-bottom:16px; font-size:13.5px; }
+.cm-onair.live { background:#161616; color:#fff; }
+.cm-onair.off  { background:#f9fafb; color:#6b7280; border:1px dashed #e5e7eb; }
+.cm-onair a { color:inherit; font-weight:700; }
+.cm-dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.cm-dot.on  { background:#ff4d4f; animation:cmpulse 1.6s ease-in-out infinite; }
+.cm-dot.off { background:#9ca3af; }
+@keyframes cmpulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
 .cm-lot-head { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; }
 .cm-lotno { font-weight:800; font-size:15px; }
 .cm-money { font-variant-numeric:tabular-nums; }
@@ -63,6 +74,10 @@
       </div>
       <div id="clxTopbarUser"></div>
     </header>
+
+    <div id="onAir" class="cm-onair off">
+      <span class="cm-dot off"></span><span>Checking broadcast status&hellip;</span>
+    </div>
 
     <div class="cm-tabs">
       <button class="cm-tab on" data-panel="add">Quick add</button>
@@ -237,6 +252,38 @@
     try { d = t ? JSON.parse(t) : null; } catch (_) {}
     return { ok: r.ok, status: r.status, data: d };
   }
+
+  // ── on-air strip ────────────────────────────────────────────────
+  // stream-status is public, so no token is needed. Deliberately read-only:
+  // starting and stopping a broadcast stays on the LUXI page, and copying
+  // that modal here is the duplication we just removed.
+  async function loadOnAir(){
+    var el = $('onAir');
+    var r;
+    try {
+      r = await fetch(API + '/public/luxi/stream-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      r = await r.json();
+    } catch (e) { r = null; }
+
+    if (!r || !r.live){
+      el.className = 'cm-onair off';
+      el.innerHTML = '<span class="cm-dot off"></span>' +
+        '<span>Not broadcasting.</span>' +
+        '<a href="/pages/avatars/luxi/index.html">Go live on LUXI &rarr;</a>';
+      return;
+    }
+    var plats = (r.platforms || []).map(function(x){ return String(x).replace('_live',''); });
+    el.className = 'cm-onair live';
+    el.innerHTML = '<span class="cm-dot on"></span>' +
+      '<b>ON AIR</b>' +
+      (r.title ? '<span>' + esc(r.title) + '</span>' : '') +
+      (plats.length ? '<span style="opacity:.75">' + esc(plats.join(' · ')) + '</span>' : '') +
+      '<a href="/pages/avatars/luxi/index.html" style="margin-left:auto;opacity:.8">Stream controls &rarr;</a>';
+  }
+  loadOnAir();
+  // Slow poll: this is reassurance, not telemetry, and a show runs for hours.
+  setInterval(loadOnAir, 30000);
 
   // ── tabs ────────────────────────────────────────────────────────
   Array.prototype.slice.call(document.querySelectorAll('.cm-tab')).forEach(function (b) {
