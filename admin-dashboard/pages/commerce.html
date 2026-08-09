@@ -39,6 +39,10 @@
 .cm-acts { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
 .cm-btn-live { background:#dc2626 !important; color:#fff !important; border-color:#dc2626 !important; }
 .cm-clock { font-variant-numeric:tabular-nums; font-weight:700; }
+.cm-link { display:none; margin-top:8px; gap:6px; align-items:center; }
+.cm-link.show { display:flex; }
+.cm-link input { flex:1; min-width:200px; font-size:12px; padding:6px 9px;
+                 border:1px solid #d4d4d8; border-radius:7px; font-family:ui-monospace,monospace; }
 /* On-air strip. Sits above the tabs and stays put, because "am I actually
    broadcasting" is the one thing you must never have to go and check. */
 .cm-onair { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
@@ -445,6 +449,7 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
+  function buyerUrl(id){ return 'https://crystallux.org/luxi-bid.html?a=' + id; }
   var QUEUE = [];
 
   function renderQueue(){
@@ -485,6 +490,14 @@
           '<div class="cm-prices">' + pr.join('') + '</div>' +
           (l.inventory_item_id ? '' : '<div class="cm-warn">No stock linked - selling this cannot deduct inventory.</div>') +
           '<div class="cm-acts">' + acts.join('') + '</div>' +
+          // Always present, revealed on Copy. If the clipboard is refused the
+          // operator can still select it by hand -- mid-show is the worst
+          // possible moment to have no link.
+          '<div class="cm-link" id="lnk-' + esc(l.id) + '">' +
+            '<input type="text" readonly value="' + esc(buyerUrl(l.id)) + '" onclick="this.select()">' +
+            '<a href="' + esc(buyerUrl(l.id)) + '" target="_blank" rel="noopener noreferrer" ' +
+              'class="clx-btn clx-btn-secondary" style="width:auto;padding:6px 11px;font-size:12px">Open</a>' +
+          '</div>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -506,10 +519,23 @@
 
     Array.prototype.slice.call(document.querySelectorAll('.cm-copy')).forEach(function(b){
       b.addEventListener('click', async function(){
-        var url = 'https://crystallux.org/luxi-bid.html?a=' + b.dataset.id;
-        try { await navigator.clipboard.writeText(url);
-              msg($('queueMsg'), 'ok', 'Buyer link copied. Paste it into the live chat.'); }
-        catch(e){ msg($('queueMsg'), 'err', url); }
+        var url = buyerUrl(b.dataset.id);
+        // Reveal it first, so the link is on screen whether or not the
+        // clipboard cooperates.
+        var row = document.getElementById('lnk-' + b.dataset.id);
+        if (row) row.classList.add('show');
+        var ok = false;
+        try { await navigator.clipboard.writeText(url); ok = true; }
+        catch (e) {
+          // Older fallback; still refused in some contexts, hence the field.
+          try {
+            var inp = row && row.querySelector('input');
+            if (inp) { inp.select(); ok = document.execCommand('copy'); }
+          } catch (e2) { ok = false; }
+        }
+        msg($('queueMsg'), 'ok', ok
+          ? 'Buyer link copied. Paste it into the live chat.'
+          : 'Copy was blocked by the browser - the link is shown below, select and copy it.');
       });
     });
   }
