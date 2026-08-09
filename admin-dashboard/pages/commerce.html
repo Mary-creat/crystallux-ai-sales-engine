@@ -66,6 +66,7 @@
 
     <div class="cm-tabs">
       <button class="cm-tab on" data-panel="add">Quick add</button>
+      <button class="cm-tab" data-panel="stock">Inventory</button>
       <button class="cm-tab" data-panel="queue">Live sale queue</button>
       <button class="cm-tab" data-panel="orders">Orders</button>
     </div>
@@ -160,6 +161,16 @@
       </div>
     </section>
 
+    <!-- ══ Inventory ══════════════════════════════════════════════ -->
+    <section class="cm-panel" id="panel-stock">
+      <div class="cm-row" style="margin-bottom:12px">
+        <button class="clx-btn clx-btn-secondary" style="width:auto" id="stockRefresh">Refresh</button>
+        <span id="stockCount" class="cm-hint"></span>
+      </div>
+      <div id="stockTotals" class="cm-prices" style="margin-bottom:14px"></div>
+      <div id="stockBody"></div>
+    </section>
+
     <!-- ══ Queue ══════════════════════════════════════════════════ -->
     <section class="cm-panel" id="panel-queue">
       <div class="cm-row" style="margin-bottom:12px">
@@ -234,6 +245,7 @@
       document.querySelectorAll('.cm-panel').forEach(function (x) { x.classList.remove('on'); });
       b.classList.add('on');
       $('panel-' + b.dataset.panel).classList.add('on');
+      if (b.dataset.panel === 'stock') loadStock();
       if (b.dataset.panel === 'queue') loadQueue();
       if (b.dataset.panel === 'orders') loadOrders();
     });
@@ -311,9 +323,66 @@
     $('fQty').value = '1';
     updateMargin();
     $('fTitle').focus();
+    // Stock just changed; do not let the Inventory tab lie about it.
+    if (typeof loadStock === 'function') loadStock();
   });
 
   // ── queue ───────────────────────────────────────────────────────
+  // ── Inventory ───────────────────────────────────────────────────
+  var COND = { new:'New', open_box:'Open Box', used:'Used', as_is:'As-Is' };
+  var COND_BG = { new:'#dcfce7', open_box:'#eff6ff', used:'#f3f4f6', as_is:'#fef3c7' };
+  var COND_FG = { new:'#166534', open_box:'#1d4ed8', used:'#374151', as_is:'#92400e' };
+
+  async function loadStock(){
+    $('stockBody').innerHTML = '<div class="cm-empty">Loading...</div>';
+    var res = await post('/admin/commerce/catalog', { action: 'inventory' });
+    if (!res.ok || !res.data || !res.data.ok){
+      $('stockBody').innerHTML = '<div class="cm-empty">' +
+        esc((res.data && res.data.error) || 'Could not load inventory.') + '</div>';
+      return;
+    }
+    var d = res.data, items = d.items || [];
+    $('stockCount').textContent = items.length + ' stock line' + (items.length === 1 ? '' : 's');
+    // What is on the floor, what is spoken for, and what it cost -- the three
+    // numbers that decide whether to buy another pallet.
+    $('stockTotals').innerHTML =
+      '<span class="cm-price"><span>units on hand</span> <b>' + (d.units_on_hand || 0) + '</b></span>' +
+      '<span class="cm-price"><span>available</span> <b>' + (d.units_available || 0) + '</b></span>' +
+      '<span class="cm-price"><span>reserved</span> <b>' + (d.units_reserved || 0) + '</b></span>' +
+      '<span class="cm-price"><span>cash tied up</span> <b>' + money(d.stock_cost_cents) + '</b></span>';
+
+    if (!items.length){
+      $('stockBody').innerHTML = '<div class="cm-empty">No stock yet. Add products on the Quick add tab.</div>';
+      return;
+    }
+    $('stockBody').innerHTML = items.map(function(i){
+      var pr = i.products || {};
+      var avail = (i.quantity_on_hand || 0) - (i.quantity_reserved || 0);
+      var c = i.condition || 'used';
+      var bits = [];
+      bits.push('<span class="cm-price"><span>on hand</span> <b>' + (i.quantity_on_hand || 0) + '</b></span>');
+      if (i.quantity_reserved) bits.push('<span class="cm-price"><span>reserved</span> <b>' + i.quantity_reserved + '</b></span>');
+      bits.push('<span class="cm-price"><span>available</span> <b>' + avail + '</b></span>');
+      bits.push('<span class="cm-price"><span>cost/unit</span> <b>' + money(i.acquisition_cost_cents) + '</b></span>');
+      if (pr.retail_reference_cents) bits.push('<span class="cm-price"><span>retail ref</span> <b>' + money(pr.retail_reference_cents) + '</b></span>');
+      return '<div class="cm-lot' + (avail <= 0 ? ' is-done' : '') + '">' +
+        '<div class="cm-lotnum">' + esc(i.lot_code || '') + '</div>' +
+        '<div class="cm-lotbody">' +
+          '<div class="cm-lot-head">' +
+            '<span class="cm-lottitle">' + esc(pr.title || 'Untitled') + '</span>' +
+            '<span class="cm-pill" style="background:' + (COND_BG[c] || '#f3f4f6') +
+              ';color:' + (COND_FG[c] || '#374151') + '">' + esc(COND[c] || c) + '</span>' +
+          '</div>' +
+          '<div class="cm-prices">' + bits.join('') + '</div>' +
+          (avail <= 0 ? '<div class="cm-warn">Nothing available &mdash; sold out or fully reserved.</div>' : '') +
+          '<div class="cm-meta">' + esc(pr.category || 'Uncategorised') +
+            ' &middot; ' + esc(String(i.inventory_source || '').toLowerCase().replace('_', ' ')) + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  $('stockRefresh').addEventListener('click', loadStock);
+
   var LOT_STYLE = {
     scheduled: { bg:'#eff6ff', fg:'#1d4ed8', label:'Scheduled', cls:'is-next' },
     open:      { bg:'#fee2e2', fg:'#991b1b', label:'LIVE NOW',  cls:'is-live' },
