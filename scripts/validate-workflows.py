@@ -143,10 +143,17 @@ def main(argv):
                     continue
                 seen.add(cur)
                 stack.extend(adj.get(cur, []))
+            notes_by_name = {n.get('name'): (n.get('notes') or '') for n in nodes}
             for orphan in sorted(names - seen):
-                if orphan:
-                    problems.append('%s: node %r is unreachable from any trigger'
-                                    % (name, orphan))
+                if not orphan:
+                    continue
+                # An orphan annotated as intentional is a test harness or a
+                # retired branch, not a mistake. Anything else is reported.
+                note = notes_by_name.get(orphan, '').upper()
+                if 'TEST HARNESS' in note or 'DELIBERATELY DISCONNECTED' in note:
+                    continue
+                problems.append('%s: node %r is unreachable from any trigger'
+                                % (name, orphan))
 
         for n in nodes:
             nname = n.get('name', '?')
