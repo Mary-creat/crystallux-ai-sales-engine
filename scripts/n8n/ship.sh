@@ -151,11 +151,22 @@ if [ "$EXISTS_HTTP" = "200" ]; then
   PUT_BODY=$(python3 -c "
 import json, sys
 d = json.load(open('${WF_PATH}', encoding='utf-8'))
+# n8n's UI exports settings keys its own REST API then refuses -- binaryMode
+# and availableInMCP are two. Sending them verbatim earns
+# 'settings must NOT have additional properties' (HTTP 400) and drops every
+# update to the slower CLI fallback. Send only what the API accepts; the file
+# keeps whatever n8n wrote.
+ALLOWED = {'executionOrder', 'saveDataErrorExecution', 'saveDataSuccessExecution',
+           'saveManualExecutions', 'saveExecutionProgress', 'executionTimeout',
+           'errorWorkflow', 'timezone', 'callerPolicy', 'callerIds'}
+settings = {k: v for k, v in (d.get('settings') or {}).items() if k in ALLOWED}
+if not settings:
+    settings = {'executionOrder': 'v1'}
 out = {
     'name': d.get('name'),
     'nodes': d.get('nodes', []),
     'connections': d.get('connections', {}),
-    'settings': d.get('settings', {'executionOrder': 'v1'})
+    'settings': settings
 }
 print(json.dumps(out))
 " 2>/dev/null)
