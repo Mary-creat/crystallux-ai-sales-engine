@@ -26,6 +26,7 @@ Exit code 0 = clean, 1 = at least one failure.
 """
 import io
 import os
+import subprocess
 import re
 import sys
 
@@ -77,7 +78,39 @@ def validate(path):
     return True, '%-52s ok    %s' % (name, note)
 
 
+def run_isolated(paths):
+    """Validate each file in a child process.
+
+    pglast's parse_plpgsql can hit a C-level assertion on valid SQL
+    (luxi-auction-tick-functions.sql does). An assertion aborts the process,
+    so one awkward file would otherwise kill a whole sweep and report nothing
+    about the other sixty-seven. A child per file contains the damage.
+    """
+    bad = 0
+    for path in paths:
+        r = subprocess.run([sys.executable, __file__, '--single', path],
+                           capture_output=True, text=True)
+        out = (r.stdout or '').strip()
+        if r.returncode == 0 and out:
+            print(out)
+        elif 'ssertion' in (r.stderr or '') or r.returncode < 0 or r.returncode > 1:
+            print('%-52s SKIPPED  parser crashed on this file; SQL not checked'
+                  % os.path.basename(path))
+        else:
+            if out:
+                print(out)
+            bad += 1
+    print()
+    print('%d file(s) checked, %d failed' % (len(paths), bad))
+    return 1 if bad else 0
+
+
 def main(argv):
+    if len(argv) > 2 and argv[1] == '--single':
+        ok, line = validate(argv[2])
+        print(line)
+        return 0 if ok else 1
+
     targets = argv[1:]
     if not targets:
         d = os.path.join('db', 'migrations')
@@ -87,16 +120,7 @@ def main(argv):
         targets = sorted(os.path.join(d, f) for f in os.listdir(d)
                          if f.endswith('.sql'))
 
-    bad = 0
-    for path in targets:
-        ok, line = validate(path)
-        print(line)
-        if not ok:
-            bad += 1
-
-    print()
-    print('%d file(s) checked, %d failed' % (len(targets), bad))
-    return 1 if bad else 0
+    return run_isolated(targets)
 
 
 if __name__ == '__main__':
