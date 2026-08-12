@@ -32,6 +32,36 @@ Living journal of build progress. Updated at the end of every Claude Code sessio
 
 ## Session log
 
+## 2026-08-09 → 08-11 — Commerce engine built end to end; LUXI can sell real stock
+
+### What shipped
+- **Phase-1 commerce schema** — products, inventory, immutable ledger, reservations, orders, order items, bid audit, plus `tenant_id`/`seller_id`/`warehouse_id` everywhere. **No `listings` table**: `auctions` already carried listing_type, reserve and buy-now price, so a second sale record would only have given status two places to drift.
+- **Payments hardened.** Fixed a settle-cron double capture (`FOR UPDATE SKIP LOCKED` + atomic claim), made `captured` terminal so a late worker cannot mark collected money as failed, and stopped guessing the authorization deadline — Stripe's real `capture_before` is read off the charge. Saved cards via SetupIntent with 3DS recovery.
+- **Payment → order → inventory** wired. A captured auction payment and a Buy Now both create an order, decrement stock and write the ledger, idempotent on the payment intent.
+- **Admin Commerce console** — Quick add, Inventory, Live sale queue, Orders, on-air strip. **Photograph an item and Claude drafts the listing** (title, description, prices, SKU, SEO, social caption, live script) into the same Quick add form. It creates nothing; `commerce_quick_list` stays the only path that makes stock.
+- **Event spine** (`order.paid`) and a **provider-agnostic fulfilment layer** so Eazer is one adapter later, not a data model under deadline.
+- **Two validators** — `scripts/validate-workflows.py` and `scripts/validate-migrations.py`.
+
+### Bugs found by using it, not by reading it
+- **Quantity 5 created ONE lot that sold all five units** and booked £250 of cost against £157 of revenue. Found because Mary typed a real air fryer with a real quantity.
+- **Reserve vs start bid were entered backwards** — a $1 reserve on a $50 item. Labels rewritten.
+- **The queue had no way to open a lot.** Lots are created `scheduled` on purpose, but nothing could open one, so a loaded queue could never be sold.
+- **LUXI's "+ New auction" created lots with no stock behind them** — sellable, unable to deduct inventory. Now a link to Commerce.
+- **The empty-200 pattern, four separate times.** Documented in CLAUDE.md.
+
+### What got unblocked / decided
+- **`clients` is the tenant of record.** `commerce_tenants` had been introduced beside it; it is now a commerce profile hanging off a client. Caught only because Mary said multi-tenancy already existed.
+- **Restream's incremental authorization needs IC+ pricing** — verified in Stripe's docs, so raise-a-max uses replace-then-cancel.
+- **EAZA is Eazer's 24/7 public face**, not a blocked placeholder; most of its remit needs no Eazer API.
+- **The social publishers are stubs.** Six workflows exist; the code says `STUB: replace with real API call once developer app approved`. Nothing posts.
+
+### What Mary needs to do next
+- **Sell one thing.** 12/12 migrations applied, 326 workflows validated, 16 LUXI workflows active — and nothing has ever been sold through it.
+- Anthropic top-up (unblocks outreach *and* photo intake), then Restream Pro, HeyGen, platform API keys.
+
+### Open questions
+- Is Apollo still strategic? `clx-lead-import` was reconnected to it (finishing CRIT-1), but Lead Research v2 may supersede that path.
+
 ## 2026-08-08 — LUXI live end-to-end; found why live workflows kept drifting from the repo
 
 ### What shipped

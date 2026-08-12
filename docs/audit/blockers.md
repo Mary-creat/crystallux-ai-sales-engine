@@ -6,6 +6,40 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0af. Commerce engine — DEPLOYED, nothing sold yet (2026-08-11)
+
+12/12 migrations applied, 326 workflows validated clean, 16 LUXI workflows active. The
+whole chain is live: photograph → listing → lot → Go live → Stripe → order → inventory →
+fulfilment. **No sale has ever completed through it.** That is the only remaining unknown
+and it needs Mary, not code.
+
+**Nothing is blocked on Claude.** Everything below is a credential or a decision.
+
+| Need | For | Cost |
+|---|---|---|
+| **Anthropic top-up** | outreach copy **and** photo intake — both stop when credits run out | ~$158 |
+| Restream Professional | 5-platform broadcast. One platform needs nothing | $39/mo |
+| HeyGen + Avatar ID + R2 | LUXI on camera. Until then Mary hosts | ~$29/mo |
+| ElevenLabs Voice ID | LUXI's voice | ~$22/mo |
+| TikTok / Meta / YouTube / X API | **the publishers are STUBS** — approval *and* real code | free, slow |
+| Eazer API + webhook secret | delivery. Layer built, adapter not. Pickup works today | — |
+| Stripe Connect | paying other sellers | — |
+
+**Test mode:** the Sales Engine sender still writes to `+clxtest@gmail.com` — it cannot
+email a real prospect. **Commerce is NOT in test mode**: Stripe is on live keys and a Buy
+Now takes real money.
+
+**Untested, needs Mary:** one real sale · auction capture · saved-card reuse · 3DS ·
+refund returns stock · pickup fulfilment.
+
+**Known and deliberately not fixed:** 8 workflows have a `Switch` with no `fallbackOutput`
+(unmatched input → empty 200), and ~122 have `validate_session` without `alwaysOutputData`
+(bad token → empty 200 instead of 401). Both are pre-existing, both are surfaced by
+`scripts/validate-workflows.py`, and fixing them means re-shipping 122 workflows against
+live traffic — a decision on its own terms.
+
+---
+
 ## 0ae. Restream auto-fill — built, gated on Mary's Restream account (added 2026-08-08)
 
 `clx-admin-luxi-restream-channels-v1` (`2694c93`) reads the operator's Restream account so **Go Live** stops asking for five hand-pasted URLs. Ships `active: false`.

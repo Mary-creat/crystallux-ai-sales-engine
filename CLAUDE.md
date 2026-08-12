@@ -7,7 +7,8 @@
 1. **Handbook before chat.** When in doubt about a feature, decision, schema, or workflow behaviour, **read the handbook**. Do not infer from chat — chat gets compacted, the handbook does not.
 2. **Write decisions back to the handbook.** Any non-trivial decision made in chat must be filed into the relevant handbook section before the session ends, otherwise it disappears at context limit.
 3. **Build on what exists.** Don't ship parallel implementations. Reuse `clxAuth`, `clxApi`, `clxComp` (admin), `clxApi`, `clxComp` (client). Reuse the migration patterns in `docs/architecture/migrations/`. Reuse the workflow patterns in `workflows/api/`.
-4. **Don't break what works.** The 7 protected v2/v3 production workflows must not be touched without explicit instruction (Lead Research v2, Campaign Router v2, Outreach Generation v2, Outreach Sender v2, Pipeline Update v2, Reply Ingestion v1, Booking v2).
+4. **Don't break what works.** The protected production workflows must not be touched without explicit instruction: **Lead Import**, Lead Research v2, **Lead Scoring v2**, Campaign Router v2, Outreach Generation v2, Outreach Sender v2, Pipeline Update v2, Reply Ingestion v1, Booking v2.
+   > This list said 7 until 2026-08-11 and omitted Lead Import and Lead Scoring v2, while `docs/journal/CRYSTALLUX_STATUS.md` said 9 and included them. Lead Import is **the only workflow deliberately left active in production** — see `docs/security/PRE_LAUNCH_CHECKLIST.md`. Two lists disagreeing about what is untouchable is how something untouchable gets touched.
 5. **Respect the dormant-by-default policy.** New workflows ship `active: false`. Activation is per-client + per-tier, applied by Mary in production.
 
 ## Context compaction strategy
@@ -38,6 +39,20 @@ Claude has no memory between sessions. Within a session, context compresses. To 
 - `client-dashboard/` — Cloudflare Pages site for `app.crystallux.org`. Pages: overview, leads, campaigns, bookings, activity, billing, settings.
 - `site/` — marketing site at `crystallux.org` (login, industry pages, etc.).
 - `dashboard/` — **legacy** single-page dashboard (4,578 lines). Source for features being ported into the split admin/client dashboards. Don't develop net-new here.
+### Commerce / LUXI live selling (built 2026-08-08 → 08-11)
+- **Admin console:** `admin-dashboard/pages/commerce.html` — Quick add (photograph an
+  item, Claude drafts the listing), Inventory, Live sale queue, Orders. The LUXI page
+  is the *broadcast* console only; listing anything happens here.
+- **Schema:** `db/migrations/commerce-*.sql` — products, inventory, immutable ledger,
+  reservations, orders, event spine, fulfilment. `auctions` remains the single sale
+  record; there is deliberately no `listings` table.
+- **The invariant:** bidding reserves nothing; winning or starting a Buy Now reserves;
+  payment consumes; failure releases. Overselling is prevented by `SELECT ... FOR
+  UPDATE` inside `commerce_reserve_stock` and `commerce_fulfil_paid_sale`, not by
+  application code remembering to check.
+- **`clients` is the tenant of record.** `commerce_tenants` is a commerce profile
+  hanging off it, not a second tenant root.
+
 - `workflows/` — 52 n8n workflow JSONs (top-level = backend pipeline workflows; `workflows/api/admin/` and `workflows/api/client/` = the 18 dashboard webhooks).
 - `docs/architecture/migrations/` — every SQL migration applied to Supabase, in chronological order.
 - `tests/audit/dashboard-audit.js` — Playwright audit harness.
@@ -48,14 +63,17 @@ Claude has no memory between sessions. Within a session, context compresses. To 
 
 ## Current branch + recent commits
 
-- **Branch:** `scale-sprint-v1`
+- **Branch:** `main`. Work landed directly on `main` from 2026-08-08 onward —
+  `scale-sprint-v1` was merged and is no longer the working branch.
 - **Most recent commits (newest first):**
-  - `696d372` — Re-audit verification: CSP fix landed, 10/10 admin pages pass
-  - `1d7f7dd` — CSP cleanup for marketing site
-  - `de446f5` — Audit harness + workflow allOf() fix + CSP cleanup + migrations
-  - `187430a` — Polish layer commit 3: 7 client pages + Merge fix on 2 client wfs
-  - `15231e0` — Polish layer commit 2: 10 admin pages + revert diagnostic
-  - `fbfaee0` — Polish layer commit 1: shared CSS tokens + components.js helpers + SVG nav
+  - `68fad4a` — fix(deploy): ship.sh sent settings keys the n8n API rejects
+  - `03e0525` — fix(workflows): finish CRIT-1 — the live lead import was running on mock data
+  - `3e0d738` — fix(tools): one awkward file no longer kills the whole migration sweep
+  - `bd88972` — feat(commerce): provider-agnostic fulfilment layer — Eazer drops in later
+  - `18deeaf` — feat(commerce): photograph an item instead of typing thirteen fields
+  - `6386d09` — fix(commerce): buyer link no longer depends on the clipboard
+  - `742a7e0` — fix(luxi): saved-card endpoint answered a bad request with an empty 200
+  - `bcf664a` — feat(commerce): on-air strip, so a live show never leaves this page
 
 ## Test data
 
@@ -66,16 +84,29 @@ Claude has no memory between sessions. Within a session, context compresses. To 
 
 ## Key conventions
 
-- **Branch:** all work on `scale-sprint-v1`. Mary merges to `main` herself.
+- **Branch:** `main`. `scale-sprint-v1` was merged on 2026-08-08 and retired. Merges to
+  `main` are still Mary's call — ask before merging, then push.
 - **Workflow JSONs use `allOf(name)` helper** to handle n8n's array-split behaviour. See any `Shape Response` Code node in `workflows/api/admin/` or `workflows/api/client/` for the canonical pattern.
 - **Multi-branch workflows use a `Merge Branches` (`mode: append`) node** before the Shape Response. See `clx-admin-client-detail.json` (the canonical fix) — applied in commits `b5660d1` (admin) and `187430a` (client).
+- **Validate before shipping.** `python scripts/validate-workflows.py` checks every
+  workflow for dangling connections, unreachable nodes, `$('Node')` references to
+  nodes that do not exist, credential ids, duplicate webhook paths, unparseable
+  Code nodes, and `$input.all()` under `runOnceForEachItem`. A node annotated
+  `TEST HARNESS` or `DELIBERATELY DISCONNECTED` is treated as intentional.
+  `python scripts/validate-migrations.py` parses SQL with the real Postgres grammar
+  (libpg_query via `pip install pglast`) before Mary pastes it into Supabase.
+- **The empty-200 trap.** A Supabase query returning no rows becomes ZERO items in
+  n8n, so the next Code node never runs and nothing responds — the caller gets a
+  bodyless 200 that looks like a broken endpoint. Set `alwaysOutputData` on fetches
+  whose empty result is meaningful, and give every `Switch` in a responseNode
+  workflow a `fallbackOutput`. This has been found four separate times.
 - **Workflow credential references use name only, never id** — strip `id` from `credentials.<type>` blocks; n8n resolves by name during import.
 - **Frontend CSP:** the canonical CSP lives in `admin-dashboard/_headers`, `client-dashboard/_headers`, `site/_headers`. The `<meta>` CSP in HTML is a fallback only (and must NOT contain `frame-ancestors` — that directive is invalid in `<meta>` per spec).
 - **Shared frontend modules:** `clxAuth` (`/shared/auth.js`), `clxApi` (`/shared/api.js`), `clxComp` (`/shared/components.js`). Helper inventory: `escapeHtml`, `formatDate`, `formatDateTime`, `relativeTime`, `formatMoney`, `badgeFor`, `renderStatGrid`, `renderTable` (admin) / `renderList` (client), `renderEmpty`, `injectNav`, `wireSidebar`, `renderTopbarUser`, `icon`, `skeleton`, `skeletonStat`, `sparkline`, `donut`, `donutLegend`, `barChart`, `progressBar`, `avatar`, `scoreBar`, `sectionHead`.
 
 ## What you should NOT do without explicit instruction
 
-- Touch any of the 7 protected v2/v3 production workflows.
+- Touch any of the 9 protected production workflows listed in the working agreement.
 - Activate dormant workflows (`active: true`) — that's a Mary action.
 - Apply migrations to Supabase — Mary applies migrations.
 - Push force / rewrite history on `scale-sprint-v1` or `main`.
