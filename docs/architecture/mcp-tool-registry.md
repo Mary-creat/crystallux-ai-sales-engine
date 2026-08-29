@@ -13,6 +13,30 @@ Complete reference for all 10 MCP tools exposed by the CLX MCP Tool Gateway.
 
 ---
 
+## Authentication
+
+Both endpoints require the header `X-MCP-API-Key`, compared against the
+`MCP_WEBHOOK_SECRET` environment variable on the n8n host. The catalogue
+endpoint is gated on the same key as the execute endpoint — discovery is part
+of the same surface.
+
+The gateway **fails closed**: if `MCP_WEBHOOK_SECRET` is unset, every request is
+rejected. It does not fall back to allowing traffic.
+
+| Condition | Response |
+|---|---|
+| Missing or wrong key | `401` `{ "success": false, "error": "Invalid or missing X-MCP-API-Key" }` |
+| `MCP_WEBHOOK_SECRET` unset on the host | `401` `{ "error": "Gateway not configured: MCP_WEBHOOK_SECRET is unset" }` |
+| Valid key, bad tool name or inputs | `400` |
+| Valid key, valid call | `200` |
+
+> Until 2026-08-28 this gateway checked only that the header was **present** and
+> never compared it to anything, so any non-empty value could run all ten tools.
+> Found in the architecture audit, fixed in the same pass. See
+> [`PRODUCT_REGISTRY.md`](PRODUCT_REGISTRY.md) §4.
+
+---
+
 ## Request Format
 
 ```json

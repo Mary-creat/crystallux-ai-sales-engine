@@ -58,7 +58,7 @@
             { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "escalate_to_human", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "escalate" }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "mat-0004",
       "name": "Switch Tool",
@@ -326,7 +326,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error, tool: $json.tool_name }) }}",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error || ('Unroutable tool: ' + ($json.tool_name || 'none')), tool: $json.tool_name || null }) }}",
         "options": { "responseCode": 400 }
       },
       "id": "mat-0018",
@@ -350,7 +350,8 @@
                               [ { "node": "Tool: Update Lead", "type": "main", "index": 0 } ],
                               [ { "node": "Tool: Log Decision", "type": "main", "index": 0 } ],
                               [ { "node": "Tool: Retrieve Memory", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Escalate", "type": "main", "index": 0 } ]
+                              [ { "node": "Tool: Escalate", "type": "main", "index": 0 } ],
+                              [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
                             ] },
     "Tool: Voice":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
     "Tool: WhatsApp":      { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },

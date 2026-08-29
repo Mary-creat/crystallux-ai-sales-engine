@@ -6,6 +6,56 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0ag. MCP Tool Gateway — auth fixed in repo, needs a secret + a re-import (2026-08-28)
+
+The gateway checked that `X-MCP-API-Key` was **present** and never compared it to
+anything, so any non-empty header value could run all ten tools — including
+`update_lead_status` (writes to `leads`) and `scan_city` (spends Google Places quota).
+The catalogue at `GET /webhook/crystallux-tools` answered anyone, unauthenticated.
+
+Fixed in the repo: `Parse Request` now compares against `MCP_WEBHOOK_SECRET` (the
+variable `.env.example` had declared since the beginning), the catalogue is gated on the
+same key, and rejections answer `401`. Also gave `clx-mcp-agent-tools-v1`'s Switch a
+`fallbackOutput` so an unroutable tool name no longer returns an empty 200.
+
+**It fails closed on purpose.** Until the secret is set on the host, both endpoints
+answer 401. That is the right trade at 5 tool calls in the table's lifetime, but it does
+mean the order below matters: **set the variable first, then re-import.**
+
+**Mary's steps (VPS):**
+
+1. Generate a secret and add it to `/root/.env`:
+   ```bash
+   openssl rand -hex 32
+   ```
+   Then add the line `MCP_WEBHOOK_SECRET=<that value>` and restart n8n:
+   ```bash
+   docker restart n8n
+   ```
+2. Re-import both workflows (with `CLX_REPO=/root/clx-deploy` exported):
+   ```bash
+   bash scripts/n8n/ship.sh clx-mcp-tool-gateway.json
+   bash scripts/n8n/ship.sh api/mcp/clx-mcp-agent-tools-v1.json
+   ```
+3. Verify — the first must fail, the second must succeed:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}
+' -X POST      https://automation.crystallux.org/webhook/crystallux-mcp      -H 'X-MCP-API-Key: wrong' -H 'Content-Type: application/json'      -d '{"tool_name":"get_pipeline_stats"}'
+   # expect 401
+
+   curl -s -o /dev/null -w '%{http_code}
+'      https://automation.crystallux.org/webhook/crystallux-tools      -H "X-MCP-API-Key: $MCP_WEBHOOK_SECRET"
+   # expect 200
+   ```
+
+> Code nodes read `process.env` here, which requires `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`
+> — already set (LUXI and the copilot both depend on it).
+
+Auth model now documented in `docs/architecture/mcp-tool-registry.md`, which never
+specified one — which is most likely how the gap survived.
+
+---
+
 ## 0af. Commerce engine — DEPLOYED, nothing sold yet (2026-08-11)
 
 12/12 migrations applied, 326 workflows validated clean, 16 LUXI workflows active. The

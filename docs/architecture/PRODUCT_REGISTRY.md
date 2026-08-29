@@ -186,6 +186,13 @@ unfinished rather than regressed.
 Not exploited — established from source, then confirmed only that the endpoint is
 registered.
 
+**Fixed in the repo 2026-08-28** (after this audit was filed and on Mary's
+instruction): `Parse Request` now compares the header against
+`MCP_WEBHOOK_SECRET` — the variable `.env.example` had declared all along — and
+fails closed when it is unset. The catalogue endpoint is gated on the same key.
+Rejections answer `401` using the `_unauthorized ? 401 : 400` expression already
+used by 18 other workflows. **Not yet live** — see `docs/audit/blockers.md` §0ag.
+
 Two smaller items found in the same pass:
 
 - **The admin audit log records nothing.** `admin_action_log` has 98 rows, every one
