@@ -37,8 +37,13 @@ except ImportError:
     sys.stderr.write("pglast is required:  pip install pglast\n")
     sys.exit(2)
 
+# Dollar quoting allows any tag, not just $$ -- $fn$, $do$, $body$ are all
+# legal and are used deliberately where a naive $$ split would mis-parse.
+# Matching only $$ meant those bodies were skipped silently, which is the
+# same class of blind spot this script exists to catch. Group 3 captures
+# the opening tag; the backreference forces the closing tag to match.
 FUNC_RE = re.compile(
-    r'(CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(\w+).*?\$\$.*?\$\$\s*;)',
+    r'(CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(\w+).*?\$(\w*)\$.*?\$\3\$\s*;)',
     re.S | re.I)
 SQL_LANG_RE = re.compile(r'LANGUAGE\s+sql\b', re.I)
 TRIGGER_RE = re.compile(r'RETURNS\s+trigger\b', re.I)
@@ -57,7 +62,7 @@ def validate(path):
     bodies = FUNC_RE.findall(sql)
     failures, checked, skipped = [], 0, 0
 
-    for stmt, fname in bodies:
+    for stmt, fname, _tag in bodies:
         if SQL_LANG_RE.search(stmt):
             continue                      # plain SQL, already covered by pass 1
         if TRIGGER_RE.search(stmt):

@@ -12,12 +12,14 @@
 -- rather than a known fact it carries "_assumed": true, so it can be
 -- found and corrected later instead of hardening into folklore.
 --
--- Run AFTER vertical-context-schema.sql.
+-- Run LAST, only after steps 1-4 verify clean. Requires the
+-- behavior_config and sales_process_config columns from step 1.
+--
+-- No transaction wrapper: each vertical is its own statement, so one
+-- bad row cannot roll back the other six.
 -- Idempotent: every write is guarded so re-running cannot clobber
 -- hand-tuned values.
 -- ============================================================
-
-BEGIN;
 
 -- ------------------------------------------------------------
 -- CONSTRUCTION -- project pipeline, permits, ROI-first
@@ -338,7 +340,6 @@ UPDATE niche_overlays SET
   updated_at = now()
 WHERE niche_name = 'insurance_broker';
 
-COMMIT;
 
 -- ------------------------------------------------------------
 -- Verify (run separately)
@@ -356,3 +357,22 @@ COMMIT;
 -- select niche_name from niche_overlays
 --  where behavior_config::text like '%_assumed%'
 --     or sales_process_config::text like '%_assumed%';
+
+-- ---- VERIFY ----
+-- Expect 8 rows, every column true except where noted.
+SELECT niche_name,
+       is_active,
+       icp_template            IS NOT NULL   AS has_icp,
+       dashboard_labels        IS NOT NULL   AS has_labels,
+       routing_preferences     IS NOT NULL   AS has_routing,
+       behavior_config      <> '{}'::jsonb   AS has_behavior,
+       sales_process_config <> '{}'::jsonb   AS has_process
+  FROM niche_overlays
+ ORDER BY niche_name;
+
+-- Working assumptions that still need your commercial judgement.
+SELECT niche_name AS verticals_with_assumed_values
+  FROM niche_overlays
+ WHERE behavior_config::text      LIKE '%_assumed%'
+    OR sales_process_config::text LIKE '%_assumed%'
+ ORDER BY niche_name;
