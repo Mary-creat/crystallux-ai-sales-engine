@@ -124,6 +124,47 @@ cannot be built until §1.1 is genuinely closed.
 
 ---
 
+## 1c. Smart Quote — traced end to end 2026-08-30
+
+**Correction first, because I got this wrong twice.** I told you Smart Quote had
+"50 real quotes, the warmest human-used surface on the platform." Traced to the
+table, those 50 rows are in `marketplace_quotes`: **2 distinct leads, 25 carrier
+comparison rows each, across 7 days**, all from `insurance.crystallux.org` with
+`vertical='auto'`. That is the **MGA marketing site's auto-insurance comparison
+widget** — a different product. It is not Smart Quote and never was.
+
+**Smart Quote's own funnel: 1 draft, `in_progress`, created 2026-05-22. Zero
+completed quotes, ever.** The "warmest surface" argument I built on that figure
+does not stand, and the prioritisation case for Smart Quote has to rest on
+something else — which, as it happens, it can: the machinery is unusually
+complete for something never used.
+
+| Step | Status | Evidence |
+|---|---|---|
+| Public/customer entry | `WORKING` | `public/quote/fetch` live, answers `400 {"ok":false,"error":"Invalid quote_id format"}` — validates rather than swallowing |
+| Questionnaire / templates | `WORKING` | `quote_templates` = **7 active industries**: insurance_personal, construction, dental, cleaning, restaurants, moving, beauty |
+| Industry detection | `WORKING` | `industry_slug` on every template; admin flow switches on it |
+| Estimator + pricing rules | `WORKING` | `quote_pricing_rules` = 30, `quote_addons` = 30, **evenly distributed 4–5 per industry**. This is a genuine multi-industry estimator, not insurance with six empty shells |
+| Quote creation | `PARTIAL` | `admin/smart-quote/flow` live and gated (401 with body). `quote_drafts` = 1, stuck `in_progress` since 2026-05-22 |
+| Quote storage | `PARTIAL` | Tables exist and are correctly shaped; `quote_completed` = **0** |
+| Email / document | `DEAD` | No completed quote has ever existed to send |
+| Accept / decline | `WORKING (untested)` | `public/quote/respond` live and validating, but has never had a real quote to act on |
+| Follow-up | `DORMANT` | `clx-quote-followup-cron-v1` exists on a 6-hour schedule; `quote_follow_ups` = 0 |
+| Booking | `NOT WIRED` | No link from `quote_completed` to the booking chain |
+
+**The honest read.** Smart Quote is the most complete unused product on the
+platform: seven configured industry estimators, 60 pricing artefacts, four live
+endpoints that validate their input properly, and a funnel that has never had a
+single quote pass through it. It is not insurance-only and does not need
+re-architecting to become multi-industry — it already is. What it has never had
+is one completed quote.
+
+**One draft stuck `in_progress` since May is the cheapest possible test:** push
+that one quote to `quote_completed` and the email/document, accept/decline and
+follow-up steps all become testable in a single pass.
+
+---
+
 ## 2. Product register
 
 Status per the vocabulary above. Row counts and endpoint registration are the
@@ -138,7 +179,7 @@ Status per the vocabulary above. Row counts and endpoint registration are the
 | Signup, checkout, public pages | **Public / Marketing** | `READY` | 6/6 live; all 5 public hosts return 200 | live HTTP check | Live | — | no | — |
 | Live auctions, Buy Now, inventory, orders, fulfilment | **LUXI / Commerce** | `PARTIAL` | 21 workflows, 17/18 live, 28 tables, 8 auctions, 2 products — **0 orders, 0 reservations, 0 commerce events, ever** | none | Deployed, never transacted | needs one real sale | **YES** | [#4](OWNER_ACTIONS_REQUIRED.md) — largest untested surface on a live-key stack |
 | Full insurance operating system | **Insurance / MGA** | `PARTIAL` | 90 workflows (26% of the estate), 85/85 endpoints live, 38 tables. `carrier_quotes` 0, `policy_applications` 0 | none | Endpoints live, no business data | — | no | Decide whether this is a product or a vertical |
-| Multi-vertical quoting and comparison | **Smart Quote** | `PARTIAL` | 6/6 live, **50 marketplace quotes**, last 2026-07-24 | none | **The most recent real human usage outside Sentinel** | — | no | The warmest surface here — worth pointing demand at |
+| Multi-industry estimator | **Smart Quote** | `PARTIAL` | 7 active industry templates, 30 pricing rules, 30 addons, 4 live endpoints. **`quote_completed` = 0** — no quote has ever been finished. The 50 `marketplace_quotes` belong to the MGA comparison widget, not here (§1c) | endpoint probe only | Live, never completed a quote | — | no | Finish the one stuck draft — it makes 4 dead steps testable at once |
 | Tenant-facing dashboard | **Client portal** | `PARTIAL` | 9/9 live, 12 pages; `campaigns`, `bookings`, `deals` all 0 rows | Playwright page audit | Live, unpopulated | upstream Sales Engine | no | Follows the Sales Engine |
 | Discovery → research → scoring → outreach → booking | **Sales Engine** | `BROKEN` | 14 workflows, 13 schedule-driven. **No lead since 2026-05-28, no send since 2026-06-08.** 2,518 leads, 881 with email, **831 score ≥ 50** — scoring works, contrary to stale docs. Funnel to date: 16 Contacted → 1 Replied → 1 Booking Sent → 1 Closed Lost | none | **Dark for 83 days** | schedules unknown until §1.1 | **YES** | #1, then decide restart or retire |
 | Goals, teams, training, briefings, reports | **Productivity / Ops** | `PARTIAL` | 29 workflows, 21/29 endpoints live; `client_goals`, `team_members`, `training_sessions` all 0 | none | 8 endpoints unregistered | — | no | — |
