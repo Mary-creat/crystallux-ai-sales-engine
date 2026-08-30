@@ -27,6 +27,7 @@ this list can wait a week; #1 should not.
 | **1** | **Mint a new n8n API key** and store it as a GitHub secret | The current key returns **401**. Three things depend on it and all three are quietly broken: Sentinel's workflow monitoring (`sentinel_workflow_health` has **0 rows, ever**), the daily briefing (today's says *"The paused workflow entry is incomplete"* — that is the 401 surfacing as a garbled report), and CI deployment. **This is why nobody noticed the Sales Engine stopped on 8 June: the system that would have reported it has been blind since before that** | Platform, Sentinel | See [§1 below](#1-mint-a-new-n8n-api-key) | Everything else. But no claim about "what is running in production" can be trusted until this is done |
 | **2** | **Delete the six duplicate DevOps briefing workflows** in n8n | **Seven identical briefings run every day** — verified across 14 consecutive days. The repo contains **one**. Six are duplicate copies living in n8n, and each one calls Claude, so you are paying seven times for one report | Productivity / Ops | See [§2](#2-delete-the-six-duplicate-briefings) | Nothing blocks. Worth knowing: the CI bug that manufactured these is fixed, so they will not come back |
 | **3** | **Re-import 54 corrected workflows** to the live server | Security fixes that are finished in the repo but **not live**: 47 endpoints that answered a bad token with an empty `200` now answer `401`; 7 that swallowed an unknown action now answer `400`; and the MCP tool gateway, which checked that an API key *existed* but never that it was *right* | Platform, MCP | See [§3](#3-ship-the-fail-closed-fixes) | All further code work. These are additive — no successful request changes behaviour |
+| **3b** | **Set `MCP_WEBHOOK_SECRET` on the VPS** | The MCP tool gateway shipped in the same push as #3. Its old behaviour was to check that an API key was *present* and never compare it — any non-empty header could run all ten tools, including one that writes to `leads` and one that spends Google Places quota. The fix **fails closed on purpose**, so until this variable is set, both MCP endpoints answer `401`. That is safer than what was there before, not worse — but it is a change, and this is how you finish it | MCP / Tool gateway | See [§3b](#3b-set-the-mcp-secret) | Everything. MCP usage is **5 calls in the table's entire lifetime**, so nothing real is waiting on it |
 | **4** | **Put one real order through LUXI / Commerce** | **0 orders, 0 reservations, 0 commerce events — ever.** The stack runs on live Stripe keys and has never taken a payment. This is the largest untested surface on the platform, and it involves real money, so it needs you | LUXI / Commerce, Billing | See [§4](#4-sell-one-thing) | Everything. But "commercially ready" cannot honestly be claimed for a commerce product that has never completed a sale |
 | **5** | **Restart n8n to pick up the queue-mode fix** | The main n8n container ran in `regular` mode while a worker container ran in `queue` mode. n8n only hands jobs to a worker when the **main** instance is in queue mode, so the worker has been sitting idle — a scaling tier you are paying for in RAM and never reached. Fixed in the repo; applying it restarts n8n (~20 seconds), which is why it is your call | Platform | See [§5](#5-apply-the-queue-mode-fix) | Everything. This is a performance fix, not a correctness one |
 | **6** | **Decide: restart the Sales Engine, or retire it** | No lead acquired since **2026-05-28**. No email sent since **2026-06-08**. 13 emails, ever, all to the test inbox. Meanwhile 2,518 leads sit in the database and **831 of them score 50 or above** — the qualified pipeline exists and nothing is touching it. Restarting means real outreach to real businesses, which is your authorization to give | Sales Engine | Needs #1 first, so you can see which schedules are actually on. Then say restart or retire — a decision either way | Everything. But a fourth month of accidental darkness is worse than a deliberate retirement |
@@ -105,6 +106,44 @@ to run it by hand again.
 
 ---
 
+## 3b. Set the MCP secret
+
+Unlike the n8n API key, this one **is** read by n8n itself — Code nodes read it
+from the container's environment — so n8n has to restart to see it.
+
+On the server, generate a secret:
+
+```
+openssl rand -hex 32
+```
+
+Add it to the same file the other n8n variables live in, as:
+
+```
+MCP_WEBHOOK_SECRET=<the value you just generated>
+```
+
+Then restart n8n:
+
+```
+docker restart n8n
+```
+
+`docker restart` reuses the container's existing configuration, so it is safe —
+it is not the same as the `docker compose up -d` warned about in §5.
+
+Verify. The first must return `401`, the second `200`:
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://automation.crystallux.org/webhook/crystallux-mcp -H 'X-MCP-API-Key: wrong' -H 'Content-Type: application/json' -d '{"tool_name":"get_pipeline_stats"}'
+```
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' https://automation.crystallux.org/webhook/crystallux-tools -H "X-MCP-API-Key: $MCP_WEBHOOK_SECRET"
+```
+
+---
+
 ## 4. Sell one thing
 
 The commerce stack is wired to **live Stripe keys** and has never taken a
@@ -127,31 +166,40 @@ this repo combined. **It moves real money, so it needs to be you.**
 
 ## 5. Apply the queue-mode fix
 
-This restarts n8n for roughly twenty seconds. Pick a quiet moment.
+> ### ⛔ Do not run `docker compose up -d` with the repo's file yet
+>
+> **Checked 2026-08-30 and the repo's `docker-compose.yml` is not what your
+> server is running.** Proof: `docs/audit/blockers.md` §0ag records that
+> `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` is already set live, and that LUXI and
+> the copilot both depend on it. That variable does not appear anywhere in the
+> repo's compose file. Neither does `MCP_WEBHOOK_SECRET`.
+>
+> So the live container is configured from something else — an edited copy on
+> the server, an `env_file`, or a compose override. Bringing the container up
+> from the repo's file would hand it a **smaller** environment than it has now
+> and could drop the variables LUXI and the copilot rely on.
+>
+> This is a real way to break a working system, and it is the one thing on this
+> page that could cause an outage rather than fix one.
 
-On the server:
+**What to do instead — read-only, tells us what is actually deployed:**
 
 ```
 cd /root/clx-deploy
 ```
 
 ```
-git pull origin main
+docker inspect n8n --format '{{json .Config.Env}}'
 ```
 
-```
-docker compose up -d n8n n8n-worker
-```
+Send me that output with any passwords and keys blanked out. I need the
+variable **names**, not the values. Once I can see the live environment I will
+write a compose file that matches it, plus the queue-mode fix, and the change
+becomes safe.
 
-Afterwards, confirm n8n is healthy:
-
-```
-docker compose ps
-```
-
-If anything looks wrong, the rollback is to set `EXECUTIONS_MODE` back to
-`regular` in `docker-compose.yml` and run the same `up -d` command. Tell me and
-I will walk you through it.
+Until then the queue-mode fix stays in the repo and is **not applied**. The only
+cost of waiting is that the `n8n-worker` container keeps idling, which is what
+it has been doing all along — no new harm.
 
 ---
 
