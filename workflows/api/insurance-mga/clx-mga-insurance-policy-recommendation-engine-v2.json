@@ -10,7 +10,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.suitability_assessment_id) return { json: { _empty: true, error: 'suitability_assessment_id required' } };\nreturn { json: { _authorized: true, suitability_assessment_id: body.suitability_assessment_id } };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.suitability_assessment_id) return { json: { _empty: true, error: 'suitability_assessment_id required' } };\nreturn { json: { _authorized: true, suitability_assessment_id: body.suitability_assessment_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "pre2-0002", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]

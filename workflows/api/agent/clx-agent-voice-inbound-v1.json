@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const ctx = $('Parse Twilio').item.json;\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nconst clientId = row && row.client_id;\nconst cfg = (row && row.configuration) || {};\nconst sipUri = cfg.vapi_sip_uri || process.env.VAPI_SIP_URI || 'sip:placeholder@vapi.ai';\n// Build TwiML to bridge the inbound call to Vapi via SIP.\nconst twiml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial><Sip>' + sipUri + '?lead_phone=' + encodeURIComponent(ctx.from || '') + '&amp;client_id=' + encodeURIComponent(clientId || '') + '</Sip></Dial></Response>';\nreturn { json: { twiml: twiml, client_id: clientId, ctx: ctx } };",
+        "jsCode": "const ctx = $('Parse Twilio').item.json;\nconst rows = $input.item.json;\nconst row = Array.isArray(rows) ? rows[0] : rows;\nconst clientId = row && row.client_id;\nconst cfg = (row && row.configuration) || {};\nconst sipUri = cfg.vapi_sip_uri || $env.VAPI_SIP_URI || 'sip:placeholder@vapi.ai';\n// Build TwiML to bridge the inbound call to Vapi via SIP.\nconst twiml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial><Sip>' + sipUri + '?lead_phone=' + encodeURIComponent(ctx.from || '') + '&amp;client_id=' + encodeURIComponent(clientId || '') + '</Sip></Dial></Response>';\nreturn { json: { twiml: twiml, client_id: clientId, ctx: ctx } };",
         "mode": "runOnceForEachItem"
       },
       "id": "avi-0005",

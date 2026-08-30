@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.decision_id || !body.action_type) return { json: { _empty: true, error: 'decision_id and action_type required' } };\nreturn { json: {\n  _authorized: true,\n  decision_id: body.decision_id,\n  action_type: body.action_type,\n  channel: body.channel || null,\n  message: body.message || '',\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  trigger_id: body.trigger_id || null\n} };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.decision_id || !body.action_type) return { json: { _empty: true, error: 'decision_id and action_type required' } };\nreturn { json: {\n  _authorized: true,\n  decision_id: body.decision_id,\n  action_type: body.action_type,\n  channel: body.channel || null,\n  message: body.message || '',\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  trigger_id: body.trigger_id || null\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "aae-0002",

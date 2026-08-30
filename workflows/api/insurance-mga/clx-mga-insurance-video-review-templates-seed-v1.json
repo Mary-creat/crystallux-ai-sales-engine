@@ -10,7 +10,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nif (!secret || secret !== (process.env.INTERNAL_EMAIL_SECRET || '')) return { json: { _unauthorized: true, error: 'internal secret required' } };\nreturn { json: { _authorized: true } };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nif (!secret || secret !== ($env.INTERNAL_EMAIL_SECRET || '')) return { json: { _unauthorized: true, error: 'internal secret required' } };\nreturn { json: { _authorized: true } };",
         "mode": "runOnceForEachItem"
       },
       "id": "vts-0002", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 400]

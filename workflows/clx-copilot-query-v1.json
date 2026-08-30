@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Copilot DB Query v1 — Validate admin token + parse\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst question = body.question || '';\nconst panel_context = body.panel_context || 'unknown';\n\nconst masterToken = process.env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!question || String(question).trim().length === 0) {\n  return { json: { _empty: true, error: 'question required' } };\n}\n\nreturn { json: { token, question, panel_context, _authorized: true } };",
+        "jsCode": "// CLX Copilot DB Query v1 — Validate admin token + parse\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst question = body.question || '';\nconst panel_context = body.panel_context || 'unknown';\n\nconst masterToken = $env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!question || String(question).trim().length === 0) {\n  return { json: { _empty: true, error: 'question required' } };\n}\n\nreturn { json: { token, question, panel_context, _authorized: true } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-cq-0002",

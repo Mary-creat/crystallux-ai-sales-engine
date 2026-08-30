@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.client_id || !body.summary) return { json: { _empty: true, error: 'client_id and summary required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id || null,\n  client_id: body.client_id,\n  summary: String(body.summary).slice(0, 4000),\n  memory_type: body.memory_type || 'conversation_summary',\n  importance_score: parseFloat(body.importance_score) || 0.5,\n  source_action_id: body.source_action_id || null\n} };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.client_id || !body.summary) return { json: { _empty: true, error: 'client_id and summary required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id || null,\n  client_id: body.client_id,\n  summary: String(body.summary).slice(0, 4000),\n  memory_type: body.memory_type || 'conversation_summary',\n  importance_score: parseFloat(body.importance_score) || 0.5,\n  source_action_id: body.source_action_id || null\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "amu-0002",

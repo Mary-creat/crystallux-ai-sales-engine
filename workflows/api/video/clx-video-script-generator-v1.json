@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) {\n  return { json: { _unauthorized: true, error: 'internal secret required' } };\n}\nconst leadId = body.lead_id;\nconst clientId = body.client_id;\nconst intent = body.intent || 'book_meeting';   // book_meeting | re_engage | nurture\nif (!leadId || !clientId) {\n  return { json: { _empty: true, error: 'lead_id and client_id required' } };\n}\nreturn { json: { _authorized: true, lead_id: leadId, client_id: clientId, intent: intent } };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) {\n  return { json: { _unauthorized: true, error: 'internal secret required' } };\n}\nconst leadId = body.lead_id;\nconst clientId = body.client_id;\nconst intent = body.intent || 'book_meeting';   // book_meeting | re_engage | nurture\nif (!leadId || !clientId) {\n  return { json: { _empty: true, error: 'lead_id and client_id required' } };\n}\nreturn { json: { _authorized: true, lead_id: leadId, client_id: clientId, intent: intent } };",
         "mode": "runOnceForEachItem"
       },
       "id": "vsg-0002",

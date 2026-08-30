@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.message) return { json: { _empty: true, error: 'lead_id and message required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  channel: body.channel || 'whatsapp',\n  message: String(body.message).slice(0, 2000)\n} };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.message) return { json: { _empty: true, error: 'lead_id and message required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  channel: body.channel || 'whatsapp',\n  message: String(body.message).slice(0, 2000)\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "scn-0002",

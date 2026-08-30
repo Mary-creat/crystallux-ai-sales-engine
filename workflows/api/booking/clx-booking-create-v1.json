@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.client_id || !body.requested_time) return { json: { _empty: true, error: 'lead_id, client_id, requested_time required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  requested_time: body.requested_time,\n  duration_minutes: body.duration_minutes || 30,\n  source_action_id: body.source_action_id || null,\n  intake_answers: body.intake_answers || {}\n} };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.client_id || !body.requested_time) return { json: { _empty: true, error: 'lead_id, client_id, requested_time required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  requested_time: body.requested_time,\n  duration_minutes: body.duration_minutes || 30,\n  source_action_id: body.source_action_id || null,\n  intake_answers: body.intake_answers || {}\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "bc-0002",

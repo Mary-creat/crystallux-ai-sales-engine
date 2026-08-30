@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Copilot Troubleshoot v1 — Validate + route\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst error_id = body.error_id || null;\nconst description = body.description || null;\n\nconst masterToken = process.env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!error_id && !description) {\n  return { json: { _empty: true, error: 'error_id or description required' } };\n}\n\nreturn { json: { token, error_id, description, _authorized: true } };",
+        "jsCode": "// CLX Copilot Troubleshoot v1 — Validate + route\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst token = body.token || null;\nconst error_id = body.error_id || null;\nconst description = body.description || null;\n\nconst masterToken = $env.MARY_MASTER_TOKEN || 'TODO_SET_MARY_MASTER_TOKEN';\nif (!token || masterToken === 'TODO_SET_MARY_MASTER_TOKEN' || token !== masterToken) {\n  return { json: { _unauthorized: true, error: 'admin token required' } };\n}\nif (!error_id && !description) {\n  return { json: { _empty: true, error: 'error_id or description required' } };\n}\n\nreturn { json: { token, error_id, description, _authorized: true } };",
         "mode": "runOnceForEachItem"
       },
       "id": "clx-ct-0002",

@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.client_id || !body.script) return { json: { _empty: true, error: 'lead_id, client_id, script required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  script: String(body.script).slice(0, 4000),\n  decision_id: body.decision_id || null,\n  agent_action_id: body.agent_action_id || null\n} };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.lead_id || !body.client_id || !body.script) return { json: { _empty: true, error: 'lead_id, client_id, script required' } };\nreturn { json: {\n  _authorized: true,\n  lead_id: body.lead_id,\n  client_id: body.client_id,\n  script: String(body.script).slice(0, 4000),\n  decision_id: body.decision_id || null,\n  agent_action_id: body.agent_action_id || null\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "avo-0002",

@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!Array.isArray(body.disclosure_ids) || body.disclosure_ids.length === 0) return { json: { _empty: true, error: 'disclosure_ids[] required' } };\nif (!body.client_email) return { json: { _empty: true, error: 'client_email required' } };\nreturn { json: {\n  _authorized: true,\n  disclosure_ids: body.disclosure_ids,\n  client_email: body.client_email,\n  client_name: body.client_name || 'Client'\n} };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!Array.isArray(body.disclosure_ids) || body.disclosure_ids.length === 0) return { json: { _empty: true, error: 'disclosure_ids[] required' } };\nif (!body.client_email) return { json: { _empty: true, error: 'client_email required' } };\nreturn { json: {\n  _authorized: true,\n  disclosure_ids: body.disclosure_ids,\n  client_email: body.client_email,\n  client_name: body.client_name || 'Client'\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "esn-0002",

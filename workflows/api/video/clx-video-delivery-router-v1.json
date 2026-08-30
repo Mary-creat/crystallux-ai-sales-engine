@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = process.env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.video_render_id) return { json: { _empty: true, error: 'video_render_id required' } };\nreturn { json: { _authorized: true, video_render_id: body.video_render_id } };",
+        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { _unauthorized: true, error: 'internal secret required' } };\nif (!body.video_render_id) return { json: { _empty: true, error: 'video_render_id required' } };\nreturn { json: { _authorized: true, video_render_id: body.video_render_id } };",
         "mode": "runOnceForEachItem"
       },
       "id": "vdr-0002",
