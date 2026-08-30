@@ -335,4 +335,129 @@ All three are separable. All three are maintainable. All three compound in value
 
 ---
 
-*This document is doctrine. Update only with explicit architectural review. Last updated: 2026-04-18.*
+*This document is doctrine. Update only with explicit architectural review. Last updated: 2026-04-18; decision records appended 2026-08-30.*
+
+---
+
+# Architecture decision records
+
+Appended 2026-08-30. The three-layer model above was written 2026-04-18 and is
+**unchanged** — these records document decisions made while implementing it,
+each with the evidence that settled it. Format: DECISION / WHY / ALTERNATIVES /
+EVIDENCE / IMPACT.
+
+## ADR-001 — `niche_overlays` is the sole source of vertical behaviour
+
+**Decision.** Layer 3 stays exactly where the doctrine put it. No second vertical
+intelligence system is created.
+
+**Why.** Eight workflows already read it: campaign router, lead scoring, outreach
+generation, Apollo enrichment, signal intelligence, video outreach, voice
+outreach, copilot query.
+
+**Alternatives.** A new `vertical_config` table (rejected — duplicates a working
+table); moving industry rules into MAXI (rejected, see ADR-002).
+
+**Evidence.** `grep -rl niche_overlays workflows/` → 8 files, all core engine.
+`grep -rl maxi_industries workflows/` → 2 files, both MAXI's own listing
+endpoints, both `active: false`.
+
+**Impact.** The multi-vertical requirement was never an architecture gap. Seven of
+eight verticals simply had `icp_template`, `dashboard_labels` and
+`routing_preferences` set to NULL. It was a data gap wearing an architecture
+gap's clothes.
+
+## ADR-002 — MAXI stays a marketing persona and product surface
+
+**Decision.** MAXI is not promoted to vertical router, sales agent, or
+intelligence store. Its catalogue is *linked* to the engine, not merged into it.
+
+**Why.** MAXI owns 22 marketing industries and 168 value-prop copy rows — real
+assets, but sales collateral, not engine configuration.
+
+**Alternatives.** Make MAXI the vertical layer (rejected — would fork industry
+config into a second store); delete MAXI's tables (rejected — 168 rows of
+marketing copy with live public URLs).
+
+**Evidence.** `avatars.MAXI` is `active=false` with no HeyGen or voice id;
+`maxi_industries` carries only slug/name/category/description/emoji/sort_order —
+no ICP, titles, signals, tone, or compliance. MAXI appears nowhere in the Sales
+Engine (earlier hits were the word "Maximum").
+
+**Impact.** One nullable FK, `maxi_industries.niche_overlay_id`. A NULL states
+plainly "marketed but not operable" — 17 of 22 industries today.
+
+## ADR-003 — the vertical capability is not named after MAXI
+
+**Decision.** `get_vertical_context(vertical, client_id)`.
+
+**Why.** MAXI is a brand and a product-grant key. Naming a data contract after a
+persona welds marketing to schema and guarantees a rename.
+
+**Alternatives.** `get_maxi_context()` / `run_maxi_workflow()` — both rejected;
+the second also leaks implementation into the tool surface (see ADR-005).
+
+**Impact.** Sales, Copilot, the agent runtime and MAXI are callers of equal
+standing.
+
+## ADR-004 — global industry knowledge and tenant learning stay separate
+
+**Decision.** `niche_overlays` holds general industry knowledge.
+`client_icp_profiles` holds per-tenant specifics. `get_vertical_context()`
+returns the tenant layer under its own `tenant` key rather than merging.
+
+**Why.** A merge makes it impossible to tell which is which, and one tenant's
+outcomes could rewrite defaults for every other client in that industry.
+
+**Evidence.** `niche_overlays` has 8 rows and no `client_id`; it is global by
+construction.
+
+**Impact.** "Roofers respond to permit signals" is global. "ABC Roofing converts
+permit signals better by phone" is tenant. Restaurant learning can never
+overwrite construction behaviour.
+
+## ADR-005 — MCP tools express business capabilities, never workflow names
+
+**Decision.** `get_vertical_context`, `discover_entities`, `create_quote` — never
+`run_maxi_workflow` or `call_clx_city_scan_json`. Tools call existing
+`admin/*`, `client/*`, `mga/*` endpoints and never reach Supabase directly.
+
+**Why.** A tool that names a workflow pins the contract to today's
+implementation. A tool that bypasses the command layer creates a second
+permission model, which is exactly how the two existing gateways diverged.
+
+**Impact.** Providers and workflows can be replaced without rewriting agents.
+
+## ADR-006 — Sentinel stays independent
+
+**Decision.** Sentinel is both a standalone subscription product and the
+observability/guardrail layer. It reuses shared auth, billing and messaging, but
+its monitoring, incident, alerting and remediation domain is **not** merged into
+Admin, Copilot, MCP, or the agent runtime.
+
+**Why.** A monitor that lives inside the thing it monitors cannot report that
+thing's failure. This is not theoretical here: Sentinel's workflow-health
+collector has 0 rows because it depends on the same n8n API that was down, and
+that is precisely why the Sales Engine's June outage went unnoticed for months.
+
+**Alternatives.** Fold Sentinel into Admin (rejected — loses independent
+sellability and independent failure domain); let the agent runtime self-monitor
+(rejected — same reason, worse).
+
+**Impact.** Sentinel will monitor agents, MCP calls, tool denials and cost, but
+from outside. It remains separately sellable.
+
+## ADR-007 — Smart Quote is a multi-industry estimator
+
+**Decision.** A generic quote core (request → validate → calculate → price →
+version → status → accept) with per-industry estimator adapters. Insurance
+carrier, suitability and regulated-review logic stays in the MGA product and
+*consumes* the core rather than living inside it.
+
+**Why.** Smart Quote already has the most recent genuine human usage on the
+platform outside Sentinel — 50 marketplace quotes, last 2026-07-24. It is the
+warmest surface available and is currently modelled as insurance-only.
+
+**Impact.** Construction estimates, cleaning quotes and moving inventories become
+adapters, not new products. **Not yet implemented** — recorded here so the
+boundary is agreed before code is written.
