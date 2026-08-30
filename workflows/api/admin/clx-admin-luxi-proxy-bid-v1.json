@@ -42,6 +42,7 @@
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "alpx-0003",
+      "alwaysOutputData": true,
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

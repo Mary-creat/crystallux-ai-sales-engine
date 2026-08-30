@@ -23,7 +23,7 @@
         "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
         "options": { "response": { "response": { "neverError": true } } }
       },
-      "id": "alsm-0003", "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 360],
+      "id": "alsm-0003", "alwaysOutputData": true, "name": "Validate Session", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [640, 360],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {

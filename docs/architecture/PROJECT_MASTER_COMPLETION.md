@@ -42,16 +42,42 @@ The finish-line conditions, each with the evidence that settles it.
 | **1.2 Production state is observable** | Sentinel | `PARTIAL` | Vendor health 46,479 rows, 480/day, writing continuously; alerts + cost tracking daily. But workflow health 0 rows (§1.1) | Sentinel self-checks run on schedule | Endpoint + vendor monitoring live; **workflow monitoring blind** | §1.1 | **YES** | Unblocks with #1 |
 | **1.3 CI validates the whole estate** | Platform | `DONE` | Was 50 of 326 files, `workflows/*.json` only, and ran neither validator. Now walks all 326 recursively and runs both. Verified locally: **326 workflows, 0 problems, 0 warnings**; **113 SQL files, 0 failed** | `.github/workflows/crystallux-ci.yml`, jobs `validate` | Runs on every push and PR | — | no | — |
 | **1.4 Deployment is reproducible** | Platform | `PARTIAL` | CI used to `POST /api/v1/workflows` for every file on every push — **POST creates**, so each push minted duplicates with fresh ids. Now updates by top-level id, deploys only files changed in the push, refuses to create, and never activates. 324/326 files carry a unique id (0 collisions), so update-by-id is well defined | `deploy` job; `scripts/n8n/n8n-put-body.py` | Cannot run until the key is replaced — and now **fails loudly** instead of reporting success | §1.1 | **YES** | Unblocks with #1 |
-| **1.5 Security endpoints fail closed** | Platform | `DONE` | 47 of 126 `validate_session` fetches had neither `alwaysOutputData` nor `neverError` — an empty RPC result yields zero items, the auth check never runs, caller gets a bodyless 200. All 47 now guarded; **0 unguarded remain**. All 47 downstream Code nodes were confirmed to reject a missing row first, so the change is strictly fail-closed. 7 Switch nodes had no `fallbackOutput`; all 7 now route to their error responder | `validate-workflows.py`, now failing on dead-end branches too | **Repo only — not yet live** | needs re-import | **YES** | Ship the 54 workflows — [owner action #3](OWNER_ACTIONS_REQUIRED.md) |
+| **1.5 Security endpoints fail closed** | Platform | `PARTIAL` → live for 51, shipping for 75 | **126 of 126** `validate_session` fetches now carry `alwaysOutputData`. The first pass guarded only 51 because it treated `neverError: true` as equivalent protection — **it is not**, and a live probe proved it: after that deploy, `client/overview` returned `401 {"ok":false,"error":"Invalid or expired session"}` while `admin/avatar-schedule`, which carried `neverError`, still returned **HTTP 200, 0 bytes**. `neverError` suppresses a non-2xx; it does nothing about a 200 whose body is `[]`, which n8n splits into zero items. All 126 downstream Code nodes verified to reject a missing row first, so every guard is strictly fail-closed. 7 Switch nodes had no `fallbackOutput`; all 7 now route to their error responder | `validate-workflows.py` + live HTTP probe against production | **51 live and verified. 75 committed, deploying** | — | no | Re-probe after the second deploy lands |
 | **1.6 Auth works correctly** | Auth / Identity | `READY` | 9 workflows, 9 endpoints live, 165 sessions, most recent 2026-08-20. `validate_session` is the single gate and is now uniformly fail-closed (§1.5) | exercised by every admin/client login | Live | — | no | — |
 | **1.7 Tenant isolation** | Platform | `PARTIAL` | RLS enabled on **208 of 208** public tables. `client/*` endpoints are tenant-scoped. **But neither MCP gateway takes a `client_id`** — every machine-callable tool is implicitly platform-wide | none | Live for humans, absent for agents | — | no | Add tenant context at the gateway before any agent runs (§4.3) |
 | **1.8 Core migrations in source** | Platform | `PARTIAL` | 113 SQL files, all parse against the real Postgres grammar. **18 live tables have no `CREATE` anywhere in the repo — `leads` among them.** Production cannot be rebuilt from source | `validate-migrations.py`, now in CI | 194 of 198 declared tables live | — | no | Capture the 18, starting with `leads` |
 | **1.9 Migration ledger** | Platform | `BROKEN` | Nothing records which of the 113 files have been applied. The three `schema_migrations`/`migrations` tables belong to Supabase's own `auth`/`realtime`/`storage` schemas | none | Applied state is unknowable without diffing live schema | — | no | Add an applied-migrations table + record backfill |
+| **1.9a `process.env` is blocked in Code nodes — 53 workflows cannot read their own secrets** | Platform | `BLOCKED_OWNER` | Probed live 2026-08-30. `POST /webhook/crystallux-mcp` returns `{"error":"process is not defined"}`. **53 workflows read `process.env`** and every one of them fails at its auth or config step: all 4 Copilot endpoints (`MARY_MASTER_TOKEN`), the Stripe webhook (`STRIPE_WEBHOOK_SECRET`), email/SMS/WhatsApp send (`INTERNAL_EMAIL_SECRET`), the entire agent runtime, most of MGA, and the video chain. `email/send` and `mga/insurance/needs-analysis` both answer a bad secret with **HTTP 200, 0 bytes** — they die before responding. `blockers.md` §0ag states `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` is "already set"; **that is not true of the running instance** | live HTTP probe, invalid credentials only | **Live and broken.** Pre-existing — not caused by this deploy | `N8N_BLOCK_ENV_ACCESS_IN_NODE` must be `false` on the host, then n8n restarted | **YES** | [Owner action #1b](OWNER_ACTIONS_REQUIRED.md) |
+| **1.9b What 1.9a explains** | Platform | — | The agentic runtime has 0 rows in all 16 tables, Copilot has 0 chat rows, `video_renders` is 0, messaging is unused. These were read as "built but never switched on". At least in part they are **"switched on and unable to authenticate"** — the workflows are live and registered, they just cannot reach their secrets. **LUXI, Commerce, Sentinel and the Sales Engine do not use `process.env` and are unaffected** — verified by grep across all 326 | — | — | — | no | Re-test each after 1.9a is fixed before concluding anything about adoption |
 | **1.10 Logs and errors are visible** | Platform | `BROKEN` | `admin_action_log` has 98 rows, every one `action_type='vertical_generated'` from an automated job, `action` NULL in all 98. Two overlapping schemas in one table (`admin_user`/`actor_email`, `created_at`/`occurred_at`). **No human admin action is audited**, though `audit-log.html` renders the table | none | Page exists over an empty concept | — | no | Reconcile the two schemas, then write on privileged actions |
 | **1.11 Queue tier actually queues** | Platform | `PARTIAL` | `docker-compose.yml` ran main at `EXECUTIONS_MODE=regular` while `n8n-worker` ran `queue`. n8n only enqueues to Redis when the **main** instance is in queue mode, so the worker never received a job — a scaling tier declared, paid for in RAM, never reached. Main is now `queue` in the repo | none | **Repo only, and must stay that way for now** | **The VPS is not running this file** — see 1.11a | **YES** | Get the live env first, then rewrite the compose file to match |
 | **1.11a The repo's compose file is not production** | Platform | `BROKEN` | The earlier audit marked this UNVERIFIED. Now settled: `blockers.md` §0ag records `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` as already set live with LUXI and the copilot depending on it, and that variable appears **nowhere** in `docker-compose.yml`. Nor does `MCP_WEBHOOK_SECRET`. The live container is configured from an edited copy, an `env_file`, or an override that is not in source | none | Infrastructure is not reproducible from the repo, and `docker compose up -d` from it would hand n8n a smaller environment than it has | — | **YES** | `docker inspect n8n --format '{{json .Config.Env}}'`, names only — [owner action #5](OWNER_ACTIONS_REQUIRED.md) |
 | **1.12 Automated test coverage** | Platform | `PARTIAL` | Two static validators (now CI-gated) plus three Playwright audit harnesses under `tests/audit/`. **No unit tests, no endpoint contract tests, no integration tests.** Static analysis is the whole safety net | — | — | — | no | Endpoint contract test once #1 lands and live state is knowable |
 | **1.13 Secrets hygiene** | Platform | `PARTIAL` | No secrets reach any frontend — checked. But `MARY_MASTER_TOKEN` is a static, long-lived shared secret in `localStorage`, no rotation, no expiry, no per-actor identity — and it is the only thing gating `copilot/query`, which asks Claude to write SQL | none | Live | — | **YES** | Scope and rotate; decide an expiry model |
+
+---
+
+## 1a. Credential state
+
+Where each credential lives, and how confidently that is known. **"Verified"
+means observed, not reported.** Values are never recorded here or anywhere in
+the repo.
+
+| Credential | Location | State | How that was established | What it gates |
+|---|---|---|---|---|
+| `N8N_API_KEY` | GitHub Actions secret | **Set by owner 2026-08-30**, verified by the deploy job's probe | The deploy job calls `GET /api/v1/workflows?limit=1` before touching anything and exits non-zero on any non-200 — see §5 for the result of the first run | CI deploy |
+| `N8N_URL` | GitHub Actions secret | **Set by owner 2026-08-30** → `https://automation.crystallux.org` | same probe | CI deploy |
+| `N8N_API_KEY` | VPS / server environment | **UNKNOWN — cannot be verified from here** | There is no SSH access to `srv1365369.hstgr.cloud` from the working machine: no key, `Permission denied (publickey,password)`. The owner reports setting it; that report is **not independently confirmed** | `ship.sh`, the four `activate-*.sh`, the drift detector, and 10 other scripts. Also Sentinel's workflow-health collector and the daily briefing, which is why all three failed together |
+| `N8N_API_KEY` | repo-root `.env` (local dev only) | **INVALID** | Probed 2026-08-30: `GET /api/v1/workflows?limit=1` → **HTTP 401 `{"message":"unauthorized"}`**. This is the dead key the August audit found; it was never rotated locally | local script runs from this machine |
+| `MCP_WEBHOOK_SECRET` | VPS / server environment | **UNVERIFIED — must be confirmed before MCP is expected to work** | Absent from `docker-compose.yml`; no way to read the live container env without server access | Both MCP endpoints. The gateway fix is **fail-closed**: until this is set they answer `401`. See [owner action #3b](OWNER_ACTIONS_REQUIRED.md) |
+| `N8N_ENCRYPTION_KEY` | VPS / server environment | **Present and deliberately untouched** | Declared in `docker-compose.yml` and `.env.example`. **Not modified, not read, not rotated** | Decrypts every credential n8n has stored. Overwriting it would lock n8n out of all of them — it is not the API key and must never be treated as one |
+
+**The asymmetry that matters:** the GitHub key gets tested automatically on every
+push, because the deploy job probes it first. The **server** key has no such
+check — nothing on the VPS verifies it until a script happens to use it and
+fails. That is precisely how it stayed dead from June to August without anyone
+noticing. A periodic probe of the server-side key belongs on Sentinel, and
+cannot be built until §1.1 is genuinely closed.
 
 ---
 
@@ -108,10 +134,20 @@ is repo state awaiting [owner action #3](OWNER_ACTIONS_REQUIRED.md).
 
 ### Corrections to earlier audits
 
-- **Not 122 workflows exposed to the empty-200 trap — 47.** The earlier count
-  matched every `validate_session` call without `alwaysOutputData`, but 79 of
-  those carry `neverError: true`, which also keeps the node emitting. The real
-  exposure was 47, and is now 0.
+- **The empty-200 exposure was 126, not 122 and not 47 — and my own first
+  correction was wrong.** The original audit counted every `validate_session`
+  call lacking `alwaysOutputData` and said 122. I narrowed that to 47 on the
+  reasoning that `neverError: true` provided equivalent protection for the other
+  79. **A live probe after deploying disproved it.** `neverError` controls
+  whether a non-2xx *throws*; it says nothing about a 200 carrying an empty
+  array, which n8n splits into zero items — the actual failure. Evidence:
+  post-deploy, `client/overview` (guarded) answered `401` with a body while
+  `admin/avatar-schedule` (`neverError`, unguarded) answered **HTTP 200, 0
+  bytes**. The correct figure is **126 of 126**, all now guarded.
+
+  The lesson is the one this register is built on: the first fix passed every
+  static check and was still wrong. Only the probe against production settled
+  it.
 - **`mcp/agent-tools` is not missing a Switch fallback.** PRODUCT_REGISTRY §3.4
   records "one Switch (no fallback → empty 200)". Re-read today: it declares
   `fallbackOutput: "extra"` and wires output 10 to `Respond 4xx`.

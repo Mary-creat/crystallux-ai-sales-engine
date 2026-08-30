@@ -14,6 +14,27 @@ Last reviewed: **2026-08-30**.
 
 ---
 
+## Credential state — what is confirmed and what is only reported
+
+Values are never written down here. This records **where each key lives and how
+confidently that is known**, because the difference between "set" and "verified"
+is what let a dead key sit unnoticed from June to August.
+
+| Credential | Where | State |
+|---|---|---|
+| `N8N_API_KEY` | GitHub Actions secret | **Set 2026-08-30**, and independently verified — the deploy job probes it before touching anything |
+| `N8N_URL` | GitHub Actions secret | **Set 2026-08-30** → `https://automation.crystallux.org` |
+| `N8N_API_KEY` | VPS / server | **Reported set, NOT verified.** There is no server access from the working machine, so this is taken on trust. It stays "unknown" here until either a script run confirms it or `docker inspect` is shared |
+| `MCP_WEBHOOK_SECRET` | VPS / server | **Unverified — must be checked before MCP is expected to work.** See [#3b](#3b-set-the-mcp-secret) |
+| `N8N_ENCRYPTION_KEY` | VPS / server | **Untouched, by instruction.** Not read, not modified, not rotated. It decrypts every credential n8n stores; it is not an API key and must never be swapped for one |
+
+**Why the server key still counts as unknown.** The GitHub key is checked
+automatically on every push. Nothing on the VPS checks its key — it fails
+silently until some script happens to need it. That asymmetry is the actual root
+cause of the June–August outage, not the expiry itself.
+
+---
+
 ## The short version
 
 **Do #1 today.** It is five minutes of clicking and it unblocks three separate
@@ -25,6 +46,7 @@ this list can wait a week; #1 should not.
 | Priority | Action Needed | Why | Product | Exact Steps for Owner | What Work Continues Without It |
 |---|---|---|---|---|---|
 | **1** | **Mint a new n8n API key** and store it as a GitHub secret | The current key returns **401**. Three things depend on it and all three are quietly broken: Sentinel's workflow monitoring (`sentinel_workflow_health` has **0 rows, ever**), the daily briefing (today's says *"The paused workflow entry is incomplete"* — that is the 401 surfacing as a garbled report), and CI deployment. **This is why nobody noticed the Sales Engine stopped on 8 June: the system that would have reported it has been blind since before that** | Platform, Sentinel | See [§1 below](#1-mint-a-new-n8n-api-key) | Everything else. But no claim about "what is running in production" can be trusted until this is done |
+| **1b** | **Allow Code nodes to read environment variables** | **53 workflows cannot read their own secrets.** Probed live today: the MCP gateway answers `{"error":"process is not defined"}`. Anything reading `process.env` fails at its auth step — **all four Copilot endpoints**, the **Stripe webhook**, email/SMS/WhatsApp sending, the whole agent runtime, most of MGA, and the video chain. `blockers.md` §0ag says this was already configured; it is not true of the running instance, so either it was never set or it was lost when the container was recreated. **This may be the real reason Copilot, the agent layer and video show zero usage — not lack of adoption, but inability to authenticate** | Copilot, Billing, Messaging, MGA, Video, Agentic, MCP | See [§1b](#1b-allow-code-nodes-to-read-environment-variables) | Everything not on that list. **LUXI, Commerce, Sentinel and the Sales Engine do not use `process.env` and are unaffected** — checked across all 326 workflows |
 | **2** | **Delete the six duplicate DevOps briefing workflows** in n8n | **Seven identical briefings run every day** — verified across 14 consecutive days. The repo contains **one**. Six are duplicate copies living in n8n, and each one calls Claude, so you are paying seven times for one report | Productivity / Ops | See [§2](#2-delete-the-six-duplicate-briefings) | Nothing blocks. Worth knowing: the CI bug that manufactured these is fixed, so they will not come back |
 | **3** | **Re-import 54 corrected workflows** to the live server | Security fixes that are finished in the repo but **not live**: 47 endpoints that answered a bad token with an empty `200` now answer `401`; 7 that swallowed an unknown action now answer `400`; and the MCP tool gateway, which checked that an API key *existed* but never that it was *right* | Platform, MCP | See [§3](#3-ship-the-fail-closed-fixes) | All further code work. These are additive — no successful request changes behaviour |
 | **3b** | **Set `MCP_WEBHOOK_SECRET` on the VPS** | The MCP tool gateway shipped in the same push as #3. Its old behaviour was to check that an API key was *present* and never compare it — any non-empty header could run all ten tools, including one that writes to `leads` and one that spends Google Places quota. The fix **fails closed on purpose**, so until this variable is set, both MCP endpoints answer `401`. That is safer than what was there before, not worse — but it is a change, and this is how you finish it | MCP / Tool gateway | See [§3b](#3b-set-the-mcp-secret) | Everything. MCP usage is **5 calls in the table's entire lifetime**, so nothing real is waiting on it |
@@ -56,6 +78,30 @@ https://automation.crystallux.org
 
 **Keep the key somewhere safe.** It is the credential the whole deployment path
 depends on.
+
+---
+
+## 1b. Allow Code nodes to read environment variables
+
+n8n blocks `process.env` inside Code nodes unless you tell it not to. 53 of your
+workflows read secrets that way, so right now they all fail — quietly, with an
+empty response, which is exactly why this went unnoticed.
+
+**Please send me this first, before changing anything:**
+
+```
+docker inspect n8n --format '{{json .Config.Env}}'
+```
+
+Blank out the values — I only need the variable **names**. That tells me whether
+`N8N_BLOCK_ENV_ACCESS_IN_NODE` is missing or set wrong, and at the same time
+gives me the live environment I need for §5. One command answers both.
+
+Once I have seen it I will tell you the exact line to change. The fix itself is
+one variable plus `docker restart n8n`, but I do not want to guess at your live
+configuration — that is how working systems break.
+
+**Do not run `docker compose up -d`.** See the warning in §5.
 
 ---
 
