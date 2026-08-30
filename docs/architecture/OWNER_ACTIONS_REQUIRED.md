@@ -262,21 +262,46 @@ it has been doing all along — no new harm.
 
 ---
 
-## 1c. Add the `aws` credential in n8n (blocks 4 workflows)
+## 1c. Create the `Cloudflare R2` credential in n8n (blocks 4 workflows)
 
-Found 2026-08-30 when CI refused to publish them. Four workflows have an R2
-upload node bound to a credential n8n does not have:
+**Correction to what I told you earlier: this is not AWS and you do not need an
+AWS account.** I named it "aws" because that is the word n8n put in the error,
+without checking what the nodes actually are. Having now read all five of them:
 
-- `clx-heygen-webhook-v1` (Video)
-- `clx-mga-insurance-disclosure-generator-v1`
-- `clx-mga-insurance-review-documentation-v1`
-- `clx-mga-insurance-zoho-sign-callback-v1`
+Every R2 node in the estate is `n8n-nodes-base.awsS3` referencing a credential
+named **`Cloudflare R2`**. n8n calls the credential *type* `aws` because
+Cloudflare R2 speaks the S3 API — the type name is n8n's, the provider is
+Cloudflare. The workflows reference it **by name**, and no credential with that
+name exists in n8n. Across all 326 workflows there is exactly one `aws`
+credential name, so there is no chance it already exists under an alias.
 
-n8n answers `Cannot publish workflow: Credential not configured: aws`. This is
-pre-existing — it is why these four could never have worked — and it means they
-are still running their old code and are the only 4 of 53 that did not get the
-`$env` fix.
+**What to create** — n8n → Credentials → New → **AWS**, named exactly:
 
-Cloudflare R2 uses the S3 API, so in n8n → Credentials → New → **AWS**, set the
-R2 access key, secret, and endpoint. Once it exists, tell me and the next push
-deploys all four.
+```
+Cloudflare R2
+```
+
+The name must match character for character or the workflows will not bind.
+
+Fill it with an **R2 API token** from the Cloudflare dashboard (R2 → Manage API
+Tokens), not an AWS key:
+
+- Access Key ID / Secret Access Key — from the R2 token
+- Region: `auto`
+- Endpoint / custom S3 endpoint: your R2 S3 API URL
+
+**Least privilege:** scope the R2 token to **Object Read & Write** on the single
+bucket these workflows use (`R2_BUCKET`, default `crystallux-videos`). Do not
+grant account-level or admin R2 permissions. Four of the five nodes only upload;
+`clx-video-storage-cleanup-v1` deletes, so read+write on that one bucket is the
+correct floor — read-only would break the cleanup job.
+
+**No workflow changes are needed.** The nodes already name the credential
+correctly; creating it is the whole fix. Once it exists, tell me and the next
+push deploys all four.
+
+**Not launch-critical.** `clx-heygen-webhook-v1` belongs to Video
+(`video_renders` = 0 rows, never rendered). The other three belong to
+Insurance/MGA document generation (`policy_applications` = 0). None of them sits
+on the revenue path, so this is P2 — it does not gate anything you are trying to
+sell.
