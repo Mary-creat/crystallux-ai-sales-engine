@@ -104,7 +104,7 @@
             { "outputKey": "cancel",   "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $('Check Admin').item.json.action }}", "rightValue": "cancel",   "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "aas-0007",
       "name": "Switch Action",
@@ -229,8 +229,8 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unknown_action' }) }}",
+        "options": { "responseCode": "={{ $json.status || ($json._unauthorized ? 401 : 400) }}" }
       },
       "id": "aas-0015",
       "name": "Respond 4xx",
@@ -255,7 +255,8 @@
       "main": [
         [{ "node": "Query Library",       "type": "main", "index": 0 }],
         [{ "node": "Build Schedule Body", "type": "main", "index": 0 }],
-        [{ "node": "Patch Cancel",        "type": "main", "index": 0 }]
+        [{ "node": "Patch Cancel",        "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
       ]
     },
     "Query Library":        { "main": [[{ "node": "Shape List",      "type": "main", "index": 0 }]] },

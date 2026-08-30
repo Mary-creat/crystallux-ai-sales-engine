@@ -9,10 +9,22 @@ ALTER TABLE leads
   ADD COLUMN IF NOT EXISTS company_size_estimate      TEXT,
   ADD COLUMN IF NOT EXISTS scoring_reason     TEXT;
 
--- Optional: add check constraint to keep lead_score in valid range
-ALTER TABLE leads
-  ADD CONSTRAINT IF NOT EXISTS leads_lead_score_range
-  CHECK (lead_score IS NULL OR (lead_score >= 0 AND lead_score <= 100));
+-- Optional: add check constraint to keep lead_score in valid range.
+-- Postgres has no ADD CONSTRAINT IF NOT EXISTS -- that syntax is a hard
+-- parse error, so this statement never ran, and anyone pasting the file
+-- into the Supabase editor got the columns above and then a failure here.
+-- Guard on pg_constraint instead, the idiom used everywhere else in
+-- db/migrations.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'leads_lead_score_range'
+  ) THEN
+    ALTER TABLE leads
+      ADD CONSTRAINT leads_lead_score_range
+      CHECK (lead_score IS NULL OR (lead_score >= 0 AND lead_score <= 100));
+  END IF;
+END $$;
 
 -- Verify columns exist
 SELECT column_name, data_type

@@ -45,7 +45,7 @@
         "rules": { "values": [
           { "outputKey": "start", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "start", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } },
           { "outputKey": "end", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "end", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
-        ] }, "options": {}
+        ] }, "options": { "fallbackOutput": "extra" }
       },
       "id": "alsm-0006", "name": "Switch Action", "type": "n8n-nodes-base.switch", "typeVersion": 3.2, "position": [1320, 360]
     },
@@ -89,8 +89,8 @@
     },
     {
       "parameters": {
-        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unknown_action' }) }}",
+        "options": { "responseCode": "={{ $json.status || ($json._unauthorized ? 401 : 400) }}" }
       },
       "id": "alsm-0011", "name": "Respond Error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1320, 600]
     }
@@ -106,7 +106,8 @@
     ] },
     "Switch Action": { "main": [
       [{ "node": "Start RPC", "type": "main", "index": 0 }],
-      [{ "node": "End RPC",   "type": "main", "index": 0 }]
+      [{ "node": "End RPC",   "type": "main", "index": 0 }],
+      [{ "node": "Respond Error", "type": "main", "index": 0 }]
     ] },
     "Start RPC": { "main": [[{ "node": "Shape",   "type": "main", "index": 0 }]] },
     "End RPC":   { "main": [[{ "node": "Shape",   "type": "main", "index": 0 }]] },

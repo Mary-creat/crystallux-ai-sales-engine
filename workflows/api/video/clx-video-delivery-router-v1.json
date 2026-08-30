@@ -149,7 +149,7 @@
             { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.channel }}", "rightValue": "email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "vdr-0011",
       "name": "Switch Channel",
@@ -277,7 +277,7 @@
     "Merge Branches":          { "main": [[ { "node": "Choose Channel + Compose", "type": "main", "index": 0 } ]] },
     "Choose Channel + Compose":{ "main": [[ { "node": "IF No Channel", "type": "main", "index": 0 } ]] },
     "IF No Channel":           { "main": [[ { "node": "Respond 4xx", "type": "main", "index": 0 } ], [ { "node": "Switch Channel", "type": "main", "index": 0 } ]] },
-    "Switch Channel":          { "main": [[ { "node": "Call WhatsApp Send", "type": "main", "index": 0 } ], [ { "node": "Call SMS Send", "type": "main", "index": 0 } ], [ { "node": "Call Email Send", "type": "main", "index": 0 } ]] },
+    "Switch Channel":          { "main": [[ { "node": "Call WhatsApp Send", "type": "main", "index": 0 } ], [ { "node": "Call SMS Send", "type": "main", "index": 0 } ], [ { "node": "Call Email Send", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
     "Call WhatsApp Send":      { "main": [[ { "node": "Mark Delivered", "type": "main", "index": 0 } ]] },
     "Call SMS Send":           { "main": [[ { "node": "Mark Delivered", "type": "main", "index": 0 } ]] },
     "Call Email Send":         { "main": [[ { "node": "Mark Delivered", "type": "main", "index": 0 } ]] },

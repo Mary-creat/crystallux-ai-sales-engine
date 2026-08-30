@@ -88,7 +88,7 @@
             { "outputKey": "submit",        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "submit",        "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "asqf-0006",
       "name": "Switch Action",
@@ -487,8 +487,8 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unknown_action' }) }}",
+        "options": { "responseCode": "={{ $json.status || ($json._unauthorized ? 401 : 400) }}" }
       },
       "id": "asqf-0029",
       "name": "Respond 4xx",
@@ -513,7 +513,8 @@
         [{ "node": "Get Template",                "type": "main", "index": 0 }],
         [{ "node": "Resolve Template Id (start)", "type": "main", "index": 0 }],
         [{ "node": "Build Save Body",             "type": "main", "index": 0 }],
-        [{ "node": "Get Draft (submit)",          "type": "main", "index": 0 }]
+        [{ "node": "Get Draft (submit)",          "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
       ]
     },
     "Get Template":                { "main": [[{ "node": "Get Pricing Rules",   "type": "main", "index": 0 }]] },

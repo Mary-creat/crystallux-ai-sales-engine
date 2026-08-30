@@ -81,6 +81,42 @@ def unguarded_switches(d):
     return out
 
 
+def dead_end_nodes(d):
+    """Nodes in a responseNode workflow that end a branch without responding.
+
+    Same failure as an unguarded Switch, one step further along: a branch
+    runs to its last node, that node is not a Respond node, and the caller
+    is left holding a bodyless 200. The repo has hit the empty-200 trap four
+    separate times (see CLAUDE.md), so this is a failure rather than a
+    warning -- the estate is clean today and the check is here to keep it
+    that way.
+
+    Disabled nodes and the TEST HARNESS / DELIBERATELY DISCONNECTED
+    annotations are honoured, same as the unreachable-node check.
+    """
+    if not any(n.get('parameters', {}).get('responseMode') == 'responseNode'
+               for n in d.get('nodes', [])):
+        return []
+    conns = d.get('connections') or {}
+    out = []
+    for n in d.get('nodes', []):
+        ntype = n.get('type', '')
+        if ntype.endswith('webhook') or ntype.endswith('.stickyNote'):
+            continue
+        if 'respondToWebhook' in ntype:
+            continue
+        if n.get('disabled'):
+            continue
+        note = (n.get('notes') or '').upper()
+        if 'TEST HARNESS' in note or 'DELIBERATELY DISCONNECTED' in note:
+            continue
+        outgoing = [c for br in (conns.get(n.get('name'), {}).get('main') or [])
+                    for c in (br or [])]
+        if not outgoing:
+            out.append(n.get('name', '?'))
+    return out
+
+
 def main(argv):
     paths = [p.replace('\\', '/') for p in argv[1:]]
     problems = []
@@ -116,6 +152,11 @@ def main(argv):
         for sw in unguarded_switches(d):
             warnings.append('%s: Switch %r has no fallbackOutput; an unmatched '
                             'input answers with an empty 200' % (name, sw))
+
+        for dead in dead_end_nodes(d):
+            problems.append('%s: node %r ends a branch without reaching a '
+                            'Respond node; the caller gets an empty 200'
+                            % (name, dead))
 
         for src, conn in (d.get('connections') or {}).items():
             if src not in names:

@@ -87,7 +87,7 @@
             { "outputKey": "update", "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [{ "id": "c1", "leftValue": "={{ $json.action }}", "rightValue": "update", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "alam-0006",
       "name": "Switch Action",
@@ -249,8 +249,8 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unknown_action' }) }}",
+        "options": { "responseCode": "={{ $json.status || ($json._unauthorized ? 401 : 400) }}" }
       },
       "id": "alam-0016",
       "name": "Respond 4xx",
@@ -274,7 +274,8 @@
       "main": [
         [{ "node": "Lookup LUXI Avatar", "type": "main", "index": 0 }],
         [{ "node": "Build Cancel Body",  "type": "main", "index": 0 }],
-        [{ "node": "Build Update Body",  "type": "main", "index": 0 }]
+        [{ "node": "Build Update Body",  "type": "main", "index": 0 }],
+        [{ "node": "Respond 4xx", "type": "main", "index": 0 }]
       ]
     },
     "Lookup LUXI Avatar": { "main": [[{ "node": "Build Create Body", "type": "main", "index": 0 }]] },

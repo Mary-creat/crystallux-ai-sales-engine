@@ -51,6 +51,7 @@
         "options": {}
       },
       "id": "ugl-0004",
+      "alwaysOutputData": true,
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

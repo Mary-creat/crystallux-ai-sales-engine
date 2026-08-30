@@ -52,7 +52,7 @@
             { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.review_type }}", "rightValue": "final_compliance", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "final" }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "mca-0004",
       "name": "Switch Review Type",
@@ -360,7 +360,7 @@
     "Webhook":                  { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
     "Validate":                 { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
     "IF Authorized":            { "main": [[ { "node": "Switch Review Type", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
-    "Switch Review Type":       { "main": [[ { "node": "Fetch KYC", "type": "main", "index": 0 } ], [ { "node": "Fetch Suitability", "type": "main", "index": 0 } ], [ { "node": "Fetch Disclosure", "type": "main", "index": 0 } ], [ { "node": "Fetch Application", "type": "main", "index": 0 } ]] },
+    "Switch Review Type":       { "main": [[ { "node": "Fetch KYC", "type": "main", "index": 0 } ], [ { "node": "Fetch Suitability", "type": "main", "index": 0 } ], [ { "node": "Fetch Disclosure", "type": "main", "index": 0 } ], [ { "node": "Fetch Application", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ] ] },
     "Fetch KYC":                { "main": [[ { "node": "Merge Branches", "type": "main", "index": 0 } ]] },
     "Fetch Suitability":        { "main": [[ { "node": "Merge Branches", "type": "main", "index": 1 } ]] },
     "Fetch Disclosure":         { "main": [[ { "node": "Merge Branches", "type": "main", "index": 2 } ]] },

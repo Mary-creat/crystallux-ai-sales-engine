@@ -28,6 +28,9 @@ Claude has no memory between sessions. Within a session, context compresses. To 
 - [`docs/architecture/ARCHITECTURE_DOCTRINE.md`](docs/architecture/ARCHITECTURE_DOCTRINE.md) — non-negotiable architectural decisions.
 
 ### Current sprint state
+- [`docs/architecture/PROJECT_MASTER_COMPLETION.md`](docs/architecture/PROJECT_MASTER_COMPLETION.md) — **read this first.** Per-capability completion register: status, the evidence for that status, production state, blocker, next action. A row is not `READY` without evidence.
+- [`docs/architecture/OWNER_ACTIONS_REQUIRED.md`](docs/architecture/OWNER_ACTIONS_REQUIRED.md) — the prioritised queue of things only Mary can do (credentials, money, approvals, live-customer authorization). `docs/audit/blockers.md` remains the chronological archive behind it.
+- [`docs/audit/2026-08-28-master-architecture-audit.md`](docs/audit/2026-08-28-master-architecture-audit.md) and [`docs/architecture/PRODUCT_REGISTRY.md`](docs/architecture/PRODUCT_REGISTRY.md) — infrastructure and product state measured against live production, not against the docs.
 - [`docs/audit/insurance-features-extracted.md`](docs/audit/insurance-features-extracted.md) — exhaustive feature inventory by build status (🟢🟡🔴) for the Advisor Dashboard scoping.
 - [`docs/audit/production-readiness.md`](docs/audit/production-readiness.md) — per-criterion ✓ / gated table; what's verified vs. waiting on Mary.
 - [`docs/audit/blockers.md`](docs/audit/blockers.md) — what Mary still has to do (SQL migrations + VPS workflow re-import + Cloudflare cache purge).
@@ -53,7 +56,7 @@ Claude has no memory between sessions. Within a session, context compresses. To 
 - **`clients` is the tenant of record.** `commerce_tenants` is a commerce profile
   hanging off it, not a second tenant root.
 
-- `workflows/` — 52 n8n workflow JSONs (top-level = backend pipeline workflows; `workflows/api/admin/` and `workflows/api/client/` = the 18 dashboard webhooks).
+- `workflows/` — **326** n8n workflow JSONs across 285 unique webhook paths. Top level (50 files) is the backend pipeline; everything else lives under `workflows/api/<domain>/`, of which `insurance-mga/` alone is 85. This said 52 until 2026-08-30 and had been counting only the top level — which is also all CI used to validate.
 - `docs/architecture/migrations/` — every SQL migration applied to Supabase, in chronological order.
 - `tests/audit/dashboard-audit.js` — Playwright audit harness.
 

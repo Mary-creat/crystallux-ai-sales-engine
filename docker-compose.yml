@@ -21,7 +21,13 @@ services:
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
       - DB_POSTGRESDB_USER=${POSTGRES_USER}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-      - EXECUTIONS_MODE=regular
+      # Must match the worker below. n8n only enqueues to Redis when the
+      # MAIN instance is in queue mode; while this said `regular` the main
+      # container executed everything itself and the n8n-worker service sat
+      # idle -- a scaling tier that was declared, paid for in RAM, and never
+      # reached. Changing this takes effect on the next `docker compose up`,
+      # which restarts n8n: see docs/architecture/OWNER_ACTIONS_REQUIRED.md.
+      - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       # Uncomment the line below after setting REDIS_PASSWORD in .env

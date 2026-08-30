@@ -1,86 +1,102 @@
-# ===============================================================
-# Crystallux Universal AI Sales Engine
-# GitHub Actions CI/CD Pipeline
 # ================================================================
-# This pipeline runs automatically every time you push to main.
-# It validates your workflow files and deploys them to your
-# live n8n instance on Hostinger without manual intervention.
+# Crystallux Universal AI Sales Engine — CI/CD
+# ================================================================
+# Two jobs:
+#
+#   validate — runs on every push and PR. Parses every workflow JSON
+#     in the estate (all 326, not just the top-level 50), then runs
+#     the two validators the repo already ships.
+#
+#   deploy — runs only on push to main, and only for workflow files
+#     that actually changed in that push. Updates in place by id.
+#     It never creates and it never activates.
+#
+# Why deploy only updates: n8n's POST /workflows CREATES. The previous
+# version of this file POSTed all 50 top-level workflows on every push
+# to main, which is a duplicate-workflow generator — n8n assigns a new
+# id each time and the old copy keeps running. That is the mechanism
+# behind the six surplus DevOps briefing workflows in production
+# (docs/audit/blockers.md §0n). 324 of 326 workflows carry a stable
+# top-level id, so update-by-id is well defined; a blind create is not.
+#
+# First import of a genuinely new workflow stays a deliberate act via
+# scripts/n8n/ship.sh, which sets the chosen id through the n8n CLI.
+# CI has no docker access to the VPS and cannot do that.
+#
+# Activation is never automated — it is per-client, per-tier, and
+# Mary's call (CLAUDE.md, dormant-by-default policy). The PUT body
+# carries name/nodes/connections/settings only, so a workflow's live
+# active state survives a deploy untouched.
 # ================================================================
 
 name: Crystallux CI/CD Pipeline
 
-# ── Trigger Configuration ──────────────────────────────────────
-# Run this pipeline on every push to main branch
-# Also run on pull requests so you catch errors before merging
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: 'Update every workflow in the repo, not just changed ones'
+        type: boolean
+        default: false
+      allow_protected:
+        description: 'Permit updates to the 9 protected production workflows'
+        type: boolean
+        default: false
 
-# ── Jobs ───────────────────────────────────────────────────────
-# A job is a set of steps that run on the same virtual machine
-# Jobs run in parallel by default unless you use 'needs:'
 jobs:
 
-  # ── Job 1: Validate ──────────────────────────────────────────
-  # Checks that all workflow files are valid before deploying
-  # This is your safety net — catches broken files before
-  # they ever reach your production n8n instance
-  validate-workflows:
-    name: Validate n8n Workflow Files
+  # ── Job 1: Validate ─────────────────────────────────────────────
+  validate:
+    name: Validate workflow + migration estate
     runs-on: ubuntu-latest
 
     steps:
-      # Download your repository code onto the virtual machine
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # validate-workflows.py shells out to `node --check` to parse the
+      # JavaScript inside Code nodes. Without node on PATH that check is
+      # skipped silently, so this step is load-bearing, not boilerplate.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Validate every JSON file in the workflows/ folder
-      # Python's json module is the most reliable JSON validator
-      # If any file is malformed, the pipeline stops here
-      - name: Validate workflow JSON files
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install validator dependencies
+        run: pip install pglast
+
+      # The old version globbed workflows/*.json, which is 50 of 326 —
+      # every dashboard webhook under workflows/api/ went unchecked.
+      - name: Parse every workflow JSON
         run: |
-          echo "🔍 Validating all CLX workflow JSON files..."
-          
-          # Check if any workflow files exist yet
-          if [ -z "$(ls -A workflows/*.json 2>/dev/null)" ]; then
-            echo "⚠️  No workflow JSON files found yet — skipping validation"
-            exit 0
-          fi
-          
-          # Loop through every JSON file and validate it
+          count=0
           failed=0
-          for file in workflows/*.json; do
-            if python3 -c "import json; json.load(open('$file'))" 2>/dev/null; then
-              echo "✅ Valid: $file"
-            else
-              echo "❌ Invalid JSON: $file"
-              failed=1
+          while IFS= read -r file; do
+            count=$((count + 1))
+            if ! python3 -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$file"; then
+              echo "::error file=$file::invalid JSON"
+              failed=$((failed + 1))
             fi
-          done
-          
-          # Fail the pipeline if any file was invalid
-          if [ $failed -eq 1 ]; then
-            echo "Pipeline failed — fix invalid JSON files before deploying"
+          done < <(find workflows -name '*.json' -type f | sort)
+
+          echo "Parsed $count workflow JSON files, $failed invalid"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no workflow JSON files found — the find path is wrong"
             exit 1
           fi
-          
-          echo "✅ All workflow files are valid"
+          [ "$failed" -eq 0 ] || exit 1
 
-      # Verify that Phase 1 workflow exists
-      # As you complete more phases, add them to this list
       - name: Check required workflow files exist
         run: |
-          echo "📋 Checking required workflow files..."
-
-          # Add new workflow filenames here as you complete each phase
-          # Updated 2026-04-16: v1 files replaced by hardened v2/v3 versions
           required_files=(
             "workflows/clx-lead-import.json"
             "workflows/clx-lead-research-v2.json"
@@ -92,100 +108,184 @@ jobs:
             "workflows/clx-follow-up-v2.json"
             "workflows/clx-booking-v2.json"
             "workflows/clx-pipeline-update-v2.json"
+            "workflows/clx-reply-ingestion-v1.json"
             "workflows/clx-email-scraper-v3.json"
             "workflows/clx-b2c-discovery-v2.1.json"
             "workflows/clx-city-scan-discovery.json"
             "workflows/clx-mcp-tool-gateway.json"
           )
-
           failed=0
           for file in "${required_files[@]}"; do
-            if [ -f "$file" ]; then
-              echo "✅ Found: $file"
-            else
-              echo "❌ Missing: $file"
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::required workflow file is missing"
               failed=1
             fi
           done
+          [ "$failed" -eq 0 ] || exit 1
 
-          if [ $failed -eq 1 ]; then
-            echo "Pipeline failed — required workflow files are missing"
-            exit 1
-          fi
+      # Dangling connections, $('Node') references to nodes that do not
+      # exist, credentials carrying an id, duplicate webhook paths and
+      # workflow ids, Code nodes that do not parse, $input.all() under
+      # runOnceForEachItem. Every one of these has bitten this repo.
+      - name: Validate workflows
+        run: python3 scripts/validate-workflows.py
 
-          echo "✅ All required workflow files present"
+      # Real Postgres grammar via libpg_query, across both migration
+      # directories. Mary pastes these into the Supabase SQL editor by
+      # hand, where a syntax error surfaces halfway through a
+      # partially-applied file.
+      - name: Validate migrations
+        run: |
+          shopt -s nullglob
+          files=(db/migrations/*.sql docs/architecture/migrations/*.sql)
+          echo "Validating ${#files[@]} SQL files"
+          python3 scripts/validate-migrations.py "${files[@]}"
 
-  # ── Job 2: Deploy ────────────────────────────────────────────
-  # Deploys validated workflows to your live n8n instance
-  # Only runs after Job 1 passes — never deploys broken files
-  # Only runs on pushes to main — never on pull requests
-  deploy-to-n8n:
-    name: Deploy Workflows to Hostinger n8n
+  # ── Job 2: Deploy ───────────────────────────────────────────────
+  deploy:
+    name: Update changed workflows in n8n
     runs-on: ubuntu-latest
-    
-    # This job depends on validate-workflows passing first
-    # If validation fails, deployment never runs
-    needs: validate-workflows
-    
-    # Only deploy on actual pushes to main, not pull requests
-    # This prevents deploying unreviewed code to production
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    if: github.event_name != 'pull_request'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Deploy each workflow file to your n8n instance
-      # Uses n8n's REST API to import workflows automatically
-      # N8N_URL and N8N_API_KEY are stored as GitHub Secrets
-      # — they are never visible in this file or in logs
-      - name: Deploy workflows to n8n
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Determine which workflows changed
+        id: changed
+        run: |
+          if [ "${{ github.event.inputs.deploy_all }}" = "true" ]; then
+            find workflows -name '*.json' -type f | sort > changed.txt
+            echo "Manual dispatch: updating the whole estate"
+          elif [ -n "${{ github.event.before }}" ] && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+            git diff --name-only --diff-filter=d "${{ github.event.before }}" "${{ github.sha }}" -- 'workflows/*.json' 'workflows/**/*.json' | sort > changed.txt
+          else
+            # First push on a branch, or a force push — no usable base.
+            # Deploy nothing rather than guess; ship.sh remains available.
+            : > changed.txt
+            echo "::warning::no comparable base commit; skipping deploy"
+          fi
+          echo "count=$(wc -l < changed.txt)" >> "$GITHUB_OUTPUT"
+          echo "Changed workflow files: $(wc -l < changed.txt)"
+          cat changed.txt
+
+      - name: Update workflows in n8n
+        if: steps.changed.outputs.count != '0'
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+          ALLOW_PROTECTED: ${{ github.event.inputs.allow_protected }}
         run: |
-          # Skip deployment if secrets are not configured yet
-          if [ -z "$N8N_URL" ] || [ -z "$N8N_API_KEY" ]; then
-            echo "⚠️  N8N_URL or N8N_API_KEY secrets not configured — skipping deployment"
-            echo "ℹ️  Add N8N_URL and N8N_API_KEY in GitHub Settings > Secrets to enable auto-deploy"
-            exit 0
-          fi
+          set -uo pipefail
 
-          echo "🚀 Deploying CLX workflows to n8n at $N8N_URL"
-
-          # Skip deployment if no workflow files exist yet
-          if [ -z "$(ls -A workflows/*.json 2>/dev/null)" ]; then
-            echo "⚠️  No workflow files to deploy yet"
-            exit 0
+          if [ -z "${N8N_URL:-}" ] || [ -z "${N8N_API_KEY:-}" ]; then
+            echo "::error::N8N_URL / N8N_API_KEY are not configured — cannot deploy"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            exit 1
           fi
-          
-          # Deploy each workflow file via n8n's REST API
-          for file in workflows/*.json; do
-            echo "Deploying $file..."
-            
-            response=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 30 \
-              --connect-timeout 10 \
-              -X POST "$N8N_URL/api/v1/workflows" \
+          N8N_URL="${N8N_URL%/}"
+
+          # Fail fast and loudly on a dead key. The previous version of
+          # this file swallowed every failure with `|| true` and then
+          # printed "Deployed successfully" regardless, which is how a
+          # 401-ing API key went unnoticed for months.
+          probe=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+            -X GET "$N8N_URL/api/v1/workflows?limit=1" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY")
+          if [ "$probe" != "200" ]; then
+            echo "::error::n8n API rejected the key (HTTP $probe) — nothing deployed."
+            echo "Mint a new key in n8n -> Settings -> API, then update the N8N_API_KEY secret."
+            exit 1
+          fi
+          echo "n8n API reachable, key accepted."
+
+          # The 9 protected production workflows (CLAUDE.md working
+          # agreement). Never touched by an automatic push; a manual
+          # dispatch must opt in explicitly.
+          protected="clx-lead-import.json clx-lead-research-v2.json clx-lead-scoring-v2.json clx-campaign-router-v2.json clx-outreach-generation-v2.json clx-outreach-sender-v2.json clx-pipeline-update-v2.json clx-reply-ingestion-v1.json clx-booking-v2.json"
+
+          updated=0; skipped=0; absent=0; failed=0; guarded=0
+
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            [ -f "$file" ] || continue
+            base=$(basename "$file")
+
+            case " $protected " in
+              *" $base "*)
+                if [ "${ALLOW_PROTECTED:-false}" != "true" ]; then
+                  echo "::warning file=$file::protected production workflow — not deployed"
+                  guarded=$((guarded + 1))
+                  continue
+                fi
+                ;;
+            esac
+
+            wf_id=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); print(d.get('id') or '')" "$file")
+
+            if [ -z "$wf_id" ]; then
+              echo "::warning file=$file::no top-level id — cannot update by id, skipped"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            exists=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+              -X GET "$N8N_URL/api/v1/workflows/$wf_id" \
+              -H "X-N8N-API-KEY: $N8N_API_KEY")
+
+            if [ "$exists" != "200" ]; then
+              echo "::warning file=$file::not in n8n (id $wf_id, HTTP $exists) — first import is a ship.sh action"
+              absent=$((absent + 1))
+              continue
+            fi
+
+            # n8n's REST API rejects settings keys its own UI exports.
+            # One implementation of that whitelist, shared with ship.sh.
+            if ! python3 scripts/n8n/n8n-put-body.py "$file" > body.json; then
+              echo "::error file=$file::could not build a PUT body"
+              failed=$((failed + 1))
+              continue
+            fi
+
+            code=$(curl -s -o resp.json -w '%{http_code}' --max-time 60 \
+              -X PUT "$N8N_URL/api/v1/workflows/$wf_id" \
               -H "X-N8N-API-KEY: $N8N_API_KEY" \
               -H "Content-Type: application/json" \
-              -d @"$file") || true
-            
-            if [ "$response" = "200" ] || [ "$response" = "201" ]; then
-              echo "✅ Successfully deployed: $file"
+              --data-binary @body.json)
+
+            if [ "$code" = "200" ]; then
+              echo "updated $base ($wf_id)"
+              updated=$((updated + 1))
             else
-              echo "⚠️  Deployment returned status $response for: $file"
+              echo "::error file=$file::PUT returned HTTP $code — $(head -c 300 resp.json)"
+              failed=$((failed + 1))
             fi
-          done
-          
-          echo "✅ Deployment complete"
+          done < changed.txt
 
-      # Send a deployment summary to your workflow run
-      - name: Deployment summary
-        run: |
-          echo "## Crystallux Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "**Status**: ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Crystallux deploy"
+            echo ""
+            echo "| Result | Count |"
+            echo "|---|---:|"
+            echo "| Updated in n8n | $updated |"
+            echo "| Protected, not deployed | $guarded |"
+            echo "| Not yet in n8n (needs ship.sh) | $absent |"
+            echo "| Skipped, no id | $skipped |"
+            echo "| **Failed** | **$failed** |"
+            echo ""
+            echo "Activation state is untouched — deploys never activate."
+          } >> "$GITHUB_STEP_SUMMARY"
 
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed workflow update(s) failed"
+            exit 1
+          fi
+          echo "Deploy complete: $updated updated, $guarded protected, $absent absent."

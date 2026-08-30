@@ -57,6 +57,7 @@
         "options": {}
       },
       "id": "auth-vs-0004",
+      "alwaysOutputData": true,
       "name": "Validate Session RPC",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

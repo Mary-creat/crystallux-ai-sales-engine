@@ -4,6 +4,18 @@ These are items I (Claude) cannot complete autonomously because they
 require either Supabase access, VPS access, or Cloudflare cache control.
 Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
+> **Start at [`docs/architecture/OWNER_ACTIONS_REQUIRED.md`](../architecture/OWNER_ACTIONS_REQUIRED.md).**
+> That file is the *prioritised, currently-open* owner queue, written to be read
+> top to bottom. This file is the **chronological archive** — 1,600 lines, newest
+> section first, and most of it is resolved history worth keeping but not worth
+> re-reading. When the two disagree, the owner-actions file is current.
+>
+> Two lists that disagree about what still needs doing is how something that
+> still needs doing gets skipped — the same failure that let the protected
+> workflow list say 7 in one place and 9 in another (CLAUDE.md, working
+> agreement §4). New owner-gated items go in **both**: the detail here, the
+> priority there.
+
 ---
 
 ## 0ag. MCP Tool Gateway — auth fixed in repo, needs a secret + a re-import (2026-08-28)

@@ -36,7 +36,7 @@
             { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json._path }}", "rightValue": "inbound", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "inbound" }
           ]
         },
-        "options": {}
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "tsc-0003",
       "name": "Switch",
@@ -109,7 +109,7 @@
   "connections": {
     "Webhook":                     { "main": [[ { "node": "Parse Twilio", "type": "main", "index": 0 } ]] },
     "Parse Twilio":                { "main": [[ { "node": "Switch", "type": "main", "index": 0 } ]] },
-    "Switch":                      { "main": [[ { "node": "Update Message Status", "type": "main", "index": 0 } ], [ { "node": "Trigger Conversation Handler", "type": "main", "index": 0 } ]] },
+    "Switch":                      { "main": [[ { "node": "Update Message Status", "type": "main", "index": 0 } ], [ { "node": "Trigger Conversation Handler", "type": "main", "index": 0 } ], [ { "node": "Respond TwiML Empty", "type": "main", "index": 0 } ] ] },
     "Update Message Status":       { "main": [[ { "node": "Respond TwiML Empty", "type": "main", "index": 0 } ]] },
     "Trigger Conversation Handler":{ "main": [[ { "node": "Respond TwiML Empty", "type": "main", "index": 0 } ]] }
   },
