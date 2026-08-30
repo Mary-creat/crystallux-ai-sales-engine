@@ -259,3 +259,24 @@ it has been doing all along — no new harm.
 - **MCP tool gateway auth** — fixed in the repo at `0a17874`. Ships with #3.
 - **CI manufacturing duplicate workflows** — fixed 2026-08-30. This was the
   source of the duplicates in #2; they will not regenerate.
+
+---
+
+## 1c. Add the `aws` credential in n8n (blocks 4 workflows)
+
+Found 2026-08-30 when CI refused to publish them. Four workflows have an R2
+upload node bound to a credential n8n does not have:
+
+- `clx-heygen-webhook-v1` (Video)
+- `clx-mga-insurance-disclosure-generator-v1`
+- `clx-mga-insurance-review-documentation-v1`
+- `clx-mga-insurance-zoho-sign-callback-v1`
+
+n8n answers `Cannot publish workflow: Credential not configured: aws`. This is
+pre-existing — it is why these four could never have worked — and it means they
+are still running their old code and are the only 4 of 53 that did not get the
+`$env` fix.
+
+Cloudflare R2 uses the S3 API, so in n8n → Credentials → New → **AWS**, set the
+R2 access key, secret, and endpoint. Once it exists, tell me and the next push
+deploys all four.

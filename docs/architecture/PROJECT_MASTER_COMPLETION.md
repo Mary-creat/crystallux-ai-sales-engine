@@ -57,6 +57,30 @@ The finish-line conditions, each with the evidence that settles it.
 
 ---
 
+## 1z. Four levels of "working" — read this before believing any green row
+
+The `process.env` fix removed the *first* error in a chain. That is not the same
+as a product working, and conflating the two is how a platform ends up with ten
+products marked done and zero orders. Every claim in this document sits at one
+of four levels:
+
+| Level | Means | How it is established |
+|---|---|---|
+| **1. Environment access fixed** | The Code node can read its secret. `process is not defined` is gone | Static: the workflow no longer references `process.env` |
+| **2. Endpoint responds correctly** | A bad request is rejected with a real status and body; a well-formed one is accepted | Live HTTP probe |
+| **3. Functionally tested** | The workflow does its actual job end to end — the email sends, the video renders, the tool executes and writes a row | A real transaction, checked in the database |
+| **4. Commercially ready** | Level 3, plus monitoring, cost/rate limits understood, failure path exercised, no test-only behaviour in the live path, and documented operation | The 16-point definition in the brief |
+
+**As of 2026-08-30 the 53 repaired workflows are at level 1, and a handful are at
+level 2.** None is at level 3. Nothing in this pass should be read as "Copilot
+works" or "the agent runtime works" — only as "they are no longer failing for
+this particular reason." Reaching level 3 for the agent runtime means seeding one
+personality and driving one decision through to `agent_decisions`; for Copilot it
+means one real question answered; for Video one real render. Those are cheap and
+none has been done.
+
+---
+
 ## 1a. Credential state
 
 Where each credential lives, and how confidently that is known. **"Verified"
