@@ -165,6 +165,42 @@ follow-up steps all become testable in a single pass.
 
 ---
 
+## 1d. Vertical context — COMPLETE, verified in production 2026-08-30
+
+All five migration steps applied and independently verified. 11 of 11 checks pass.
+
+| Check | Evidence |
+|---|---|
+| Schema | `niche_overlays` at **24 columns**; `behavior_config` + `sales_process_config` present |
+| MAXI edge | `maxi_industries.niche_overlay_id` uuid, FK `ON DELETE SET NULL`, partial index; **5 of 22 mapped**, 17 deliberately NULL |
+| Capability | `get_vertical_context()` — 1 definition |
+| Positive | `construction` → `ok=true`, 8 process stages, 6 signal types. `insurance_broker` → `ok=true`, conversion `appointment_booked` |
+| Negative | `restaurant` → `ok=false`, `vertical_not_configured` — marketed by MAXI, not operable, and the capability says so rather than inventing a default |
+| Configuration | **8 of 8** verticals carry icp, labels, routing, behavior, process, terminology, signal_weights, followup_cadence, conversion_event |
+| Assumptions | all 8 carry `_assumed` flags, findable by query |
+| Regression | All 8 consumers use explicit `select=` lists, so additive columns are invisible. Verified live: signal-intelligence returns 5 active verticals, Apollo returns 6 title keywords |
+
+**What this changes commercially:** the Sales Engine can now be pointed at
+construction, dental, real_estate or consulting with industry-correct ICP,
+titles, signals, tone, terminology and cadence — where before only
+`insurance_broker` was configured. It does **not** mean those campaigns have
+been run; nothing has been sent.
+
+### Correction to my own diagnosis, recorded because it cost a cycle
+
+Step 5 first failed with `Character with value 0x0d must be escaped`. I
+attributed it to CRLF inside multi-line JSON literals. **Tested against the live
+database, that was wrong:** CR *between* JSON tokens is accepted; only CR
+*inside a string* is rejected, and the actual failing literal — carriage returns
+intact — was accepted. Zero literals across all 118 migrations have CR inside a
+string. The JSON was valid; the cause lay between file and SQL editor, not in
+the SQL. The single-line collapse was kept anyway (data verified byte-identical)
+because it removes the transport risk regardless, and the requested guard was
+made precise rather than coarse — a first cut flagged 20 migrations that had
+already applied cleanly.
+
+---
+
 ## 2. Product register
 
 Status per the vocabulary above. Row counts and endpoint registration are the
