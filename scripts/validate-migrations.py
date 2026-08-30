@@ -48,16 +48,63 @@ FUNC_RE = re.compile(
 SQL_LANG_RE = re.compile(r'LANGUAGE\s+sql\b', re.I)
 TRIGGER_RE = re.compile(r'RETURNS\s+trigger\b', re.I)
 
+# A raw carriage return inside a JSON literal is rejected by Postgres with
+# 'invalid input syntax for type json ... Character with value 0x0d must be
+# escaped'. It is invisible in an editor and survives every Python-side
+# json.loads, because Python treats CR as whitespace and Postgres does not.
+# Git hands Windows checkouts CRLF, so a multi-line JSON literal picks one up
+# on the way to the SQL editor no matter what the repo stores. Keeping JSON
+# literals on a single line is the only fix that survives that round trip.
+# A JSON literal, matched without running past its closing quote: the body
+# may contain '' (an escaped quote) but never a bare one. Matching with a
+# plain .*? spanned from one literal's brace across "'::jsonb THEN '" into
+# the next, which manufactured invalid fragments and false failures.
+JSON_LITERAL_RE = re.compile(r"'(\{(?:[^']|'')*?\})'::jsonb", re.S)
+
+
+def _cr_inside_json_string(lit):
+    """Offsets of raw CR/LF sitting INSIDE a JSON string.
+
+    Verified against the live database, both directions: Postgres accepts
+    CR as whitespace BETWEEN json tokens, and rejects it INSIDE a string
+    with 'Character with value 0x0d must be escaped'. Flagging every CR in
+    a literal marks 20 migrations that have already applied cleanly, and a
+    check that cries wolf gets ignored -- which is the failure mode this
+    script exists to prevent.
+    """
+    out, in_string, escaped = [], False, False
+    for i, ch in enumerate(lit):
+        if escaped:
+            escaped = False
+        elif ch == chr(92):
+            escaped = True
+        elif ch == '"':
+            in_string = not in_string
+        elif in_string and ch in (chr(13), chr(10)):
+            out.append(i)
+    return out
+
 
 def validate(path):
     """Return (ok, summary) for one file."""
-    sql = io.open(path, encoding='utf-8').read()
+    # newline='' disables universal-newline translation. Without it Python
+    # silently rewrites CRLF to LF on read, so a carriage return inside a
+    # JSON literal -- the thing Postgres rejects -- is invisible to the
+    # check below and every file passes.
+    sql = io.open(path, encoding='utf-8', newline='').read()
     name = os.path.basename(path)
 
     try:
         stmts = parse_sql(sql)
     except ParseError as e:
         return False, '%-52s FAIL  %s' % (name, e)
+
+    cr_literals = [m.start() for m in JSON_LITERAL_RE.finditer(sql)
+                   if _cr_inside_json_string(m.group(1))]
+    if cr_literals:
+        return False, ('%-52s FAIL  %d JSON literal(s) contain a raw carriage '
+                       'return or newline inside a string; Postgres rejects '
+                       '0x0d there.' % (name, len(cr_literals)))
 
     bodies = FUNC_RE.findall(sql)
     failures, checked, skipped = [], 0, 0
