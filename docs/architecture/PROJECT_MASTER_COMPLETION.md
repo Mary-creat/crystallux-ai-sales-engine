@@ -201,6 +201,37 @@ already applied cleanly.
 
 ---
 
+## 1e. Applied migrations — verified in production
+
+The repo has never had a migration ledger; nothing recorded which of the 118
+SQL files had been run, so applied state was only knowable by diffing the live
+schema. This is the start of one. **Verified against production 2026-08-30 —
+do not ask the owner to re-run these.**
+
+| Migration | Applied | Verified by |
+|---|---|---|
+| `vertical-context-1-columns.sql` | yes | `niche_overlays` at **24 columns**; `behavior_config` + `sales_process_config` present |
+| `vertical-context-2-maxi-fk.sql` | yes | `maxi_industries.niche_overlay_id` uuid; FK + partial index present |
+| `vertical-context-3-maxi-mapping.sql` | yes | **5 of 22** mapped, 17 deliberately NULL |
+| `vertical-context-4-function.sql` | yes | `get_vertical_context()` — 1 definition, resolves `construction` |
+| `vertical-context-5-seed.sql` | yes | **8 of 8** verticals carry icp, labels, routing, behavior, process |
+| `agent-runtime-first-personality.sql` | yes | 1 row: `construction`, avatar `MAXI`, `recommend_only`, 8 gated actions, vertical resolves |
+
+**The runtime is still inert, and that is the intended state.** After seeding
+the personality: `agent_decisions` 0, `agent_actions` 0, `agent_memory` 0 —
+seeding configuration did not cause anything to act, which was the point of
+that second verification query. `agent_channels_enabled` 0,
+`behavioral_triggers` 0 and `agent_schedules` 0 remain the gates, and the
+decision engine exits at the first of them.
+
+Both safety layers are now in place ahead of activation rather than after it:
+the executor's fail-closed Policy Gate, and the MCP handover that stops
+`mcp/agent-tools` being a shorter road to a real send. 61 tests, both suites in
+CI, reading the shipped `jsCode` out of the workflow JSON so they test what
+deploys.
+
+---
+
 ## 2. Product register
 
 Status per the vocabulary above. Row counts and endpoint registration are the
