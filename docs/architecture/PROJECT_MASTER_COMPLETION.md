@@ -100,7 +100,7 @@ activation, and MCP external access. None blocks a first paying customer.
 | Auth | Core | `DONE` | 9 workflows, `validate_session`, 167 sessions | Login flows; fail-closed verified on 126 fetches | Reset under load | — | no | — | no |
 | Tenant isolation | Core | `DONE` | `client_id` from session row; RLS 208/208 | Code-traced and probed; `client/*` filters on session tenant | Two live sessions cross-tenant | — | no | — | no |
 | Billing | Core | `LIVE_UNPROVEN` | Live Stripe keys, webhook, events log | Signature path exists | **No payment ever ran through it** | No Sales Engine Price | **yes** | Create the Price | **YES** |
-| Product entitlement | Core | `PARTIAL` | `check_product_entitlement`, `validate_session_for_product` live | Verified present; return false correctly | **No endpoint calls them** | Not wired | no | Wire `client/*` | **YES** (self-serve) |
+| Product entitlement | Core | `DONE` | 3 functions live; all 11 `client/*` endpoints wired to `validate_session_for_product` | **Live: 11/11 no-session → 401; 10/11 unentitled → 403 `product_not_entitled`; 11/11 entitled → 200 with real data.** 11th (copilot/transcribe) needs a binary upload so bails earlier — fails closed, guard present in code | Under concurrent sessions | — | no | — | no |
 | Stripe grant | Core | `LIVE_UNPROVEN` | Grant path added; `grant_product` idempotent | Fail-closed logic; allow-list refuses typos | No real purchase | No Price ID | **yes** | Create the Price | **YES** |
 | Stripe revoke | Core | `LIVE_UNPROVEN` | Suspend, clear products, revoke sessions | — | No real cancellation | — | no | — | no |
 | Audit | Core | `PARTIAL` | `admin_action_log` 100 rows | — | **Every row automated; `action` NULL. No human action audited** | Two schemas in one table | no | Reconcile, then log privileged actions | no |
@@ -113,7 +113,7 @@ activation, and MCP external access. None blocks a first paying customer.
 
 | Area | Product | Status | What exists | Tested | Not tested | Blocker | Owner? | Next action | Launch blocker? |
 |---|---|---|---|---|---|---|---|---|---|
-| Copilot | Agentic | `LIVE_UNPROVEN` | 6 endpoints | Answer, gated | 0 chat rows ever | Static `MARY_MASTER_TOKEN` | no | — | no |
+| Copilot | Agentic | `DONE` (client side) | 6 endpoints | **Answered a real question live: "You have 79 leads in your pipeline" — the test tenant's count, not the global 2,518, so tenant scoping holds through the Copilot too** | Admin copilot; conversation persistence | — | no | — | no |
 | Agent personality | Agentic | `DONE` | 1 row: construction, `recommend_only`, MAXI, 8 gated | Verified live; vertical resolves | — | — | no | — | no |
 | Decision engine | Agentic | `LIVE_UNPROVEN` | 9 workflows, 16 tables | — | **Never executed** — exits at `agent_channels_enabled` 0 | 4 empty gate tables; trigger `(DEACTIVATED)` | **yes** | Activation decision | no |
 | Action executor | Agentic | `DONE` | Fail-closed gate on the only path to a send | **35 tests** — sensitive classes blocked, approval validated not trusted, tenant mismatch refused | Never run on a real decision | — | no | — | no |
@@ -135,8 +135,8 @@ activation, and MCP external access. None blocks a first paying customer.
 |---|---|---|---|---|---|---|---|---|
 | Signup | `LIVE_UNPROVEN` | Signup workflow; webhook creates client + user | Endpoints answer | No real signup | — | no | — | no |
 | Tenant creation | `LIVE_UNPROVEN` | Webhook creates `clients` | 4 clients exist | Not via a real purchase | — | no | — | no |
-| Entitlement | `BLOCKED_OWNER` | Grant + check functions live | Functions verified | **0 of 3 users hold any product** | No Stripe Price | **yes** | Create the Price | **YES** |
-| Onboarding | `PARTIAL` | `upsert_client_icp_from_onboarding()` applied | **Proven live: unknown client refused; `restaurant` refused as `vertical_not_configured`** | Happy path throws `22P02 malformed array literal` — fix written, not applied | `onboarding-2-fix-array-append.sql` pending | **yes** | Apply the fix | **YES** |
+| Entitlement | `DONE` (enforcement) / `BLOCKED_OWNER` (purchase) | Enforced on all 11 endpoints; `grant_product` idempotent | **Granted to test tenant as TEST DATA; revoked and re-granted live to prove the 403 path.** Other 3 clients remain unentitled | No real purchase has granted it | Stripe Price for a real grant | **yes** | Create the Price | **YES** (purchase only) |
+| Onboarding | `PARTIAL` | Migration **applied**; connector live | **Proven live: unknown client refused; `restaurant` refused as `vertical_not_configured`** | Happy path throws `22P02` — `onboarding-2-fix-array-append.sql` written, **not yet applied** | The fix migration | **yes** | Apply `onboarding-2` | **YES** |
 | `client_icp_profiles` | `BLOCKED_OWNER` | Table + connector | — | **0 rows** | Depends on onboarding | **yes** | Apply onboarding | **YES** |
 | Vertical context | `DONE` | 8 verticals, `get_vertical_context()` | 11/11 checks; 4 verticals proven differentiated in titles, tone, signals, terminology, channel, cadence, compliance | — | — | no | — | no |
 | Discovery (house) | `PARTIAL` | `clx-b2c-discovery-v2.1` schedule path | 2,378 house leads historically | **No lead since 2026-05-28** | Schedules not running | **yes** | Restart or retire | no |
