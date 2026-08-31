@@ -46,6 +46,10 @@ on:
         description: 'Permit updates to the 9 protected production workflows'
         type: boolean
         default: false
+      files:
+        description: 'Space-separated workflow paths to deploy. Empty = changed files only.'
+        type: string
+        default: ''
 
 jobs:
 
@@ -182,7 +186,10 @@ jobs:
       - name: Determine which workflows changed
         id: changed
         run: |
-          if [ "${{ github.event.inputs.deploy_all }}" = "true" ]; then
+          if [ -n "${{ github.event.inputs.files }}" ]; then
+            for f in ${{ github.event.inputs.files }}; do echo "$f"; done | sed '/^$/d' | sort > changed.txt
+            echo "Manual dispatch: deploying an explicit file list"
+          elif [ "${{ github.event.inputs.deploy_all }}" = "true" ]; then
             find workflows -name '*.json' -type f | sort > changed.txt
             echo "Manual dispatch: updating the whole estate"
           elif [ -n "${{ github.event.before }}" ] && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
@@ -194,6 +201,10 @@ jobs:
             echo "::warning::no comparable base commit; skipping deploy"
           fi
           echo "count=$(wc -l < changed.txt)" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ ! -s changed.txt ]; then
+            echo "::error::Manual dispatch selected no workflows. Pass files=<paths> or set deploy_all=true. A dispatch that deploys nothing is not a success."
+            exit 1
+          fi
           echo "Changed workflow files: $(wc -l < changed.txt)"
           cat changed.txt
 
