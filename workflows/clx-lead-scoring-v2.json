@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Researched&research_summary=not.is.null&select=id,full_name,company,industry,job_title,city,product_type,research_summary,likely_business_need,research_angle,apollo_enriched_at,job_title_verified&limit=25",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Researched&lead_pool=eq.tenant&research_summary=not.is.null&select=id,full_name,company,industry,job_title,city,product_type,research_summary,likely_business_need,research_angle,apollo_enriched_at,job_title_verified&limit=25",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
@@ -45,7 +45,7 @@
       },
       "continueOnFail": true,
       "onError": "continueRegularOutput",
-      "notes": "Belt and braces with the research fix: a lead with no research_summary is not selectable for scoring even if something marks it Researched."
+      "notes": "Pilot scoping: tenant leads only. Without lead_pool the schedule would enrich the 891 house leads sitting in New Lead as well, which is the bulk research that was ruled out. Remove this filter to let the house pool back in."
     },
     {
       "parameters": {
