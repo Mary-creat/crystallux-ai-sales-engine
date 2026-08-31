@@ -93,6 +93,36 @@ activation, and MCP external access. None blocks a first paying customer.
 
 ---
 
+## Why 1,373 leads scored zero — the finding behind the finding
+
+Cleaning the false scores exposed the actual defect, and it is not in the
+scorer. The correlation is close to perfect:
+
+| | Scored successfully | Scoring failed |
+|---|---:|---:|
+| **Has research** | **741** | **0** |
+| **No research** | 404 | **1,373** |
+
+Not one researched lead failed to score. Every one of the 1,373 failures had
+`research_summary` NULL. The scorer was handed leads with nothing to reason
+about, the model returned something unparseable, and the catch block wrote a
+zero.
+
+**Re-scoring them is therefore the wrong remedy.** They are not unscored leads
+waiting for a scorer; they are unresearched leads that should never have
+reached one. The order is discover → research → score, and
+`clx-lead-research-v2` consumes `lead_status = New Lead` while
+`clx-lead-scoring-v2` consumes `Researched`. Something routed 1,373 leads past
+the middle step.
+
+Putting them right means **researching** 1,373 leads, one Claude call each, on
+house-pool prospects that are Crystallux's own outbound list rather than a
+pilot customer's inventory. That is a spend decision, so it is left to the
+owner. The repaired scorer now refuses to invent a score in that situation, so
+the condition cannot recur silently.
+
+---
+
 ## Core platform
 
 | Area | Product | Status | What exists | Tested | Not tested | Blocker | Owner? | Next action | Launch blocker? |
@@ -136,7 +166,7 @@ activation, and MCP external access. None blocks a first paying customer.
 | Signup | `LIVE_UNPROVEN` | Signup workflow; webhook creates client + user | Endpoints answer | No real signup | — | no | — | no |
 | Tenant creation | `LIVE_UNPROVEN` | Webhook creates `clients` | 4 clients exist | Not via a real purchase | — | no | — | no |
 | Entitlement | `DONE` (enforcement) / `BLOCKED_OWNER` (purchase) | Enforced on all 11 endpoints; `grant_product` idempotent | **Granted to test tenant as TEST DATA; revoked and re-granted live to prove the 403 path.** Other 3 clients remain unentitled | No real purchase has granted it | Stripe Price for a real grant | **yes** | Create the Price | **YES** (purchase only) |
-| Onboarding | `PARTIAL` | Migration **applied**; connector live | **Proven live: unknown client refused; `restaurant` refused as `vertical_not_configured`** | Happy path throws `22P02` — `onboarding-2-fix-array-append.sql` written, **not yet applied** | The fix migration | **yes** | Apply `onboarding-2` | **YES** |
+| Onboarding | `DONE` | `upsert_client_icp_from_onboarding()`; onboarding-3 applied | **Full happy path proven live**: `ok:true`, ICP row created for the test tenant on construction, 8 buyer titles inherited from the overlay, `offer_override` a JSON string, `channels_enabled` preserved as `["email"]`, `calendly_link` and `niche_name` correct, `niche_overlays` modified_recently = 0. Both refusals still hold | A second vertical for the same tenant | — | no | — | no |
 | `client_icp_profiles` | `BLOCKED_OWNER` | Table + connector | — | **0 rows** | Depends on onboarding | **yes** | Apply onboarding | **YES** |
 | Vertical context | `DONE` | 8 verticals, `get_vertical_context()` | 11/11 checks; 4 verticals proven differentiated in titles, tone, signals, terminology, channel, cadence, compliance | — | — | no | — | no |
 | Discovery (house) | `PARTIAL` | `clx-b2c-discovery-v2.1` schedule path | 2,378 house leads historically | **No lead since 2026-05-28** | Schedules not running | **yes** | Restart or retire | no |
