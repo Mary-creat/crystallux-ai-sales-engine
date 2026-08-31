@@ -25,8 +25,7 @@ import io
 import json
 import os
 import sys
-import urllib.error
-import urllib.request
+import subprocess
 
 INTERESTING = ('parameters', 'credentials', 'type', 'disabled', 'onError',
                'alwaysOutputData')
@@ -48,15 +47,29 @@ def env():
 
 
 def fetch(url, key, wid):
-    req = urllib.request.Request(url + '/api/v1/workflows/' + wid,
-                                 headers={'X-N8N-API-KEY': key,
-                                          'Accept': 'application/json'})
+    """Fetch one live workflow.
+
+    Shells out to curl rather than using urllib: Python's bundled CA store
+    on this machine carries an expired root and rejects the (valid)
+    Let's Encrypt chain that curl accepts. Verification stays on -- the
+    answer is to use a trust store that works, not to switch checking off.
+    """
+    cmd = ['curl', '-sS', '--max-time', '30',
+           '-H', 'X-N8N-API-KEY: ' + key,
+           '-H', 'Accept: application/json',
+           '-w', chr(10) + '%{http_code}',
+           url + '/api/v1/workflows/' + wid]
     try:
-        return json.loads(urllib.request.urlopen(req, timeout=30).read().decode('utf-8')), None
-    except urllib.error.HTTPError as e:
-        return None, 'HTTP %s' % e.code
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
     except Exception as e:                                    # noqa: BLE001
         return None, str(e)[:120]
+    body, _, code = (out.stdout or '').rpartition(chr(10))
+    if code.strip() != '200':
+        return None, 'HTTP %s' % (code.strip() or '?')
+    try:
+        return json.loads(body), None
+    except ValueError:
+        return None, 'unparseable response'
 
 
 def first_difference(a, b, path=''):
