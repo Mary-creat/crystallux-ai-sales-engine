@@ -283,7 +283,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Claude prompt for action decision per trigger.\nconst t = $json.trigger;\nconst p = $json.personality;\nconst clientId = $json.client_id;\n\nconst systemPrompt = [\n  'You are the Crystallux AI Sales Agent decision-maker for client_id=' + clientId + '.',\n  'Vertical context: ' + (p.vertical_context || 'service_industry'),\n  'Tone: ' + (p.voice_tone || 'professional') + ' / ' + (p.formality_level || 'business_casual'),\n  '',\n  'You receive ONE pending behavioral trigger and decide ONE action. Output strictly JSON.',\n  '',\n  'Schema: {',\n  '  \"action_type\": \"send_email\" | \"send_sms\" | \"send_whatsapp\" | \"send_video\" | \"phone_call\" | \"wait\" | \"escalate\",',\n  '  \"channel\":     \"email\" | \"sms\" | \"whatsapp\" | \"voice\" | null,',\n  '  \"reasoning\":   \"<1-2 sentences>\",',\n  '  \"message\":     \"<the actual message text if sending>\",',\n  '  \"confidence\":  <0..1>',\n  '}',\n  '',\n  'Rules:',\n  '- Use the trigger\\'s recommended_action UNLESS you have strong reason to override.',\n  '- For high composite_score (80+): act. For 50-79: act if channel low-cost (email). For <50: prefer wait.',\n  '- Use personality.escalation_rules to decide if you should escalate to human (output action_type=\"escalate\").',\n  '- Match tone of personality. Use the trigger\\'s generated_message as the starting point — refine for tone.',\n  '- Never include URLs you do not have. Never invent facts.'\n].join('\\n');\n\nconst userPrompt = JSON.stringify({\n  trigger: {\n    archetype_id: t.archetype_id,\n    composite_score: t.composite_score,\n    recommended_action: t.recommended_action,\n    suggested_message: t.generated_message\n  },\n  escalation_rules: p.escalation_rules || {}\n});\n\nreturn { json: {\n  trigger_id: t.id,\n  lead_id: t.lead_id,\n  client_id: clientId,\n  correlation_id: t.correlation_id || $json.correlation_id || null,\n  proof_run: $json._proof_run || false,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 600,\n    temperature: 0.3,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPrompt } ]\n  }\n} };",
+        "jsCode": "// Build Claude prompt for action decision per trigger.\nconst t = $json.trigger;\nconst p = $json.personality;\nconst clientId = $json.client_id;\n\nconst systemPrompt = [\n  'You are the Crystallux AI Sales Agent decision-maker for client_id=' + clientId + '.',\n  'Vertical context: ' + (p.vertical_context || 'service_industry'),\n  'Tone: ' + (p.voice_tone || 'professional') + ' / ' + (p.formality_level || 'business_casual'),\n  '',\n  'You receive ONE pending behavioral trigger and decide ONE action. Output strictly JSON.',\n  '',\n  'Schema: {',\n  '  \"action_type\": \"send_email\" | \"send_sms\" | \"send_whatsapp\" | \"send_video\" | \"phone_call\" | \"wait\" | \"escalate\",',\n  '  \"channel\":     \"email\" | \"sms\" | \"whatsapp\" | \"voice\" | null,',\n  '  \"reasoning\":   \"<1-2 sentences>\",',\n  '  \"message\":     \"<the actual message text if sending>\",',\n  '  \"confidence\":  <0..1>',\n  '}',\n  '',\n  'Rules:',\n  '- Use the trigger\\'s recommended_action UNLESS you have strong reason to override.',\n  '- For high composite_score (80+): act. For 50-79: act if channel low-cost (email). For <50: prefer wait.',\n  '- Use personality.escalation_rules to decide if you should escalate to human (output action_type=\"escalate\").',\n  '- Match tone of personality. Use the trigger\\'s generated_message as the starting point — refine for tone.',\n  '- Never include URLs you do not have. Never invent facts.'\n].join('\\n');\n\nconst userPrompt = JSON.stringify({\n  trigger: {\n    archetype_id: t.archetype_id,\n    composite_score: t.composite_score,\n    recommended_action: t.recommended_action,\n    suggested_message: t.generated_message\n  },\n  lead_context: t.context || {},\n  // What the agent went and looked up, and what came back. A tool that\n  // failed is reported as an error, never as a finding about the lead.\n  capability_used: $json.tool_used || null,\n  capability_reason: $json.tool_reason || null,\n  capability_result: $json.tool_result || null,\n  capability_error: $json.tool_error || null,\n  escalation_rules: p.escalation_rules || {}\n});\n\nreturn { json: {\n  trigger_id: t.id,\n  lead_id: t.lead_id,\n  client_id: clientId,\n  correlation_id: t.correlation_id || $json.correlation_id || null,\n  tool_used: $json.tool_used || null,\n  tool_error: $json.tool_error || null,\n  proof_run: $json._proof_run || false,\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 600,\n    temperature: 0.3,\n    system: systemPrompt,\n    messages: [ { role: 'user', content: userPrompt } ]\n  }\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "ade-0013",
@@ -338,7 +338,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\n\n// A model call that failed is not a decision to wait. The previous version\n// turned any unusable response into a persisted row saying action_type\n// 'wait', reasoning 'parse_failed', confidence 0 -- indistinguishable, once\n// stored, from the agent genuinely deciding to hold off. Same rule as\n// scoring: on model or parser failure, record the failure and persist\n// nothing.\n\nconst httpErr = resp.error || resp.__error || null;\nlet textOut = '';\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\n\nlet decision = null;\nif (textOut) {\n  try { decision = JSON.parse(String(textOut).replace(/```json|```/g, '').trim()); } catch (e) {}\n}\n\nif (!decision) {\n  const reason = httpErr\n    ? ('model_call_failed: ' + JSON.stringify(httpErr).slice(0, 300))\n    : (textOut ? 'model_response_unparseable' : 'model_returned_no_content');\n  return { json: {\n    _decision_error: true,\n    error_reason: reason,\n    trigger_id: ctx.trigger_id,\n    lead_id: ctx.lead_id,\n    client_id: ctx.client_id,\n    correlation_id: ctx.correlation_id || null\n  } };\n}\n\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\nreturn { json: {\n  _decision_error: false,\n  trigger_id: ctx.trigger_id,\n  lead_id: ctx.lead_id,\n  client_id: ctx.client_id,\n  decision_row: {\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    decision_type: decision.action_type || 'wait',\n    reasoning: decision.reasoning || null,\n    context_used: { trigger_id: ctx.trigger_id, channel: decision.channel,\n                    generated_message: decision.message,\n                    correlation_id: ctx.correlation_id || null,\n                    proof_run: ctx.proof_run || false },\n    target_role: null,\n    confidence_score: Math.min(Math.max(parseFloat(decision.confidence) || 0, 0), 1),\n    outcome: 'pending'\n  },\n  message: decision.message || '',\n  channel: decision.channel || null,\n  action_type: decision.action_type || 'wait',\n  tokens: tokens\n} };\n",
+        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\n\n// A model call that failed is not a decision to wait. The previous version\n// turned any unusable response into a persisted row saying action_type\n// 'wait', reasoning 'parse_failed', confidence 0 -- indistinguishable, once\n// stored, from the agent genuinely deciding to hold off. Same rule as\n// scoring: on model or parser failure, record the failure and persist\n// nothing.\n\nconst httpErr = resp.error || resp.__error || null;\nlet textOut = '';\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\n\nlet decision = null;\nif (textOut) {\n  try { decision = JSON.parse(String(textOut).replace(/```json|```/g, '').trim()); } catch (e) {}\n}\n\nif (!decision) {\n  const reason = httpErr\n    ? ('model_call_failed: ' + JSON.stringify(httpErr).slice(0, 300))\n    : (textOut ? 'model_response_unparseable' : 'model_returned_no_content');\n  return { json: {\n    _decision_error: true,\n    error_reason: reason,\n    trigger_id: ctx.trigger_id,\n    lead_id: ctx.lead_id,\n    client_id: ctx.client_id,\n    correlation_id: ctx.correlation_id || null\n  } };\n}\n\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\nreturn { json: {\n  _decision_error: false,\n  trigger_id: ctx.trigger_id,\n  lead_id: ctx.lead_id,\n  client_id: ctx.client_id,\n  decision_row: {\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    decision_type: decision.action_type || 'wait',\n    reasoning: decision.reasoning || null,\n    context_used: { trigger_id: ctx.trigger_id, channel: decision.channel,\n                    generated_message: decision.message,\n                    correlation_id: ctx.correlation_id || null,\n                    capability_used: ctx.tool_used || null,\n                    capability_error: ctx.tool_error || null,\n                    proof_run: ctx.proof_run || false },\n    target_role: null,\n    confidence_score: Math.min(Math.max(parseFloat(decision.confidence) || 0, 0), 1),\n    outcome: 'pending'\n  },\n  message: decision.message || '',\n  channel: decision.channel || null,\n  action_type: decision.action_type || 'wait',\n  tokens: tokens\n} };\n",
         "mode": "runOnceForEachItem"
       },
       "id": "ade-0015",
@@ -736,6 +736,151 @@
       "alwaysOutputData": true,
       "onError": "continueRegularOutput",
       "notes": "A real tenant lead for the proof to reason about. Scoped by client_id, so the proof cannot reach another tenant's data. No lead is still a valid run -- the model is told so rather than being given fiction."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stage 1: does this decision need more information, and if so which\n// allowed capability provides it?\n//\n// The allow-list is the ones the MCP gateway actually implements. The\n// personality's auto_allowed also names get_vertical_context, research_lead\n// and score_lead, which do not exist as tools -- offering those would only\n// invite a choice that must fail.\n\nconst t = $json.trigger || {};\nconst p = $json.personality || {};\nconst ctx = t.context || {};\n\nconst ALLOWED = [\n  { name: 'assess_why_now',\n    use: 'Classify whether there is a verified, time-sensitive reason to act now.' },\n  { name: 'next_best_action',\n    use: 'Get the evidence-based recommended action, urgency and risk class for this lead.' },\n  { name: 'retrieve_lead_memory',\n    use: 'Recall what has previously been learned or agreed with this lead.' }\n];\n\nconst system = [\n  'You are the Crystallux sales agent deciding whether you need more information',\n  'before recommending an action for one lead.',\n  '',\n  'Vertical: ' + (p.vertical_context || 'service_industry'),\n  'Autonomy: ' + ((p.escalation_rules || {}).autonomy_level || 'recommend_only'),\n  '',\n  'Available READ capabilities:',\n  ALLOWED.map(function (a) { return '  ' + a.name + ' -- ' + a.use; }).join('\\n'),\n  '',\n  'Reply with STRICT JSON only:',\n  '{ \"needs_tool\": true|false,',\n  '  \"tool\": \"<one of the names above, or null>\",',\n  '  \"reason\": \"<one sentence>\",',\n  '  \"arguments\": { \"lead_id\": \"<the lead id, if the tool needs one>\" } }',\n  '',\n  'Rules:',\n  '- Choose at most ONE tool. Choose none if the context already answers the question.',\n  '- Never name a tool that is not listed above.',\n  '- These are read-only. You are NOT deciding to contact anyone at this step.'\n].join('\\n');\n\nconst user = JSON.stringify({\n  lead_id: t.lead_id,\n  composite_score: t.composite_score,\n  archetype: t.archetype_id,\n  proposed_action: t.recommended_action,\n  known_context: {\n    company: ctx.company, industry: ctx.industry, city: ctx.city,\n    research_present: ctx.research_present,\n    signal_state: ctx.signal_state,\n    detected_signal: ctx.detected_signal,\n    signal_confidence: ctx.signal_confidence\n  }\n});\n\nreturn { json: {\n  _carry: $json,\n  tool_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 400,\n    temperature: 0,\n    system: system,\n    messages: [{ role: 'user', content: user }]\n  }\n} };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ade-9301",
+      "name": "Build Tool Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.tool_payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ade-9302",
+      "name": "Claude Select Tool",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        820
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "notes": "Stage 1. A failure here means no tool is used; the decision still runs."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stage 1 result, judged fail-closed.\n//\n// A malformed or unexpected answer means NO tool call -- never a guess and\n// never a business decision. Same rule the scorer and signal classifier\n// follow: a parse failure is recorded as a failure, not smoothed into data.\n\nconst carry = $('Build Tool Prompt').item.json._carry;\nconst resp = $input.item.json || {};\n\nconst ALLOWED = ['assess_why_now', 'next_best_action', 'retrieve_lead_memory'];\n\nlet text = '';\ntry { text = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\n\nlet choice = null;\nif (text) {\n  try { choice = JSON.parse(String(text).replace(/```json|```/g, '').trim()); } catch (e) {}\n}\n\nconst out = {\n  _carry: carry,\n  needs_tool: false,\n  tool: null,\n  tool_reason: null,\n  tool_arguments: {},\n  selection_error: null\n};\n\nif (!choice) {\n  out.selection_error = text ? 'tool_choice_unparseable' : 'tool_selection_no_content';\n  return { json: out };\n}\n\nif (choice.needs_tool !== true) {\n  out.tool_reason = choice.reason || 'model judged existing context sufficient';\n  return { json: out };\n}\n\nif (!choice.tool || ALLOWED.indexOf(choice.tool) < 0) {\n  out.selection_error = 'tool_not_allowed:' + String(choice.tool);\n  return { json: out };\n}\n\n// Tenant context is mandatory, and arguments are rebuilt rather than\n// trusted: only the lead this run is actually about may be passed on.\nif (!carry.client_id) {\n  out.selection_error = 'missing_tenant_context';\n  return { json: out };\n}\n\nconst leadId = (carry.trigger && carry.trigger.lead_id) || null;\nconst wants = (choice.arguments && choice.arguments.lead_id) || null;\nif (wants && leadId && String(wants) !== String(leadId)) {\n  out.selection_error = 'lead_mismatch_refused';\n  return { json: out };\n}\nif (!leadId) {\n  out.selection_error = 'no_lead_for_tool';\n  return { json: out };\n}\n\nout.needs_tool = true;\nout.tool = choice.tool;\nout.tool_reason = choice.reason || null;\nout.tool_arguments = { lead_id: leadId };\nreturn { json: out };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ade-9303",
+      "name": "Parse Tool Choice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nt",
+              "leftValue": "={{ $json.needs_tool }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ade-9304",
+      "name": "IF Needs Tool",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2280,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mcp/agent-tools' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, tool_name: $json.tool, tool_input: $json.tool_arguments, client_id: $json._carry.client_id, agent_id: 'decision-engine', product: 'sales_engine', correlation_id: $json._carry.correlation_id }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ade-9305",
+      "name": "Call MCP Agent Tools",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        740
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "notes": "The canonical capability path. The engine never calls an underlying provider or workflow endpoint directly -- MCP applies the risk class, the product mapping and the tenant check."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fold the tool result (if any) back into the shape Build Claude Prompt\n// already expects, so the existing decision stage is unchanged apart from\n// having more to reason with.\n\nconst sel = $('Parse Tool Choice').item.json;\nconst carry = sel._carry;\n\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nlet toolResult = null;\nlet toolError = null;\n\nif (sel.needs_tool) {\n  const raw = allOf('Call MCP Agent Tools')[0] || null;\n  if (!raw) {\n    toolError = 'mcp_no_response';\n  } else if (raw.success === false) {\n    // A refused or failed capability is reported as such. It must not\n    // reappear as if it were a finding about the lead.\n    toolError = 'mcp_refused:' + (raw.error || 'unknown');\n  } else {\n    toolResult = raw.data !== undefined ? raw.data : raw;\n  }\n}\n\nreturn { json: Object.assign({}, carry, {\n  tool_used: sel.needs_tool ? sel.tool : null,\n  tool_reason: sel.tool_reason || null,\n  tool_result: toolResult,\n  tool_error: toolError || sel.selection_error || null\n}) };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ade-9306",
+      "name": "Absorb Tool Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        940
+      ]
     }
   ],
   "connections": {
@@ -890,7 +1035,7 @@
         ],
         [
           {
-            "node": "Build Claude Prompt",
+            "node": "Build Tool Prompt",
             "type": "main",
             "index": 0
           }
@@ -1092,6 +1237,79 @@
         [
           {
             "node": "Proof Fan Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Tool Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Select Tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Select Tool": {
+      "main": [
+        [
+          {
+            "node": "Parse Tool Choice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Tool Choice": {
+      "main": [
+        [
+          {
+            "node": "IF Needs Tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Needs Tool": {
+      "main": [
+        [
+          {
+            "node": "Call MCP Agent Tools",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Absorb Tool Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call MCP Agent Tools": {
+      "main": [
+        [
+          {
+            "node": "Absorb Tool Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Absorb Tool Result": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Prompt",
             "type": "main",
             "index": 0
           }

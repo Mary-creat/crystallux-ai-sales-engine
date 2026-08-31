@@ -148,6 +148,13 @@ jobs:
       - name: Test Why Now and Next Best Action
         run: node tests/agent/why-now-nba.test.js
 
+      # The capability-selection stage lets the agent look something up
+      # before recommending. Every property tested here is a refusal: an
+      # unknown tool, prose instead of JSON, or a reach for a different
+      # lead must all end in NO tool call rather than a guess.
+      - name: Test agent capability selection
+        run: node tests/agent/capability-selection.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.
