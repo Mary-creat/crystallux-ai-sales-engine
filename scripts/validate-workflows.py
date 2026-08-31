@@ -82,24 +82,59 @@ def unguarded_switches(d):
 
 
 def dead_end_nodes(d):
-    """Nodes in a responseNode workflow that end a branch without responding.
+    """Nodes that end a branch reachable from a WEBHOOK without responding.
 
     Same failure as an unguarded Switch, one step further along: a branch
     runs to its last node, that node is not a Respond node, and the caller
-    is left holding a bodyless 200. The repo has hit the empty-200 trap four
-    separate times (see CLAUDE.md), so this is a failure rather than a
-    warning -- the estate is clean today and the check is here to keep it
-    that way.
+    is left holding a bodyless 200. The repo has hit the empty-200 trap
+    four separate times (see CLAUDE.md), so this is a failure rather than
+    a warning.
+
+    Reachability is computed from webhook triggers ONLY. A workflow can
+    carry both a schedule and a webhook -- clx-b2c-discovery-v2.1 does,
+    one entry for the house pool and one for tenant-scoped runs -- and a
+    schedule-driven branch has no HTTP caller to answer. Flagging its
+    terminal node would be a false positive, and a check that cries wolf
+    gets ignored.
 
     Disabled nodes and the TEST HARNESS / DELIBERATELY DISCONNECTED
     annotations are honoured, same as the unreachable-node check.
     """
-    if not any(n.get('parameters', {}).get('responseMode') == 'responseNode'
-               for n in d.get('nodes', [])):
+    nodes = d.get('nodes', [])
+    webhooks = [n.get('name') for n in nodes
+                if n.get('type', '').endswith('webhook')
+                and n.get('parameters', {}).get('responseMode') == 'responseNode']
+    if not webhooks:
         return []
+
     conns = d.get('connections') or {}
+
+    def outgoing(name):
+        return [c.get('node') for br in (conns.get(name, {}).get('main') or [])
+                for c in (br or []) if c.get('node')]
+
+    by_name = {n.get('name'): n for n in nodes}
+
+    # Traversal stops AT a Respond node. Once a branch has answered the
+    # caller, whatever it does afterwards owes them nothing -- a workflow
+    # may legitimately reply 202 and then carry on working, which is what
+    # discovery/tenant-scan does. Continuing past the responder would
+    # flag every node downstream of an early reply.
+    seen, stack = set(), list(webhooks)
+    while stack:
+        cur = stack.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        if 'respondToWebhook' in (by_name.get(cur, {}).get('type') or ''):
+            continue
+        stack.extend(outgoing(cur))
+
     out = []
-    for n in d.get('nodes', []):
+    for n in nodes:
+        name = n.get('name')
+        if name not in seen:
+            continue
         ntype = n.get('type', '')
         if ntype.endswith('webhook') or ntype.endswith('.stickyNote'):
             continue
@@ -110,10 +145,8 @@ def dead_end_nodes(d):
         note = (n.get('notes') or '').upper()
         if 'TEST HARNESS' in note or 'DELIBERATELY DISCONNECTED' in note:
             continue
-        outgoing = [c for br in (conns.get(n.get('name'), {}).get('main') or [])
-                    for c in (br or [])]
-        if not outgoing:
-            out.append(n.get('name', '?'))
+        if not outgoing(name):
+            out.append(name or '?')
     return out
 
 

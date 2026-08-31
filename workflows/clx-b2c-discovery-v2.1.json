@@ -362,7 +362,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_full_name: $json.p_full_name, p_email: $json.p_email, p_phone: $json.p_phone, p_company: $json.p_company, p_job_title: $json.p_job_title, p_industry: $json.p_industry, p_city: $json.p_city, p_source: $json.p_source, p_lead_status: $json.p_lead_status, p_product_type: $json.p_product_type, p_notes: $json.p_notes }) }}",
+        "jsonBody": "={{ JSON.stringify({ p_full_name: $json.p_full_name, p_email: $json.p_email, p_phone: $json.p_phone, p_company: $json.p_company, p_job_title: $json.p_job_title, p_industry: $json.p_industry, p_city: $json.p_city, p_source: $json.p_source, p_lead_status: $json.p_lead_status, p_product_type: $json.p_product_type, p_notes: $json.p_notes, p_client_id: ($json.p_client_id || null) }) }}",
         "options": {
           "response": {
             "response": {
@@ -384,7 +384,8 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "notes": "p_client_id is null for schedule-driven house discovery, which keeps that path exactly as it was, and carries the owning tenant when the run came in through discovery/tenant-scan."
     },
     {
       "parameters": {
@@ -597,6 +598,104 @@
         1880,
         700
       ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "discovery/tenant-scan",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2c-9001",
+      "name": "Webhook (Tenant Scoped)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -200,
+        600
+      ],
+      "webhookId": "clx-b2c-discovery-tenant-scan"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tenant-scoped discovery entry. Fails closed.\n//\n// A tenant-originated discovery job without an owning client is refused\n// rather than quietly writing to the house pool -- an unowned lead in a\n// customer's workspace is worse than no lead, and the house pool is not\n// customer inventory.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\n\nif (!expected || secret !== expected) {\n  return { json: { _reject: true, status: 401, error: 'internal secret required' } };\n}\n\nconst clientId = body.client_id || null;\nif (!clientId) {\n  return { json: {\n    _reject: true, status: 400, error: 'client_id required',\n    hint: 'Tenant discovery must name its owner. Use the schedule trigger for the Crystallux house pool.'\n  } };\n}\n\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nif (!uuid.test(String(clientId))) {\n  return { json: { _reject: true, status: 400, error: 'client_id is not a uuid' } };\n}\n\nreturn { json: {\n  _reject: false,\n  _tenant_scoped: true,\n  client_id: clientId,\n  vertical: body.vertical || null,\n  city: body.city || null,\n  requested_by: body.requested_by || null,\n  correlation_id: body.correlation_id || null,\n  requested_at: new Date().toISOString()\n} };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "b2c-9002",
+      "name": "Validate Tenant Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        600
+      ],
+      "notes": "Fails closed: no secret, no client_id, or a malformed uuid all stop here."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._reject }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "b2c-9003",
+      "name": "IF Tenant Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error, hint: $json.hint || null }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}"
+        }
+      },
+      "id": "b2c-9004",
+      "name": "Respond Tenant Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, accepted: true, client_id: $json.client_id, vertical: $json.vertical, city: $json.city, note: 'Discovery started; leads are written with lead_pool=tenant.' }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "b2c-9005",
+      "name": "Respond Tenant Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        600
+      ],
+      "notes": "202: accepted and running. Discovery is long, so the caller is not held open for it."
     }
   ],
   "connections": {
@@ -875,6 +974,57 @@
         [
           {
             "node": "Notify Hook (NoOp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (Tenant Scoped)": {
+      "main": [
+        [
+          {
+            "node": "Validate Tenant Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Tenant Request": {
+      "main": [
+        [
+          {
+            "node": "IF Tenant Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Tenant Valid": {
+      "main": [
+        [
+          {
+            "node": "Respond Tenant Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Tenant Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Tenant Accepted": {
+      "main": [
+        [
+          {
+            "node": "Fetch Scan Tracker",
             "type": "main",
             "index": 0
           }
