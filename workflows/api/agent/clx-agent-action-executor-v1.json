@@ -264,6 +264,157 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [880, 540]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_personalities?client_id=eq.' + encodeURIComponent($json.client_id || '00000000-0000-0000-0000-000000000000') + '&select=*&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "aae-0020",
+      "name": "Fetch Agent Policy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        500
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Policy source. neverError + alwaysOutputData so an absent personality reaches the gate as an empty result and is denied, instead of halting the branch and answering an empty 200."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fail-closed policy gate. Nothing sensitive executes unless this says so.\n//\n// Before this node existed the executor validated a shared secret, wrote an\n// agent_actions row, and routed straight to WhatsApp/SMS/Email/Voice. Autonomy\n// level, risk class and approval state were never consulted -- the fields were\n// carried in agent_personalities and read by nothing.\n//\n// Order matters: every DENY path is evaluated before any ALLOW, so a missing,\n// malformed or unrecognised input can only ever result in a block.\n\nvar ctx = $('Carry Action ID').item.json;\nvar polResp = $input.item.json;\n\n// The policy fetch uses neverError + alwaysOutputData, so an empty result is\n// an object or an empty array rather than a halted branch.\nvar rows = Array.isArray(polResp) ? polResp : (polResp && polResp.id ? [polResp] : []);\nvar policy = rows.length ? rows[0] : null;\n\nvar correlation_id = ctx.agent_action_id || ctx.decision_id || null;\n\nfunction deny(reason, detail, risk, autonomy) {\n  return { json: Object.assign({}, ctx, {\n    _allowed: false,\n    _status: (reason === 'approval_required') ? 'approval_required' : 'denied',\n    policy_result: {\n      allowed: false,\n      reason: reason,\n      detail: detail,\n      risk_class: risk || 'UNKNOWN',\n      autonomy_level: autonomy || null,\n      approval_required: true,\n      approval_state: 'missing',\n      correlation_id: correlation_id,\n      evaluated_at: new Date().toISOString()\n    }\n  }) };\n}\n\n// --- risk classification -------------------------------------------------\n// Keyed on capability, not product, so a new product inherits the policy\n// instead of needing a new branch.\nvar RISK = {\n  email: 'CONTACT_HUMAN',\n  sms: 'CONTACT_HUMAN',\n  whatsapp: 'CONTACT_HUMAN',\n  voice: 'CONTACT_HUMAN',\n  call: 'CONTACT_HUMAN',\n  publish_social: 'CONTACT_HUMAN',\n  charge_payment: 'FINANCIAL',\n  capture_payment: 'FINANCIAL',\n  refund_payment: 'FINANCIAL',\n  finalize_auction: 'FINANCIAL',\n  create_order: 'FINANCIAL',\n  cancel_order: 'DESTRUCTIVE',\n  adjust_inventory: 'DESTRUCTIVE',\n  delete_record: 'DESTRUCTIVE',\n  finalize_policy: 'REGULATED',\n  submit_application: 'REGULATED',\n  bind_coverage: 'REGULATED',\n  video: 'WRITE_INTERNAL',\n  draft_outreach: 'WRITE_INTERNAL',\n  draft_quote: 'WRITE_INTERNAL',\n  update_lead_status: 'WRITE_INTERNAL',\n  log_decision: 'WRITE_INTERNAL',\n  escalate: 'WRITE_INTERNAL',\n  research_lead: 'READ',\n  score_lead: 'READ',\n  get_vertical_context: 'READ',\n  get_pipeline_stats: 'READ',\n  get_inventory: 'READ',\n  check_system_health: 'READ',\n  retrieve_lead_memory: 'READ',\n  recommend: 'REASONING',\n  plan: 'REASONING'\n};\n\nvar action = String(ctx.action_type || '').toLowerCase();\n\n// 1. Unknown capability -> deny. An unrecognised action_type has no risk\n//    class, and guessing one is how an unreviewed capability slips through.\nif (!action || !RISK.hasOwnProperty(action)) {\n  return deny('unknown_action_type', 'no risk class registered for \"' + action + '\"', 'UNKNOWN', null);\n}\nvar risk = RISK[action];\n\n// 2. Missing policy metadata -> deny. No personality means no autonomy level,\n//    and an unknown autonomy level must never mean \"full autonomy\".\nif (!policy) {\n  return deny('missing_policy', 'no agent_personalities row for this client', risk, null);\n}\n\n// 3. Tenant isolation. Approval is not authorization: an approved action still\n//    may not cross a tenant boundary.\nif (!ctx.client_id || !policy.client_id || String(policy.client_id) !== String(ctx.client_id)) {\n  return deny('tenant_mismatch', 'policy tenant does not match requested tenant', risk, null);\n}\n\nvar rules = policy.escalation_rules || {};\nvar autonomy = rules.autonomy_level || null;\nif (!autonomy) {\n  return deny('missing_autonomy_level', 'personality carries no autonomy_level', risk, null);\n}\n\n// 4. Explicit prohibition always wins, whatever the risk class.\nvar prohibited = policy.prohibited_topics || [];\nif (Array.isArray(prohibited) && prohibited.indexOf(action) !== -1) {\n  return deny('prohibited_action', 'action is in prohibited_topics', risk, autonomy);\n}\n\n// 5. Approval object, if one was supplied. Validated rather than trusted:\n//    it must be complete, and must name this tenant and this action.\nvar appr = ctx.approval || (ctx.body && ctx.body.approval) || null;\nvar approvalValid = false;\nif (appr && typeof appr === 'object') {\n  approvalValid = Boolean(appr.approval_id) && Boolean(appr.approved_by) &&\n                  Boolean(appr.approved_at) &&\n                  String(appr.client_id || '') === String(ctx.client_id) &&\n                  String(appr.action_type || '').toLowerCase() === action;\n}\n\n// 6. Classes that always need a human, unless a valid approval accompanies\n//    the request.\nvar NEEDS_APPROVAL = ['CONTACT_HUMAN', 'FINANCIAL', 'DESTRUCTIVE', 'REGULATED'];\nif (NEEDS_APPROVAL.indexOf(risk) !== -1) {\n  if (!approvalValid) {\n    return deny('approval_required', risk + ' actions require human approval', risk, autonomy);\n  }\n}\n\n// 7. Autonomy ceiling. recommend_only may reason and read and prepare\n//    internal drafts, and may not reach anything on the sensitive list even\n//    with an approval object attached -- the personality itself forbids it.\nif (autonomy === 'recommend_only' && NEEDS_APPROVAL.indexOf(risk) !== -1) {\n  return deny('autonomy_forbids', 'autonomy_level recommend_only cannot execute ' + risk, risk, autonomy);\n}\n\n// 8. Per-action gate declared on the personality.\nvar gated = rules.require_human_approval || [];\nif (Array.isArray(gated) && gated.indexOf(action) !== -1 && !approvalValid) {\n  return deny('approval_required', 'action listed in require_human_approval', risk, autonomy);\n}\n\n// 9. WRITE_INTERNAL needs the action to be explicitly permitted.\nif (risk === 'WRITE_INTERNAL') {\n  var allowed = rules.auto_allowed || [];\n  if (!Array.isArray(allowed) || allowed.indexOf(action) === -1) {\n    return deny('not_in_auto_allowed', 'WRITE_INTERNAL action not explicitly permitted', risk, autonomy);\n  }\n}\n\n// Allowed. READ and REASONING reach here on any autonomy level; everything\n// else has passed an explicit permit above.\nreturn { json: Object.assign({}, ctx, {\n  _allowed: true,\n  _status: 'executing',\n  policy_result: {\n    allowed: true,\n    reason: 'permitted',\n    risk_class: risk,\n    autonomy_level: autonomy,\n    approval_required: NEEDS_APPROVAL.indexOf(risk) !== -1,\n    approval_state: approvalValid ? 'valid' : 'not_required',\n    correlation_id: correlation_id,\n    evaluated_at: new Date().toISOString()\n  }\n}) };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "aae-0021",
+      "name": "Policy Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        500
+      ],
+      "notes": "Fail-closed. Every DENY is evaluated before any ALLOW, so missing or unrecognised input can only block."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._allowed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "aae-0022",
+      "name": "IF Policy Allows",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/agent_actions?id=eq.' + encodeURIComponent($('Carry Action ID').item.json.agent_action_id || '00000000-0000-0000-0000-000000000000') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: $json._status, error_message: $json.policy_result.reason, action_data: $json.policy_result }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "aae-0023",
+      "name": "Record Blocked",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        700
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Audit for the denied path. Writes risk class, autonomy level, reason, approval state and correlation id into the existing agent_actions row -- no new table, no secrets."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, executed: false, result: $('Policy Gate').item.json._status, policy: $('Policy Gate').item.json.policy_result }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "aae-0024",
+      "name": "Respond Blocked",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        700
+      ],
+      "notes": "202: the request was understood and deliberately not executed. Distinct from a 4xx, which would imply the caller got something wrong."
     }
   ],
   "connections": {
@@ -271,7 +422,11 @@
     "Validate":             { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
     "IF Authorized":        { "main": [[ { "node": "Insert Agent Action", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
     "Insert Agent Action":  { "main": [[ { "node": "Carry Action ID", "type": "main", "index": 0 } ]] },
-    "Carry Action ID":      { "main": [[ { "node": "Switch Action Type", "type": "main", "index": 0 } ]] },
+    "Carry Action ID":     { "main": [[{ "node": "Fetch Agent Policy", "type": "main", "index": 0 }]] },
+    "Fetch Agent Policy":  { "main": [[{ "node": "Policy Gate",        "type": "main", "index": 0 }]] },
+    "Policy Gate":         { "main": [[{ "node": "IF Policy Allows",   "type": "main", "index": 0 }]] },
+    "IF Policy Allows":    { "main": [[{ "node": "Switch Action Type", "type": "main", "index": 0 }], [{ "node": "Record Blocked", "type": "main", "index": 0 }]] },
+    "Record Blocked":      { "main": [[{ "node": "Respond Blocked",    "type": "main", "index": 0 }]] },
     "Switch Action Type":   { "main": [
                                 [ { "node": "Call Email", "type": "main", "index": 0 } ],
                                 [ { "node": "Call SMS", "type": "main", "index": 0 } ],

@@ -130,6 +130,13 @@ jobs:
       - name: Validate workflows
         run: python3 scripts/validate-workflows.py
 
+      # The agent policy gate is the only thing standing between an agent's
+      # decision and a real message, payment or deletion. It is a Code node,
+      # so this test extracts the shipped jsCode from the workflow and runs it
+      # against synthetic inputs -- testing what deploys, not a copy of it.
+      - name: Test agent policy gate (fail-closed)
+        run: node tests/agent/policy-gate.test.js
+
       # Real Postgres grammar via libpg_query, across both migration
       # directories. Mary pastes these into the Supabase SQL editor by
       # hand, where a syntax error surfaces halfway through a
