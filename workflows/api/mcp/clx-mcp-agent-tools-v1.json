@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// MCP entry: authenticate, then establish context. Fail-closed throughout.\n//\n// This node does AUTHORIZATION (who is asking, for which tenant, with what\n// entitlement). It deliberately does NOT decide APPROVAL -- the five\n// contact-a-human tools are routed to agent/action-execute, whose Policy Gate\n// owns that decision. One policy, one place.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\n\nfunction deny(error, extra) {\n  return { json: Object.assign({\n    valid: false, error: error, tool_name: body.tool_name || '', tool_input: body.tool_input || {}\n  }, extra || {}) };\n}\n\n// 1. Authentication. An unset secret must never mean \"allow\".\nif (!expected || secret !== expected) return deny('internal secret required');\n\nconst toolName = body.tool_name || '';\nconst toolInput = body.tool_input || {};\n\n// 2. Risk class per capability. A tool absent from this table has no declared\n//    risk and is refused -- adding a capability now requires classifying it.\nconst RISK = {\n  place_outbound_call: 'CONTACT_HUMAN',\n  send_whatsapp:       'CONTACT_HUMAN',\n  send_sms:            'CONTACT_HUMAN',\n  send_email:          'CONTACT_HUMAN',\n  book_meeting:        'CONTACT_HUMAN',\n  generate_video:      'WRITE_INTERNAL',\n  update_lead_status:  'WRITE_INTERNAL',\n  log_decision:        'WRITE_INTERNAL',\n  escalate_to_human:   'WRITE_INTERNAL',\n  retrieve_lead_memory:'READ'\n};\n\nif (!toolName) return deny('tool_name required');\nif (!RISK.hasOwnProperty(toolName)) {\n  return deny('unknown tool: ' + toolName + '. Available: ' + Object.keys(RISK).join(', '));\n}\nconst risk = RISK[toolName];\n\n// 3. Tenant context is mandatory for everything that is not pure reasoning.\n//    A caller-supplied client_id is a claim, not proof -- it is checked\n//    against agent_personalities downstream (the executor) and against the\n//    tenant's own rows for direct reads.\nconst client_id = toolInput.client_id || body.client_id || null;\nif (!client_id) {\n  return deny('client_id required: MCP will not execute without tenant context', { risk_class: risk });\n}\n\n// 4. Agent identity and correlation, so an action can be traced back to who\n//    asked for it and which decision it belongs to.\nconst agent_id = body.agent_id || toolInput.agent_id || null;\nconst correlation_id = body.correlation_id || toolInput.decision_id || null;\nif (!agent_id) {\n  return deny('agent_id required', { risk_class: risk });\n}\n\n// 5. Product context. Capabilities belong to products; knowing a tool name\n//    must not be enough to reach another product's surface.\nconst PRODUCT = {\n  place_outbound_call: 'sales_engine', send_whatsapp: 'sales_engine',\n  send_sms: 'sales_engine', send_email: 'sales_engine',\n  book_meeting: 'sales_engine', generate_video: 'sales_engine',\n  update_lead_status: 'sales_engine', log_decision: 'sales_engine',\n  escalate_to_human: 'sales_engine', retrieve_lead_memory: 'sales_engine'\n};\nconst product = PRODUCT[toolName] || null;\nif (!product) return deny('no product mapping for tool', { risk_class: risk });\n\n// 6. Sensitive capabilities are not executed here. They are handed to the\n//    action executor, which applies the autonomy and approval policy. This is\n//    the whole point of the change: MCP cannot be the shorter path.\nconst ROUTED_TO_EXECUTOR = ['place_outbound_call','send_whatsapp','send_sms','send_email','book_meeting'];\nconst ACTION_TYPE = {\n  place_outbound_call: 'voice', send_whatsapp: 'whatsapp',\n  send_sms: 'sms', send_email: 'email', book_meeting: 'book'\n};\n\nreturn { json: {\n  valid: true,\n  tool_name: toolName,\n  tool_input: toolInput,\n  client_id: client_id,\n  agent_id: agent_id,\n  product: product,\n  risk_class: risk,\n  correlation_id: correlation_id,\n  via_executor: ROUTED_TO_EXECUTOR.indexOf(toolName) !== -1,\n  executor_action_type: ACTION_TYPE[toolName] || null,\n  requested_at: new Date().toISOString()\n} };\n",
+        "jsCode": "// MCP entry: authenticate, then establish context. Fail-closed throughout.\n//\n// This node does AUTHORIZATION (who is asking, for which tenant, with what\n// entitlement). It deliberately does NOT decide APPROVAL -- the five\n// contact-a-human tools are routed to agent/action-execute, whose Policy Gate\n// owns that decision. One policy, one place.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\n\nfunction deny(error, extra) {\n  return { json: Object.assign({\n    valid: false, error: error, tool_name: body.tool_name || '', tool_input: body.tool_input || {}\n  }, extra || {}) };\n}\n\n// 1. Authentication. An unset secret must never mean \"allow\".\nif (!expected || secret !== expected) return deny('internal secret required');\n\nconst toolName = body.tool_name || '';\nconst toolInput = body.tool_input || {};\n\n// 2. Risk class per capability. A tool absent from this table has no declared\n//    risk and is refused -- adding a capability now requires classifying it.\nconst RISK = {\n  place_outbound_call: 'CONTACT_HUMAN',\n  send_whatsapp:       'CONTACT_HUMAN',\n  send_sms:            'CONTACT_HUMAN',\n  send_email:          'CONTACT_HUMAN',\n  book_meeting:        'CONTACT_HUMAN',\n  generate_video:      'WRITE_INTERNAL',\n  update_lead_status:  'WRITE_INTERNAL',\n  log_decision:        'WRITE_INTERNAL',\n  escalate_to_human:   'WRITE_INTERNAL',\n  retrieve_lead_memory:'READ',\n  assess_why_now:      'READ',\n  next_best_action:    'REASONING'\n};\n\nif (!toolName) return deny('tool_name required');\nif (!RISK.hasOwnProperty(toolName)) {\n  return deny('unknown tool: ' + toolName + '. Available: ' + Object.keys(RISK).join(', '));\n}\nconst risk = RISK[toolName];\n\n// 3. Tenant context is mandatory for everything that is not pure reasoning.\n//    A caller-supplied client_id is a claim, not proof -- it is checked\n//    against agent_personalities downstream (the executor) and against the\n//    tenant's own rows for direct reads.\nconst client_id = toolInput.client_id || body.client_id || null;\nif (!client_id) {\n  return deny('client_id required: MCP will not execute without tenant context', { risk_class: risk });\n}\n\n// 4. Agent identity and correlation, so an action can be traced back to who\n//    asked for it and which decision it belongs to.\nconst agent_id = body.agent_id || toolInput.agent_id || null;\nconst correlation_id = body.correlation_id || toolInput.decision_id || null;\nif (!agent_id) {\n  return deny('agent_id required', { risk_class: risk });\n}\n\n// 5. Product context. Capabilities belong to products; knowing a tool name\n//    must not be enough to reach another product's surface.\nconst PRODUCT = {\n  place_outbound_call: 'sales_engine', send_whatsapp: 'sales_engine',\n  send_sms: 'sales_engine', send_email: 'sales_engine',\n  book_meeting: 'sales_engine', generate_video: 'sales_engine',\n  update_lead_status: 'sales_engine', log_decision: 'sales_engine',\n  escalate_to_human: 'sales_engine', retrieve_lead_memory: 'sales_engine',\n  assess_why_now: 'sales_engine',\n  next_best_action: 'sales_engine'\n};\nconst product = PRODUCT[toolName] || null;\nif (!product) return deny('no product mapping for tool', { risk_class: risk });\n\n// 6. Sensitive capabilities are not executed here. They are handed to the\n//    action executor, which applies the autonomy and approval policy. This is\n//    the whole point of the change: MCP cannot be the shorter path.\nconst ROUTED_TO_EXECUTOR = ['place_outbound_call','send_whatsapp','send_sms','send_email','book_meeting'];\nconst ACTION_TYPE = {\n  place_outbound_call: 'voice', send_whatsapp: 'whatsapp',\n  send_sms: 'sms', send_email: 'email', book_meeting: 'book'\n};\n\nreturn { json: {\n  valid: true,\n  tool_name: toolName,\n  tool_input: toolInput,\n  client_id: client_id,\n  agent_id: agent_id,\n  product: product,\n  risk_class: risk,\n  correlation_id: correlation_id,\n  via_executor: ROUTED_TO_EXECUTOR.indexOf(toolName) !== -1,\n  executor_action_type: ACTION_TYPE[toolName] || null,\n  requested_at: new Date().toISOString()\n} };\n",
         "mode": "runOnceForEachItem"
       },
       "id": "mat-0002",
@@ -278,6 +278,50 @@
                 "combinator": "and"
               },
               "outputKey": "escalate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "assess_why_now",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "sw-whynow"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "whynow"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "next_best_action",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "sw-nba"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "nba"
             }
           ]
         },
@@ -717,6 +761,102 @@
         880,
         740
       ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.tool_input.lead_id) + '&client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,client_id,lead_pool,full_name,company,industry,city,job_title,lead_status,lead_score,priority_level,scoring_reason,score_components,decision_maker_probability,research_summary,research_angle,likely_business_need,detected_signal,signal_confidence,unsubscribed,researched_at,last_email_sent_at,outreach_sent_at,updated_at' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mcp-9201",
+      "name": "Tool: Why Now Fetch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        1500
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "notes": "Fetched by id AND client_id, so another tenant's lead returns zero rows."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Why Now -- deterministic classification over data that already exists.\n//\n// The point is that an error must never read as buying intent. The signal\n// pipeline writes 'Unavailable' when the provider or parser failed (284 rows\n// currently), and that is a different state from \"we looked and found\n// nothing\". Collapsing the two is how a failure became a reason to call\n// someone.\n\nconst ctx = $('Parse Request').item.json;\nconst rows = $input.all().map(function (i) { return i.json; });\nconst lead = (rows.length === 1 && Array.isArray(rows[0])) ? rows[0][0] : rows[0];\n\nif (!lead || !lead.id) {\n  return [{ json: { result: {\n    why_now: 'UNKNOWN_ERROR',\n    reason: 'lead_not_found_for_tenant',\n    note: 'No lead with that id belongs to this client. Not treated as an absence of signal.',\n    correlation_id: ctx.correlation_id || null\n  } } }];\n}\n\nconst signal = lead.detected_signal || null;\nconst conf = lead.signal_confidence || null;\nconst ERROR_CONF = ['Unavailable', 'Error', 'Failed'];\nconst VERIFIED_CONF = ['High', 'Medium'];\n\nfunction daysSince(ts) {\n  if (!ts) return null;\n  const d = (Date.now() - new Date(ts).getTime()) / 86400000;\n  return isFinite(d) ? Math.floor(d) : null;\n}\n\nlet out;\n\nif (conf && ERROR_CONF.indexOf(conf) >= 0) {\n  // Provider or parser failure. Explicitly NOT a signal, and never urgency.\n  out = {\n    why_now: 'UNKNOWN_ERROR',\n    reason: 'signal_detection_unavailable',\n    confidence: null,\n    urgency: null,\n    interpretation: 'Signal detection did not complete for this lead. That is a gap in our '\n                  + 'information, not evidence about the prospect.',\n    safe_to_treat_as_intent: false\n  };\n} else if (!signal || String(signal).trim() === '') {\n  out = {\n    why_now: 'NO_VERIFIED_SIGNAL',\n    reason: 'no_signal_detected',\n    confidence: null,\n    urgency: 'none',\n    interpretation: 'Nothing time-sensitive is known about this lead. Any outreach rests on '\n                  + 'fit alone, not timing.',\n    safe_to_treat_as_intent: false\n  };\n} else if (VERIFIED_CONF.indexOf(conf) >= 0) {\n  const age = daysSince(lead.updated_at);\n  out = {\n    why_now: 'VERIFIED_SIGNAL',\n    signal: signal,\n    evidence: lead.research_summary || lead.research_angle || null,\n    source: lead.research_summary ? 'lead_research' : 'signal_detection',\n    // The schema records no separate observation time for a signal, so the\n    // last write is the closest honest proxy -- and is labelled as one.\n    observed_at: lead.updated_at || null,\n    observed_at_is_proxy: true,\n    recency_days: age,\n    recency: age === null ? 'unknown' : (age <= 14 ? 'fresh' : (age <= 60 ? 'ageing' : 'stale')),\n    confidence: conf,\n    interpretation: lead.likely_business_need\n      ? ('Signal aligns with a likely need: ' + lead.likely_business_need)\n      : 'Signal detected; no inferred business need recorded.',\n    urgency: (age !== null && age <= 14 && conf === 'High') ? 'high'\n           : (age !== null && age <= 60) ? 'medium' : 'low',\n    safe_to_treat_as_intent: true\n  };\n} else {\n  // Low confidence is not verification.\n  out = {\n    why_now: 'NO_VERIFIED_SIGNAL',\n    reason: 'signal_below_confidence_threshold',\n    signal_seen: signal,\n    confidence: conf,\n    urgency: 'none',\n    interpretation: 'A weak signal was recorded but does not meet the bar to act on.',\n    safe_to_treat_as_intent: false\n  };\n}\n\nout.lead_id = lead.id;\nout.client_id = lead.client_id;\nout.correlation_id = ctx.correlation_id || null;\nout.assessed_at = new Date().toISOString();\nreturn [{ json: { result: out } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "mcp-9202",
+      "name": "Classify Why Now",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?id=eq.' + encodeURIComponent($json.tool_input.lead_id) + '&client_id=eq.' + encodeURIComponent($json.client_id) + '&select=id,client_id,lead_pool,full_name,company,industry,city,job_title,lead_status,lead_score,priority_level,scoring_reason,score_components,decision_maker_probability,research_summary,research_angle,likely_business_need,detected_signal,signal_confidence,unsubscribed,researched_at,last_email_sent_at,outreach_sent_at,updated_at' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mcp-9203",
+      "name": "Tool: NBA Fetch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        1680
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "notes": "Fetched by id AND client_id, so another tenant's lead returns zero rows."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Next Best Action -- a capability on the existing runtime, not a second agent.\n//\n// Deterministic on purpose. Every field can be pointed at a column; nothing\n// is inferred that the data does not support. risk_class uses the same\n// vocabulary as the policy gate, so the executor's answer is predictable\n// from here.\n\nconst ctx = $('Parse Request').item.json;\nconst rows = $input.all().map(function (i) { return i.json; });\nconst lead = (rows.length === 1 && Array.isArray(rows[0])) ? rows[0][0] : rows[0];\n\nif (!lead || !lead.id) {\n  return [{ json: { result: {\n    action: 'stop', why: 'lead_not_found_for_tenant', urgency: 'none',\n    evidence: [], confidence: 1.0, risk_class: 'READ', approval_required: false,\n    correlation_id: ctx.correlation_id || null\n  } } }];\n}\n\nconst ev = [];\nconst push = function (k, v) {\n  if (v !== null && v !== undefined && v !== '') ev.push(k + '=' + v);\n};\n\nconst researched = !!(lead.research_summary && String(lead.research_summary).trim());\nconst scored = lead.lead_score !== null && lead.lead_score !== undefined;\nconst conf = lead.signal_confidence || null;\nconst signalErrored = !!(conf && ['Unavailable', 'Error', 'Failed'].indexOf(conf) >= 0);\nconst verifiedSignal = !!(lead.detected_signal && ['High', 'Medium'].indexOf(conf) >= 0);\n\npush('lead_status', lead.lead_status);\npush('lead_score', lead.lead_score);\npush('priority_level', lead.priority_level);\npush('signal_confidence', conf);\npush('researched', researched);\n\nlet action, why, urgency, risk, approval, confidence;\n\n// Ordered by precedence: suppression first, then information gaps, then\n// timing. A lead that must not be contacted is never reasoned past.\nif (lead.unsubscribed) {\n  action = 'stop';\n  why = 'Lead has unsubscribed. Contact is suppressed permanently.';\n  urgency = 'none'; risk = 'READ'; approval = false; confidence = 1.0;\n} else if (!researched) {\n  action = 'research';\n  why = 'No research summary exists, so there is nothing evidence-based to say. '\n      + 'Contacting now would mean inventing a reason.';\n  urgency = 'medium'; risk = 'READ'; approval = false; confidence = 0.9;\n} else if (!scored) {\n  action = 'research';\n  why = 'Research exists but the lead has not been scored, so fit is unknown.';\n  urgency = 'low'; risk = 'READ'; approval = false; confidence = 0.8;\n} else if (signalErrored) {\n  action = 'collect_information';\n  why = 'Signal detection failed for this lead. The gap is in our data, not the prospect, '\n      + 'and it should be closed before any timing-based outreach.';\n  urgency = 'low'; risk = 'READ'; approval = false; confidence = 0.75;\n} else if (lead.last_email_sent_at || lead.outreach_sent_at) {\n  action = 'follow_up';\n  why = 'This lead has already been contacted and has not reached a closed state.';\n  urgency = verifiedSignal ? 'medium' : 'low';\n  risk = 'CONTACT_HUMAN'; approval = true; confidence = 0.7;\n} else if (verifiedSignal) {\n  action = 'contact';\n  why = 'Researched, scored, and carrying a verified signal -- the timing is evidenced '\n      + 'rather than assumed.';\n  urgency = 'high'; risk = 'CONTACT_HUMAN'; approval = true; confidence = 0.85;\n} else if ((lead.lead_score || 0) >= 60) {\n  action = 'contact';\n  why = 'Strong fit on score with no timing signal. Worth contacting on fit alone, with no '\n      + 'urgency claimed.';\n  urgency = 'low'; risk = 'CONTACT_HUMAN'; approval = true; confidence = 0.6;\n} else {\n  action = 'wait';\n  why = 'Researched and scored, but neither fit nor timing justifies contact yet.';\n  urgency = 'none'; risk = 'READ'; approval = false; confidence = 0.65;\n}\n\nreturn [{ json: { result: {\n  action: action,\n  why: why,\n  urgency: urgency,\n  evidence: ev,\n  confidence: confidence,\n  risk_class: risk,\n  // Under recommend_only every CONTACT_HUMAN action needs a human. This is\n  // advisory only: the policy gate in the Action Executor enforces it.\n  approval_required: approval,\n  autonomy_note: 'approval_required is advisory. The Action Executor policy gate decides.',\n  lead_id: lead.id,\n  client_id: lead.client_id,\n  correlation_id: ctx.correlation_id || null,\n  decided_at: new Date().toISOString()\n} } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "mcp-9204",
+      "name": "Decide Next Best Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        1680
+      ]
     }
   ],
   "connections": {
@@ -828,6 +968,20 @@
         [
           {
             "node": "Tool: Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Why Now Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: NBA Fetch",
             "type": "main",
             "index": 0
           }
@@ -967,6 +1121,50 @@
         [
           {
             "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Why Now Fetch": {
+      "main": [
+        [
+          {
+            "node": "Classify Why Now",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Why Now": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: NBA Fetch": {
+      "main": [
+        [
+          {
+            "node": "Decide Next Best Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Next Best Action": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
             "type": "main",
             "index": 0
           }

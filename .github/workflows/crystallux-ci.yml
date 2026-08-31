@@ -137,6 +137,13 @@ jobs:
       - name: Test agent policy gate (fail-closed)
         run: node tests/agent/policy-gate.test.js
 
+      # Why Now and Next Best Action decide whether a human gets contacted and
+      # on what evidence. The guarantee worth protecting is that a failure in
+      # our own pipeline never comes back as intent about the prospect -- 284
+      # rows were exactly that bug before it was fixed.
+      - name: Test Why Now and Next Best Action
+        run: node tests/agent/why-now-nba.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.
