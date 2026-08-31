@@ -348,3 +348,77 @@ The repo has never had a migration ledger. This is it. **Do not re-run these.**
 | `entitlement-1-check-function.sql` | 3 functions present, all fail closed |
 
 **Pending:** `onboarding-1-icp-from-onboarding.sql`.
+
+# AGENTIC — PROVEN IN PRODUCTION (2026-08-31)
+
+`READ_ONLY_PROVEN`. Three genuine decisions persisted; the third is the one
+that matters.
+
+| Evidence | Value |
+|---|---|
+| Decision | `b2998b02-dac3-493a-8688-86b64c5b28ad` |
+| Correlation | `proof-1788199236653` |
+| Capability selected | `assess_why_now` |
+| MCP call | `mcp_tool_calls` 18:00:40.358 — first row since 8 April |
+| Decision persisted | 18:00:43.388, three seconds later |
+| Outcome | `wait`, confidence 0.75 |
+
+The reasoning is the proof: *"Signal is 131 days stale with low urgency and
+medium confidence."* Those three values are `assess_why_now`'s own output
+fields — `recency_days: 131`, `urgency: low`, `confidence: Medium`. None was
+in the trigger context, so the model could only know them by calling the
+tool. And the recommendation changed because of it: runs one and two
+escalated, run three decided to wait. The capability materially altered the
+outcome, which is the difference between an agent that reasons and one that
+merely runs.
+
+Zero external communication throughout. `agent_channels_enabled` holds one
+row, `internal`.
+
+## Why nothing had been researched — two bugs stacked
+
+**The status writer discarded the status decider.** `Parse Claude Response`
+computes `lead_status` from whether research actually produced a summary --
+the pipeline-ordering fix from earlier in this sprint. `Prep Update Lead`
+then hardcoded `lead_status: 'Researched'` and threw it away. The fix was
+real and had no effect.
+
+**Underneath it, the Anthropic call was never authenticating.** The node
+carried `anthropic-version` and `Content-Type` but no `x-api-key`, relying
+on an n8n header credential named `Claude Anthropic` that returned nothing
+for 50 consecutive leads. Both now use `$env.ANTHROPIC_API_KEY`, the
+mechanism the decision engine uses and the only Anthropic call here with
+production evidence behind it. The exact model, payload and prompt were
+verified against the live API before shipping.
+
+Live evidence that exposed it: 50 leads marked `Researched`, 0 with a
+summary, 0 marked `Research Failed`. **The scoring guard held** —
+`research_summary=not.is.null` excluded all 50, so nothing was scored
+wrongly. Fail-closed did its job while two bugs sat behind it.
+
+# POST-PILOT — RECORDED, NOT BLOCKING LAUNCH
+
+The advanced competitive layer is deliberately not built. First revenue
+outranks it, and each item below needs the pilot loop running before it has
+anything to learn from.
+
+| Area | Post-pilot work | Foundation that already exists |
+|---|---|---|
+| Unified GTM context | Compose tenant + ICP + account + signals + history at decision time | `Fetch Proof Lead` + capability selection already assemble a slice |
+| Account/person resolution | Company and person as distinct entities; cross-source dedupe | `leads_company_unique`; no person entity yet |
+| Multi-signal intelligence | type/source/timestamp/confidence/recency per signal | single `detected_signal` + `signal_confidence` today |
+| Playbook engine | Per-vertical selling behaviour as configuration | `niche_overlays` (8 verticals) is the right home |
+| NBA v2 | Reason across history, memory, reply state, campaign | `next_best_action` capability shipped, deterministic |
+| Provider routing | One shared router; availability, cost, freshness, fallback | providers currently hard-wired per workflow |
+| Cost-aware research | Staged enrichment, cost per lead/account | `apollo_credits_log`, `agent_actions.cost_cents` unused |
+| Play selection | Choose acquisition / expansion / re-engagement per account | `campaigns.status` is the authorization state |
+| Agent observability | Capabilities considered, latency, cost, policy outcome | `context_used` carries correlation + capability today |
+| Experimentation | Variant tracking without invented significance | none |
+| Outcome learning | Analytics first, calibration later, governed changes only | `agent_memory` (0 rows), `agent_decisions.outcome` |
+| Natural-language operator | Plan, invoke capabilities, request approval | MCP capability plane is the substrate |
+| Autonomy tiers | L3 auto-execute internal, L4 policy-authorized external | L1/L2 enforced today by the policy gate |
+| Sentinel oversight | Cost spikes, unexpected sends, credential health | workflow-health collector still 0 rows |
+
+The rule this sprint keeps proving: a check that cannot fail closed is not a
+check. Every one of the above must land behind the policy gate, not beside
+it.
