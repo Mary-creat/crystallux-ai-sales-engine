@@ -88,6 +88,29 @@ return when it is unset. That hypothesis is closed.
 
 Everything else a pilot needs exists and is deployed.
 
+5. **Research and scoring are dormant, and activating them sweeps the house
+   pool.** Both are schedule-driven every 15 minutes and `active: false`.
+   Discovery writes fresh leads as `New Lead`, so with these two inert the
+   chain stalls one step after discovery succeeds — a fresh tenant lead would
+   sit unresearched and none of scoring, Why Now or Next Best Action could be
+   proven.
+
+   Neither fetch filters on `lead_pool`. Production currently holds **891 house
+   leads and 59 tenant leads** in `New Lead`. Activating Lead Research v2 as it
+   stands begins researching all 950 at 25 per 15 minutes — roughly nine hours
+   of continuous enrichment against the house pool, which is precisely the bulk
+   research that was ruled out.
+
+   Two ways forward, and this is an owner decision because activation is an
+   owner action and Lead Research v2 is protected:
+   - Add `&lead_pool=eq.tenant` to `Get New Leads`, confining research to the
+     pilot's own scope and leaving the house pool untouched. One parameter,
+     reversible, but it narrows a protected workflow's targeting.
+   - Activate as-is and accept the house-pool sweep.
+
+   `Get Researched Leads` in scoring has the same shape and inherits whichever
+   decision is made.
+
 ## Why the two proof runs produced nothing — 2026-08-31
 
 Both owner invocations were made. Neither left a decision or a lead, and the
