@@ -62,10 +62,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-N8N-API-KEY",
-              "value": "={{ $env.N8N_API_KEY }}"
-            },
-            {
               "name": "Accept",
               "value": "application/json"
             }
@@ -78,7 +74,9 @@
               "neverError": true
             }
           }
-        }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "shwc-0004",
       "name": "Fetch n8n Executions",
@@ -90,7 +88,12 @@
       ],
       "alwaysOutputData": true,
       "onError": "continueRegularOutput",
-      "notes": "continueOnFail was set inside parameters.options, where n8n does not read it. A non-2xx from the n8n API therefore threw and halted the run before Aggregate, Upsert or Respond -- which is why the webhook answered an empty 200 and sentinel_workflow_health stayed at 0 rows. Now non-fatal and surfaced."
+      "notes": "Auth moved from {{ $env.N8N_API_KEY }} to an n8n credential. The variable is not present in the running container, so the expression resolved to empty, n8n omitted the header, and the API answered \"X-N8N-API-KEY header required\". Credentials live in n8n's database rather than its environment, so this needs no container recreate and no restart.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "n8n Management API"
+        }
+      }
     },
     {
       "parameters": {
@@ -99,10 +102,6 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-N8N-API-KEY",
-              "value": "={{ $env.N8N_API_KEY }}"
-            },
             {
               "name": "Accept",
               "value": "application/json"
@@ -116,7 +115,9 @@
               "neverError": true
             }
           }
-        }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "id": "shwc-0005",
       "name": "Fetch Active Workflows",
@@ -128,7 +129,12 @@
       ],
       "alwaysOutputData": true,
       "onError": "continueRegularOutput",
-      "notes": "continueOnFail was set inside parameters.options, where n8n does not read it. A non-2xx from the n8n API therefore threw and halted the run before Aggregate, Upsert or Respond -- which is why the webhook answered an empty 200 and sentinel_workflow_health stayed at 0 rows. Now non-fatal and surfaced."
+      "notes": "Auth moved from {{ $env.N8N_API_KEY }} to an n8n credential. The variable is not present in the running container, so the expression resolved to empty, n8n omitted the header, and the API answered \"X-N8N-API-KEY header required\". Credentials live in n8n's database rather than its environment, so this needs no container recreate and no restart.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "n8n Management API"
+        }
+      }
     },
     {
       "parameters": {
@@ -212,7 +218,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// An API failure must reach the caller. Reporting 'ok' here while writing\n// nothing is precisely how workflow-health sat at 0 rows for months\n// without anyone being told.\nvar agg0 = null;\ntry { agg0 = $('Aggregate').first().json; } catch (e) { agg0 = null; }\nif (agg0 && agg0._api_error) {\n  return { json: { ok: false, collected: 0, error: agg0.error,\n    hint: 'n8n API rejected the collector; check N8N_API_KEY validity inside the container',\n    window_start: agg0.window_start, window_end: agg0.window_end } };\n}\n\nconst rows = $('Aggregate').all().map(function (i) { return i.json; });\nconst counts = { healthy: 0, degraded: 0, critical: 0, silent: 0 };\nrows.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });\nreturn { json: { ok: true, workflows_evaluated: rows.length, counts: counts, window_start: rows[0] ? rows[0].window_start : null, window_end: rows[0] ? rows[0].window_end : null } };",
+        "jsCode": "// An API failure must reach the caller. Reporting 'ok' here while writing\n// nothing is precisely how workflow-health sat at 0 rows for months\n// without anyone being told.\nvar agg0 = null;\ntry { agg0 = $('Aggregate').first().json; } catch (e) { agg0 = null; }\nif (agg0 && agg0._api_error) {\n  return { json: { ok: false, collected: 0, error: agg0.error,\n    hint: 'n8n API rejected the collector; the n8n Management API credential is missing or wrong in n8n > Credentials',\n    window_start: agg0.window_start, window_end: agg0.window_end } };\n}\n\nconst rows = $('Aggregate').all().map(function (i) { return i.json; });\nconst counts = { healthy: 0, degraded: 0, critical: 0, silent: 0 };\nrows.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });\nreturn { json: { ok: true, workflows_evaluated: rows.length, counts: counts, window_start: rows[0] ? rows[0].window_start : null, window_end: rows[0] ? rows[0].window_end : null } };",
         "mode": "runOnceForAllItems"
       },
       "id": "shwc-0009",
