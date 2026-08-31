@@ -137,6 +137,12 @@ jobs:
       - name: Test agent policy gate (fail-closed)
         run: node tests/agent/policy-gate.test.js
 
+      # MCP must not be the shorter path to a real send. This proves the
+      # five contact-a-human tools hand over to agent/action-execute and
+      # that no MCP node calls a deterministic sender directly.
+      - name: Test MCP context gate (no policy bypass)
+        run: node tests/agent/mcp-context-gate.test.js
+
       # Real Postgres grammar via libpg_query, across both migration
       # directories. Mary pastes these into the Supabase SQL editor by
       # hand, where a syntax error surfaces halfway through a
