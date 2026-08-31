@@ -1,0 +1,119 @@
+# ================================================================
+# One-off diagnostic: read the LIVE Sentinel collector out of n8n.
+#
+# Three correct-looking UI fixes have not made the collector send its
+# X-N8N-API-KEY header, and the failure can only be inferred from
+# response bodies out here. This job uses the N8N_API_KEY secret that
+# the deploy job already proves works, and prints the live workflow's
+# node configuration so the saved state can be compared with the repo.
+#
+# It prints node ids, auth mode and credential REFERENCES only. n8n's
+# API never returns credential values, so no secret can appear in the
+# log. Nothing is written; the job is read-only.
+#
+# Delete this file once the collector is fixed.
+# ================================================================
+
+name: n8n live diagnostic (read-only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/n8n-diagnose.yml'
+
+jobs:
+  inspect:
+    name: Read live collector config from n8n
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Inspect the live workflow
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "${N8N_URL:-}" ] || [ -z "${N8N_API_KEY:-}" ]; then
+            echo "::error::secrets not configured"; exit 1
+          fi
+          N8N_URL="${N8N_URL%/}"
+          WF=clxSentinelHealthWorkflowCollectorV1
+
+          echo "── how many workflows carry this name? ─────────────────"
+          curl -s --max-time 30 "$N8N_URL/api/v1/workflows?limit=250" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" -o all.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open('all.json'))
+          rows = d.get('data', d if isinstance(d, list) else [])
+          hits = [w for w in rows if 'Sentinel Health Workflow Collector' in (w.get('name') or '')]
+          print('total workflows in n8n :', len(rows))
+          print('name matches           :', len(hits))
+          for w in hits:
+              print('   id=%-40s active=%-5s name=%s' % (w.get('id'), w.get('active'), w.get('name')))
+          PY
+
+          echo
+          echo "── the workflow CI deploys to ──────────────────────────"
+          code=$(curl -s -o wf.json -w '%{http_code}' --max-time 30 \
+            "$N8N_URL/api/v1/workflows/$WF" -H "X-N8N-API-KEY: $N8N_API_KEY")
+          echo "GET /workflows/$WF -> HTTP $code"
+
+          python3 - <<'PY'
+          import json, os
+          try:
+              w = json.load(open('wf.json'))
+          except Exception as e:
+              print('could not parse workflow:', e); raise SystemExit(0)
+          if 'id' not in w:
+              print('response:', json.dumps(w)[:300]); raise SystemExit(0)
+
+          print('id           :', w.get('id'))
+          print('name         :', w.get('name'))
+          print('active       :', w.get('active'))
+          print('versionId    :', w.get('versionId'))
+          print('updatedAt    :', w.get('updatedAt'))
+          print()
+          for n in w.get('nodes', []):
+              if n.get('name') not in ('Fetch n8n Executions', 'Fetch Active Workflows'):
+                  continue
+              p = n.get('parameters', {})
+              print('NODE', n.get('name'))
+              print('   node id        :', n.get('id'))
+              print('   type           :', n.get('type'), 'v%s' % n.get('typeVersion'))
+              print('   authentication :', p.get('authentication'))
+              print('   genericAuthType:', p.get('genericAuthType'))
+              print('   credentials    :', json.dumps(n.get('credentials')))
+              print('   headers sent   :', json.dumps(p.get('headerParameters')))
+              print('   url            :', str(p.get('url'))[:110])
+              print('   onError        :', n.get('onError'))
+              print()
+          PY
+
+          echo "── credentials n8n holds (names and types only) ────────"
+          curl -s --max-time 30 "$N8N_URL/api/v1/credentials?limit=100" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" -o creds.json || true
+          python3 - <<'PY'
+          import json
+          try:
+              d = json.load(open('creds.json'))
+          except Exception:
+              print('credentials endpoint not readable on this n8n version'); raise SystemExit(0)
+          rows = d.get('data', d if isinstance(d, list) else [])
+          if not isinstance(rows, list):
+              print('unexpected shape:', json.dumps(d)[:200]); raise SystemExit(0)
+          print('credentials visible:', len(rows))
+          for c in rows:
+              nm = c.get('name') or ''
+              if 'n8n' in nm.lower() or 'header' in str(c.get('type','')).lower():
+                  print('   id=%-28s type=%-20s name=%s' % (c.get('id'), c.get('type'), nm))
+          PY
