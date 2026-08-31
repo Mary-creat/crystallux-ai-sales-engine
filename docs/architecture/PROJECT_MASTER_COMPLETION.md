@@ -70,10 +70,50 @@ Three things, in order:
    and empty, so purchase → entitlement cannot complete. **Owner.**
 2. **Onboarding migration not applied.** `client_icp_profiles` is 0 rows, so no
    tenant has an ICP. **Owner.**
-3. **Discovery proof not run.** Needs `INTERNAL_EMAIL_SECRET`, which lives in the
-   container and correctly not with me.
+3. **Google Places credential is not authenticating.** The tenant scan ran in
+   production on 2026-08-31 06:07 UTC and every `Search Google Maps` call
+   returned `403 PERMISSION_DENIED — Method doesn't allow unregistered callers`.
+   115 such errors are logged in `scan_errors`. The n8n credential **Google
+   Maps** (Header Auth) must send `X-Goog-Api-Key: <Places API key>`; Places v1
+   rejects the request outright without it. **Owner.**
+4. **`ANTHROPIC_API_KEY` in the n8n container is unverified.** The decision
+   engine reads it via `$env`. The key held locally works and the model id
+   `claude-sonnet-4-5-20250929` was verified live, so the container variable is
+   the only remaining unknown. The proof endpoint now reports this explicitly
+   instead of failing silently. **Owner.**
+
+`INTERNAL_EMAIL_SECRET` is **confirmed present** in the container: both proof
+endpoints answer `401`, not the `503 internal_secret_not_configured` they now
+return when it is unset. That hypothesis is closed.
 
 Everything else a pilot needs exists and is deployed.
+
+## Why the two proof runs produced nothing — 2026-08-31
+
+Both owner invocations were made. Neither left a decision or a lead, and the
+reasons were different.
+
+**Tenant discovery reached production and failed on a credential.** The webhook
+authenticated, the tenant-scoped entry worked, and the run died at the Google
+Places call. That is evidence the discovery plumbing is correct: it got as far
+as the external API. Nothing downstream can be proven until that key is set,
+because there is no fresh lead to carry through research → scoring → signal.
+
+**The decision engine failed and recorded nothing at all**, which was itself the
+defect. `Claude Decide` carried `alwaysOutputData` but no `onError`.
+`alwaysOutputData` covers a node that returns no data; it does not cover a node
+that *throws*. A 401 from Anthropic therefore aborted the execution — after the
+proof webhook had already answered `202`, so the caller saw success and the run
+vanished without trace. This is the same distinction that made the `neverError`
+guard wrong earlier in this sprint, found a second time in a different place.
+
+`Parse Decision` compounded it: any unusable model response became a persisted
+row reading `action_type: 'wait'`, `reasoning: 'parse_failed'`, `confidence: 0`.
+Once stored, that is indistinguishable from the agent genuinely deciding to hold
+off — the same fabrication that made 1,373 leads score zero. Fixed under the
+same rule: **on model or parser failure, record the failure and persist
+nothing.** Agent failures now write to `scan_errors`, the table discovery
+already uses, so one query covers both.
 
 # WHAT BLOCKS FULL SELF-SERVE LAUNCH
 
@@ -145,7 +185,7 @@ the condition cannot recur silently.
 |---|---|---|---|---|---|---|---|---|---|
 | Copilot | Agentic | `DONE` (client side) | 6 endpoints | **Answered a real question live: "You have 79 leads in your pipeline" — the test tenant's count, not the global 2,518, so tenant scoping holds through the Copilot too** | Admin copilot; conversation persistence | — | no | — | no |
 | Agent personality | Agentic | `DONE` | 1 row: construction, `recommend_only`, MAXI, 8 gated | Verified live; vertical resolves | — | — | no | — | no |
-| Decision engine | Agentic | `LIVE_UNPROVEN` | 9 workflows, 16 tables | — | **Never executed** — exits at `agent_channels_enabled` 0 | 4 empty gate tables; trigger `(DEACTIVATED)` | **yes** | Activation decision | no |
+| Decision engine | Agentic | `LIVE_UNPROVEN` | 9 workflows, 16 tables | Invocable entry added (`agent/decision-proof`) and deployed; fail-closed verified live | **Still never persisted a decision** — the one run aborted at `Claude Decide` and logged nothing | `ANTHROPIC_API_KEY` in container unverified | **yes** | Set/confirm the variable, re-run the proof | no |
 | Action executor | Agentic | `DONE` | Fail-closed gate on the only path to a send | **35 tests** — sensitive classes blocked, approval validated not trusted, tenant mismatch refused | Never run on a real decision | — | no | — | no |
 | Policy gate | Agentic | `DONE` | Risk keyed on capability, not product | 35 tests in CI, reading shipped `jsCode` | — | — | no | — | no |
 | Product routing | Agentic | `DONE` (as a decision) | MCP's `Parse Request` already maps all 10 capabilities to a product and refuses any tool without one | Verified in the shipped `jsCode`: `PRODUCT` map, `RISK` map, and a hard refusal on an unmapped tool | Not exercised under a second product | — | no | **No separate router. Building one would duplicate a mapping that already exists and fails closed** | no |
@@ -155,7 +195,7 @@ the condition cannot recur silently.
 | `agent_channels_enabled` | Agentic | `BLOCKED_OWNER` | Table exists | — | **0 rows — this is what keeps the runtime inert** | Activation is an owner call | **yes** | Decide | no |
 | `behavioral_triggers` | Agentic | `LIVE_UNPROVEN` | Table exists | — | 0 rows | Nothing upstream runs | no | — | no |
 | `agent_schedules` | Agentic | `LIVE_UNPROVEN` | Table exists | — | 0 rows | — | no | — | no |
-| **Read-only proof** | Agentic | `BLOCKED_OWNER` | Chain designed; every link but one verified | `get_vertical_context` resolves; policy gate 35 tests; MCP handover 28 tests | **No agent decision has ever been persisted** — `agent_decisions` 0 | Needs `INTERNAL_EMAIL_SECRET` to invoke `mcp/agent-tools`, and `agent_channels_enabled` to reach the decision engine | **yes** | Run it | no |
+| **Read-only proof** | Agentic | `BLOCKED_OWNER` | Entry exists and authenticates; failure is now durable and diagnosable | `get_vertical_context` resolves; policy gate 35 tests; MCP handover 28 tests | **No agent decision has ever been persisted** — `agent_decisions` 0 | Needs `INTERNAL_EMAIL_SECRET` to invoke `mcp/agent-tools`, and `agent_channels_enabled` to reach the decision engine | **yes** | Run it | no |
 | **Controlled-action proof** | Agentic | `DEFERRED` | Prepared, not executed | Gate already proves `recommend_only` refuses a send even with a valid approval | Not run end to end | Read-only proof first | no | After read-only | no |
 | Sentinel sees agents | Agentic | `DEFERRED` | — | — | Not built | Workflow-health first | no | After that | no |
 
