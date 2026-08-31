@@ -99,8 +99,6 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -111,6 +109,10 @@
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
             }
           ]
         },
@@ -127,13 +129,10 @@
         1160,
         300
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Claude Anthropic"
-        }
-      },
       "continueOnFail": true,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "notes": "Authenticates with $env.ANTHROPIC_API_KEY, the same mechanism the decision engine uses and the only Anthropic call here with production evidence behind it. The 'Claude Anthropic' header credential returned nothing for 50 consecutive leads."
     },
     {
       "parameters": {
