@@ -24,11 +24,12 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&lead_pool=eq.tenant&select=id,full_name,email,company,industry,job_title,city,product_type,linkedin_url,apollo_org_id,company_size&limit=25",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.New%20Lead&lead_pool=eq.tenant&select=id,full_name,email,company,industry,job_title,city,product_type,linkedin_url,apollo_org_id,company_size,website,source,vertical,client_id,lead_pool&limit=25",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
-        "options": {}
+        "options": {},
+        "notes": "Selects the context the research prompt sends. website, source, vertical, client_id and lead_pool were missing, so they could not have reached Claude however the prompt was written."
       },
       "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000002",
       "name": "Get New Leads",
@@ -118,7 +119,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: \"claude-haiku-4-5-20251001\", max_tokens: 1024, messages: [{ role: \"user\", content: \"You are a B2B sales intelligence analyst for the Crystallux Sales Engine.\n\nAnalyze this lead and return ONLY a raw JSON object. No markdown, no code blocks, no explanation.\n\nLead Details:\nCompany: \" + ($('Split In Batches').first().json.company || \"\") + \"\nIndustry: \" + ($('Split In Batches').first().json.industry || \"\") + \"\nJob Title: \" + ($('Split In Batches').first().json.job_title || \"\") + \"\nContact: \" + ($('Split In Batches').first().json.full_name || \"\") + \"\nCity: \" + ($('Split In Batches').first().json.city || \"\") + \"\nWebsite: \" + ($('Split In Batches').first().json.website || $('Split In Batches').first().json.domain || \"\") + \"\nEmail domain: \" + String($('Split In Batches').first().json.email || \"\").split(\"@\")[1] + \"\nProduct Type: \" + ($('Split In Batches').first().json.product_type || \"\") + \"\n\nReturn a JSON object with exactly these three string fields:\n- research_summary: 2-3 sentences about this company and their market position\n- likely_business_need: the single most likely business challenge this company faces\n- research_angle: the specific outreach angle to use when contacting this lead\n\nIf the details above are too sparse to say anything specific, set research_summary to exactly INSUFFICIENT_DATA rather than guessing.\" }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-haiku-4-5-20251001\", max_tokens: 1024, messages: [{ role: \"user\", content: \"You are a B2B sales intelligence analyst for the Crystallux Sales Engine.\n\nAnalyze this lead and return ONLY a raw JSON object. No markdown, no code blocks, no explanation.\n\nLead Details:\nCompany: \" + ($('Split In Batches').first().json.company || \"\") + \"\nIndustry: \" + ($('Split In Batches').first().json.industry || \"\") + \"\nJob Title: \" + ($('Split In Batches').first().json.job_title || \"\") + \"\nContact: \" + ($('Split In Batches').first().json.full_name || \"\") + \"\nCity: \" + ($('Split In Batches').first().json.city || \"\") + \"\nEmail domain: \" + String($('Split In Batches').first().json.email || \"\").split(\"@\")[1] + \"\nWebsite: \" + ($('Split In Batches').first().json.website || \"\") + \"\nLinkedIn: \" + ($('Split In Batches').first().json.linkedin_url || \"\") + \"\nSource: \" + ($('Split In Batches').first().json.source || \"\") + \"\nVertical: \" + ($('Split In Batches').first().json.vertical || $('Split In Batches').first().json.product_type || \"\") + \"\nProduct Type: \" + ($('Split In Batches').first().json.product_type || \"\") + \"\n\nReturn a JSON object with exactly these three string fields:\n- research_summary: 2-3 sentences about this company and their market position\n- likely_business_need: the single most likely business challenge this company faces\n- research_angle: the specific outreach angle to use when contacting this lead\n\nIf the details above are too sparse to say anything specific, set research_summary to exactly INSUFFICIENT_DATA rather than guessing.\" }] }) }}",
         "options": {}
       },
       "id": "a1b2c3d4-e5f6-4a7b-8c9d-clx000000005",
