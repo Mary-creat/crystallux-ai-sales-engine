@@ -7,18 +7,36 @@
 -- a personality before it does anything, nothing can run even when
 -- triggered. Not a design gap: a missing row.
 --
--- This seeds exactly one, for the existing test tenant, deliberately
--- configured so that the first proof is READ-ONLY:
+-- This seeds exactly one, for the existing test tenant.
 --
---   * escalation_rules require human approval for every outbound
---     action, so an agent can plan a message and cannot send one
---   * prohibited_topics block the categories that move money or
---     touch a real customer
---   * vertical_context points at 'construction', which is configured,
---     active, and resolvable through get_vertical_context()
+-- WHY THIS IS SAFE TO APPLY -- corrected 2026-08-30
+-- -------------------------------------------------
+-- An earlier version of this comment claimed the escalation_rules below
+-- make the agent recommend-only and stop it sending. That is FALSE, and
+-- the correction matters more than the seed:
 --
--- Reuses the tenant of record (clients) and the existing avatar
--- registry. Creates no new table and no new concept.
+--   clx-agent-action-executor-v1 contains NO approval logic at all. It
+--   validates a shared secret, inserts an agent_actions row, and routes
+--   straight to Call WhatsApp / Call SMS / Call Email / Call Voice.
+--   Grep it: 'require_human_approval', 'autonomy', 'approval',
+--   'escalation_rules' and 'dry_run' appear nowhere. Nothing reads the
+--   policy this row carries.
+--
+-- What actually makes this row inert is upstream and structural: the
+-- decision engine's FIRST query is
+--     agent_channels_enabled?enabled=eq.true
+-- which returns 0 rows, so the per-client loop exits before a
+-- personality is ever fetched. Seeding a personality alone therefore
+-- cannot cause any agent to act.
+--
+-- The escalation_rules below are kept as the INTENDED policy, so the
+-- contract is written down before the executor is taught to honour it.
+-- They are documentation today, not enforcement.
+--
+-- DO NOT insert agent_channels_enabled, or seed a pending
+-- behavioral_trigger, until the executor enforces approval. Those two
+-- rows are what would turn this from inert configuration into an agent
+-- that can message a real person.
 --
 -- Idempotent: keyed on (client_id, vertical_context), no-op on re-run.
 -- ============================================================
