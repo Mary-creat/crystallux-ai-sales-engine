@@ -13,7 +13,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "clx-agent-action-executor-001",
       "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET). Routes an agent_decisions row to the right sender based on action_type. Wraps each call with agent_actions audit insert + agent_costs entry."
     },
@@ -26,13 +29,30 @@
       "name": "Validate",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
-          "conditions": [ { "id": "c1", "leftValue": "={{ $json._authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._authorized }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         }
       },
@@ -40,7 +60,10 @@
       "name": "IF Authorized",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [640, 400]
+      "position": [
+        640,
+        400
+      ]
     },
     {
       "parameters": {
@@ -51,8 +74,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -64,8 +93,15 @@
       "name": "Insert Agent Action",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [880, 320],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        880,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -76,44 +112,205 @@
       "name": "Carry Action ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 320]
+      "position": [
+        1120,
+        320
+      ]
     },
     {
       "parameters": {
         "rules": {
           "values": [
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_sms", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "sms" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "whatsapp" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "send_video", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "video" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "phone_call", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "voice" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.action_type }}", "rightValue": "escalate", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "escalate" }
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "send_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "send_sms",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "sms"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "send_whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "send_video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "video"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "phone_call",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "voice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "escalate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "escalate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action_type }}",
+                    "rightValue": "book",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "book"
+            }
           ]
         },
-        "options": { "fallbackOutput": "extra" }
+        "options": {
+          "fallbackOutput": "extra"
+        }
       },
       "id": "aae-0006",
       "name": "Switch Action Type",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [1380, 400]
+      "position": [
+        1380,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: $json.message, agent_action_id: $json.agent_action_id }) }}",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "aae-0007",
       "name": "Call WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 220],
+      "position": [
+        1620,
+        220
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -122,17 +319,29 @@
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/sms-send' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, content: $json.message, agent_action_id: $json.agent_action_id }) }}",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "aae-0008",
       "name": "Call SMS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 320],
+      "position": [
+        1620,
+        320
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -141,17 +350,29 @@
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, template: 'lead-meeting-booked', to: 'unknown@example.com', vars: { first_name: 'there', message: $json.message } }) }}",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "aae-0009",
       "name": "Call Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 420],
+      "position": [
+        1620,
+        420
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true,
       "notes": "TODO Phase 4 polish: look up lead.email server-side here rather than hard-coding 'unknown@example.com'. Current MVP relies on caller passing the right email or on B4 video-delivery-router doing lookup before calling email/send."
@@ -161,17 +382,29 @@
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/video/script-generate' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, lead_id: $json.lead_id, client_id: $json.client_id, intent: 'book_meeting' }) }}",
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "aae-0010",
       "name": "Generate Video",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 520],
+      "position": [
+        1620,
+        520
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true,
       "notes": "Chains B1 (script) → B2 (HeyGen render) → B3 (callback + R2) → B4 (delivery). The Generate Video step kicks off the chain; the rest happens async via HeyGen callback."
@@ -181,17 +414,29 @@
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/voice-outbound' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: $json.decision_id, lead_id: $json.lead_id, client_id: $json.client_id, script: $json.message, agent_action_id: $json.agent_action_id }) }}",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "aae-0011",
       "name": "Call Voice",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 620],
+      "position": [
+        1620,
+        620
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -200,17 +445,29 @@
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/escalate' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: $json.decision_id, lead_id: $json.lead_id, client_id: $json.client_id, escalated_to_role: 'client', reason: 'Agent decision selected escalate. Original message: ' + ($json.message || ''), context_summary: $json.message }) }}",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "aae-0012",
       "name": "Call Escalate",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 720],
+      "position": [
+        1620,
+        720
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -223,8 +480,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -236,8 +499,15 @@
       "name": "Mark Action Completed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1860, 420],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1860,
+        420
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -245,25 +515,35 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, agent_action_id: $('Carry Action ID').item.json.agent_action_id, action_type: $('Validate').item.json.action_type }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "aae-0014",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2100, 420]
+      "position": [
+        2100,
+        420
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json._unauthorized ? 401 : 400 }}" }
+        "options": {
+          "responseCode": "={{ $json._unauthorized ? 401 : 400 }}"
+        }
       },
       "id": "aae-0015",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [880, 540]
+      "position": [
+        880,
+        540
+      ]
     },
     {
       "parameters": {
@@ -307,7 +587,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Fail-closed policy gate. Nothing sensitive executes unless this says so.\n//\n// Before this node existed the executor validated a shared secret, wrote an\n// agent_actions row, and routed straight to WhatsApp/SMS/Email/Voice. Autonomy\n// level, risk class and approval state were never consulted -- the fields were\n// carried in agent_personalities and read by nothing.\n//\n// Order matters: every DENY path is evaluated before any ALLOW, so a missing,\n// malformed or unrecognised input can only ever result in a block.\n\nvar ctx = $('Carry Action ID').item.json;\nvar polResp = $input.item.json;\n\n// The policy fetch uses neverError + alwaysOutputData, so an empty result is\n// an object or an empty array rather than a halted branch.\nvar rows = Array.isArray(polResp) ? polResp : (polResp && polResp.id ? [polResp] : []);\nvar policy = rows.length ? rows[0] : null;\n\nvar correlation_id = ctx.agent_action_id || ctx.decision_id || null;\n\nfunction deny(reason, detail, risk, autonomy) {\n  return { json: Object.assign({}, ctx, {\n    _allowed: false,\n    _status: (reason === 'approval_required') ? 'approval_required' : 'denied',\n    policy_result: {\n      allowed: false,\n      reason: reason,\n      detail: detail,\n      risk_class: risk || 'UNKNOWN',\n      autonomy_level: autonomy || null,\n      approval_required: true,\n      approval_state: 'missing',\n      correlation_id: correlation_id,\n      evaluated_at: new Date().toISOString()\n    }\n  }) };\n}\n\n// --- risk classification -------------------------------------------------\n// Keyed on capability, not product, so a new product inherits the policy\n// instead of needing a new branch.\nvar RISK = {\n  email: 'CONTACT_HUMAN',\n  sms: 'CONTACT_HUMAN',\n  whatsapp: 'CONTACT_HUMAN',\n  voice: 'CONTACT_HUMAN',\n  call: 'CONTACT_HUMAN',\n  publish_social: 'CONTACT_HUMAN',\n  charge_payment: 'FINANCIAL',\n  capture_payment: 'FINANCIAL',\n  refund_payment: 'FINANCIAL',\n  finalize_auction: 'FINANCIAL',\n  create_order: 'FINANCIAL',\n  cancel_order: 'DESTRUCTIVE',\n  adjust_inventory: 'DESTRUCTIVE',\n  delete_record: 'DESTRUCTIVE',\n  finalize_policy: 'REGULATED',\n  submit_application: 'REGULATED',\n  bind_coverage: 'REGULATED',\n  video: 'WRITE_INTERNAL',\n  draft_outreach: 'WRITE_INTERNAL',\n  draft_quote: 'WRITE_INTERNAL',\n  update_lead_status: 'WRITE_INTERNAL',\n  log_decision: 'WRITE_INTERNAL',\n  escalate: 'WRITE_INTERNAL',\n  research_lead: 'READ',\n  score_lead: 'READ',\n  get_vertical_context: 'READ',\n  get_pipeline_stats: 'READ',\n  get_inventory: 'READ',\n  check_system_health: 'READ',\n  retrieve_lead_memory: 'READ',\n  recommend: 'REASONING',\n  plan: 'REASONING'\n};\n\nvar action = String(ctx.action_type || '').toLowerCase();\n\n// 1. Unknown capability -> deny. An unrecognised action_type has no risk\n//    class, and guessing one is how an unreviewed capability slips through.\nif (!action || !RISK.hasOwnProperty(action)) {\n  return deny('unknown_action_type', 'no risk class registered for \"' + action + '\"', 'UNKNOWN', null);\n}\nvar risk = RISK[action];\n\n// 2. Missing policy metadata -> deny. No personality means no autonomy level,\n//    and an unknown autonomy level must never mean \"full autonomy\".\nif (!policy) {\n  return deny('missing_policy', 'no agent_personalities row for this client', risk, null);\n}\n\n// 3. Tenant isolation. Approval is not authorization: an approved action still\n//    may not cross a tenant boundary.\nif (!ctx.client_id || !policy.client_id || String(policy.client_id) !== String(ctx.client_id)) {\n  return deny('tenant_mismatch', 'policy tenant does not match requested tenant', risk, null);\n}\n\nvar rules = policy.escalation_rules || {};\nvar autonomy = rules.autonomy_level || null;\nif (!autonomy) {\n  return deny('missing_autonomy_level', 'personality carries no autonomy_level', risk, null);\n}\n\n// 4. Explicit prohibition always wins, whatever the risk class.\nvar prohibited = policy.prohibited_topics || [];\nif (Array.isArray(prohibited) && prohibited.indexOf(action) !== -1) {\n  return deny('prohibited_action', 'action is in prohibited_topics', risk, autonomy);\n}\n\n// 5. Approval object, if one was supplied. Validated rather than trusted:\n//    it must be complete, and must name this tenant and this action.\nvar appr = ctx.approval || (ctx.body && ctx.body.approval) || null;\nvar approvalValid = false;\nif (appr && typeof appr === 'object') {\n  approvalValid = Boolean(appr.approval_id) && Boolean(appr.approved_by) &&\n                  Boolean(appr.approved_at) &&\n                  String(appr.client_id || '') === String(ctx.client_id) &&\n                  String(appr.action_type || '').toLowerCase() === action;\n}\n\n// 6. Classes that always need a human, unless a valid approval accompanies\n//    the request.\nvar NEEDS_APPROVAL = ['CONTACT_HUMAN', 'FINANCIAL', 'DESTRUCTIVE', 'REGULATED'];\nif (NEEDS_APPROVAL.indexOf(risk) !== -1) {\n  if (!approvalValid) {\n    return deny('approval_required', risk + ' actions require human approval', risk, autonomy);\n  }\n}\n\n// 7. Autonomy ceiling. recommend_only may reason and read and prepare\n//    internal drafts, and may not reach anything on the sensitive list even\n//    with an approval object attached -- the personality itself forbids it.\nif (autonomy === 'recommend_only' && NEEDS_APPROVAL.indexOf(risk) !== -1) {\n  return deny('autonomy_forbids', 'autonomy_level recommend_only cannot execute ' + risk, risk, autonomy);\n}\n\n// 8. Per-action gate declared on the personality.\nvar gated = rules.require_human_approval || [];\nif (Array.isArray(gated) && gated.indexOf(action) !== -1 && !approvalValid) {\n  return deny('approval_required', 'action listed in require_human_approval', risk, autonomy);\n}\n\n// 9. WRITE_INTERNAL needs the action to be explicitly permitted.\nif (risk === 'WRITE_INTERNAL') {\n  var allowed = rules.auto_allowed || [];\n  if (!Array.isArray(allowed) || allowed.indexOf(action) === -1) {\n    return deny('not_in_auto_allowed', 'WRITE_INTERNAL action not explicitly permitted', risk, autonomy);\n  }\n}\n\n// Allowed. READ and REASONING reach here on any autonomy level; everything\n// else has passed an explicit permit above.\nreturn { json: Object.assign({}, ctx, {\n  _allowed: true,\n  _status: 'executing',\n  policy_result: {\n    allowed: true,\n    reason: 'permitted',\n    risk_class: risk,\n    autonomy_level: autonomy,\n    approval_required: NEEDS_APPROVAL.indexOf(risk) !== -1,\n    approval_state: approvalValid ? 'valid' : 'not_required',\n    correlation_id: correlation_id,\n    evaluated_at: new Date().toISOString()\n  }\n}) };\n",
+        "jsCode": "// Fail-closed policy gate. Nothing sensitive executes unless this says so.\n//\n// Before this node existed the executor validated a shared secret, wrote an\n// agent_actions row, and routed straight to WhatsApp/SMS/Email/Voice. Autonomy\n// level, risk class and approval state were never consulted -- the fields were\n// carried in agent_personalities and read by nothing.\n//\n// Order matters: every DENY path is evaluated before any ALLOW, so a missing,\n// malformed or unrecognised input can only ever result in a block.\n\nvar ctx = $('Carry Action ID').item.json;\nvar polResp = $input.item.json;\n\n// The policy fetch uses neverError + alwaysOutputData, so an empty result is\n// an object or an empty array rather than a halted branch.\nvar rows = Array.isArray(polResp) ? polResp : (polResp && polResp.id ? [polResp] : []);\nvar policy = rows.length ? rows[0] : null;\n\nvar correlation_id = ctx.agent_action_id || ctx.decision_id || null;\n\nfunction deny(reason, detail, risk, autonomy) {\n  return { json: Object.assign({}, ctx, {\n    _allowed: false,\n    _status: (reason === 'approval_required') ? 'approval_required' : 'denied',\n    policy_result: {\n      allowed: false,\n      reason: reason,\n      detail: detail,\n      risk_class: risk || 'UNKNOWN',\n      autonomy_level: autonomy || null,\n      approval_required: true,\n      approval_state: 'missing',\n      correlation_id: correlation_id,\n      evaluated_at: new Date().toISOString()\n    }\n  }) };\n}\n\n// --- risk classification -------------------------------------------------\n// Keyed on capability, not product, so a new product inherits the policy\n// instead of needing a new branch.\nvar RISK = {\n  email: 'CONTACT_HUMAN',\n  sms: 'CONTACT_HUMAN',\n  whatsapp: 'CONTACT_HUMAN',\n  voice: 'CONTACT_HUMAN',\n  call: 'CONTACT_HUMAN',\n  publish_social: 'CONTACT_HUMAN',\n  // 'book' is the executor-side action_type that MCP's book_meeting maps to.\n  // Booking reaches a real person's calendar, so it sits with the other\n  // contact-a-human capabilities rather than with internal writes.\n  book: 'CONTACT_HUMAN',\n  book_meeting: 'CONTACT_HUMAN',\n  charge_payment: 'FINANCIAL',\n  capture_payment: 'FINANCIAL',\n  refund_payment: 'FINANCIAL',\n  finalize_auction: 'FINANCIAL',\n  create_order: 'FINANCIAL',\n  cancel_order: 'DESTRUCTIVE',\n  adjust_inventory: 'DESTRUCTIVE',\n  delete_record: 'DESTRUCTIVE',\n  finalize_policy: 'REGULATED',\n  submit_application: 'REGULATED',\n  bind_coverage: 'REGULATED',\n  video: 'WRITE_INTERNAL',\n  draft_outreach: 'WRITE_INTERNAL',\n  draft_quote: 'WRITE_INTERNAL',\n  update_lead_status: 'WRITE_INTERNAL',\n  log_decision: 'WRITE_INTERNAL',\n  escalate: 'WRITE_INTERNAL',\n  research_lead: 'READ',\n  score_lead: 'READ',\n  get_vertical_context: 'READ',\n  get_pipeline_stats: 'READ',\n  get_inventory: 'READ',\n  check_system_health: 'READ',\n  retrieve_lead_memory: 'READ',\n  recommend: 'REASONING',\n  plan: 'REASONING'\n};\n\nvar action = String(ctx.action_type || '').toLowerCase();\n\n// 1. Unknown capability -> deny. An unrecognised action_type has no risk\n//    class, and guessing one is how an unreviewed capability slips through.\nif (!action || !RISK.hasOwnProperty(action)) {\n  return deny('unknown_action_type', 'no risk class registered for \"' + action + '\"', 'UNKNOWN', null);\n}\nvar risk = RISK[action];\n\n// 2. Missing policy metadata -> deny. No personality means no autonomy level,\n//    and an unknown autonomy level must never mean \"full autonomy\".\nif (!policy) {\n  return deny('missing_policy', 'no agent_personalities row for this client', risk, null);\n}\n\n// 3. Tenant isolation. Approval is not authorization: an approved action still\n//    may not cross a tenant boundary.\nif (!ctx.client_id || !policy.client_id || String(policy.client_id) !== String(ctx.client_id)) {\n  return deny('tenant_mismatch', 'policy tenant does not match requested tenant', risk, null);\n}\n\nvar rules = policy.escalation_rules || {};\nvar autonomy = rules.autonomy_level || null;\nif (!autonomy) {\n  return deny('missing_autonomy_level', 'personality carries no autonomy_level', risk, null);\n}\n\n// 4. Explicit prohibition always wins, whatever the risk class.\nvar prohibited = policy.prohibited_topics || [];\nif (Array.isArray(prohibited) && prohibited.indexOf(action) !== -1) {\n  return deny('prohibited_action', 'action is in prohibited_topics', risk, autonomy);\n}\n\n// 5. Approval object, if one was supplied. Validated rather than trusted:\n//    it must be complete, and must name this tenant and this action.\nvar appr = ctx.approval || (ctx.body && ctx.body.approval) || null;\nvar approvalValid = false;\nif (appr && typeof appr === 'object') {\n  approvalValid = Boolean(appr.approval_id) && Boolean(appr.approved_by) &&\n                  Boolean(appr.approved_at) &&\n                  String(appr.client_id || '') === String(ctx.client_id) &&\n                  String(appr.action_type || '').toLowerCase() === action;\n}\n\n// 6. Classes that always need a human, unless a valid approval accompanies\n//    the request.\nvar NEEDS_APPROVAL = ['CONTACT_HUMAN', 'FINANCIAL', 'DESTRUCTIVE', 'REGULATED'];\nif (NEEDS_APPROVAL.indexOf(risk) !== -1) {\n  if (!approvalValid) {\n    return deny('approval_required', risk + ' actions require human approval', risk, autonomy);\n  }\n}\n\n// 7. Autonomy ceiling. recommend_only may reason and read and prepare\n//    internal drafts, and may not reach anything on the sensitive list even\n//    with an approval object attached -- the personality itself forbids it.\nif (autonomy === 'recommend_only' && NEEDS_APPROVAL.indexOf(risk) !== -1) {\n  return deny('autonomy_forbids', 'autonomy_level recommend_only cannot execute ' + risk, risk, autonomy);\n}\n\n// 8. Per-action gate declared on the personality.\nvar gated = rules.require_human_approval || [];\nif (Array.isArray(gated) && gated.indexOf(action) !== -1 && !approvalValid) {\n  return deny('approval_required', 'action listed in require_human_approval', risk, autonomy);\n}\n\n// 9. WRITE_INTERNAL needs the action to be explicitly permitted.\nif (risk === 'WRITE_INTERNAL') {\n  var allowed = rules.auto_allowed || [];\n  if (!Array.isArray(allowed) || allowed.indexOf(action) === -1) {\n    return deny('not_in_auto_allowed', 'WRITE_INTERNAL action not explicitly permitted', risk, autonomy);\n  }\n}\n\n// Allowed. READ and REASONING reach here on any autonomy level; everything\n// else has passed an explicit permit above.\nreturn { json: Object.assign({}, ctx, {\n  _allowed: true,\n  _status: 'executing',\n  policy_result: {\n    allowed: true,\n    reason: 'permitted',\n    risk_class: risk,\n    autonomy_level: autonomy,\n    approval_required: NEEDS_APPROVAL.indexOf(risk) !== -1,\n    approval_state: approvalValid ? 'valid' : 'not_required',\n    correlation_id: correlation_id,\n    evaluated_at: new Date().toISOString()\n  }\n}) };\n",
         "mode": "runOnceForEachItem"
       },
       "id": "aae-0021",
@@ -415,35 +695,300 @@
         700
       ],
       "notes": "202: the request was understood and deliberately not executed. Distinct from a 4xx, which would imply the caller got something wrong."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/booking/create' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $('Carry Action ID').item.json)) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "aae-0030",
+      "name": "Call Booking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        900
+      ],
+      "alwaysOutputData": true,
+      "notes": "book_meeting arriving from MCP. Reached only after the Policy Gate allows it."
     }
   ],
   "connections": {
-    "Webhook":              { "main": [[ { "node": "Validate", "type": "main", "index": 0 } ]] },
-    "Validate":             { "main": [[ { "node": "IF Authorized", "type": "main", "index": 0 } ]] },
-    "IF Authorized":        { "main": [[ { "node": "Insert Agent Action", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
-    "Insert Agent Action":  { "main": [[ { "node": "Carry Action ID", "type": "main", "index": 0 } ]] },
-    "Carry Action ID":     { "main": [[{ "node": "Fetch Agent Policy", "type": "main", "index": 0 }]] },
-    "Fetch Agent Policy":  { "main": [[{ "node": "Policy Gate",        "type": "main", "index": 0 }]] },
-    "Policy Gate":         { "main": [[{ "node": "IF Policy Allows",   "type": "main", "index": 0 }]] },
-    "IF Policy Allows":    { "main": [[{ "node": "Switch Action Type", "type": "main", "index": 0 }], [{ "node": "Record Blocked", "type": "main", "index": 0 }]] },
-    "Record Blocked":      { "main": [[{ "node": "Respond Blocked",    "type": "main", "index": 0 }]] },
-    "Switch Action Type":   { "main": [
-                                [ { "node": "Call Email", "type": "main", "index": 0 } ],
-                                [ { "node": "Call SMS", "type": "main", "index": 0 } ],
-                                [ { "node": "Call WhatsApp", "type": "main", "index": 0 } ],
-                                [ { "node": "Generate Video", "type": "main", "index": 0 } ],
-                                [ { "node": "Call Voice", "type": "main", "index": 0 } ],
-                                [ { "node": "Call Escalate", "type": "main", "index": 0 } ],
-                                [ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]
-                              ] },
-    "Call Email":           { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
-    "Call SMS":             { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
-    "Call WhatsApp":        { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
-    "Generate Video":       { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
-    "Call Voice":           { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
-    "Call Escalate":        { "main": [[ { "node": "Mark Action Completed", "type": "main", "index": 0 } ]] },
-    "Mark Action Completed":{ "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate": {
+      "main": [
+        [
+          {
+            "node": "IF Authorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Authorized": {
+      "main": [
+        [
+          {
+            "node": "Insert Agent Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Agent Action": {
+      "main": [
+        [
+          {
+            "node": "Carry Action ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry Action ID": {
+      "main": [
+        [
+          {
+            "node": "Fetch Agent Policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Agent Policy": {
+      "main": [
+        [
+          {
+            "node": "Policy Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Policy Gate": {
+      "main": [
+        [
+          {
+            "node": "IF Policy Allows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Policy Allows": {
+      "main": [
+        [
+          {
+            "node": "Switch Action Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Blocked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Blocked": {
+      "main": [
+        [
+          {
+            "node": "Respond Blocked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action Type": {
+      "main": [
+        [
+          {
+            "node": "Call Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call SMS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Voice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call SMS": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Video": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Voice": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Escalate": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Action Completed": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Booking": {
+      "main": [
+        [
+          {
+            "node": "Mark Action Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

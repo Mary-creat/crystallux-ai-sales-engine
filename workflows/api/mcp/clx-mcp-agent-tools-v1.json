@@ -13,26 +13,46 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 500],
+      "position": [
+        200,
+        500
+      ],
       "webhookId": "clx-mcp-agent-tools-001",
       "notes": "DEACTIVATED. Internal-call (INTERNAL_EMAIL_SECRET — system-level, not session). Write-tool MCP gateway — extends the existing read-only clx-mcp-tool-gateway with the action tools the AI Agent needs. Each tool wraps an underlying workflow. Logs every invocation to mcp_tool_calls. Claude (in C1 decision engine, future) can call this with { tool_name, tool_input } to take real actions: place_outbound_call, send_whatsapp, send_sms, send_email, generate_video, book_meeting, update_lead_status, log_decision, retrieve_lead_memory, escalate_to_human."
     },
     {
       "parameters": {
-        "jsCode": "const body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\nif (!expected || secret !== expected) return { json: { valid: false, error: 'internal secret required', tool_name: '', tool_input: {} } };\nconst toolName = body.tool_name || '';\nconst toolInput = body.tool_input || {};\nconst valid = ['place_outbound_call','send_whatsapp','send_sms','send_email','generate_video','book_meeting','update_lead_status','log_decision','retrieve_lead_memory','escalate_to_human'];\nif (!toolName) return { json: { valid: false, error: 'tool_name required', tool_name: '', tool_input: {} } };\nif (valid.indexOf(toolName) < 0) return { json: { valid: false, error: 'unknown tool: ' + toolName + '. Available: ' + valid.join(', '), tool_name: toolName, tool_input: toolInput } };\nreturn { json: { valid: true, tool_name: toolName, tool_input: toolInput } };",
+        "jsCode": "// MCP entry: authenticate, then establish context. Fail-closed throughout.\n//\n// This node does AUTHORIZATION (who is asking, for which tenant, with what\n// entitlement). It deliberately does NOT decide APPROVAL -- the five\n// contact-a-human tools are routed to agent/action-execute, whose Policy Gate\n// owns that decision. One policy, one place.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\n\nfunction deny(error, extra) {\n  return { json: Object.assign({\n    valid: false, error: error, tool_name: body.tool_name || '', tool_input: body.tool_input || {}\n  }, extra || {}) };\n}\n\n// 1. Authentication. An unset secret must never mean \"allow\".\nif (!expected || secret !== expected) return deny('internal secret required');\n\nconst toolName = body.tool_name || '';\nconst toolInput = body.tool_input || {};\n\n// 2. Risk class per capability. A tool absent from this table has no declared\n//    risk and is refused -- adding a capability now requires classifying it.\nconst RISK = {\n  place_outbound_call: 'CONTACT_HUMAN',\n  send_whatsapp:       'CONTACT_HUMAN',\n  send_sms:            'CONTACT_HUMAN',\n  send_email:          'CONTACT_HUMAN',\n  book_meeting:        'CONTACT_HUMAN',\n  generate_video:      'WRITE_INTERNAL',\n  update_lead_status:  'WRITE_INTERNAL',\n  log_decision:        'WRITE_INTERNAL',\n  escalate_to_human:   'WRITE_INTERNAL',\n  retrieve_lead_memory:'READ'\n};\n\nif (!toolName) return deny('tool_name required');\nif (!RISK.hasOwnProperty(toolName)) {\n  return deny('unknown tool: ' + toolName + '. Available: ' + Object.keys(RISK).join(', '));\n}\nconst risk = RISK[toolName];\n\n// 3. Tenant context is mandatory for everything that is not pure reasoning.\n//    A caller-supplied client_id is a claim, not proof -- it is checked\n//    against agent_personalities downstream (the executor) and against the\n//    tenant's own rows for direct reads.\nconst client_id = toolInput.client_id || body.client_id || null;\nif (!client_id) {\n  return deny('client_id required: MCP will not execute without tenant context', { risk_class: risk });\n}\n\n// 4. Agent identity and correlation, so an action can be traced back to who\n//    asked for it and which decision it belongs to.\nconst agent_id = body.agent_id || toolInput.agent_id || null;\nconst correlation_id = body.correlation_id || toolInput.decision_id || null;\nif (!agent_id) {\n  return deny('agent_id required', { risk_class: risk });\n}\n\n// 5. Product context. Capabilities belong to products; knowing a tool name\n//    must not be enough to reach another product's surface.\nconst PRODUCT = {\n  place_outbound_call: 'sales_engine', send_whatsapp: 'sales_engine',\n  send_sms: 'sales_engine', send_email: 'sales_engine',\n  book_meeting: 'sales_engine', generate_video: 'sales_engine',\n  update_lead_status: 'sales_engine', log_decision: 'sales_engine',\n  escalate_to_human: 'sales_engine', retrieve_lead_memory: 'sales_engine'\n};\nconst product = PRODUCT[toolName] || null;\nif (!product) return deny('no product mapping for tool', { risk_class: risk });\n\n// 6. Sensitive capabilities are not executed here. They are handed to the\n//    action executor, which applies the autonomy and approval policy. This is\n//    the whole point of the change: MCP cannot be the shorter path.\nconst ROUTED_TO_EXECUTOR = ['place_outbound_call','send_whatsapp','send_sms','send_email','book_meeting'];\nconst ACTION_TYPE = {\n  place_outbound_call: 'voice', send_whatsapp: 'whatsapp',\n  send_sms: 'sms', send_email: 'email', book_meeting: 'book'\n};\n\nreturn { json: {\n  valid: true,\n  tool_name: toolName,\n  tool_input: toolInput,\n  client_id: client_id,\n  agent_id: agent_id,\n  product: product,\n  risk_class: risk,\n  correlation_id: correlation_id,\n  via_executor: ROUTED_TO_EXECUTOR.indexOf(toolName) !== -1,\n  executor_action_type: ACTION_TYPE[toolName] || null,\n  requested_at: new Date().toISOString()\n} };\n",
         "mode": "runOnceForEachItem"
       },
       "id": "mat-0002",
       "name": "Parse Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 500]
+      "position": [
+        420,
+        500
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
-          "conditions": [ { "id": "c1", "leftValue": "={{ $json.valid }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } } ],
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         }
       },
@@ -40,145 +60,430 @@
       "name": "IF Valid",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [640, 500]
+      "position": [
+        640,
+        500
+      ]
     },
     {
       "parameters": {
         "rules": {
           "values": [
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "place_outbound_call", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "voice" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "send_whatsapp", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "wa" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "send_sms", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "sms" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "send_email", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "email" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "generate_video", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "video" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "book_meeting", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "book" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "update_lead_status", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "update" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "log_decision", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "decision" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "retrieve_lead_memory", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "memory" },
-            { "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [ { "leftValue": "={{ $json.tool_name }}", "rightValue": "escalate_to_human", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "outputKey": "escalate" }
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "place_outbound_call",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "voice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "send_whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "wa"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "send_sms",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "sms"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "send_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "generate_video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "video"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "book_meeting",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "book"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "update_lead_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "update"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "log_decision",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "decision"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "retrieve_lead_memory",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "memory"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tool_name }}",
+                    "rightValue": "escalate_to_human",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "escalate"
+            }
           ]
         },
-        "options": { "fallbackOutput": "extra" }
+        "options": {
+          "fallbackOutput": "extra"
+        }
       },
       "id": "mat-0004",
       "name": "Switch Tool",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [880, 500]
+      "position": [
+        880,
+        500
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/voice-outbound' }}",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/action-execute' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 20000 }
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: ($json.correlation_id || $json.tool_input.decision_id || null), action_type: $json.executor_action_type, client_id: $json.client_id, lead_id: ($json.tool_input.lead_id || null), channel: ($json.tool_input.channel || null), message: ($json.tool_input.message || ''), approval: ($json.tool_input.approval || null), agent_id: $json.agent_id, via: 'mcp' }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "id": "mat-0005",
       "name": "Tool: Voice",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 100],
+      "position": [
+        1140,
+        100
+      ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "Routed through the action executor so the policy gate applies. Was a direct call to the deterministic sender, which is the bypass this change closes."
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/whatsapp-send' }}",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/action-execute' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 15000 }
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: ($json.correlation_id || $json.tool_input.decision_id || null), action_type: $json.executor_action_type, client_id: $json.client_id, lead_id: ($json.tool_input.lead_id || null), channel: ($json.tool_input.channel || null), message: ($json.tool_input.message || ''), approval: ($json.tool_input.approval || null), agent_id: $json.agent_id, via: 'mcp' }) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "mat-0006",
       "name": "Tool: WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 220],
+      "position": [
+        1140,
+        220
+      ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "Routed through the action executor so the policy gate applies. Was a direct call to the deterministic sender, which is the bypass this change closes."
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/messaging/sms-send' }}",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/action-execute' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 15000 }
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: ($json.correlation_id || $json.tool_input.decision_id || null), action_type: $json.executor_action_type, client_id: $json.client_id, lead_id: ($json.tool_input.lead_id || null), channel: ($json.tool_input.channel || null), message: ($json.tool_input.message || ''), approval: ($json.tool_input.approval || null), agent_id: $json.agent_id, via: 'mcp' }) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "mat-0007",
       "name": "Tool: SMS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 340],
+      "position": [
+        1140,
+        340
+      ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "Routed through the action executor so the policy gate applies. Was a direct call to the deterministic sender, which is the bypass this change closes."
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/email/send' }}",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/action-execute' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 15000 }
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: ($json.correlation_id || $json.tool_input.decision_id || null), action_type: $json.executor_action_type, client_id: $json.client_id, lead_id: ($json.tool_input.lead_id || null), channel: ($json.tool_input.channel || null), message: ($json.tool_input.message || ''), approval: ($json.tool_input.approval || null), agent_id: $json.agent_id, via: 'mcp' }) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "mat-0008",
       "name": "Tool: Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 460],
+      "position": [
+        1140,
+        460
+      ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "Routed through the action executor so the policy gate applies. Was a direct call to the deterministic sender, which is the bypass this change closes."
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/mcp/video-orchestrate' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "mat-0009",
       "name": "Tool: Video",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 580],
+      "position": [
+        1140,
+        580
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/booking/create' }}",
+        "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/action-execute' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 20000 }
+        "jsonBody": "={{ JSON.stringify({ internal_secret: $env.INTERNAL_EMAIL_SECRET, decision_id: ($json.correlation_id || $json.tool_input.decision_id || null), action_type: $json.executor_action_type, client_id: $json.client_id, lead_id: ($json.tool_input.lead_id || null), channel: ($json.tool_input.channel || null), message: ($json.tool_input.message || ''), approval: ($json.tool_input.approval || null), agent_id: $json.agent_id, via: 'mcp' }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "id": "mat-0010",
       "name": "Tool: Book",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 700],
+      "position": [
+        1140,
+        700
+      ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "Routed through the action executor so the policy gate applies. Was a direct call to the deterministic sender, which is the bypass this change closes."
     },
     {
       "parameters": {
@@ -189,8 +494,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -202,8 +513,15 @@
       "name": "Tool: Update Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 820],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1140,
+        820
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -216,8 +534,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -229,8 +553,15 @@
       "name": "Tool: Log Decision",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 940],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1140,
+        940
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -241,15 +572,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "mat-0013",
       "name": "Tool: Retrieve Memory",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 1060],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1140,
+        1060
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true,
       "notes": "MVP: top-importance retrieval (no vector). For vector similarity search, the tool would need to embed the query first via OpenAI then call the SQL: SELECT * FROM agent_memory ORDER BY embedding <=> '<query_embedding>' LIMIT 10. Phase 4 enhancement."
@@ -259,17 +604,29 @@
         "method": "POST",
         "url": "={{ ($env.N8N_INTERNAL_BASE || 'http://localhost:5678') + '/webhook/agent/escalate' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify(Object.assign({ internal_secret: $env.INTERNAL_EMAIL_SECRET }, $json.tool_input)) }}",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "mat-0014",
       "name": "Tool: Escalate",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 1180],
+      "position": [
+        1140,
+        1180
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -282,7 +639,10 @@
       "name": "Format Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1380, 600]
+      "position": [
+        1380,
+        600
+      ]
     },
     {
       "parameters": {
@@ -293,8 +653,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -306,8 +672,15 @@
       "name": "Log MCP Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 600],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1620,
+        600
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -315,57 +688,294 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify($('Format Response').item.json) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "mat-0017",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1860, 600]
+      "position": [
+        1860,
+        600
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ success: false, error: $json.error || ('Unroutable tool: ' + ($json.tool_name || 'none')), tool: $json.tool_name || null }) }}",
-        "options": { "responseCode": 400 }
+        "options": {
+          "responseCode": 400
+        }
       },
       "id": "mat-0018",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [880, 740]
+      "position": [
+        880,
+        740
+      ]
     }
   ],
   "connections": {
-    "Webhook":             { "main": [[ { "node": "Parse Request", "type": "main", "index": 0 } ]] },
-    "Parse Request":       { "main": [[ { "node": "IF Valid", "type": "main", "index": 0 } ]] },
-    "IF Valid":            { "main": [[ { "node": "Switch Tool", "type": "main", "index": 0 } ], [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]] },
-    "Switch Tool":         { "main": [
-                              [ { "node": "Tool: Voice", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: WhatsApp", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: SMS", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Email", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Video", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Book", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Update Lead", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Log Decision", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Retrieve Memory", "type": "main", "index": 0 } ],
-                              [ { "node": "Tool: Escalate", "type": "main", "index": 0 } ],
-                              [ { "node": "Respond 4xx", "type": "main", "index": 0 } ]
-                            ] },
-    "Tool: Voice":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: WhatsApp":      { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: SMS":           { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Email":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Video":         { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Book":          { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Update Lead":   { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Log Decision":  { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Retrieve Memory":{ "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Tool: Escalate":      { "main": [[ { "node": "Format Response", "type": "main", "index": 0 } ]] },
-    "Format Response":     { "main": [[ { "node": "Log MCP Call", "type": "main", "index": 0 } ]] },
-    "Log MCP Call":        { "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "IF Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid": {
+      "main": [
+        [
+          {
+            "node": "Switch Tool",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Tool": {
+      "main": [
+        [
+          {
+            "node": "Tool: Voice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: SMS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Book",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Log Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Retrieve Memory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Voice": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: SMS": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Email": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Video": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Book": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Log Decision": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Retrieve Memory": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Escalate": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Log MCP Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log MCP Call": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

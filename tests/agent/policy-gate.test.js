@@ -90,7 +90,8 @@ check('B2 quote draft is produced', r._allowed === true, r.policy_result);
  ['refund_payment', 'FINANCIAL'], ['finalize_auction', 'FINANCIAL'],
  ['cancel_order', 'DESTRUCTIVE'], ['adjust_inventory', 'DESTRUCTIVE'],
  ['delete_record', 'DESTRUCTIVE'],
- ['finalize_policy', 'REGULATED'], ['bind_coverage', 'REGULATED']
+ ['finalize_policy', 'REGULATED'], ['bind_coverage', 'REGULATED'],
+ ['book', 'CONTACT_HUMAN'], ['book_meeting', 'CONTACT_HUMAN']
 ].forEach(([action, expected]) => {
   const g = runGate(ctxFor(action), basePolicy);
   check('C/D/E  ' + action + ' blocked without approval (' + expected + ')',
