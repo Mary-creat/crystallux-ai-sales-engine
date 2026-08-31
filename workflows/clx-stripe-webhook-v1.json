@@ -467,6 +467,137 @@
         2120,
         540
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Work out whether this event should grant an entitlement, and which.\n//\n// Fail closed: an event that cannot be mapped to a known price grants\n// nothing. Silence is the correct outcome for an unrecognised product --\n// inventing one would mint access nobody sold.\n\nconst ctx = $input.item.json;\nconst payload = ctx.payload || {};\nconst obj = (payload.data && payload.data.object) || {};\nconst eventType = ctx.event_type || payload.type || '';\n\n// Stripe puts the customer in different places depending on event type.\nconst customer = obj.customer || obj.customer_id ||\n                 (obj.subscription && obj.subscription.customer) || null;\n\n// Subscription status: 'active' and 'trialing' both entitle. Anything\n// else (past_due, canceled, unpaid, incomplete) does not.\nconst status = obj.status || null;\n\n// The price is the only thing that says WHICH product was bought.\nlet priceId = null;\ntry {\n  if (obj.items && obj.items.data && obj.items.data.length) {\n    priceId = obj.items.data[0].price && obj.items.data[0].price.id;\n  }\n  if (!priceId && obj.lines && obj.lines.data && obj.lines.data.length) {\n    priceId = obj.lines.data[0].price && obj.lines.data[0].price.id;\n  }\n  if (!priceId && obj.plan) priceId = obj.plan.id;\n} catch (e) { priceId = null; }\n\n// Price -> product. Sales Engine is ONE multi-vertical product: there is\n// deliberately no per-vertical mapping here, unlike the retired\n// STRIPE_PRICE_CONSTRUCTION_1497 / _CLEANING_997 scheme.\n// Env vars are read defensively so an unset one simply never matches\n// rather than throwing.\nconst PRICE_MAP = [\n  [$env.STRIPE_PRICE_SALES_ENGINE || null, 'sales_engine'],\n  [$env.STRIPE_PRICE_SENTINEL     || null, 'sentinel'],\n  [$env.STRIPE_PRICE_SMART_QUOTE  || null, 'smart_quote'],\n  [$env.STRIPE_PRICE_LUXI         || null, 'luxi'],\n  [$env.STRIPE_PRICE_MGA          || null, 'mga']\n];\n\nlet product = null;\nfor (var i = 0; i < PRICE_MAP.length; i++) {\n  if (PRICE_MAP[i][0] && priceId && PRICE_MAP[i][0] === priceId) {\n    product = PRICE_MAP[i][1];\n    break;\n  }\n}\n\nconst GRANTING_EVENTS = [\n  'customer.subscription.created',\n  'customer.subscription.updated',\n  'invoice.payment_succeeded',\n  'checkout.session.completed'\n];\n\nconst statusOk = (status === 'active' || status === 'trialing' || status === null);\nconst shouldGrant = Boolean(\n  customer && product && statusOk && GRANTING_EVENTS.indexOf(eventType) !== -1\n);\n\nreturn { json: Object.assign({}, ctx, {\n  _grant_customer: customer,\n  _grant_product: product,\n  _grant_price_id: priceId,\n  _grant_status: status,\n  _should_grant: shouldGrant,\n  _grant_skip_reason: shouldGrant ? null : (\n    !customer ? 'no_customer_on_event' :\n    !product  ? 'price_not_mapped_to_a_product' :\n    !statusOk ? ('subscription_status_' + String(status)) :\n                'event_type_does_not_grant'\n  )\n}) };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "sw-0040",
+      "name": "Resolve Grant Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        200
+      ],
+      "notes": "Maps a verified Stripe event to a product. Fails closed: an unmapped price grants nothing."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._should_grant }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "sw-0041",
+      "name": "IF Should Grant",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?stripe_customer_id=eq.' + encodeURIComponent($json._grant_customer) + '&select=id,client_name&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "sw-0042",
+      "name": "Lookup Client For Grant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1940,
+        120
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "The tenant is resolved from the Stripe customer, never from anything the event claims about identity."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/grant_product",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_client_id: (Array.isArray($json) ? ($json[0] && $json[0].id) : $json.id) || null, p_product: $('Resolve Grant Context').item.json._grant_product }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "sw-0043",
+      "name": "Grant Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        120
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "grant_product is idempotent, so a replayed Stripe event cannot double-grant. It also refuses any product outside the allow-list."
     }
   ],
   "connections": {
@@ -536,7 +667,7 @@
       "main": [
         [
           {
-            "node": "IF Subscription Deleted",
+            "node": "Resolve Grant Context",
             "type": "main",
             "index": 0
           }
@@ -628,6 +759,57 @@
         [
           {
             "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Grant Context": {
+      "main": [
+        [
+          {
+            "node": "IF Should Grant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Should Grant": {
+      "main": [
+        [
+          {
+            "node": "Lookup Client For Grant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF Subscription Deleted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Client For Grant": {
+      "main": [
+        [
+          {
+            "node": "Grant Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grant Product": {
+      "main": [
+        [
+          {
+            "node": "IF Subscription Deleted",
             "type": "main",
             "index": 0
           }
