@@ -118,13 +118,15 @@ activation, and MCP external access. None blocks a first paying customer.
 | Decision engine | Agentic | `LIVE_UNPROVEN` | 9 workflows, 16 tables | — | **Never executed** — exits at `agent_channels_enabled` 0 | 4 empty gate tables; trigger `(DEACTIVATED)` | **yes** | Activation decision | no |
 | Action executor | Agentic | `DONE` | Fail-closed gate on the only path to a send | **35 tests** — sensitive classes blocked, approval validated not trusted, tenant mismatch refused | Never run on a real decision | — | no | — | no |
 | Policy gate | Agentic | `DONE` | Risk keyed on capability, not product | 35 tests in CI, reading shipped `jsCode` | — | — | no | — | no |
-| Product routing | Agentic | `PARTIAL` | MCP maps tool → product | — | **No router layer exists** | — | no | Not needed pre-revenue | no |
+| Product routing | Agentic | `DONE` (as a decision) | MCP's `Parse Request` already maps all 10 capabilities to a product and refuses any tool without one | Verified in the shipped `jsCode`: `PRODUCT` map, `RISK` map, and a hard refusal on an unmapped tool | Not exercised under a second product | — | no | **No separate router. Building one would duplicate a mapping that already exists and fails closed** | no |
 | MCP | Agentic | `PARTIAL` | Two gateways; `agent-tools` canonical | **28 tests**; no node may call a sender directly; probe confirms fail-closed | Never carried an authorised call | `MCP_WEBHOOK_SECRET` absent from container | **yes** | Defer — 5 calls ever | no |
 | Memory | Agentic | `LIVE_UNPROVEN` | Table + retrieve tool | — | 0 rows | Runtime inactive | no | — | no |
 | Escalation | Agentic | `LIVE_UNPROVEN` | Endpoint live, left direct as the safety valve | — | 0 rows | — | no | — | no |
 | `agent_channels_enabled` | Agentic | `BLOCKED_OWNER` | Table exists | — | **0 rows — this is what keeps the runtime inert** | Activation is an owner call | **yes** | Decide | no |
 | `behavioral_triggers` | Agentic | `LIVE_UNPROVEN` | Table exists | — | 0 rows | Nothing upstream runs | no | — | no |
 | `agent_schedules` | Agentic | `LIVE_UNPROVEN` | Table exists | — | 0 rows | — | no | — | no |
+| **Read-only proof** | Agentic | `BLOCKED_OWNER` | Chain designed; every link but one verified | `get_vertical_context` resolves; policy gate 35 tests; MCP handover 28 tests | **No agent decision has ever been persisted** — `agent_decisions` 0 | Needs `INTERNAL_EMAIL_SECRET` to invoke `mcp/agent-tools`, and `agent_channels_enabled` to reach the decision engine | **yes** | Run it | no |
+| **Controlled-action proof** | Agentic | `DEFERRED` | Prepared, not executed | Gate already proves `recommend_only` refuses a send even with a valid approval | Not run end to end | Read-only proof first | no | After read-only | no |
 | Sentinel sees agents | Agentic | `DEFERRED` | — | — | Not built | Workflow-health first | no | After that | no |
 
 ## Sales Engine — commercial status: **INTERNAL READY**
@@ -134,7 +136,7 @@ activation, and MCP external access. None blocks a first paying customer.
 | Signup | `LIVE_UNPROVEN` | Signup workflow; webhook creates client + user | Endpoints answer | No real signup | — | no | — | no |
 | Tenant creation | `LIVE_UNPROVEN` | Webhook creates `clients` | 4 clients exist | Not via a real purchase | — | no | — | no |
 | Entitlement | `BLOCKED_OWNER` | Grant + check functions live | Functions verified | **0 of 3 users hold any product** | No Stripe Price | **yes** | Create the Price | **YES** |
-| Onboarding | `BLOCKED_OWNER` | `upsert_client_icp_from_onboarding()` | Validated; refuses unconfigured vertical and unknown client | Not applied | Migration pending | **yes** | Apply it | **YES** |
+| Onboarding | `PARTIAL` | `upsert_client_icp_from_onboarding()` applied | **Proven live: unknown client refused; `restaurant` refused as `vertical_not_configured`** | Happy path throws `22P02 malformed array literal` — fix written, not applied | `onboarding-2-fix-array-append.sql` pending | **yes** | Apply the fix | **YES** |
 | `client_icp_profiles` | `BLOCKED_OWNER` | Table + connector | — | **0 rows** | Depends on onboarding | **yes** | Apply onboarding | **YES** |
 | Vertical context | `DONE` | 8 verticals, `get_vertical_context()` | 11/11 checks; 4 verticals proven differentiated in titles, tone, signals, terminology, channel, cadence, compliance | — | — | no | — | no |
 | Discovery (house) | `PARTIAL` | `clx-b2c-discovery-v2.1` schedule path | 2,378 house leads historically | **No lead since 2026-05-28** | Schedules not running | **yes** | Restart or retire | no |
@@ -151,6 +153,22 @@ activation, and MCP external access. None blocks a first paying customer.
 | Booking | `LIVE_UNPROVEN` | Booking v2 (protected), Calendly | — | `bookings` 0 | — | no | — | no |
 | Attribution | `PARTIAL` | Lead provenance columns | Source attribution works — every lead traceable | **`campaigns` 0, `deals` 0 — chain cannot be reconstructed** | No campaign has run | no | One campaign row per send | **YES** (for selling) |
 | Reporting | `LIVE_UNPROVEN` | Dashboards, per-vertical labels | Pages render | No data | — | no | — | no |
+
+## Stripe — commercial status: **NOT READY**
+
+| Area | Status | What exists | Tested | Not tested | Blocker | Owner? | Next action | Launch blocker? |
+|---|---|---|---|---|---|---|---|---|
+| Checkout | `LIVE_UNPROVEN` | Live keys, payment links | — | No checkout completed | No Sales Engine Price | **yes** | Create it | **YES** |
+| Price mapping | `BLOCKED_OWNER` | `STRIPE_PRICE_SALES_ENGINE` + 4 siblings declared empty | Unmapped price grants nothing and records why | Never matched a real price | **Price ID does not exist** | **yes** | Create it | **YES** |
+| Webhook verification | `LIVE_UNPROVEN` | Signature check, unverified logged | Chain traced node by node | No real event | — | no | — | no |
+| Tenant resolution | `LIVE_UNPROVEN` | Resolved from `stripe_customer_id`, never from event-claimed identity | Chain verified | No real customer | — | no | — | no |
+| Grant | `LIVE_UNPROVEN` | 4 nodes → `grant_product` | Allow-list refuses typos; fail-closed on unmapped price | No purchase | No Price | **yes** | Create it | **YES** |
+| Revoke | `LIVE_UNPROVEN` | Suspend users, clear products, revoke sessions | Chain asserted unchanged by the grant patch | No real cancellation | — | no | — | no |
+| Idempotency | `LIVE_UNPROVEN` | `grant_product` no-ops on re-grant; events logged | Logic verified in SQL | No replayed event | — | no | — | no |
+
+**The only Stripe blocker is the Price.** Every other link in the chain exists
+and was traced node by node: webhook → verify → log → patch client → resolve
+grant → decide → resolve tenant → grant → cancellation branch unchanged.
 
 ## Smart Quote — commercial status: **INTERNAL READY**
 
