@@ -7,13 +7,19 @@
         "httpMethod": "POST",
         "path": "client/copilot/transcribe",
         "responseMode": "responseNode",
-        "options": { "rawBody": true, "binaryData": true }
+        "options": {
+          "rawBody": true,
+          "binaryData": true
+        }
       },
       "id": "cli-ckt-0001",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "webhookId": "clx-client-copilot-transcribe-001"
     },
     {
@@ -25,19 +31,29 @@
       "name": "Extract Audio",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        420,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session_for_product",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\", \"p_product\": \"sales_engine\" }",
         "options": {}
       },
       "id": "cli-ckt-0003",
@@ -45,26 +61,49 @@
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "notes": "Session + tenant + Sales Engine entitlement in one call. validate_session() is deliberately untouched: 115 other endpoints depend on its return shape."
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowedRoles = ['client', 'team_member', 'advisor', 'supervisor', 'mga_principal'];\nif (allowedRoles.indexOf(row.user_role) === -1) {\n  return { json: { ok: false, status: 403, error: 'Tenant access required' } };\n}\nreturn { json: { ok: true, _passthrough: true } };",
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null) : (rows && (rows.id || rows.user_id) ? rows : null);\n\n// Product entitlement. validate_session_for_product decides it centrally;\n// this line only surfaces the verdict. Without it a 403\n// product_not_entitled would be flattened into a 401 by the row check\n// below, and a customer who had not bought Sales Engine would be told\n// their session was invalid.\nif (rows && rows.ok === false) return { json: { ok: false, status: rows.status || 401, error: rows.error, product: rows.product || null } };\n\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nconst allowedRoles = ['client', 'team_member', 'advisor', 'supervisor', 'mga_principal'];\nif (allowedRoles.indexOf(row.user_role) === -1) {\n  return { json: { ok: false, status: 403, error: 'Tenant access required' } };\n}\nreturn { json: { ok: true, _passthrough: true } };",
         "mode": "runOnceForEachItem"
       },
       "id": "cli-ckt-0004",
       "name": "Check Tenant",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300]
+      "position": [
+        880,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -73,7 +112,10 @@
       "name": "IF Tenant OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1100, 300]
+      "position": [
+        1100,
+        300
+      ]
     },
     {
       "parameters": {
@@ -82,14 +124,20 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_API_KEY }}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENAI_API_KEY }}"
+            }
           ]
         },
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
           "parameters": [
-            { "name": "model", "value": "whisper-1" },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
             {
               "name": "file",
               "parameterType": "formBinaryData",
@@ -97,13 +145,18 @@
             }
           ]
         },
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "cli-ckt-0006",
       "name": "Whisper API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 220],
+      "position": [
+        1340,
+        220
+      ],
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -111,38 +164,114 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, text: ($json && $json.text) || '' }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "cli-ckt-0007",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1560, 220]
+      "position": [
+        1560,
+        220
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
       },
       "id": "cli-ckt-0008",
       "name": "Respond 4xx",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1340, 420]
+      "position": [
+        1340,
+        420
+      ]
     }
   ],
   "connections": {
-    "Webhook":          { "main": [[ { "node": "Extract Audio",   "type": "main", "index": 0 } ]] },
-    "Extract Audio":    { "main": [[ { "node": "Validate Session","type": "main", "index": 0 } ]] },
-    "Validate Session": { "main": [[ { "node": "Check Tenant",    "type": "main", "index": 0 } ]] },
-    "Check Tenant":     { "main": [[ { "node": "IF Tenant OK",    "type": "main", "index": 0 } ]] },
-    "IF Tenant OK":     { "main": [
-                                   [ { "node": "Whisper API",  "type": "main", "index": 0 } ],
-                                   [ { "node": "Respond 4xx",  "type": "main", "index": 0 } ]
-                                 ] },
-    "Whisper API":      { "main": [[ { "node": "Respond OK",   "type": "main", "index": 0 } ]] }
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Audio": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Tenant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Tenant": {
+      "main": [
+        [
+          {
+            "node": "IF Tenant OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Tenant OK": {
+      "main": [
+        [
+          {
+            "node": "Whisper API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper API": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }
