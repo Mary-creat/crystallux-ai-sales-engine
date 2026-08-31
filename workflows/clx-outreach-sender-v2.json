@@ -116,7 +116,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Outreach%20Ready&unsubscribed=eq.false&do_not_contact=eq.false&reply_detected=eq.false&total_emails_sent=lt.5&source=neq.test&select=id,full_name,email,company,job_title,city,industry,client_id,email_subject,email_body,followup_message,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact,clients(notification_email,calendly_link)&limit=5",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Outreach%20Ready&unsubscribed=eq.false&do_not_contact=eq.false&reply_detected=eq.false&total_emails_sent=lt.5&source=neq.test&lead_pool=eq.tenant&client_id=not.is.null&research_summary=not.is.null&select=id,full_name,email,company,job_title,city,industry,client_id,email_subject,email_body,followup_message,total_emails_sent,last_email_sent_at,unsubscribed,do_not_contact,clients(notification_email,calendly_link)&limit=5,lead_pool,research_summary",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
@@ -142,7 +142,8 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "notes": "Eligibility is enforced here AND in Sender Eligibility Guard. Absence excludes: a NULL client_id or research_summary is simply not selected."
     },
     {
       "parameters": {
@@ -609,6 +610,21 @@
         }
       },
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fail-closed eligibility. The fetch already filters; this re-checks,\n// because a URL is one careless edit away from being wrong and this is the\n// last node before a real human is contacted.\n//\n// Every rule here answers \"do we have any business emailing this person\",\n// which is a different question from the consent checks upstream.\n\nconst REQUIRED_POOL = 'tenant';\nconst eligible = [];\nconst refused = [];\n\nfor (const item of $input.all()) {\n  const l = item.json || {};\n  const why = [];\n\n  if (!l.client_id) why.push('no owning client');\n  if (l.lead_pool !== REQUIRED_POOL) why.push('lead_pool=' + (l.lead_pool || 'null'));\n  if (!l.research_summary || !String(l.research_summary).trim()) why.push('no research');\n  if (l.unsubscribed) why.push('unsubscribed');\n  if (l.do_not_contact) why.push('do_not_contact');\n  if (!l.email || String(l.email).indexOf('@') < 0) why.push('no usable email');\n\n  if (why.length) {\n    refused.push({ id: l.id, company: l.company || null, reasons: why });\n  } else {\n    eligible.push(item);\n  }\n}\n\n// Refusals are recorded, not silently dropped: a queue that stops moving\n// with no explanation is how this went unnoticed for as long as it did.\nif (refused.length) {\n  console.log('[sender-guard] refused ' + refused.length + ' lead(s): ' +\n              JSON.stringify(refused.slice(0, 20)));\n}\n\nreturn eligible;\n",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "snd-9301",
+      "name": "Sender Eligibility Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        480
+      ],
+      "notes": "Last check before a real person is contacted. Drops any lead without an owner, without research, outside the tenant pool, or without a usable email. Refusals are logged rather than silently dropped."
     }
   ],
   "connections": {
@@ -667,7 +683,7 @@
       "main": [
         [
           {
-            "node": "IF Leads Found",
+            "node": "Sender Eligibility Guard",
             "type": "main",
             "index": 0
           }
@@ -894,6 +910,17 @@
         [
           {
             "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sender Eligibility Guard": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
             "type": "main",
             "index": 0
           }
