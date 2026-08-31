@@ -53,6 +53,47 @@ on:
 
 jobs:
 
+  # ── Job 0: is what runs what we think runs? ─────────────────────
+  # Three protected deploys reported success while live behaviour
+  # disagreed, and every diagnosis was an inference from column values --
+  # one of which was wrong. CI holds a working n8n key, so it can answer
+  # the question directly. Each workflow is its own step, so the per-step
+  # conclusion says which file drifted without anyone reading a log.
+  # Never blocks the pipeline: it reports, it does not gate.
+  live-drift:
+    name: Live n8n vs repo
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Lead Research v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-lead-research-v2.json
+
+      - name: Lead Scoring v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-lead-scoring-v2.json
+
+      - name: Agent decision engine matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/api/agent/clx-agent-decision-engine-v1.json
+
   # ── Job 1: Validate ─────────────────────────────────────────────
   validate:
     name: Validate workflow + migration estate

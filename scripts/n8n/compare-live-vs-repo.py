@@ -40,9 +40,10 @@ def env():
             if line and not line.startswith('#') and '=' in line:
                 k, v = line.split('=', 1)
                 cfg[k.strip()] = v.strip().strip('"').strip("'")
-    url = (cfg.get('N8N_URL') or os.environ.get('N8N_URL') or
+    # environment wins over .env: CI has secrets, no dotfile
+    url = (os.environ.get('N8N_URL') or cfg.get('N8N_URL') or
            'https://automation.crystallux.org').rstrip('/')
-    key = cfg.get('N8N_API_KEY') or os.environ.get('N8N_API_KEY') or ''
+    key = os.environ.get('N8N_API_KEY') or cfg.get('N8N_API_KEY') or ''
     return url, key
 
 
