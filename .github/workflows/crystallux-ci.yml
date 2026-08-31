@@ -155,6 +155,14 @@ jobs:
       - name: Test agent capability selection
         run: node tests/agent/capability-selection.test.js
 
+      # Three action vocabularies were live at once and no send could
+      # complete: the engine emitted send_email, the registry keyed on
+      # email, and the Switch routed on send_email. Both halves refused for
+      # the wrong reason, which looked like safety and was two bugs
+      # cancelling out. This fails if they drift apart again.
+      - name: Test canonical action taxonomy
+        run: node tests/agent/action-taxonomy.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.
