@@ -332,11 +332,13 @@
         620
       ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "notes": "alwaysOutputData covers a node that returns NO data; it does not cover a node that THROWS. Without onError the first 401 from Anthropic aborts the whole execution after the webhook has already answered 202, so the run leaves no decision, no error and no trace anywhere."
     },
     {
       "parameters": {
-        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\nlet textOut = '';\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\nlet decision = null;\ntry { decision = JSON.parse(String(textOut).replace(/```json|```/g, '').trim()); } catch (e) {}\nif (!decision) {\n  decision = { action_type: 'wait', channel: null, reasoning: 'parse_failed', message: '', confidence: 0.0 };\n}\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\nreturn { json: {\n  trigger_id: ctx.trigger_id,\n  lead_id: ctx.lead_id,\n  client_id: ctx.client_id,\n  decision_row: {\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    decision_type: decision.action_type || 'wait',\n    reasoning: decision.reasoning || null,\n    context_used: { trigger_id: ctx.trigger_id, channel: decision.channel, generated_message: decision.message },\n    target_role: null,\n    confidence_score: Math.min(Math.max(parseFloat(decision.confidence) || 0, 0), 1),\n    outcome: 'pending'\n  },\n  message: decision.message || '',\n  channel: decision.channel || null,\n  action_type: decision.action_type || 'wait',\n  tokens: tokens\n} };",
+        "jsCode": "const ctx = $('Build Claude Prompt').item.json;\nconst resp = $input.item.json || {};\n\n// A model call that failed is not a decision to wait. The previous version\n// turned any unusable response into a persisted row saying action_type\n// 'wait', reasoning 'parse_failed', confidence 0 -- indistinguishable, once\n// stored, from the agent genuinely deciding to hold off. Same rule as\n// scoring: on model or parser failure, record the failure and persist\n// nothing.\n\nconst httpErr = resp.error || resp.__error || null;\nlet textOut = '';\ntry { textOut = (resp.content && resp.content[0] && resp.content[0].text) || ''; } catch (e) {}\n\nlet decision = null;\nif (textOut) {\n  try { decision = JSON.parse(String(textOut).replace(/```json|```/g, '').trim()); } catch (e) {}\n}\n\nif (!decision) {\n  const reason = httpErr\n    ? ('model_call_failed: ' + JSON.stringify(httpErr).slice(0, 300))\n    : (textOut ? 'model_response_unparseable' : 'model_returned_no_content');\n  return { json: {\n    _decision_error: true,\n    error_reason: reason,\n    trigger_id: ctx.trigger_id,\n    lead_id: ctx.lead_id,\n    client_id: ctx.client_id,\n    correlation_id: ctx.correlation_id || null\n  } };\n}\n\nconst tokens = (resp.usage && (resp.usage.input_tokens + resp.usage.output_tokens)) || 0;\nreturn { json: {\n  _decision_error: false,\n  trigger_id: ctx.trigger_id,\n  lead_id: ctx.lead_id,\n  client_id: ctx.client_id,\n  decision_row: {\n    client_id: ctx.client_id,\n    lead_id: ctx.lead_id,\n    decision_type: decision.action_type || 'wait',\n    reasoning: decision.reasoning || null,\n    context_used: { trigger_id: ctx.trigger_id, channel: decision.channel, generated_message: decision.message },\n    target_role: null,\n    confidence_score: Math.min(Math.max(parseFloat(decision.confidence) || 0, 0), 1),\n    outcome: 'pending'\n  },\n  message: decision.message || '',\n  channel: decision.channel || null,\n  action_type: decision.action_type || 'wait',\n  tokens: tokens\n} };\n",
         "mode": "runOnceForEachItem"
       },
       "id": "ade-0015",
@@ -500,7 +502,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Controlled proof entry. Not an autonomous path.\n//\n// The decision engine had only a schedule trigger, named \"(DEACTIVATED)\",\n// and no webhook -- so there was no way to invoke it at all. That, plus\n// zero pending behavioral_triggers, is why agent_decisions has been 0\n// since the runtime was built: no entry, and no input.\n//\n// This entry supplies ONE synthetic trigger inline for a named lead. It\n// deliberately does NOT write to behavioral_triggers, so no autonomous\n// trigger machinery is enabled, and it bypasses quiet hours because an\n// explicit operator-initiated test is not an unsolicited 1am contact --\n// nothing is sent either way; the policy gate decides that downstream.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\n\n// Two different failures, told apart. An opaque 401 cannot distinguish\n// \"you sent the wrong secret\" from \"this server has no secret configured,\n// so nobody can ever authenticate\" -- and 60 workflows depend on this one\n// variable. Reporting the unconfigured case discloses nothing usable: when\n// it is unset, fail-closed means no caller gets in either way, so this\n// leaks a configuration state, never a credential.\nif (!expected) {\n  return { json: { _reject: true, status: 503,\n    error: 'internal_secret_not_configured',\n    hint: 'INTERNAL_EMAIL_SECRET is not set in the n8n container environment. No caller can authenticate until it is.' } };\n}\nif (secret !== expected) {\n  return { json: { _reject: true, status: 401, error: 'internal secret required' } };\n}\nif (!body.client_id) {\n  return { json: { _reject: true, status: 400, error: 'client_id required' } };\n}\n\nconst correlation = body.correlation_id || ('proof-' + Date.now());\n\nreturn { json: {\n  _reject: false,\n  _proof_run: true,\n  client_id: body.client_id,\n  lead_id: body.lead_id || null,\n  correlation_id: correlation,\n  trigger: {\n    id: null,\n    client_id: body.client_id,\n    lead_id: body.lead_id || null,\n    trigger_type: body.trigger_type || 'manual_review_request',\n    status: 'pending',\n    context: body.context || 'Operator-initiated read-only proof run.',\n    _synthetic: true,\n    correlation_id: correlation\n  }\n} };\n",
+        "jsCode": "// Controlled proof entry. Not an autonomous path.\n//\n// The decision engine had only a schedule trigger, named \"(DEACTIVATED)\",\n// and no webhook -- so there was no way to invoke it at all. That, plus\n// zero pending behavioral_triggers, is why agent_decisions has been 0\n// since the runtime was built: no entry, and no input.\n//\n// This entry supplies ONE synthetic trigger inline for a named lead. It\n// deliberately does NOT write to behavioral_triggers, so no autonomous\n// trigger machinery is enabled, and it bypasses quiet hours because an\n// explicit operator-initiated test is not an unsolicited 1am contact --\n// nothing is sent either way; the policy gate decides that downstream.\n\nconst body = ($input.item.json && $input.item.json.body) || $input.item.json || {};\nconst secret = body.internal_secret || '';\nconst expected = $env.INTERNAL_EMAIL_SECRET || '';\n\n// Two different failures, told apart. An opaque 401 cannot distinguish\n// \"you sent the wrong secret\" from \"this server has no secret configured,\n// so nobody can ever authenticate\" -- and 60 workflows depend on this one\n// variable. Reporting the unconfigured case discloses nothing usable: when\n// it is unset, fail-closed means no caller gets in either way, so this\n// leaks a configuration state, never a credential.\nif (!expected) {\n  return { json: { _reject: true, status: 503,\n    error: 'internal_secret_not_configured',\n    hint: 'INTERNAL_EMAIL_SECRET is not set in the n8n container environment. No caller can authenticate until it is.' } };\n}\nif (secret !== expected) {\n  return { json: { _reject: true, status: 401, error: 'internal secret required' } };\n}\nif (!body.client_id) {\n  return { json: { _reject: true, status: 400, error: 'client_id required' } };\n}\n\n// Preflight the container configuration the run depends on, after the\n// caller is authenticated. Reported here rather than discovered halfway\n// through: the model call sits behind an early 202, so a missing key\n// used to surface as silence rather than as an error.\nconst missing = [];\nif (!$env.ANTHROPIC_API_KEY) missing.push('ANTHROPIC_API_KEY');\nif (missing.length) {\n  return { json: { _reject: true, status: 503,\n    error: 'runtime_not_configured', missing: missing,\n    hint: 'The decision engine cannot reach the model without this variable set in the n8n container.' } };\n}\n\nconst correlation = body.correlation_id || ('proof-' + Date.now());\n\nreturn { json: {\n  _reject: false,\n  _proof_run: true,\n  client_id: body.client_id,\n  lead_id: body.lead_id || null,\n  correlation_id: correlation,\n  trigger: {\n    id: null,\n    client_id: body.client_id,\n    lead_id: body.lead_id || null,\n    trigger_type: body.trigger_type || 'manual_review_request',\n    status: 'pending',\n    context: body.context || 'Operator-initiated read-only proof run.',\n    _synthetic: true,\n    correlation_id: correlation\n  }\n} };\n",
         "mode": "runOnceForEachItem"
       },
       "id": "ade-9002",
@@ -632,6 +634,74 @@
         880,
         1080
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dok",
+              "leftValue": "={{ $json._decision_error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ade-9101",
+      "name": "IF Decision OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3100,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/scan_errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'CLX-Agent-Decision-Engine', node_name: 'Claude Decide', error_code: 'DECISION_NOT_MADE', error_message: $json.error_reason, severity: 'high', category: 'agent_runtime', input_data: { client_id: $json.client_id, lead_id: $json.lead_id, trigger_id: $json.trigger_id, correlation_id: $json.correlation_id } }) }}",
+        "options": {}
+      },
+      "id": "ade-9102",
+      "name": "Log Decision Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        860
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "notes": "scan_errors is the error table discovery already uses. Reusing it keeps agent failures visible to the same queries, instead of adding a second error store."
     }
   ],
   "connections": {
@@ -819,7 +889,7 @@
       "main": [
         [
           {
-            "node": "Insert Decision",
+            "node": "IF Decision OK",
             "type": "main",
             "index": 0
           }
@@ -948,6 +1018,35 @@
         [
           {
             "node": "Per Trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Decision OK": {
+      "main": [
+        [
+          {
+            "node": "Insert Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Decision Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Decision Failure": {
+      "main": [
+        [
+          {
+            "node": "Loop Continue Trigger",
             "type": "main",
             "index": 0
           }
