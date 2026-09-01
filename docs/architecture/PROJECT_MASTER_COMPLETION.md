@@ -211,6 +211,50 @@ filters `meeting_scheduled=eq.false`. The client dashboard reads a third
 table, `appointment_log`. Its Cal.com call also happens **before** the
 local insert and performs no tenant check, so a failed insert orphans a
 real calendar invite with no local record.
+## `Signal Detected` does not mean a signal was detected — 2026-09-01
+
+Measured live at 16:02Z, while the recovered batch was flowing through:
+**79 tenant leads hold `lead_status = 'Signal Detected'` and only 19 have a
+`detected_signal`.** Three of the 60 empty ones were written at 16:01:50,
+16:01:55 and 16:02:00 — during the run, not historically.
+
+The repo is right and production is not. `Prep Update Signal` in
+`clx-business-signal-detection-v2` reads:
+
+```js
+// Only claim a signal was detected when one actually was. Marking a
+// failed parse as 'Signal Detected' is how the funnel counted 284
+// errors as buying intent.
+lead_status: item.detected_signal ? 'Signal Detected' : 'Scored'
+```
+
+Two independent symptoms say live is running something else:
+
+1. Leads arrive at `Signal Detected` with `detected_signal` NULL.
+2. `signal_confidence` is NULL on all 60, though the shipped code defaults
+   it to `'Low'` and `update_lead` allowlists the column
+   (`v2.2.1_fix_update_lead_rpc.sql:70`). A value the code cannot leave
+   null is null in production.
+
+The shape is familiar: `Parse Signal Response` hardcodes the status and
+`Prep Update Signal` is the node that overrides it correctly — the same
+"the node that writes the status discards the node that decides it"
+defect fixed for research in `92bd9fe`. The fix appears to have been made
+here and never to have reached the server.
+
+**What this invalidates.** Any count of "leads with a signal" taken from
+`lead_status` is wrong, including several reported during this sprint.
+The field is the evidence; the status is not. It also means promotion
+gating on `Signal Detected` gates on almost nothing — worth adding
+`detected_signal IS NOT NULL` to `Promotion Eligibility Guard`, which is
+a one-line change and an owner call because it narrows promotion.
+
+**Why it cannot be closed from here.** Drift is provable from the
+database; the running definition is not readable without a working
+`N8N_API_KEY`. This is the third open item blocked on that one credential,
+after the live active-state of the two Gmail-direct senders and
+verification that any deploy landed.
+
 ## What gates the pilot — and what does not
 
 **Google Places — `BLOCKED_OWNER / FRESH_DISCOVERY` only.** The n8n credential
@@ -358,7 +402,7 @@ owner-gated and are separate from all of the above.
 | Discovery (house) | `PARTIAL` | `clx-b2c-discovery-v2.1` schedule path | 2,378 house leads historically | **No lead since 2026-05-28** | Schedules not running | **yes** | Restart or retire | no |
 | Discovery (tenant) | `BLOCKED_OWNER` / FRESH_DISCOVERY only | `discovery/tenant-scan` deployed, registered, and reached production | Ran `2026-08-31 06:07Z`: authenticated, tenant-scoped entry worked, died at the Google Places call | 115 `403 PERMISSION_DENIED` in `scan_errors` | Credential must send `X-Goog-Api-Key` | **yes** | Fix the credential | no — the middle pipeline runs on the 79 existing tenant leads |
 | Person resolution | `PARTIAL` | Per-vertical title keywords | Config verified | **Apollo: 0 leads ever** | — | no | Email scraper found 881 emails without it | no |
-| Signals | `PARTIAL` | Types + weights on all 8 verticals | **19 tenant leads carry `detected_signal` + `signal_confidence`** | `market_signals` is still 0 — signals are written to the lead row, not the table | — | no | Decide whether `market_signals` is still the intended home | no |
+| Signals | `PARTIAL` — **live drift** | Types + weights on all 8 verticals | 19 tenant leads carry a real `detected_signal` + `signal_confidence` | **60 of 79 leads at status `Signal Detected` have NO signal.** The repo writes `Scored` in that case; live does not. `signal_confidence` is NULL live although the code cannot produce null and the RPC allowlists it | Live definition differs from repo; needs the n8n key to read | **yes** | Confirm the running build, redeploy | no |
 | Intent | `LIVE_UNPROVEN` | hot/warm/cold rules per vertical | Config verified | Never computed | — | no | — | no |
 | Scoring | `DONE` | Scoring v2, **active and on schedule**, tenant-scoped | **37 of 37 researched tenant leads scored `21:46Z`** with full `score_components`; 831 of 2,518 platform-wide score ≥50 | Volume on a second tenant | — | no | — | no |
 | Research | `DONE` | Research v2, **active and on schedule**, `lead_pool=eq.tenant` | **37 tenant leads researched live `20:45`–`21:31Z` 2026-08-31**, grounded summaries and angles on all 37; 483 house leads untouched | Volume beyond 37 | — | no | — | no |
