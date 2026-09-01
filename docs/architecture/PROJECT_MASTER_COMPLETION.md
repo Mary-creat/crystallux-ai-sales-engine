@@ -3,8 +3,9 @@
 **The single authoritative record of what is finished.** There is no second
 planning document; anything that contradicts this file is out of date.
 
-Measured against production on **2026-08-31** — live Supabase row counts, live
-HTTP probes, and the GitHub Actions deploy log. Companion audits:
+Measured against production on **2026-09-01** — live Supabase row counts and
+live HTTP probes, read directly from the database rather than inferred from
+workflow definitions. Companion audits:
 [infrastructure](../audit/2026-08-28-master-architecture-audit.md),
 [products](PRODUCT_REGISTRY.md). Owner queue:
 [`OWNER_ACTIONS_REQUIRED.md`](OWNER_ACTIONS_REQUIRED.md). Decisions:
@@ -51,108 +52,124 @@ Production-tested, not merely shipped:
 
 # WHAT IS LIVE BUT UNPROVEN
 
-Deployed, reachable, never used in anger. This is most of the platform:
+Deployed, reachable, never used in anger:
 
-- Sales Engine discovery → scoring → outreach (no lead since 2026-05-28, no send
-  since 2026-06-08)
 - Smart Quote — 7 industry estimators, 60 pricing artefacts, **0 completed quotes**
 - LUXI — 8 auctions, **0 orders, 0 bids, 0 events, ever**
 - MGA — 85 endpoints live, `carrier_quotes` 0, `policy_applications` 0
-- Agent runtime — 1 personality seeded, **0 decisions, 0 actions, 0 memory**
-- Copilot — 6 endpoints, 0 chat rows
-- Stripe grant path — built this week, no purchase has run through it
+- Copilot — 6 endpoints, one real question answered, 0 persisted chat rows
+- Stripe grant path — built, no purchase has run through it
 
-# WHAT BLOCKS SALES ENGINE PILOT
+The Sales Engine middle pipeline is no longer on this list. See below.
 
-Three things, in order:
+# SALES ENGINE — THE MIDDLE PIPELINE IS PROVEN
 
-1. **No Stripe Price for Sales Engine.** `STRIPE_PRICE_SALES_ENGINE` is declared
-   and empty, so purchase → entitlement cannot complete. **Owner.**
-2. **Onboarding migration not applied.** `client_icp_profiles` is 0 rows, so no
-   tenant has an ICP. **Owner.**
-3. **Google Places credential is not authenticating.** The tenant scan ran in
-   production on 2026-08-31 06:07 UTC and every `Search Google Maps` call
-   returned `403 PERMISSION_DENIED — Method doesn't allow unregistered callers`.
-   115 such errors are logged in `scan_errors`. The n8n credential **Google
-   Maps** (Header Auth) must send `X-Goog-Api-Key: <Places API key>`; Places v1
-   rejects the request outright without it. **Owner.**
-4. **`ANTHROPIC_API_KEY` in the n8n container is unverified.** The decision
-   engine reads it via `$env`. The key held locally works and the model id
-   `claude-sonnet-4-5-20250929` was verified live, so the container variable is
-   the only remaining unknown. The proof endpoint now reports this explicitly
-   instead of failing silently. **Owner.**
+Measured in production on **2026-09-01** against the test tenant
+(`6edc687d-…`, 79 leads). This supersedes every earlier statement in this file
+that research, scoring or signals had never run.
 
-`INTERNAL_EMAIL_SECRET` is **confirmed present** in the container: both proof
-endpoints answer `401`, not the `503 internal_secret_not_configured` they now
-return when it is unset. That hypothesis is closed.
+| Stage | Evidence in production | Status |
+|---|---|---|
+| Research | **37 tenant leads** researched between `20:45:44Z` and `21:31:23Z` on 2026-08-31; grounded `research_summary` and `research_angle` on all 37 | `DONE` |
+| Scoring | **37 of 37** carry `score_components` written `21:46Z`; inspected scores 62–72, with `ai_base_score`, `deterministic_bonus` and `basis: "model judgement, not arithmetic"` | `DONE` |
+| Signals | **19** carry a `detected_signal` with `signal_confidence` | `PARTIAL` — written to the lead row; `market_signals` is still 0 |
+| Why Now | `agent_decisions.context_used.capability_used = "assess_why_now"`, resolved through the canonical MCP gateway, `correlation_id` present | `DONE` |
+| Next Best Action | `decision_type` `escalate` then `wait`, each with reasoning citing the composite score and the autonomy rule | `DONE` |
+| Draft | 24 tenant leads carry `email_subject` and `email_body`; newest generated `2026-08-31T11:32Z` | `PARTIAL` — see the ordering defect below |
+| Reply / Follow-up / Booking | `outreach_log` 0, `bookings` 0 | `LIVE_UNPROVEN` |
+| Attribution | `campaigns` 0, `deals` 0 | `LIVE_UNPROVEN` |
 
-Everything else a pilot needs exists and is deployed.
+**Lead Research v2 and Lead Scoring v2 are ACTIVE in production**, running on
+their 15-minute schedules, scoped to `lead_pool=eq.tenant` (commit `ade85de`).
+The scoping is confirmed behaviourally: 37 tenant leads were researched while
+**483 house leads sitting in `New Lead` were left untouched**. The house pool
+was never swept. Research produced nothing after `21:31Z` because it had
+drained the tenant queue — not because it stopped working.
 
-5. **Research and scoring are dormant, and activating them sweeps the house
-   pool.** Both are schedule-driven every 15 minutes and `active: false`.
-   Discovery writes fresh leads as `New Lead`, so with these two inert the
-   chain stalls one step after discovery succeeds — a fresh tenant lead would
-   sit unresearched and none of scoring, Why Now or Next Best Action could be
-   proven.
+## The two ordering defects that remain
 
-   Neither fetch filters on `lead_pool`. Production currently holds **891 house
-   leads and 59 tenant leads** in `New Lead`. Activating Lead Research v2 as it
-   stands begins researching all 950 at 25 per 15 minutes — roughly nine hours
-   of continuous enrichment against the house pool, which is precisely the bulk
-   research that was ruled out.
+**1. Drafts are generated for unresearched leads.** Among the 24 tenant leads
+holding a draft are leads with `researched_at = NULL`, generated at `08:32Z`
+and `11:32Z`. `clx-outreach-generation-v2` consumes
+`lead_status = 'Campaign Assigned'` and filters on **status alone** — no
+`lead_pool`, no `research_summary IS NOT NULL`. Same defect class as the one
+that put 1,373 leads in front of a scorer with nothing to reason about.
 
-   Two ways forward, and this is an owner decision because activation is an
-   owner action and Lead Research v2 is protected:
-   - Add `&lead_pool=eq.tenant` to `Get New Leads`, confining research to the
-     pilot's own scope and leaving the house pool untouched. One parameter,
-     reversible, but it narrows a protected workflow's targeting.
-   - Activate as-is and accept the house-pool sweep.
+**2. The chain terminates at `Signal Detected`.** There are 0 leads at
+`Campaign Assigned` anywhere in production, and the 37 scored tenant leads have
+sat at `Signal Detected` since `21:46Z` without advancing. Nothing promotes a
+scored lead into the campaign stage. That is why draft → send → reply →
+follow-up → booking cannot yet be proven end to end — and, incidentally, why no
+accidental send is possible today.
 
-   `Get Researched Leads` in scoring has the same shape and inherits whichever
-   decision is made.
+## Outbound state — one real send, then closed
 
-## Why the two proof runs produced nothing — 2026-08-31
+One real email left the platform on **2026-08-31 at `08:02:21Z`**, to
+**Haven Salon** (`house` pool, `client_id` NULL, no research). That is the
+incident behind commits `1c24eaf` and `221d729`. No send has occurred since.
 
-Both owner invocations were made. Neither left a decision or a lead, and the
-reasons were different.
+Outbound is off for four independent reasons — three by design, one by
+accident:
 
-**Tenant discovery reached production and failed on a credential.** The webhook
-authenticated, the tenant-scoped entry worked, and the run died at the Google
-Places call. That is evidence the discovery plumbing is correct: it got as far
-as the external API. Nothing downstream can be proven until that key is set,
-because there is no fresh lead to carry through research → scoring → signal.
+1. `campaigns` is empty, so `Sender Eligibility Guard` can authorise no
+   client/channel pair.
+2. The tenant's `autonomy_level` is `recommend_only`, which is not in
+   `AUTONOMY_MAY_EXECUTE`.
+3. `Get Outreach Ready Leads` filters `research_summary=not.is.null`, and the
+   4 tenant leads at `Outreach Ready` have none — the fetch returns `[]`.
+4. **Accidental, and it must be fixed before any send is expected to work:**
+   the fetch's query string is malformed —
+   `…&limit=5,lead_pool,research_summary,scoring_reason,score_components`.
+   Those four fields were appended *after* `limit` instead of into `select`,
+   so `lead_pool`, `research_summary`, `scoring_reason`, `score_components`
+   and `lead_score` are **never selected**. `Sender Eligibility Guard` then
+   evaluates `scoreIsValid()` and `REQUIRED_POOL` against `undefined` and
+   refuses every lead. PostgREST tolerates the malformed `limit` and answers
+   `200`, so this fails closed *silently and permanently* — the guard reads as
+   a working policy while actually refusing on missing data. **Not patched:**
+   the sender is protected and outbound is deliberately off, so repairing it is
+   a deliberate step for when sends are wanted, not a drive-by fix.
 
-**The decision engine failed and recorded nothing at all**, which was itself the
-defect. `Claude Decide` carried `alwaysOutputData` but no `onError`.
-`alwaysOutputData` covers a node that returns no data; it does not cover a node
-that *throws*. A 401 from Anthropic therefore aborted the execution — after the
-proof webhook had already answered `202`, so the caller saw success and the run
-vanished without trace. This is the same distinction that made the `neverError`
-guard wrong earlier in this sprint, found a second time in a different place.
+## What gates the pilot — and what does not
 
-`Parse Decision` compounded it: any unusable model response became a persisted
-row reading `action_type: 'wait'`, `reasoning: 'parse_failed'`, `confidence: 0`.
-Once stored, that is indistinguishable from the agent genuinely deciding to hold
-off — the same fabrication that made 1,373 leads score zero. Fixed under the
-same rule: **on model or parser failure, record the failure and persist
-nothing.** Agent failures now write to `scan_errors`, the table discovery
-already uses, so one query covers both.
+**Google Places — `BLOCKED_OWNER / FRESH_DISCOVERY` only.** The n8n credential
+must send `X-Goog-Api-Key`; 115 `403 PERMISSION_DENIED` errors are logged from
+the `06:07Z` tenant scan. This blocks proving *fresh* discovery. It does **not**
+block the middle pipeline, which had 79 tenant leads to work with and has now
+used them.
+
+**Stripe — `BLOCKED_OWNER / COMMERCIAL` only.** `STRIPE_PRICE_SALES_ENGINE` is
+declared and empty, so purchase → entitlement cannot complete. This gates the
+*commercial* proof. It does not gate technical pilot readiness: entitlement
+enforcement is already proven live on 11 of 11 endpoints.
+
+**`ANTHROPIC_API_KEY` in the n8n container is proven working.** 37 grounded
+summaries and 37 scores were produced through `$env` in live nodes. That
+hypothesis is closed.
+
+**`client_icp_profiles` is not empty.** One row —
+`cd80cca0-f0cf-4fb9-a4ff-3686bd115411`, test tenant, created
+`2026-08-31T06:05:35Z`. The earlier "0 rows / BLOCKED_OWNER" line contradicted
+the onboarding row in this same file and was stale.
 
 # WHAT BLOCKS FULL SELF-SERVE LAUNCH
 
 - **Entitlement is enforced nowhere in the request path yet.** The functions
   exist; no endpoint calls them. A valid session still reaches `client/*`
   regardless of purchase.
-- **No email send has succeeded since 2026-06-08** — 13 sends ever, all to a
-  test inbox.
+- **One real send, ever, outside the test inbox** — Haven Salon,
+  2026-08-31 `08:02:21Z`, a house lead with no owner and no research. That is
+  the incident the eligibility guard was written for, not a proof of send.
 - **Attribution cannot be reconstructed** — `campaigns` 0, `deals` 0.
 - **Reply, follow-up and booking have never carried a real event.**
 
 # WHAT CAN WAIT UNTIL AFTER REVENUE
 
 UGC, Studio, Theatre, six of seven avatars, social publishing (six stub
-publishers, blocked on platform review anyway), voice, video rendering, agentic
-activation, and MCP external access. None blocks a first paying customer.
+publishers, blocked on platform review anyway), voice, video rendering, and
+MCP external access. Agentic activation is no longer on this list — read-only
+and controlled-action are both proven. None of the rest blocks a first paying
+customer.
 
 ---
 
@@ -208,21 +225,27 @@ the condition cannot recur silently.
 |---|---|---|---|---|---|---|---|---|---|
 | Copilot | Agentic | `DONE` (client side) | 6 endpoints | **Answered a real question live: "You have 79 leads in your pipeline" — the test tenant's count, not the global 2,518, so tenant scoping holds through the Copilot too** | Admin copilot; conversation persistence | — | no | — | no |
 | Agent personality | Agentic | `DONE` | 1 row: construction, `recommend_only`, MAXI, 8 gated | Verified live; vertical resolves | — | — | no | — | no |
-| Decision engine | Agentic | `LIVE_UNPROVEN` | 9 workflows, 16 tables | Invocable entry added (`agent/decision-proof`) and deployed; fail-closed verified live | **Still never persisted a decision** — the one run aborted at `Claude Decide` and logged nothing | `ANTHROPIC_API_KEY` in container unverified | **yes** | Set/confirm the variable, re-run the proof | no |
+| Decision engine | Agentic | `DONE` | 9 workflows, 16 tables | **3 decisions persisted live** for the test tenant — `escalate`, `escalate`, `wait`, each with reasoning, `confidence_score` 0.75 and a `correlation_id`. `assess_why_now` resolved through the canonical MCP gateway and the tool output is quoted in the reasoning | Under a second tenant or vertical | — | no | — | no |
 | Action executor | Agentic | `DONE` | Fail-closed gate on the only path to a send | **35 tests** — sensitive classes blocked, approval validated not trusted, tenant mismatch refused | Never run on a real decision | — | no | — | no |
 | Policy gate | Agentic | `DONE` | Risk keyed on capability, not product | 35 tests in CI, reading shipped `jsCode` | — | — | no | — | no |
 | Product routing | Agentic | `DONE` (as a decision) | MCP's `Parse Request` already maps all 10 capabilities to a product and refuses any tool without one | Verified in the shipped `jsCode`: `PRODUCT` map, `RISK` map, and a hard refusal on an unmapped tool | Not exercised under a second product | — | no | **No separate router. Building one would duplicate a mapping that already exists and fails closed** | no |
 | MCP | Agentic | `PARTIAL` | Two gateways; `agent-tools` canonical | **28 tests**; no node may call a sender directly; probe confirms fail-closed | Never carried an authorised call | `MCP_WEBHOOK_SECRET` absent from container | **yes** | Defer — 5 calls ever | no |
-| Memory | Agentic | `LIVE_UNPROVEN` | Table + retrieve tool | — | 0 rows | Runtime inactive | no | — | no |
+| Memory | Agentic | `LIVE_UNPROVEN` | Table + retrieve tool | — | 0 rows | Nothing has written one yet | no | — | no |
 | Escalation | Agentic | `LIVE_UNPROVEN` | Endpoint live, left direct as the safety valve | — | 0 rows | — | no | — | no |
-| `agent_channels_enabled` | Agentic | `BLOCKED_OWNER` | Table exists | — | **0 rows — this is what keeps the runtime inert** | Activation is an owner call | **yes** | Decide | no |
+| `agent_channels_enabled` | Agentic | `DONE` | 1 row: `internal`, `enabled: true`, `outbound: false`, `authorized_by: owner`, enabled `2026-08-31T06:36Z` | The read-only proof ran through it | No outbound channel enabled — deliberately | — | no | — | no |
 | `behavioral_triggers` | Agentic | `LIVE_UNPROVEN` | Table exists | — | 0 rows | Nothing upstream runs | no | — | no |
 | `agent_schedules` | Agentic | `LIVE_UNPROVEN` | Table exists | — | 0 rows | — | no | — | no |
-| **Read-only proof** | Agentic | `BLOCKED_OWNER` | Entry exists and authenticates; failure is now durable and diagnosable | `get_vertical_context` resolves; policy gate 35 tests; MCP handover 28 tests | **No agent decision has ever been persisted** — `agent_decisions` 0 | Needs `INTERNAL_EMAIL_SECRET` to invoke `mcp/agent-tools`, and `agent_channels_enabled` to reach the decision engine | **yes** | Run it | no |
-| **Controlled-action proof** | Agentic | `DEFERRED` | Prepared, not executed | Gate already proves `recommend_only` refuses a send even with a valid approval | Not run end to end | Read-only proof first | no | After read-only | no |
+| **Read-only proof** | Agentic | `DONE` — READ_ONLY_PROVEN | Real tenant decision, capability selection, `assess_why_now` through canonical MCP, persisted decision with correlation | **Tool output materially influenced the reasoning** — the `wait` decision cites signal staleness the capability returned | Repeat run under a second vertical | — | no | — | no |
+| **Controlled-action proof** | Agentic | `DONE` — CONTROLLED_ACTION_PROVEN | Live Action Executor result: `executed=false`, `result=approval_required`, `risk_class=CONTACT_HUMAN`, `autonomy_level=recommend_only`, `allowed=false`, `approval_required=true` | The refusal is the proof: the gate stopped a contact action and left an `agent_actions` row at `status: pending` rather than sending | An approved action actually executing | Deliberate — outbound stays off | no | — | no |
 | Sentinel sees agents | Agentic | `DEFERRED` | — | — | Not built | Workflow-health first | no | After that | no |
 
-## Sales Engine — commercial status: **INTERNAL READY**
+## Sales Engine — commercial status: **PILOT READY (technical), BLOCKED_OWNER (commercial)**
+
+Technical readiness and commercial readiness are now separate answers. The
+middle of the pipeline — research, scoring, signals, Why Now, Next Best
+Action — has run in production against real tenant leads. What is left is
+**fresh discovery** (Google Places credential) and **purchase**
+(Stripe Price), and both are owner-gated. Neither blocks the other.
 
 | Area | Status | What exists | Tested | Not tested | Blocker | Owner? | Next action | Launch blocker? |
 |---|---|---|---|---|---|---|---|---|
@@ -230,24 +253,28 @@ the condition cannot recur silently.
 | Tenant creation | `LIVE_UNPROVEN` | Webhook creates `clients` | 4 clients exist | Not via a real purchase | — | no | — | no |
 | Entitlement | `DONE` (enforcement) / `BLOCKED_OWNER` (purchase) | Enforced on all 11 endpoints; `grant_product` idempotent | **Granted to test tenant as TEST DATA; revoked and re-granted live to prove the 403 path.** Other 3 clients remain unentitled | No real purchase has granted it | Stripe Price for a real grant | **yes** | Create the Price | **YES** (purchase only) |
 | Onboarding | `DONE` | `upsert_client_icp_from_onboarding()`; onboarding-3 applied | **Full happy path proven live**: `ok:true`, ICP row created for the test tenant on construction, 8 buyer titles inherited from the overlay, `offer_override` a JSON string, `channels_enabled` preserved as `["email"]`, `calendly_link` and `niche_name` correct, `niche_overlays` modified_recently = 0. Both refusals still hold | A second vertical for the same tenant | — | no | — | no |
-| `client_icp_profiles` | `BLOCKED_OWNER` | Table + connector | — | **0 rows** | Depends on onboarding | **yes** | Apply onboarding | **YES** |
+| `client_icp_profiles` | `DONE` | Table + connector | **1 row live** — `cd80cca0-…`, test tenant, created `2026-08-31T06:05:35Z`. The earlier "0 rows" line was stale and contradicted the onboarding row above it | A second tenant | — | no | — | no |
 | Vertical context | `DONE` | 8 verticals, `get_vertical_context()` | 11/11 checks; 4 verticals proven differentiated in titles, tone, signals, terminology, channel, cadence, compliance | — | — | no | — | no |
 | Discovery (house) | `PARTIAL` | `clx-b2c-discovery-v2.1` schedule path | 2,378 house leads historically | **No lead since 2026-05-28** | Schedules not running | **yes** | Restart or retire | no |
-| Discovery (tenant) | `LIVE_UNPROVEN` | `discovery/tenant-scan` deployed and registered | Probed `401` — fail-closed, correct | Never run with a valid secret | Needs `INTERNAL_EMAIL_SECRET` | **yes** | Run the proof | **YES** |
+| Discovery (tenant) | `BLOCKED_OWNER` / FRESH_DISCOVERY only | `discovery/tenant-scan` deployed, registered, and reached production | Ran `2026-08-31 06:07Z`: authenticated, tenant-scoped entry worked, died at the Google Places call | 115 `403 PERMISSION_DENIED` in `scan_errors` | Credential must send `X-Goog-Api-Key` | **yes** | Fix the credential | no — the middle pipeline runs on the 79 existing tenant leads |
 | Person resolution | `PARTIAL` | Per-vertical title keywords | Config verified | **Apollo: 0 leads ever** | — | no | Email scraper found 881 emails without it | no |
-| Signals | `LIVE_UNPROVEN` | Types + weights on all 8 verticals | Config verified | `market_signals` 0 | — | no | — | no |
+| Signals | `PARTIAL` | Types + weights on all 8 verticals | **19 tenant leads carry `detected_signal` + `signal_confidence`** | `market_signals` is still 0 — signals are written to the lead row, not the table | — | no | Decide whether `market_signals` is still the intended home | no |
 | Intent | `LIVE_UNPROVEN` | hot/warm/cold rules per vertical | Config verified | Never computed | — | no | — | no |
-| Scoring | `DONE` | Scoring v2 | **831 of 2,518 score ≥50**; avg 25.7, max 82 | Not at volume on tenant-owned leads | — | no | — | no |
-| Research | `LIVE_UNPROVEN` | Research v2 | Unblocked by the `$env` fix | Never run since | — | no | — | no |
-| Outreach generation | `LIVE_UNPROVEN` | Generation v2, reads `niche_overlays` | Differentiation proven at config level | No draft end to end | — | no | 4-vertical draft test | no |
-| Email send | `PARTIAL` | Postmark + Gmail bound | 13 sends ever, all to test inbox | **Nothing since 2026-06-08** | — | **yes** | One test send | **YES** |
+| Scoring | `DONE` | Scoring v2, **active and on schedule**, tenant-scoped | **37 of 37 researched tenant leads scored `21:46Z`** with full `score_components`; 831 of 2,518 platform-wide score ≥50 | Volume on a second tenant | — | no | — | no |
+| Research | `DONE` | Research v2, **active and on schedule**, `lead_pool=eq.tenant` | **37 tenant leads researched live `20:45`–`21:31Z` 2026-08-31**, grounded summaries and angles on all 37; 483 house leads untouched | Volume beyond 37 | — | no | — | no |
+| Outreach generation | `PARTIAL` | Generation v2, reads `niche_overlays` | **24 tenant leads hold a subject + body**, newest `2026-08-31T11:32Z` | **Drafts were generated for leads with `researched_at` NULL** — the fetch filters on `lead_status` alone, no `lead_pool`, no `research_summary IS NOT NULL` | Same ordering defect class as the 1,373 | no | Add the two filters | no |
+| Email send | `PARTIAL` | Postmark + Gmail bound; eligibility guard added | **One real send: Haven Salon, `2026-08-31 08:02:21Z`** — a house lead with no owner and no research, which is the incident the guard exists for | The guard has never been observed refusing live | `Get Outreach Ready Leads` never selects `lead_score` / `lead_pool` / `research_summary`, so the guard refuses on missing data, not policy | no | Repair the select list before expecting any send | no |
 | Replies | `LIVE_UNPROVEN` | Reply ingestion v1 (protected) | — | `outreach_log` 0 | Nothing to reply to | no | — | no |
 | Follow-up | `LIVE_UNPROVEN` | Follow-up v2, per-vertical cadence | Config verified | 0 rows | — | no | — | no |
 | Booking | `LIVE_UNPROVEN` | Booking v2 (protected), Calendly | — | `bookings` 0 | — | no | — | no |
 | Attribution | `PARTIAL` | Lead provenance columns | Source attribution works — every lead traceable | **`campaigns` 0, `deals` 0 — chain cannot be reconstructed** | No campaign has run | no | One campaign row per send | **YES** (for selling) |
 | Reporting | `LIVE_UNPROVEN` | Dashboards, per-vertical labels | Pages render | No data | — | no | — | no |
 
-## Stripe — commercial status: **NOT READY**
+## Stripe — commercial status: **BLOCKED_OWNER / COMMERCIAL**
+
+This gates the commercial proof — money in, entitlement out. It does **not**
+gate technical pilot readiness: entitlement enforcement is already proven
+live on 11 of 11 `client/*` endpoints, granted and revoked as test data.
 
 | Area | Status | What exists | Tested | Not tested | Blocker | Owner? | Next action | Launch blocker? |
 |---|---|---|---|---|---|---|---|---|

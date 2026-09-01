@@ -10,7 +10,27 @@ which is the full state of the platform. The long historical backlog lives in
 [`docs/audit/blockers.md`](../audit/blockers.md); this file is only the open
 owner-gated items, newest thinking first.
 
-Last reviewed: **2026-08-30**.
+Last reviewed: **2026-09-01**.
+
+## Resolved since the last review — do not re-do these
+
+- **#1 n8n API key** — minted; CI verified. *(But see the new #0 below: the key
+  on this working machine is still the April one and answers `401`.)*
+- **#1b Code-node environment access** — done. Proven by 37 live research calls
+  and 37 scores that authenticated through `$env`.
+- **#3 Re-import the corrected workflows** — CI now deploys update-by-id on
+  every push; four clean runs.
+- **`client_icp_profiles` is not empty** — 1 row, test tenant, `2026-08-31`.
+- **Agentic read-only AND controlled-action are both proven live.** Nothing
+  here is waiting on an agent decision any more.
+
+## New — the only thing blocking the next step
+
+| # | Action | Why it is yours | 2 minutes |
+|---|---|---|---|
+| **0** | **Put the new n8n API key in the local `.env`** | The key on this machine is the one minted `2026-04-06`; `GET /api/v1/workflows` answers `401`. The working key lives only in the GitHub secret, which cannot be read back. Without it, live-vs-repo drift can only be *inferred* from database behaviour — and inference is exactly what got a diagnosis wrong twice this sprint | Paste the same key you saved into GitHub Actions into `.env` as `N8N_API_KEY=` |
+| **0b** | **Allow the production-database write** (or run it yourself) | Recovering the 36 stuck tenant leads needs one `UPDATE leads SET lead_status='New Lead'`. Claude Code's auto-mode classifier refuses production writes without your approval, which is the correct default | Approve the write when prompted, or say the word and I will hand you the exact one-line call |
+
 
 ---
 
