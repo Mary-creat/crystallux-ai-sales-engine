@@ -130,6 +130,87 @@ accident:
    the sender is protected and outbound is deliberately off, so repairing it is
    a deliberate step for when sends are wanted, not a drive-by fix.
 
+
+## Every path that can send — measured 2026-09-01
+
+The sender's eligibility guard was treated as *the* boundary between the
+platform and a real person's inbox. It is not. There are **four** send
+paths and the guard sits on one of them.
+
+| Path | Guarded by | Repo `active` | Live `active` |
+|---|---|---|---|
+| `clx-outreach-sender-v2` → Gmail | `Sender Eligibility Guard` | `false` | **was running 2026-08-31 17:01Z** |
+| `clx-follow-up-v2` → **Gmail directly** | nothing | `false` | **UNVERIFIED** |
+| `clx-booking-v2` → **Gmail directly** | nothing | `false` | **UNVERIFIED** |
+| `clx-booking-create-v1` → Cal.com, then internal `/webhook/email/send` | shared secret only | `false` | **UNVERIFIED** |
+
+Follow Up v2 and Booking v2 each hold their own `Send ... Email` node
+posting straight to `gmail.googleapis.com`. Neither consults entitlement,
+autonomy, `campaigns`, `lead_pool` or ownership. Hardening the sender did
+not harden them, and no amount of further work on the sender will.
+
+**Their live state cannot be read from this machine** — the local
+`N8N_API_KEY` is the one minted 2026-04-06 and answers `401`. Until the
+working key is available here, "outbound is off" rests on the repo saying
+`active: false`, which is precisely the kind of inference that has been
+wrong three times this sprint.
+
+### Consent has no writer
+
+**Nothing in the estate ever sets `unsubscribed = true` or
+`do_not_contact = true`.** Both columns are written only at lead creation,
+always as `false`. Three send paths filter on them correctly, so the
+filters are real — they simply guard a flag no code can raise.
+
+There is no STOP handler. `clx-reply-ingestion-v1` is the only inbound
+reader and it does not inspect the body: a reply reading "STOP" is written
+as `lead_status = 'Replied'`, which makes the lead **eligible for
+`Get Replied Leads` in Booking v2**, which may then email it a Calendly
+link. Both outbound templates print "reply STOP to unsubscribe" and the
+booking one carries a CASL notice. The instruction is real; the mechanism
+behind it does not exist.
+
+### Follow-up cannot stop, and does not go where it says
+
+- **The re-arm writes the wrong column.** `Build Follow Up Email` computes
+  `next_followup_scheduled_at`; `Get Due Follow-ups` filters on
+  `followup_scheduled_at`. The column the fetch reads is never advanced,
+  so a lead re-qualifies on every hourly tick until `followup_count`
+  caps at 3.
+- **The stop signal cannot land.** At count >= 3 the node sets the next
+  date to `null`, but `update_lead` applies
+  `COALESCE(p_fields->>'next_followup_scheduled_at', l.next_followup_scheduled_at)`
+  — a null is coalesced away and the old value survives.
+- **A reply does not cancel a follow-up already in flight.** After the
+  60-second `Wait`, `Build Follow Up Email` re-reads the row fetched
+  *before* the wait and re-checks `do_not_contact`, `unsubscribed` and
+  `total_emails_sent` — but not `reply_detected`.
+- **`clx-follow-up-v2` still ships a hardcoded test recipient.**
+  `Build Follow Up Gmail Raw` contains
+  `const to = 'adesholaakintunde+clxtest@gmail.com'; // TESTING MODE. remove before production`,
+  overriding the lead's address on every send. Booking v2 was fixed for
+  this; follow-up was not.
+
+### Reply intelligence does not exist
+
+There is no reply classifier. `clx-booking-v2` runs a **binary** interest
+detector emitting `interest_detected` plus `confidence`, `signal_type` and
+`recommended_action` — and **no node reads those last three**. The
+consequences are not neutral: a pricing question and "send me details"
+both count as interested and trigger a booking email, while "not now,
+maybe later" and a wrong-person reply both collapse into `Not Interested`.
+`WRONG_PERSON`, `QUESTION`, `ALREADY_HAS_PROVIDER` and `UNSUBSCRIBE` have
+no representation at all.
+
+### Booking writes two disconnected stores
+
+`clx-booking-v2` writes only `leads` via `update_lead`. `bookings` is
+written by `clx-booking-create-v1` alone, which never touches `leads` — so
+a booking it creates is invisible to `Get 48h-No-Booking Leads`, which
+filters `meeting_scheduled=eq.false`. The client dashboard reads a third
+table, `appointment_log`. Its Cal.com call also happens **before** the
+local insert and performs no tenant check, so a failed insert orphans a
+real calendar invite with no local record.
 ## What gates the pilot — and what does not
 
 **Google Places — `BLOCKED_OWNER / FRESH_DISCOVERY` only.** The n8n credential
@@ -239,13 +320,32 @@ the condition cannot recur silently.
 | **Controlled-action proof** | Agentic | `DONE` — CONTROLLED_ACTION_PROVEN | Live Action Executor result: `executed=false`, `result=approval_required`, `risk_class=CONTACT_HUMAN`, `autonomy_level=recommend_only`, `allowed=false`, `approval_required=true` | The refusal is the proof: the gate stopped a contact action and left an `agent_actions` row at `status: pending` rather than sending | An approved action actually executing | Deliberate — outbound stays off | no | — | no |
 | Sentinel sees agents | Agentic | `DEFERRED` | — | — | Not built | Workflow-health first | no | After that | no |
 
-## Sales Engine — commercial status: **PILOT READY (technical), BLOCKED_OWNER (commercial)**
+## Sales Engine — commercial status: **NOT PILOT READY**
 
-Technical readiness and commercial readiness are now separate answers. The
-middle of the pipeline — research, scoring, signals, Why Now, Next Best
-Action — has run in production against real tenant leads. What is left is
-**fresh discovery** (Google Places credential) and **purchase**
-(Stripe Price), and both are owner-gated. Neither blocks the other.
+An earlier revision of this file said PILOT READY (technical). That was
+premature and is retracted here.
+
+What is proven is the **middle** of the pipeline: research, scoring,
+`score_components`, Why Now and Next Best Action have all run in
+production against real tenant leads. That is genuine and it is not
+nothing.
+
+What is not proven is the **revenue loop**, and pilot readiness is the
+loop, not the middle of it:
+
+- **Promotion** is built and tested (28 tests, `agent/promotion-draft-safety`)
+  but not deployed, and it correctly refuses all 59 scored leads because
+  `campaigns` holds no authorised play. Nothing in the codebase writes
+  that table.
+- **Reply intelligence does not exist** — a binary interest detector is
+  not a classifier.
+- **Follow-up cannot stop** — the re-arm writes a column the fetch does
+  not read, and the stop signal is coalesced away.
+- **Attribution is missing seven hops** and has no journey-ordering key.
+- **Three of the four send paths have no guard on them at all.**
+
+Fresh discovery (Google Places) and purchase (Stripe Price) remain
+owner-gated and are separate from all of the above.
 
 | Area | Status | What exists | Tested | Not tested | Blocker | Owner? | Next action | Launch blocker? |
 |---|---|---|---|---|---|---|---|---|
