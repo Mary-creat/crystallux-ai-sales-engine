@@ -204,6 +204,14 @@ jobs:
       - name: Test canonical action taxonomy
         run: node tests/agent/action-taxonomy.test.js
 
+      # Promotion is where a scored lead becomes one we intend to write a
+      # message for. Three incidents came from a stage trusting the previous
+      # stage's label instead of re-deriving the facts; this proves every
+      # missing fact refuses, and that qualifying a lead never authorises
+      # contacting it.
+      - name: Test promotion eligibility gate
+        run: node tests/agent/promotion-gate.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.
