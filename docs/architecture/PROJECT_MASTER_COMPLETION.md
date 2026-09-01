@@ -242,6 +242,28 @@ The shape is familiar: `Parse Signal Response` hardcodes the status and
 defect fixed for research in `92bd9fe`. The fix appears to have been made
 here and never to have reached the server.
 
+**The mechanism, confirmed.** The 60 rows carry none of the four fields
+that node writes — `signal_confidence`, `growth_stage`,
+`recommended_campaign_type` and `outreach_timing` are all NULL on 60 of
+60, and all present on 19 of 19. That first reads as evidence the node
+never touched them. It is the opposite, and the reason is `update_lead`:
+
+```sql
+signal_confidence = COALESCE(NULLIF(p_fields->>'signal_confidence', ''), l.signal_confidence)
+```
+
+A build that sends `null` for those fields leaves the columns exactly as
+they were — NULL — while still setting `lead_status`. The repo build
+cannot do that: every one of the four has a `|| default`, so any run of
+this code populates all four even when the model fails. Production has 60
+rows with none of them. Therefore production is not running this code.
+
+`clx-business-signal-detection-v2` is also the **only** writer of
+`Signal Detected` anywhere in the 326-workflow estate — Campaign Router
+reads the status, Pipeline Update counts it. So the rows were written by
+that workflow, by a build predating both the conditional status and the
+defaults.
+
 **What this invalidates.** Any count of "leads with a signal" taken from
 `lead_status` is wrong, including several reported during this sprint.
 The field is the evidence; the status is not. It also means promotion
