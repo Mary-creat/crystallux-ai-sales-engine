@@ -94,6 +94,61 @@ jobs:
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: python scripts/n8n/compare-live-vs-repo.py workflows/api/agent/clx-agent-decision-engine-v1.json
 
+      # 55 recovered leads finished with detected_signal NULL on all 55,
+      # and ~20 of them at lead_status 'Signal Detected'. The repo cannot
+      # produce that: Prep Update Signal writes 'Scored' when there is no
+      # signal, and all four signal fields carry a || default. So the
+      # running build is not this one. This step names the drift instead
+      # of leaving it to be inferred from column values a fourth time.
+      - name: Business Signal Detection v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-business-signal-detection-v2.json
+
+      # The three files this branch changes. A protected workflow that is
+      # patched but never verified live is how the last three deploys
+      # reported success while behaviour disagreed.
+      - name: Campaign Router v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-campaign-router-v2.json
+
+      - name: Outreach Generation v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-outreach-generation-v2.json
+
+      - name: Outreach Sender v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-outreach-sender-v2.json
+
+      # Which of the four send paths are actually armed in production.
+      # Repo active:false is a claim about a file, not about the server,
+      # and Follow Up v2 and Booking v2 both send via Gmail directly with
+      # no eligibility guard between them and a real inbox.
+      - name: Follow Up v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-follow-up-v2.json
+
+      - name: Booking v2 matches live
+        continue-on-error: true
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-booking-v2.json
+
   # ── Job 1: Validate ─────────────────────────────────────────────
   validate:
     name: Validate workflow + migration estate
@@ -203,6 +258,21 @@ jobs:
       # cancelling out. This fails if they drift apart again.
       - name: Test canonical action taxonomy
         run: node tests/agent/action-taxonomy.test.js
+
+      # Promotion is where a scored lead becomes one we intend to write a
+      # message for. Three incidents came from a stage trusting the previous
+      # stage's label instead of re-deriving the facts; this proves every
+      # missing fact refuses, and that qualifying a lead never authorises
+      # contacting it.
+      - name: Test promotion eligibility gate
+        run: node tests/agent/promotion-gate.test.js
+
+      # The owner arming switch is the only control standing in front of all
+      # four prospect-facing send paths. A kill switch that fails open is
+      # worse than none, because it is trusted -- so every non-true answer,
+      # including a thrown node and a PostgREST error body, must refuse.
+      - name: Test outbound arming switch (fail-closed)
+        run: node tests/agent/outbound-arming.test.js
 
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and

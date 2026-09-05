@@ -24,11 +24,12 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&select=id,client_id,full_name,email,company,company_size,industry,job_title,city,country,product_type,lead_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing,apollo_enriched_at,apollo_org_id,linkedin_url,mobile_phone,direct_phone,preferred_channel,lead_segment,clients(channels_enabled,video_enabled,focus_segments)&limit=100",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Signal%20Detected&lead_pool=eq.tenant&client_id=not.is.null&research_summary=not.is.null&select=id,client_id,lead_pool,lead_status,lead_score,scoring_reason,researched_at,unsubscribed,do_not_contact,full_name,email,company,company_size,industry,job_title,city,country,product_type,lead_type,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,signal_confidence,outreach_timing,apollo_enriched_at,apollo_org_id,linkedin_url,mobile_phone,direct_phone,preferred_channel,lead_segment,clients(channels_enabled,video_enabled,focus_segments)&limit=100",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
-        "options": {}
+        "options": {},
+        "notes": "Tenant pool only, owned, researched. The house pool is never promoted by the tenant pipeline."
       },
       "id": "clx05-0000-0000-0000-000000000002",
       "name": "Get Signal Detected Leads",
@@ -44,7 +45,8 @@
         }
       },
       "continueOnFail": true,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -332,6 +334,92 @@
         1160,
         500
       ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?select=id,channels_enabled,onboarding_stage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-promo-fetch-promotion-client-policy",
+      "name": "Fetch Promotion Client Policy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/campaigns?status=eq.active&select=client_id,channel,status,name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-promo-fetch-promotion-plays",
+      "name": "Fetch Promotion Plays",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/auth_users?is_active=eq.true&select=client_id,products",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": false,
+        "options": {}
+      },
+      "id": "clx-promo-fetch-promotion-entitlement",
+      "name": "Fetch Promotion Entitlement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Promotion boundary. 'Signal Detected' is a pipeline position, not a\n// qualification -- and qualification is not permission to contact.\n//\n// The router used to fetch on lead_status alone. That is the same shape as\n// the scorer that received 1,373 unresearched leads and the sender that\n// emailed a house lead with no owner: a stage that trusts the previous\n// stage's label instead of re-deriving the facts for itself.\n//\n// TWO SEPARATE QUESTIONS, ANSWERED SEPARATELY:\n//\n//   QUALIFIED / RECOMMENDED  -- decided here. Do we have enough real,\n//                               tenant-owned, researched, scored evidence\n//                               to build a play for this lead?\n//   AUTHORIZED TO CONTACT    -- NOT decided here. That is the sender's\n//                               eligibility guard, which re-derives\n//                               entitlement, play authorisation and\n//                               autonomy from source for itself.\n//\n// Nothing this node emits may be read downstream as permission. It stamps\n// _authorized_to_contact = false unconditionally, and the sender never\n// reads that field: the two gates share no trust, only facts.\n//\n// Every condition is fail-closed. Missing state refuses.\n\nvar allOf = function (name) {\n  try {\n    var items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nvar leads     = allOf('Get Signal Detected Leads');\nvar clients   = allOf('Fetch Promotion Client Policy');\nvar campaigns = allOf('Fetch Promotion Plays');\nvar users     = allOf('Fetch Promotion Entitlement');\n\nvar REQUIRED_POOL = 'tenant';\nvar PRODUCT = 'sales_engine';\nvar CHANNEL = 'email';\n\nvar clientById = {};\nclients.forEach(function (c) { if (c && c.id) clientById[c.id] = c; });\n\n// Mirrors check_product_entitlement: entitled when at least one ACTIVE user\n// holds the product. Computed once for the batch, not once per lead.\nvar entitled = {};\nusers.forEach(function (u) {\n  if (!u || !u.client_id) return;\n  var ps = u.products;\n  if (typeof ps === 'string') { try { ps = JSON.parse(ps); } catch (e) { ps = []; } }\n  if (Array.isArray(ps) && ps.indexOf(PRODUCT) >= 0) entitled[u.client_id] = true;\n});\n\n// A play must be authorised for this tenant and channel before we spend a\n// model call building a message for it.\nvar play = {};\ncampaigns.forEach(function (c) {\n  if (c && c.client_id && c.status === 'active') {\n    play[c.client_id + '|' + (c.channel || CHANNEL)] = c.name || true;\n  }\n});\n\nfunction channelEnabled(client) {\n  if (!client) return false;\n  var ch = client.channels_enabled;\n  if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch (e) { ch = []; } }\n  return Array.isArray(ch) && ch.indexOf(CHANNEL) >= 0;\n}\n\n// A scoring failure is not a low score. The scorer leaves a failed lead\n// unscored rather than writing 0, so an absent score is an absent\n// judgement and must not be read as a weak one.\nfunction scoreIsValid(l) {\n  if (l.lead_score === null || l.lead_score === undefined) return false;\n  if (typeof l.lead_score !== 'number' || l.lead_score <= 0) return false;\n  if (/error|failed|unavailable|parse/i.test(String(l.scoring_reason || ''))) return false;\n  return true;\n}\n\n// Research has to have actually happened. Status is not evidence of it --\n// that confusion is what this guard exists to end.\nfunction researchIsValid(l) {\n  if (!l.research_summary || !String(l.research_summary).trim()) return false;\n  if (!l.researched_at) return false;\n  return true;\n}\n\nvar eligible = [];\nvar refused = [];\n\nleads.forEach(function (l) {\n  var why = [];\n  var client = clientById[l.client_id];\n\n  if (l.lead_pool !== REQUIRED_POOL) why.push('pool=' + (l.lead_pool || 'none'));\n  if (!l.client_id) why.push('no owning tenant');\n  if (l.lead_status !== 'Signal Detected') why.push('status=' + l.lead_status);\n  if (!researchIsValid(l)) why.push('no valid research');\n  if (!scoreIsValid(l)) why.push('no valid score');\n\n  if (l.unsubscribed) why.push('unsubscribed');\n  if (l.do_not_contact) why.push('do_not_contact');\n\n  if (!client) why.push('tenant not found');\n  else if (client.onboarding_stage !== 'active') why.push('tenant not active');\n\n  if (!entitled[l.client_id]) why.push('tenant lacks ' + PRODUCT + ' entitlement');\n  if (!channelEnabled(client)) why.push(CHANNEL + ' not enabled for tenant');\n  if (!play[l.client_id + '|' + CHANNEL]) why.push('no authorised play');\n\n  if (why.length) {\n    refused.push({ id: l.id, company: l.company || null, reasons: why });\n  } else {\n    eligible.push({ json: Object.assign({}, l, {\n      _promotion_qualified: true,\n      // Never permission. The sender re-derives its own answer.\n      _authorized_to_contact: false,\n      _play: play[l.client_id + '|' + CHANNEL]\n    }) });\n  }\n});\n\nconsole.log('[promotion-guard] considered=' + leads.length +\n            ' qualified=' + eligible.length + ' refused=' + refused.length);\nif (refused.length) {\n  console.log('[promotion-guard] refusals: ' + JSON.stringify(refused.slice(0, 25)));\n}\n\nreturn eligible;\n"
+      },
+      "id": "clx-promo-guard",
+      "name": "Promotion Eligibility Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ],
+      "alwaysOutputData": true
     }
   ],
   "connections": {
@@ -350,7 +438,7 @@
       "main": [
         [
           {
-            "node": "IF Leads Found",
+            "node": "Fetch Promotion Client Policy",
             "type": "main",
             "index": 0
           }
@@ -491,6 +579,50 @@
         [
           {
             "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Promotion Client Policy": {
+      "main": [
+        [
+          {
+            "node": "Fetch Promotion Plays",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Promotion Plays": {
+      "main": [
+        [
+          {
+            "node": "Fetch Promotion Entitlement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Promotion Entitlement": {
+      "main": [
+        [
+          {
+            "node": "Promotion Eligibility Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Promotion Eligibility Guard": {
+      "main": [
+        [
+          {
+            "node": "IF Leads Found",
             "type": "main",
             "index": 0
           }

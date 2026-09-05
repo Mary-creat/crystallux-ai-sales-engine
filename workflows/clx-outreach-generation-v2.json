@@ -24,11 +24,12 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Campaign%20Assigned&select=id,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,campaign_name,campaign_value_proposition,campaign_pain_point,campaign_call_to_action,campaign_tone,vertical&limit=25",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Campaign%20Assigned&lead_pool=eq.tenant&client_id=not.is.null&research_summary=not.is.null&researched_at=not.is.null&lead_score=gt.0&campaign_name=not.is.null&select=id,client_id,lead_pool,researched_at,scoring_reason,full_name,company,industry,job_title,city,product_type,lead_score,priority_level,research_summary,likely_business_need,research_angle,detected_signal,growth_stage,recommended_campaign_type,campaign_name,campaign_value_proposition,campaign_pain_point,campaign_call_to_action,campaign_tone,vertical&limit=25",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
-        "options": {}
+        "options": {},
+        "notes": "Status alone was the filter. A lead reaches here only with a real owner, real research, a real score and an assigned play."
       },
       "id": "clx06-0000-0000-0000-000000000002",
       "name": "Get Campaign Assigned Leads",
