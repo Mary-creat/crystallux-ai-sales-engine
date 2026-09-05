@@ -291,7 +291,7 @@
     },
     {
       "parameters": {
-        "jsCode": "try {\n  const input = $('Parse Request').item.json.tool_input;\n  return {\n    json: {\n      message: 'City scan queued. The CLX City Scan Discovery workflow will process ' + input.industry + ' in ' + input.city + ' on next scheduled run.',\n      city: input.city,\n      industry: input.industry,\n      product_type: input.product_type || ''\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message } };\n}"
+        "jsCode": "// scan_city — report what actually happened.\n//\n// This node used to return \"City scan queued. The CLX City Scan Discovery\n// workflow will process <industry> in <city> on next scheduled run.\" and\n// write nothing whatsoever. Nothing was queued. The caller -- including\n// Mary, through the admin Copilot -- was told an action had been taken\n// that had not been taken.\n//\n// It now reports the RPC's own answer, including when that answer is a\n// refusal. A tool that cannot fail is a tool whose success means nothing.\n\nconst input = $('Parse Request').item.json.tool_input || {};\n\nlet res = null;\ntry {\n  const items = $('Add Discovery City').all().map(function (i) { return i.json; });\n  res = items.length ? items[0] : null;\n  if (Array.isArray(res)) res = res[0];\n} catch (e) {\n  res = null;\n}\n\n// No answer at all: the database call did not complete. Say so plainly\n// rather than describing what would have happened if it had.\nif (!res || typeof res !== 'object') {\n  return { json: {\n    ok: false,\n    error: 'could not reach the discovery registry - nothing was added',\n    city: input.city || null,\n    requested: input.product_type || input.industry || null\n  } };\n}\n\n// A PostgREST error body is not a result.\nif (res.code || res.message) {\n  return { json: {\n    ok: false,\n    error: String(res.message || res.code).slice(0, 300),\n    city: input.city || null,\n    requested: input.product_type || input.industry || null\n  } };\n}\n\nif (res.ok === false) {\n  return { json: {\n    ok: false,\n    error: res.error || 'refused',\n    options: res.options || null,\n    city: input.city || null,\n    requested: input.product_type || input.industry || null\n  } };\n}\n\nreturn { json: {\n  ok: true,\n  message: res.note,\n  city: res.city,\n  product_type: res.product_type,\n  queries_added: res.queries_added,\n  already_present: res.already_present,\n  // Discovery is scheduled, so nothing happens this second. Saying when it\n  // will happen is the difference between a report and a promise.\n  takes_effect: 'on the next discovery run'\n} };\n"
       },
       "id": "clx12-0041",
       "name": "Handle Scan City",
@@ -822,7 +822,7 @@
     },
     {
       "parameters": {
-        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  return {\n    json: {\n      success: false,\n      tool: ctx.tool_name || 'unknown',\n      error: 'Unknown tool: ' + (ctx.tool_name || 'none') + '. This should not happen \u2014 check Parse Request validation.',\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { success: false, tool: 'unknown', error: error.message, timestamp: new Date().toISOString() } };\n}"
+        "jsCode": "try {\n  const ctx = $('Parse Request').item.json;\n  return {\n    json: {\n      success: false,\n      tool: ctx.tool_name || 'unknown',\n      error: 'Unknown tool: ' + (ctx.tool_name || 'none') + '. This should not happen — check Parse Request validation.',\n      timestamp: new Date().toISOString()\n    }\n  };\n} catch (error) {\n  return { json: { success: false, tool: 'unknown', error: error.message, timestamp: new Date().toISOString() } };\n}"
       },
       "id": "clx12-0400",
       "name": "Format Default Error",
@@ -869,7 +869,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// The catalogue named every tool to anyone who asked. Same key as the\n// execute endpoint -- discovery is part of the same surface.\nconst headers = $('Tool Registry Webhook').item.json.headers || {};\nconst apiKey = headers['x-mcp-api-key'] || headers['X-MCP-API-Key'] || '';\nconst expected = $env.MCP_WEBHOOK_SECRET || '';\nif (!expected || !apiKey || apiKey !== expected) {\n  return { json: { _unauthorized: true, error: 'Invalid or missing X-MCP-API-Key' } };\n}\ntry {\n  return {\n    json: {\n      tools: [\n        { name: 'research_lead', description: 'Get full lead record for research', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' } }, required: ['lead_id'] } },\n        { name: 'score_lead', description: 'Get lead scoring data', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' } }, required: ['lead_id'] } },\n        { name: 'get_pipeline_stats', description: 'Get latest pipeline statistics snapshot', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'scan_city', description: 'Queue a city scan for business discovery', inputSchema: { type: 'object', properties: { city: { type: 'string', description: 'City name' }, industry: { type: 'string', description: 'Industry to search' }, product_type: { type: 'string', description: 'Product category' } }, required: ['city', 'industry'] } },\n        { name: 'get_lead', description: 'Get lead by ID or email', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' }, email: { type: 'string', description: 'Email to look up' } }, required: [] } },\n        { name: 'list_leads', description: 'List leads with optional filters', inputSchema: { type: 'object', properties: { lead_status: { type: 'string', description: 'Filter by status' }, industry: { type: 'string', description: 'Filter by industry' }, limit: { type: 'number', description: 'Max results (default 20)' } }, required: [] } },\n        { name: 'update_lead_status', description: 'Update a lead status', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' }, lead_status: { type: 'string', description: 'New status' }, notes: { type: 'string', description: 'Optional notes' } }, required: ['lead_id', 'lead_status'] } },\n        { name: 'check_system_health', description: 'Count leads by status and check system health', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'check_pipeline_health', description: 'Analyze pipeline stages and flag stale leads', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'get_execution_stats', description: 'Get MCP tool call stats from last 24 hours', inputSchema: { type: 'object', properties: {}, required: [] } }\n      ]\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message } };\n}"
+        "jsCode": "// The catalogue named every tool to anyone who asked. Same key as the\n// execute endpoint -- discovery is part of the same surface.\nconst headers = $('Tool Registry Webhook').item.json.headers || {};\nconst apiKey = headers['x-mcp-api-key'] || headers['X-MCP-API-Key'] || '';\nconst expected = $env.MCP_WEBHOOK_SECRET || '';\nif (!expected || !apiKey || apiKey !== expected) {\n  return { json: { _unauthorized: true, error: 'Invalid or missing X-MCP-API-Key' } };\n}\ntry {\n  return {\n    json: {\n      tools: [\n        { name: 'research_lead', description: 'Get full lead record for research', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' } }, required: ['lead_id'] } },\n        { name: 'score_lead', description: 'Get lead scoring data', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' } }, required: ['lead_id'] } },\n        { name: 'get_pipeline_stats', description: 'Get latest pipeline statistics snapshot', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'scan_city', description: 'Add a city to a vertical\\'s discovery coverage, by copying that vertical\\'s existing search terms into the new city. Idempotent. Takes effect on the next discovery run, not immediately. Pass product_type as the vertical or client name, e.g. eazer_merchant or \\'Eazer - Merchants\\'. A name matching more than one vertical is refused, not guessed', inputSchema: { type: 'object', properties: { city: { type: 'string', description: 'City name' }, industry: { type: 'string', description: 'Industry to search' }, product_type: { type: 'string', description: 'Product category' } }, required: ['city', 'industry'] } },\n        { name: 'get_lead', description: 'Get lead by ID or email', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' }, email: { type: 'string', description: 'Email to look up' } }, required: [] } },\n        { name: 'list_leads', description: 'List leads with optional filters', inputSchema: { type: 'object', properties: { lead_status: { type: 'string', description: 'Filter by status' }, industry: { type: 'string', description: 'Filter by industry' }, limit: { type: 'number', description: 'Max results (default 20)' } }, required: [] } },\n        { name: 'update_lead_status', description: 'Update a lead status', inputSchema: { type: 'object', properties: { lead_id: { type: 'string', description: 'UUID of the lead' }, lead_status: { type: 'string', description: 'New status' }, notes: { type: 'string', description: 'Optional notes' } }, required: ['lead_id', 'lead_status'] } },\n        { name: 'check_system_health', description: 'Count leads by status and check system health', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'check_pipeline_health', description: 'Analyze pipeline stages and flag stale leads', inputSchema: { type: 'object', properties: {}, required: [] } },\n        { name: 'get_execution_stats', description: 'Get MCP tool call stats from last 24 hours', inputSchema: { type: 'object', properties: {}, required: [] } }\n      ]\n    }\n  };\n} catch (error) {\n  return { json: { error: error.message } };\n}"
       },
       "id": "clx12-0501",
       "name": "Build Tool List",
@@ -896,6 +896,49 @@
         640,
         1100
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/add_discovery_city",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_target: ($('Parse Request').item.json.tool_input.product_type || $('Parse Request').item.json.tool_input.industry || ''), p_city: ($('Parse Request').item.json.tool_input.city || '') }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "notes": "add_discovery_city is idempotent and refuses ambiguity."
+      },
+      "id": "mcp-add-discovery-city",
+      "name": "Add Discovery City",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        260
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     }
   ],
   "connections": {
@@ -1030,7 +1073,7 @@
       "main": [
         [
           {
-            "node": "Handle Scan City",
+            "node": "Add Discovery City",
             "type": "main",
             "index": 0
           }
@@ -1311,6 +1354,17 @@
         [
           {
             "node": "Return Tool List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Discovery City": {
+      "main": [
+        [
+          {
+            "node": "Handle Scan City",
             "type": "main",
             "index": 0
           }
