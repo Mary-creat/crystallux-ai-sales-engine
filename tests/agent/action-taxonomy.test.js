@@ -56,6 +56,9 @@ function runGate(ctx, personality) {
   const sandbox = {
     $: (name) => {
       if (name === 'Carry Action ID') return { item: { json: ctx } };
+      // Armed on purpose: this file tests the action vocabulary, not the
+      // switch. See tests/agent/outbound-arming.test.js for the off case.
+      if (name === 'Check Outbound Arming') return { all: () => [{ json: true }] };
       throw new Error('unexpected $() for ' + name);
     },
     $input: { item: { json: personality } },

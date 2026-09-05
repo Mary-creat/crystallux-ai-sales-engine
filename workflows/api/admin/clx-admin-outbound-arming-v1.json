@@ -1,0 +1,420 @@
+{
+  "name": "CLX - Admin Outbound Arming v1",
+  "id": "clxAdminOutboundArmingV1",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/outbound-arming",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "oa-0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "webhookId": "clx-admin-outbound-arming"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same admin entry as every other admin/* endpoint: bearer token, validated\n// server-side, admin role required. Nothing here trusts the request body.\nconst headers = $input.item.json.headers || {};\nconst auth = headers['authorization'] || headers['Authorization'] || '';\nconst token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';\nif (!token) return { json: { ok: false, status: 401, error: 'Missing session token' } };\n\nconst body = $input.item.json.body || {};\n// 'read' is the default so a malformed request can only ever look, never flip.\nconst action = body.action === 'arm' ? 'arm'\n             : body.action === 'disarm' ? 'disarm'\n             : 'read';\nreturn { json: { token, action } };\n"
+      },
+      "id": "oa-0002",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/validate_session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }"
+      },
+      "id": "oa-0003",
+      "name": "Validate Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        580,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.item.json;\nconst row = Array.isArray(rows) ? (rows[0] || null)\n          : (rows && (rows.id || rows.user_id) ? rows : null);\nif (!row) return { json: { ok: false, status: 401, error: 'Invalid or expired session' } };\nif (row.user_role !== 'admin') return { json: { ok: false, status: 403, error: 'Admin access required' } };\n// The actor is taken from the validated session row, never from the request\n// body. Arming is an accountable action and the name on it has to be real.\nreturn { json: { ok: true,\n                 actor: row.email || row.user_email || ('user:' + (row.user_id || row.id)),\n                 action: $('Extract Token').first().json.action } };\n"
+      },
+      "id": "oa-0004",
+      "name": "Check Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "oa-0005",
+      "name": "IF Admin OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Read or write? Decided from the validated request, not the body.\nreturn { json: Object.assign({}, $input.item.json,\n  { _write: $input.item.json.action !== 'read' }) };\n"
+      },
+      "id": "oa-0006",
+      "name": "Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        240
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "w1",
+              "leftValue": "={{ $json._write }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "oa-0007",
+      "name": "IF Write",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/set_outbound_armed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_armed: $json.action === \"arm\", p_actor: $json.actor }) }}"
+      },
+      "id": "oa-0008",
+      "name": "Flip Switch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        160
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/v_outbound_arming?select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "oa-0009",
+      "name": "Read Arming State",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        340
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One shape for both paths, so the dashboard renders the same thing whether\n// it just looked or just flipped the switch.\n//\n// armed is deliberately computed as \"every path armed\", not \"any\". A partial\n// state is not armed -- if one path is paused the answer to 'can this\n// platform contact anyone' is still no for that path, and the button must\n// not claim otherwise.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\n\nlet paths = allOf('Read Arming State');\n// The write path returns the RPC's own result; prefer it when present.\nconst wrote = allOf('Flip Switch');\nif (wrote.length && wrote[0] && wrote[0].paths) {\n  paths = wrote[0].paths;\n}\n\nconst clean = (paths || []).filter(function (p) { return p && (p.workflow_id || p.status); })\n  .map(function (p) {\n    return {\n      workflow_id: p.workflow_id,\n      name: p.workflow_name || p.workflow_id,\n      armed: (p.armed === true) || (p.status === 'active') || (p.current_status === 'active'),\n      paused_reason: p.paused_reason || null,\n      updated_at: p.updated_at || null\n    };\n  });\n\nconst armed = clean.length > 0 && clean.every(function (p) { return p.armed; });\n\nreturn { json: {\n  ok: true,\n  armed: armed,\n  partial: clean.some(function (p) { return p.armed; }) && !armed,\n  paths: clean,\n  count: clean.length,\n  checked_at: new Date().toISOString()\n} };\n"
+      },
+      "id": "oa-0010",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        240
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "oa-0011",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1960,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
+      },
+      "id": "oa-0012",
+      "name": "Respond 4xx",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 4xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "IF Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Write": {
+      "main": [
+        [
+          {
+            "node": "Flip Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Arming State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flip Switch": {
+      "main": [
+        [
+          {
+            "node": "Read Arming State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Arming State": {
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Response": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

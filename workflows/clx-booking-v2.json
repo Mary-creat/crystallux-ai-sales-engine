@@ -274,7 +274,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CLX Booking v2. Build Booking Email\n// Reads lead from Parse Interest Response (still has the full lead + interest\n// fields) and client config from Get Client Config. Uses .first() accessors\n// because the Has Email IF node and Get Client Config HTTP replaced $input.\n//\n// WS6: routes by lead.lead_type. Three flows:\n//   carrier_prospect   -> insurer.crystallux.org/join  (carrier signup)\n//   advisor_candidate  -> insurance.crystallux.org/join (advisor signup)\n//   smb / null         -> existing Calendly consultation flow\n\nconst lead = $('Parse Interest Response').first().json;\nconst clientRow = ($('Get Client Config').first() || {}).json || {};\n\nconst clientName = clientRow.client_name || 'our team';\nconst calendlyUrl = clientRow.calendly_link || 'https://calendly.com/placeholder';\nconst notificationEmail = clientRow.notification_email || null;\nconst industry = (lead.industry || 'business').trim();\nconst prettyIndustry = industry.charAt(0).toUpperCase() + industry.slice(1);\nconst leadType = (lead.lead_type || '').toLowerCase().trim();\n\n// CASL (Canada's Anti-Spam Legislation) unsubscribe footer. shared\nconst caslFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\">' +\n  '<p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;line-height:1.5;\">' +\n  'You are receiving this message because you replied to an earlier outreach ' +\n  'from ' + clientName + '. To unsubscribe, reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>' +\n  'Sent by ' + clientName + ' via Crystallux | info@crystallux.org' +\n  '</p>';\n\nlet subject;\nlet body;\nlet primaryCtaUrl;\n\nif (leadType === 'carrier_prospect') {\n  // ─── Carrier intake flow ────────────────────────────────────────\n  primaryCtaUrl = 'https://crystallux.org/join-carrier';\n  subject = 'Crystallux Insurance Network. carrier partnership next steps';\n  body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n    '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n    '<p style=\"margin:0 0 16px 0;\">Appreciate the interest from ' + (lead.company || 'your team') + '. ' +\n    'The fastest next step is the Crystallux Insurance Network carrier intake. it captures the appointment details, contracted lines, and commission structure in one form so we can move straight to a substantive partnership conversation:</p>' +\n    '<p style=\"margin:0 0 16px 0;\"><a href=\"' + primaryCtaUrl + '\" style=\"display:inline-block;padding:10px 20px;background:#5B21B6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;\">Carrier intake → ' + primaryCtaUrl.replace('https://', '') + '</a></p>' +\n    '<p style=\"margin:0 0 16px 0;\">Or if you would rather just talk first: ' +\n    '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n    '<p style=\"margin:24px 0 0 0;color:#333333;\">Looking forward,<br><strong>' + clientName + '</strong></p>' +\n    caslFooter +\n    '</div>';\n} else if (leadType === 'advisor_candidate') {\n  // ─── Advisor recruitment flow ───────────────────────────────────\n  primaryCtaUrl = 'https://crystallux.org/join-advisor';\n  subject = 'Crystallux advisor network. next steps for ' + (lead.full_name || 'your application');\n  body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n    '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n    '<p style=\"margin:0 0 16px 0;\">Glad you replied. The Crystallux advisor onboarding form captures your RIBO status, E&O coverage, and product preferences in one pass. most applicants finish in under 10 minutes:</p>' +\n    '<p style=\"margin:0 0 16px 0;\"><a href=\"' + primaryCtaUrl + '\" style=\"display:inline-block;padding:10px 20px;background:#5B21B6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;\">Start advisor onboarding → ' + primaryCtaUrl.replace('https://', '') + '</a></p>' +\n    '<p style=\"margin:0 0 16px 0;\">Once you submit, I will personally review and reach out within 24 hours. Prefer a call first? ' +\n    '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n    '<p style=\"margin:24px 0 0 0;color:#333333;\">Talk soon,<br><strong>' + clientName + '</strong></p>' +\n    caslFooter +\n    '</div>';\n} else {\n  // ─── Default SMB / B2B Calendly consultation ────────────────────\n  primaryCtaUrl = calendlyUrl;\n  subject = \"Let's find a time. Free \" + prettyIndustry + ' Consultation';\n  body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n    '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n    '<p style=\"margin:0 0 16px 0;\">Thank you for your interest in ' + clientName + '. ' +\n    'I would love to find a time that works for you.</p>' +\n    '<p style=\"margin:0 0 16px 0;\">You can grab a slot directly here: ' +\n    '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n    '<p style=\"margin:0 0 16px 0;\">It takes under a minute and you will get an instant confirmation.</p>' +\n    '<p style=\"margin:24px 0 0 0;color:#333333;\">Talk soon,<br><strong>' + clientName + '</strong></p>' +\n    caslFooter +\n    '</div>';\n}\n\nconst now = new Date().toISOString();\n\nconsole.log('BUILD BOOKING:', JSON.stringify({ lead_id: lead.id, lead_type: leadType || 'smb', client_name: clientName, cta: primaryCtaUrl }));\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    booking_route: leadType || 'smb',\n    booking_cta_url: primaryCtaUrl,\n    calendly_link: calendlyUrl,\n    client_name: clientName,\n    notification_email: notificationEmail,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now\n  }\n};",
+        "jsCode": "\n// ---- OWNER ARMING SWITCH -------------------------------------------------\n// A single switch in the database, flipped from the admin dashboard, that\n// every send path checks for itself. This is not the eligibility guard --\n// that decides WHO may be contacted. This decides WHETHER ANYONE may be.\n//\n// It exists because 'outbound is off' had been resting on n8n's active\n// flag, which cannot be read from the build machine and is not what the\n// repo says: 1 of 326 files carries active:true while three others were\n// observed running. A safety claim that cannot be read is not a control.\n//\n// Fails closed on every path: no row, wrong status, a malformed answer, or\n// no answer at all all mean NOT ARMED.\nfunction outboundArmed() {\n  try {\n    var items = $('Check Outbound Arming').all().map(function (i) { return i.json; });\n    if (!items.length) return false;\n    var v = items[0];\n    if (Array.isArray(v)) v = v[0];\n    // The RPC returns a bare boolean; PostgREST may wrap it.\n    if (typeof v === 'boolean') return v === true;\n    if (v && typeof v === 'object') {\n      var k = v.outbound_is_armed;\n      if (typeof k === 'boolean') return k === true;\n    }\n    return false;\n  } catch (e) { return false; }\n}\n// -------------------------------------------------------------------------\n\nif (!outboundArmed()) {\n  console.log('[booking] OUTBOUND DISARMED -- no booking email sent');\n  return [];\n}\n// CLX Booking v2. Build Booking Email\n// Reads lead from Parse Interest Response (still has the full lead + interest\n// fields) and client config from Get Client Config. Uses .first() accessors\n// because the Has Email IF node and Get Client Config HTTP replaced $input.\n//\n// WS6: routes by lead.lead_type. Three flows:\n//   carrier_prospect   -> insurer.crystallux.org/join  (carrier signup)\n//   advisor_candidate  -> insurance.crystallux.org/join (advisor signup)\n//   smb / null         -> existing Calendly consultation flow\n\nconst lead = $('Parse Interest Response').first().json;\nconst clientRow = ($('Get Client Config').first() || {}).json || {};\n\nconst clientName = clientRow.client_name || 'our team';\nconst calendlyUrl = clientRow.calendly_link || 'https://calendly.com/placeholder';\nconst notificationEmail = clientRow.notification_email || null;\nconst industry = (lead.industry || 'business').trim();\nconst prettyIndustry = industry.charAt(0).toUpperCase() + industry.slice(1);\nconst leadType = (lead.lead_type || '').toLowerCase().trim();\n\n// CASL (Canada's Anti-Spam Legislation) unsubscribe footer. shared\nconst caslFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\">' +\n  '<p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;line-height:1.5;\">' +\n  'You are receiving this message because you replied to an earlier outreach ' +\n  'from ' + clientName + '. To unsubscribe, reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>' +\n  'Sent by ' + clientName + ' via Crystallux | info@crystallux.org' +\n  '</p>';\n\nlet subject;\nlet body;\nlet primaryCtaUrl;\n\nif (leadType === 'carrier_prospect') {\n  // ─── Carrier intake flow ────────────────────────────────────────\n  primaryCtaUrl = 'https://crystallux.org/join-carrier';\n  subject = 'Crystallux Insurance Network. carrier partnership next steps';\n  body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n    '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n    '<p style=\"margin:0 0 16px 0;\">Appreciate the interest from ' + (lead.company || 'your team') + '. ' +\n    'The fastest next step is the Crystallux Insurance Network carrier intake. it captures the appointment details, contracted lines, and commission structure in one form so we can move straight to a substantive partnership conversation:</p>' +\n    '<p style=\"margin:0 0 16px 0;\"><a href=\"' + primaryCtaUrl + '\" style=\"display:inline-block;padding:10px 20px;background:#5B21B6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;\">Carrier intake → ' + primaryCtaUrl.replace('https://', '') + '</a></p>' +\n    '<p style=\"margin:0 0 16px 0;\">Or if you would rather just talk first: ' +\n    '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n    '<p style=\"margin:24px 0 0 0;color:#333333;\">Looking forward,<br><strong>' + clientName + '</strong></p>' +\n    caslFooter +\n    '</div>';\n} else if (leadType === 'advisor_candidate') {\n  // ─── Advisor recruitment flow ───────────────────────────────────\n  primaryCtaUrl = 'https://crystallux.org/join-advisor';\n  subject = 'Crystallux advisor network. next steps for ' + (lead.full_name || 'your application');\n  body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n    '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n    '<p style=\"margin:0 0 16px 0;\">Glad you replied. The Crystallux advisor onboarding form captures your RIBO status, E&O coverage, and product preferences in one pass. most applicants finish in under 10 minutes:</p>' +\n    '<p style=\"margin:0 0 16px 0;\"><a href=\"' + primaryCtaUrl + '\" style=\"display:inline-block;padding:10px 20px;background:#5B21B6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;\">Start advisor onboarding → ' + primaryCtaUrl.replace('https://', '') + '</a></p>' +\n    '<p style=\"margin:0 0 16px 0;\">Once you submit, I will personally review and reach out within 24 hours. Prefer a call first? ' +\n    '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n    '<p style=\"margin:24px 0 0 0;color:#333333;\">Talk soon,<br><strong>' + clientName + '</strong></p>' +\n    caslFooter +\n    '</div>';\n} else {\n  // ─── Default SMB / B2B Calendly consultation ────────────────────\n  primaryCtaUrl = calendlyUrl;\n  subject = \"Let's find a time. Free \" + prettyIndustry + ' Consultation';\n  body = '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;max-width:600px;\">' +\n    '<p style=\"margin:0 0 16px 0;\">Hi ' + (lead.full_name || 'there') + ',</p>' +\n    '<p style=\"margin:0 0 16px 0;\">Thank you for your interest in ' + clientName + '. ' +\n    'I would love to find a time that works for you.</p>' +\n    '<p style=\"margin:0 0 16px 0;\">You can grab a slot directly here: ' +\n    '<a href=\"' + calendlyUrl + '\" style=\"color:#2c6cf5;\">' + calendlyUrl + '</a></p>' +\n    '<p style=\"margin:0 0 16px 0;\">It takes under a minute and you will get an instant confirmation.</p>' +\n    '<p style=\"margin:24px 0 0 0;color:#333333;\">Talk soon,<br><strong>' + clientName + '</strong></p>' +\n    caslFooter +\n    '</div>';\n}\n\nconst now = new Date().toISOString();\n\nconsole.log('BUILD BOOKING:', JSON.stringify({ lead_id: lead.id, lead_type: leadType || 'smb', client_name: clientName, cta: primaryCtaUrl }));\n\nreturn {\n  json: {\n    ...lead,\n    booking_subject: subject,\n    booking_body: body,\n    booking_route: leadType || 'smb',\n    booking_cta_url: primaryCtaUrl,\n    calendly_link: calendlyUrl,\n    client_name: clientName,\n    notification_email: notificationEmail,\n    booking_email_sent: true,\n    booking_email_sent_at: now,\n    lead_status: 'Booking Sent',\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx09-0000-0000-0000-000000000010",
@@ -623,6 +623,43 @@
         1160,
         860
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/outbound_is_armed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"p_workflow_id\": \"clx-booking-v2\"}",
+        "options": {},
+        "notes": "The owner's arming switch. Disarmed, absent or unreachable all mean no send."
+      },
+      "id": "clx-arming-clx-booking-v2",
+      "name": "Check Outbound Arming",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     }
   ],
   "connections": {
@@ -630,12 +667,7 @@
       "main": [
         [
           {
-            "node": "Get Replied Leads",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Get 48h-No-Booking Leads",
+            "node": "Check Outbound Arming",
             "type": "main",
             "index": 0
           }
@@ -920,6 +952,22 @@
         [
           {
             "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Outbound Arming": {
+      "main": [
+        [
+          {
+            "node": "Get Replied Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 48h-No-Booking Leads",
             "type": "main",
             "index": 0
           }

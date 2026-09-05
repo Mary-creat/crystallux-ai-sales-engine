@@ -34,6 +34,11 @@ function runGate(ctx, policyRow) {
   const sandbox = {
     $: name => {
       if (name === 'Carry Action ID') return { item: { json: ctx } };
+      // The owner arming switch sits in front of the policy gate. These
+      // tests are about what the gate decides once sending is permitted at
+      // all, so they arm it explicitly. tests/agent/outbound-arming.test.js
+      // owns the question of what happens when it is off.
+      if (name === 'Check Outbound Arming') return { all: () => [{ json: true }] };
       throw new Error('unexpected $() for ' + name);
     },
     $input: { item: { json: policyRow === null ? [] : policyRow } },

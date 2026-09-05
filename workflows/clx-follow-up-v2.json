@@ -111,7 +111,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// GUARD 7: 24-hour cooldown + all safety checks\nconst lead = $input.item.json;\n\nif (!lead.email || lead.email.trim() === '') return [];\nif (lead.do_not_contact === true || lead.unsubscribed === true) return [];\nif ((Number(lead.total_emails_sent) || 0) >= 5) return [];\n\nconst hoursSinceLastEmail = lead.last_email_sent_at ?\n  (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return [];\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\n// GUARD 5: Unsubscribe footer\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\"><p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;\">To unsubscribe reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>Sent by Crystallux | info@crystallux.org</p>';\n\nconst followupBody = (lead.followup_message || '') + unsubFooter;\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    followup_body_with_footer: followupBody,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};",
+        "jsCode": "\n// ---- OWNER ARMING SWITCH -------------------------------------------------\n// A single switch in the database, flipped from the admin dashboard, that\n// every send path checks for itself. This is not the eligibility guard --\n// that decides WHO may be contacted. This decides WHETHER ANYONE may be.\n//\n// It exists because 'outbound is off' had been resting on n8n's active\n// flag, which cannot be read from the build machine and is not what the\n// repo says: 1 of 326 files carries active:true while three others were\n// observed running. A safety claim that cannot be read is not a control.\n//\n// Fails closed on every path: no row, wrong status, a malformed answer, or\n// no answer at all all mean NOT ARMED.\nfunction outboundArmed() {\n  try {\n    var items = $('Check Outbound Arming').all().map(function (i) { return i.json; });\n    if (!items.length) return false;\n    var v = items[0];\n    if (Array.isArray(v)) v = v[0];\n    // The RPC returns a bare boolean; PostgREST may wrap it.\n    if (typeof v === 'boolean') return v === true;\n    if (v && typeof v === 'object') {\n      var k = v.outbound_is_armed;\n      if (typeof k === 'boolean') return k === true;\n    }\n    return false;\n  } catch (e) { return false; }\n}\n// -------------------------------------------------------------------------\n\nif (!outboundArmed()) {\n  console.log('[follow-up] OUTBOUND DISARMED -- no follow-up sent');\n  return [];\n}\n// GUARD 7: 24-hour cooldown + all safety checks\nconst lead = $input.item.json;\n\nif (!lead.email || lead.email.trim() === '') return [];\nif (lead.do_not_contact === true || lead.unsubscribed === true) return [];\nif ((Number(lead.total_emails_sent) || 0) >= 5) return [];\n\nconst hoursSinceLastEmail = lead.last_email_sent_at ?\n  (Date.now() - new Date(lead.last_email_sent_at).getTime()) / 3600000 : 999;\nif (hoursSinceLastEmail < 24) return [];\n\nconst now = new Date();\nconst currentCount = typeof lead.followup_count === 'number' ? lead.followup_count : 0;\nconst newCount = currentCount + 1;\nconst followupSubject = 'Re: ' + (lead.email_subject || '');\n\nlet nextFollowupDate = null;\nlet newLeadStatus = 'Contacted';\n\nif (newCount === 1) {\n  nextFollowupDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount === 2) {\n  nextFollowupDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();\n} else if (newCount >= 3) {\n  nextFollowupDate = null;\n  newLeadStatus = 'Closed Lost';\n}\n\n// GUARD 5: Unsubscribe footer\nconst unsubFooter = '<br><br><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:24px 0;\"><p style=\"font-size:11px;color:#999999;font-family:Arial,sans-serif;\">To unsubscribe reply STOP or <a href=\"mailto:info@crystallux.org?subject=Unsubscribe\" style=\"color:#999999;\">click here</a>.<br>Sent by Crystallux | info@crystallux.org</p>';\n\nconst followupBody = (lead.followup_message || '') + unsubFooter;\n\nreturn {\n  json: {\n    ...lead,\n    new_followup_count: newCount,\n    followup_subject: followupSubject,\n    followup_body_with_footer: followupBody,\n    next_followup_scheduled_at: nextFollowupDate,\n    new_lead_status: newLeadStatus,\n    followup_sent_at: now.toISOString(),\n    total_emails_sent: (Number(lead.total_emails_sent) || 0) + 1,\n    last_email_sent_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n};",
         "mode": "runOnceForEachItem"
       },
       "id": "clx08-0000-0000-0000-000000000006",
@@ -287,6 +287,43 @@
         1160,
         500
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/rpc/outbound_is_armed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"p_workflow_id\": \"clx-follow-up-v2\"}",
+        "options": {},
+        "notes": "The owner's arming switch. Disarmed, absent or unreachable all mean no send."
+      },
+      "id": "clx-arming-clx-follow-up-v2",
+      "name": "Check Outbound Arming",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     }
   ],
   "connections": {
@@ -294,7 +331,7 @@
       "main": [
         [
           {
-            "node": "Get Due Follow-ups",
+            "node": "Check Outbound Arming",
             "type": "main",
             "index": 0
           }
@@ -437,6 +474,17 @@
         [
           {
             "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Outbound Arming": {
+      "main": [
+        [
+          {
+            "node": "Get Due Follow-ups",
             "type": "main",
             "index": 0
           }

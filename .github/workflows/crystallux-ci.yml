@@ -267,6 +267,13 @@ jobs:
       - name: Test promotion eligibility gate
         run: node tests/agent/promotion-gate.test.js
 
+      # The owner arming switch is the only control standing in front of all
+      # four prospect-facing send paths. A kill switch that fails open is
+      # worse than none, because it is trusted -- so every non-true answer,
+      # including a thrown node and a PostgREST error body, must refuse.
+      - name: Test outbound arming switch (fail-closed)
+        run: node tests/agent/outbound-arming.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.
