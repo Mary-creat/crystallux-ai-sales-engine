@@ -13,7 +13,10 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "webhookId": "clx-admin-chat-003"
     },
     {
@@ -25,7 +28,10 @@
       "name": "Extract Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        420,
+        300
+      ]
     },
     {
       "parameters": {
@@ -35,20 +41,38 @@
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"p_token\": \"{{ $json.token }}\" }",
-        "options": { "response": { "response": { "neverError": true } } }
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "ac3-0003",
       "alwaysOutputData": true,
       "name": "Validate Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -59,14 +83,29 @@
       "name": "Check Admin",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300]
+      "position": [
+        880,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -75,7 +114,10 @@
       "name": "IF Admin OK",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1100, 300]
+      "position": [
+        1100,
+        300
+      ]
     },
     {
       "parameters": {
@@ -85,19 +127,37 @@
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"p_user_id\": \"{{ $json.user_id }}\" }",
-        "options": { "response": { "response": { "neverError": true } } }
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "ac3-0006",
       "name": "Resolve Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
+      "position": [
+        1340,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
     },
     {
       "parameters": {
@@ -108,7 +168,10 @@
       "name": "Normalize Session",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1560, 220]
+      "position": [
+        1560,
+        220
+      ]
     },
     {
       "parameters": {
@@ -119,21 +182,40 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"session_id\": \"{{ $json.session_id }}\", \"role\": \"user\", \"content\": {{ JSON.stringify($('Extract Input').first().json.message) }} }",
-        "options": { "response": { "response": { "neverError": true } } }
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "ac3-0008",
       "name": "Save User Msg",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1780, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1780,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -144,15 +226,29 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/json" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "ac3-0009",
       "name": "Load History",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2000, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        2000,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -165,7 +261,10 @@
       "name": "Build Claude Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2220, 220]
+      "position": [
+        2220,
+        220
+      ]
     },
     {
       "parameters": {
@@ -176,32 +275,55 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.payload) }}",
-        "options": { "response": { "response": { "neverError": true } }, "timeout": 45000 }
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 45000
+        }
       },
       "id": "ac3-0011",
       "name": "Call Claude #1",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2480, 220],
-      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+      "position": [
+        2480,
+        220
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Anthropic API"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Execute tool-use loop. Up to 3 iterations.\n// Write tools require user confirmation in the prior user message.\n// If Claude tries to call a write tool without 'yes/confirm/go ahead' in\n// the most recent user message, we refuse server-side and tell Claude\n// to ask for confirmation. This is belt-and-suspenders: the system\n// prompt also instructs Claude to ask first, but if Claude skips that,\n// the guard catches it.\nconst PUBLIC_BASE = 'https://automation.crystallux.org/webhook';\nconst MCP_KEY = $env.MCP_API_KEY || 'crystallux-mcp-internal-key';\nconst MAX_ITERATIONS = 3;\n\nconst WRITE_TOOLS = ['research_lead', 'score_lead', 'update_lead_status', 'scan_city', 'generate_video'];\nconst CONFIRM_RE = /\\b(yes|yep|yeah|sure|go ahead|do it|confirm|please|proceed|okay|ok)\\b/i;\n\nlet response = $input.first().json;\nlet payload  = $('Build Claude Request').first().json.payload;\n\nconst toolCallsLog = [];\nlet iterations = 0;\n\nasync function callMcp(toolName, toolInput) {\n  try {\n    const r = await this.helpers.httpRequest({\n      method: 'POST',\n      url: PUBLIC_BASE + '/crystallux-mcp',\n      headers: {\n        'X-MCP-API-Key': MCP_KEY,\n        'Content-Type': 'application/json'\n      },\n      body: { tool_name: toolName, tool_input: toolInput || {} },\n      json: true,\n      timeout: 30000\n    });\n    return r;\n  } catch (e) {\n    return { ok: false, error: e.message || String(e) };\n  }\n}\n\nasync function callClaude(p) {\n  const r = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.anthropic.com/v1/messages',\n    headers: {\n      'anthropic-version': '2023-06-01',\n      'Content-Type': 'application/json',\n      'x-api-key': $env.ANTHROPIC_API_KEY || ''\n    },\n    body: p,\n    json: true,\n    timeout: 45000\n  });\n  return r;\n}\n\nfunction userConfirmedRecently() {\n  // Look at the last user-role message in the payload. If it contains an\n  // affirmative token, treat it as confirmation for the immediately\n  // following tool call.\n  for (let i = payload.messages.length - 1; i >= 0; i--) {\n    const m = payload.messages[i];\n    if (m && m.role === 'user' && typeof m.content === 'string') {\n      return CONFIRM_RE.test(m.content);\n    }\n    if (m && m.role === 'assistant') break; // stop at the previous assistant turn\n  }\n  return false;\n}\n\nconst boundCallMcp = callMcp.bind(this);\nconst boundCallClaude = callClaude.bind(this);\n\nwhile (response && response.stop_reason === 'tool_use' && iterations < MAX_ITERATIONS) {\n  iterations++;\n  const toolUses = (response.content || []).filter(function (b) { return b && b.type === 'tool_use'; });\n  if (!toolUses.length) break;\n\n  const confirmedThisTurn = userConfirmedRecently();\n\n  const toolResults = [];\n  for (const tu of toolUses) {\n    const isWrite = WRITE_TOOLS.indexOf(tu.name) !== -1;\n    if (isWrite && !confirmedThisTurn) {\n      // Refuse to execute. Feed an error back to Claude so it asks the user.\n      toolCallsLog.push({ name: tu.name, input: tu.input, refused: true, reason: 'confirmation_required' });\n      toolResults.push({\n        type: 'tool_result',\n        tool_use_id: tu.id,\n        is_error: true,\n        content: JSON.stringify({ ok: false, error: 'CONFIRMATION_REQUIRED', message: 'This is a write tool. Describe the action in one sentence and ask Mary to reply yes to proceed. Do not retry the tool until she confirms.' })\n      });\n      continue;\n    }\n    const result = await boundCallMcp(tu.name, tu.input);\n    toolCallsLog.push({ name: tu.name, input: tu.input, result: result });\n    toolResults.push({\n      type: 'tool_result',\n      tool_use_id: tu.id,\n      content: JSON.stringify(result).slice(0, 6000)\n    });\n  }\n\n  payload.messages.push({ role: 'assistant', content: response.content });\n  payload.messages.push({ role: 'user', content: toolResults });\n\n  if ($env.ANTHROPIC_API_KEY) {\n    response = await boundCallClaude(payload);\n  } else {\n    break;\n  }\n}\n\nconst textBlock = (response.content || []).find(function (b) { return b && b.type === 'text'; });\nconst finalText = textBlock ? textBlock.text : '(Claude returned no text. Tool loop may have stopped early.)';\n\nreturn { json: {\n  response: finalText,\n  model: response.model || null,\n  stop_reason: response.stop_reason || null,\n  usage: response.usage || null,\n  tool_calls: toolCallsLog,\n  iterations: iterations\n} };",
+        "jsCode": "// Execute tool-use loop. Up to 3 iterations.\n// Write tools require user confirmation in the prior user message.\n// If Claude tries to call a write tool without 'yes/confirm/go ahead' in\n// the most recent user message, we refuse server-side and tell Claude\n// to ask for confirmation. This is belt-and-suspenders: the system\n// prompt also instructs Claude to ask first, but if Claude skips that,\n// the guard catches it.\nconst PUBLIC_BASE = 'https://automation.crystallux.org/webhook';\n// ONE secret, read from the variable the gateway actually checks.\n//\n// This used to read $env.MCP_API_KEY while clx-mcp-tool-gateway checks\n// $env.MCP_WEBHOOK_SECRET -- two names for one shared password, which\n// means setting it twice and keeping them in step. A mismatch produces a\n// 401 that looks like a broken feature rather than a misconfiguration.\n//\n// The old fallback was worse than the mismatch: with the variable unset it\n// sent the literal string 'crystallux-mcp-internal-key', which is written\n// in this repository. Anyone who could read the repo could call the tool\n// gateway. A default secret is not a default, it is a published one.\n//\n// Unset now means unset, and the call is not attempted.\nconst MCP_KEY = $env.MCP_WEBHOOK_SECRET || '';\nconst MAX_ITERATIONS = 3;\n\nconst WRITE_TOOLS = ['research_lead', 'score_lead', 'update_lead_status', 'scan_city', 'generate_video'];\nconst CONFIRM_RE = /\\b(yes|yep|yeah|sure|go ahead|do it|confirm|please|proceed|okay|ok)\\b/i;\n\nlet response = $input.first().json;\nlet payload  = $('Build Claude Request').first().json.payload;\n\nconst toolCallsLog = [];\nlet iterations = 0;\n\nasync function callMcp(toolName, toolInput) {\n  if (!MCP_KEY) {\n    return { error: 'MCP_WEBHOOK_SECRET is not set on this server, so platform tools are unavailable. Nothing was changed.' };\n  }\n  try {\n    const r = await this.helpers.httpRequest({\n      method: 'POST',\n      url: PUBLIC_BASE + '/crystallux-mcp',\n      headers: {\n        'X-MCP-API-Key': MCP_KEY,\n        'Content-Type': 'application/json'\n      },\n      body: { tool_name: toolName, tool_input: toolInput || {} },\n      json: true,\n      timeout: 30000\n    });\n    return r;\n  } catch (e) {\n    return { ok: false, error: e.message || String(e) };\n  }\n}\n\nasync function callClaude(p) {\n  const r = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://api.anthropic.com/v1/messages',\n    headers: {\n      'anthropic-version': '2023-06-01',\n      'Content-Type': 'application/json',\n      'x-api-key': $env.ANTHROPIC_API_KEY || ''\n    },\n    body: p,\n    json: true,\n    timeout: 45000\n  });\n  return r;\n}\n\nfunction userConfirmedRecently() {\n  // Look at the last user-role message in the payload. If it contains an\n  // affirmative token, treat it as confirmation for the immediately\n  // following tool call.\n  for (let i = payload.messages.length - 1; i >= 0; i--) {\n    const m = payload.messages[i];\n    if (m && m.role === 'user' && typeof m.content === 'string') {\n      return CONFIRM_RE.test(m.content);\n    }\n    if (m && m.role === 'assistant') break; // stop at the previous assistant turn\n  }\n  return false;\n}\n\nconst boundCallMcp = callMcp.bind(this);\nconst boundCallClaude = callClaude.bind(this);\n\nwhile (response && response.stop_reason === 'tool_use' && iterations < MAX_ITERATIONS) {\n  iterations++;\n  const toolUses = (response.content || []).filter(function (b) { return b && b.type === 'tool_use'; });\n  if (!toolUses.length) break;\n\n  const confirmedThisTurn = userConfirmedRecently();\n\n  const toolResults = [];\n  for (const tu of toolUses) {\n    const isWrite = WRITE_TOOLS.indexOf(tu.name) !== -1;\n    if (isWrite && !confirmedThisTurn) {\n      // Refuse to execute. Feed an error back to Claude so it asks the user.\n      toolCallsLog.push({ name: tu.name, input: tu.input, refused: true, reason: 'confirmation_required' });\n      toolResults.push({\n        type: 'tool_result',\n        tool_use_id: tu.id,\n        is_error: true,\n        content: JSON.stringify({ ok: false, error: 'CONFIRMATION_REQUIRED', message: 'This is a write tool. Describe the action in one sentence and ask Mary to reply yes to proceed. Do not retry the tool until she confirms.' })\n      });\n      continue;\n    }\n    const result = await boundCallMcp(tu.name, tu.input);\n    toolCallsLog.push({ name: tu.name, input: tu.input, result: result });\n    toolResults.push({\n      type: 'tool_result',\n      tool_use_id: tu.id,\n      content: JSON.stringify(result).slice(0, 6000)\n    });\n  }\n\n  payload.messages.push({ role: 'assistant', content: response.content });\n  payload.messages.push({ role: 'user', content: toolResults });\n\n  if ($env.ANTHROPIC_API_KEY) {\n    response = await boundCallClaude(payload);\n  } else {\n    break;\n  }\n}\n\nconst textBlock = (response.content || []).find(function (b) { return b && b.type === 'text'; });\nconst finalText = textBlock ? textBlock.text : '(Claude returned no text. Tool loop may have stopped early.)';\n\nreturn { json: {\n  response: finalText,\n  model: response.model || null,\n  stop_reason: response.stop_reason || null,\n  usage: response.usage || null,\n  tool_calls: toolCallsLog,\n  iterations: iterations\n} };",
         "mode": "runOnceForEachItem"
       },
       "id": "ac3-0012",
       "name": "Tool Loop + Final Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2740, 220]
+      "position": [
+        2740,
+        220
+      ]
     },
     {
       "parameters": {
@@ -212,21 +334,40 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"session_id\": \"{{ $('Normalize Session').first().json.session_id }}\", \"role\": \"assistant\", \"content\": {{ JSON.stringify($json.response) }}, \"tool_calls\": {{ JSON.stringify($json.tool_calls || []) }}, \"model\": {{ JSON.stringify($json.model) }}, \"stop_reason\": {{ JSON.stringify($json.stop_reason) }}, \"usage\": {{ JSON.stringify($json.usage || {}) }} }",
-        "options": { "response": { "response": { "neverError": true } } }
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "ac3-0013",
       "name": "Save Assistant Msg",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3000, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        3000,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -239,21 +380,40 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={ \"last_message_at\": \"{{ new Date().toISOString() }}\" }",
-        "options": { "response": { "response": { "neverError": true } } }
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "ac3-0014",
       "name": "Bump Session",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3260, 220],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        3260,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -266,7 +426,10 @@
       "name": "Shape Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3500, 220]
+      "position": [
+        3500,
+        220
+      ]
     },
     {
       "parameters": {
@@ -274,7 +437,12 @@
         "responseBody": "={{ $json }}",
         "options": {
           "responseHeaders": {
-            "entries": [{ "name": "Cache-Control", "value": "no-store" }]
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
           }
         }
       },
@@ -282,44 +450,206 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [3740, 220]
+      "position": [
+        3740,
+        220
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized', status: $json.status || 401 } }}",
-        "options": { "responseCode": "={{ $json.status || 401 }}" }
+        "options": {
+          "responseCode": "={{ $json.status || 401 }}"
+        }
       },
       "id": "ac3-0017",
       "name": "Respond Unauthorized",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1340, 500]
+      "position": [
+        1340,
+        500
+      ]
     }
   ],
   "connections": {
-    "Webhook":          { "main": [[{ "node": "Extract Input",    "type": "main", "index": 0 }]] },
-    "Extract Input":    { "main": [[{ "node": "Validate Session", "type": "main", "index": 0 }]] },
-    "Validate Session": { "main": [[{ "node": "Check Admin",      "type": "main", "index": 0 }]] },
-    "Check Admin":      { "main": [[{ "node": "IF Admin OK",      "type": "main", "index": 0 }]] },
-    "IF Admin OK": {
+    "Webhook": {
       "main": [
-        [ { "node": "Resolve Session",      "type": "main", "index": 0 } ],
-        [ { "node": "Respond Unauthorized", "type": "main", "index": 0 } ]
+        [
+          {
+            "node": "Extract Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Resolve Session":          { "main": [[{ "node": "Normalize Session",         "type": "main", "index": 0 }]] },
-    "Normalize Session":        { "main": [[{ "node": "Save User Msg",             "type": "main", "index": 0 }]] },
-    "Save User Msg":            { "main": [[{ "node": "Load History",              "type": "main", "index": 0 }]] },
-    "Load History":             { "main": [[{ "node": "Build Claude Request",      "type": "main", "index": 0 }]] },
-    "Build Claude Request":     { "main": [[{ "node": "Call Claude #1",            "type": "main", "index": 0 }]] },
-    "Call Claude #1":           { "main": [[{ "node": "Tool Loop + Final Answer", "type": "main", "index": 0 }]] },
-    "Tool Loop + Final Answer": { "main": [[{ "node": "Save Assistant Msg",       "type": "main", "index": 0 }]] },
-    "Save Assistant Msg":       { "main": [[{ "node": "Bump Session",              "type": "main", "index": 0 }]] },
-    "Bump Session":             { "main": [[{ "node": "Shape Response",            "type": "main", "index": 0 }]] },
-    "Shape Response":           { "main": [[{ "node": "Respond",                   "type": "main", "index": 0 }]] }
+    "Extract Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Session": {
+      "main": [
+        [
+          {
+            "node": "Check Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin": {
+      "main": [
+        [
+          {
+            "node": "IF Admin OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin OK": {
+      "main": [
+        [
+          {
+            "node": "Resolve Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Session": {
+      "main": [
+        [
+          {
+            "node": "Normalize Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Session": {
+      "main": [
+        [
+          {
+            "node": "Save User Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save User Msg": {
+      "main": [
+        [
+          {
+            "node": "Load History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load History": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Request": {
+      "main": [
+        [
+          {
+            "node": "Call Claude #1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude #1": {
+      "main": [
+        [
+          {
+            "node": "Tool Loop + Final Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool Loop + Final Answer": {
+      "main": [
+        [
+          {
+            "node": "Save Assistant Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Assistant Msg": {
+      "main": [
+        [
+          {
+            "node": "Bump Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bump Session": {
+      "main": [
+        [
+          {
+            "node": "Shape Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false,
   "version": 1
 }
