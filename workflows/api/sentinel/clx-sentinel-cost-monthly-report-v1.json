@@ -36,7 +36,7 @@
         "headerParameters": { "parameters": [
           { "name": "Accept", "value": "application/json" },
           { "name": "Content-Type", "value": "application/json" },
-          { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_SERVER_TOKEN }}" }
+          { "name": "X-Postmark-Server-Token", "value": "={{ ($env.POSTMARK_API_TOKEN || $env.POSTMARK_SERVER_TOKEN) }}" }
         ] },
         "sendBody": true, "specifyBody": "json",
         "jsonBody": "={ \"From\": \"sentinel@crystallux.org\", \"To\": \"info@crystallux.org\", \"Subject\": \"Sentinel monthly cost report — {{ $json.period_label }} — \\$\" + ({{ $json.total_cents }}/100).toFixed(2), \"TextBody\": \"{{ $json.email_body }}\" }",

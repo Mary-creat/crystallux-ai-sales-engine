@@ -53,7 +53,7 @@
         "headerParameters": { "parameters": [
           { "name": "Accept", "value": "application/json" },
           { "name": "Content-Type", "value": "application/json" },
-          { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_SERVER_TOKEN }}" }
+          { "name": "X-Postmark-Server-Token", "value": "={{ ($env.POSTMARK_API_TOKEN || $env.POSTMARK_SERVER_TOKEN) }}" }
         ] },
         "sendBody": true, "specifyBody": "json",
         "jsonBody": "={ \"From\": \"sentinel@crystallux.org\", \"To\": \"info@crystallux.org\", \"Subject\": \"[Sentinel {{ ($('Extract').first().json.body.severity || 'info').toUpperCase() }}] {{ $('Extract').first().json.body.title }}\", \"TextBody\": \"Module: {{ $('Extract').first().json.body.module_name }}\\nSeverity: {{ $('Extract').first().json.body.severity }}\\nType: {{ $('Extract').first().json.body.alert_type }}\\n\\n{{ $('Extract').first().json.body.message || '' }}\\n\\nDetails:\\n{{ JSON.stringify($('Extract').first().json.body.details || {}) }}\\n\\nAcknowledge at: https://admin.crystallux.org/pages/sentinel.html\" }",

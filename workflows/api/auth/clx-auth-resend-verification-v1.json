@@ -163,7 +163,7 @@
           "parameters": [
             { "name": "Accept", "value": "application/json" },
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "X-Postmark-Server-Token", "value": "={{ $env.POSTMARK_SERVER_TOKEN }}" }
+            { "name": "X-Postmark-Server-Token", "value": "={{ ($env.POSTMARK_API_TOKEN || $env.POSTMARK_SERVER_TOKEN) }}" }
           ]
         },
         "sendBody": true,
