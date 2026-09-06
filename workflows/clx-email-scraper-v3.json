@@ -28,12 +28,13 @@
             {
               "id": "clx-es-cfg-dryrun",
               "name": "dry_run",
-              "value": true,
+              "value": "={{ $env.EMAIL_SCRAPER_DRY_RUN === 'true' }}",
               "type": "boolean"
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "notes": "dry_run was hardcoded true, so every write path was gated shut and the scraper found emails and discarded them for four months. It now reads EMAIL_SCRAPER_DRY_RUN and defaults to WRITING, because finding an email and dropping it is not a safe default -- it is a silent one. Set EMAIL_SCRAPER_DRY_RUN=true on the server to dry-run again."
       },
       "id": "clx-es-0030",
       "name": "Config",
