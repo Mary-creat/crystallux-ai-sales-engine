@@ -90,7 +90,7 @@
         "headerParameters": { "parameters": [
           { "name": "Accept", "value": "application/json" },
           { "name": "Content-Type", "value": "application/json" },
-          { "name": "X-Postmark-Server-Token", "value": "={{ $vars.POSTMARK_SERVER_TOKEN }}" }
+          { "name": "X-Postmark-Server-Token", "value": "={{ ($env.POSTMARK_API_TOKEN || $vars.POSTMARK_SERVER_TOKEN) }}" }
         ] },
         "sendBody": true,
         "specifyBody": "json",
