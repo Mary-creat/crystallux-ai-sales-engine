@@ -206,7 +206,8 @@
             }
           },
           "timeout": 10000
-        }
+        },
+        "notes": "alwaysOutputData is load-bearing here, not decoration. Without it a site that returns nothing yields ZERO items, the chain stops, and the batch loop never returns to Split In Batches -- so the hourly run enriches one lead instead of fifty. The failure is invisible: the execution is green."
       },
       "id": "clx-es-0008",
       "name": "Fetch Homepage",
@@ -217,7 +218,8 @@
         300
       ],
       "continueOnFail": true,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -304,7 +306,8 @@
         420
       ],
       "continueOnFail": true,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -471,7 +474,8 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -554,7 +558,8 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -637,7 +642,8 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "parameters": {
