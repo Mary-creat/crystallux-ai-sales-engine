@@ -274,6 +274,14 @@ jobs:
       - name: Test outbound arming switch (fail-closed)
         run: node tests/agent/outbound-arming.test.js
 
+      # A person who asks to be left alone must be left alone. Nothing in
+      # the estate ever set a suppression flag, while both outbound
+      # templates printed "reply STOP to unsubscribe" -- so a STOP reply
+      # became lead_status 'Replied' and stayed eligible for the booking
+      # sweep. Under CASL that is not a bug. These tests are the guarantee.
+      - name: Test reply classifier (STOP must suppress)
+        run: node tests/agent/reply-classifier.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.

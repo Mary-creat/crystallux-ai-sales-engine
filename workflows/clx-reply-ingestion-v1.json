@@ -224,8 +224,9 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.lead_id, p_fields: { reply_detected: true, reply_text: $json.snippet, reply_received_at: new Date().toISOString(), lead_status: 'Replied' } }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ p_lead_id: $json.lead_id, p_fields: Object.assign({ reply_detected: true, reply_text: $json.snippet, lead_status: $json.new_status }, $json.suppress ? { do_not_contact: true } : {}) }) }}",
+        "options": {},
+        "notes": "Writes the classification's status and, on an unsubscribe, do_not_contact -- the flag all three send paths filter on. Before this, a reply saying STOP became lead_status 'Replied' and stayed contactable."
       },
       "id": "clx-ri-v1-0010",
       "name": "Mark Lead Replied",
@@ -263,6 +264,20 @@
         920,
         500
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify an inbound reply, and honour a stop request.\n//\n// WHY THIS IS DETERMINISTIC AND NOT A MODEL CALL\n//\n// Nothing in this estate has ever set a suppression flag. Both outbound\n// templates print \"reply STOP to unsubscribe\"; no code has ever read a\n// reply looking for it. A reply saying STOP was written as lead_status\n// 'Replied', which made the lead ELIGIBLE for the booking sweep, which\n// could then email it a Calendly link. We promised a way out and built\n// the opposite.\n//\n// Honouring that promise is a legal obligation under CASL, not a feature.\n// It therefore cannot depend on a model being reachable, in credit, or\n// returning parseable JSON. Rules run every time, cost nothing, and are\n// testable. Nuance can be layered on later; suppression cannot wait for it.\n//\n// PRECEDENCE MATTERS. A reply reading \"not interested, please remove me\"\n// is an unsubscribe first and a rejection second. Categories are checked\n// most-binding first and the first match wins.\n//\n// What we classify is Gmail's `snippet` -- roughly the first 200\n// characters, because Get Message Metadata does not fetch the body. That\n// is where people put \"STOP\" and \"wrong person\", so it serves this job,\n// and UNCLEAR is returned honestly when it does not.\n\nconst item = $input.item.json;\nconst text = String(item.snippet || '') + ' ' + String(item.subject || '');\nconst t = ' ' + text.toLowerCase().replace(/[^a-z0-9@'\\s]/g, ' ').replace(/\\s+/g, ' ') + ' ';\n\nfunction any(patterns) {\n  for (var i = 0; i < patterns.length; i++) {\n    if (patterns[i].test(t)) return true;\n  }\n  return false;\n}\n\n// Ordered. First match wins.\nconst RULES = [\n  ['UNSUBSCRIBE', [\n    /\\bstop\\b/, /\\bunsubscribe\\b/, /\\bopt ?out\\b/, /\\bremove me\\b/,\n    /\\btake me off\\b/, /\\bdo not (e ?mail|contact|write)\\b/,\n    /\\bdon'?t (e ?mail|contact) me\\b/, /\\bno longer wish\\b/,\n    /\\bdelete my (data|details|information)\\b/]],\n\n  ['WRONG_PERSON', [\n    /\\bwrong person\\b/, /\\bnot the right person\\b/, /\\bno longer (work|with)\\b/,\n    /\\bi (have )?left\\b/, /\\bnot my (area|department|role)\\b/,\n    /\\bspeak to\\b/, /\\bforward(ed|ing)? (this )?to\\b/, /\\btry (contacting|reaching)\\b/]],\n\n  ['ALREADY_HAS_PROVIDER', [\n    /\\balready (have|use|using|working with|got)\\b/, /\\bwe have a (provider|supplier|partner|vendor|agency)\\b/,\n    /\\bunder contract\\b/, /\\bhappy with (our|my)\\b/, /\\bsorted\\b/]],\n\n  ['BOOK_MEETING', [\n    /\\bbook (a )?(call|meeting|time)\\b/, /\\bschedule (a )?(call|meeting)\\b/,\n    /\\bset up a (call|meeting|time)\\b/, /\\bcalendar\\b/, /\\bwhat times?\\b/,\n    /\\bavailable (on|at|this|next)\\b/]],\n\n  ['PRICING', [\n    /\\bprice\\b/, /\\bpricing\\b/, /\\bhow much\\b/, /\\bcost\\b/, /\\bquote\\b/,\n    /\\brates?\\b/, /\\bfees?\\b/, /\\bbudget\\b/]],\n\n  ['SEND_INFORMATION', [\n    /\\bsend (me )?(more )?(info|information|details|a deck|brochure)\\b/,\n    /\\bmore (info|information|details)\\b/, /\\bwhat do you (do|offer)\\b/,\n    /\\bliterature\\b/, /\\bcase stud/]],\n\n  ['CALL_LATER', [\n    /\\bnot (right )?now\\b/, /\\blater\\b/, /\\bnext (month|quarter|year|week)\\b/,\n    /\\bcheck back\\b/, /\\bcircle back\\b/, /\\breach out in\\b/, /\\bfollow up in\\b/,\n    /\\bcurrently (busy|tied up)\\b/, /\\bbad time\\b/]],\n\n  ['NOT_INTERESTED', [\n    /\\bnot interested\\b/, /\\bno thanks?\\b/, /\\bno thank you\\b/,\n    /\\bnot for us\\b/, /\\bnot a (fit|good fit)\\b/, /\\bpass\\b/,\n    /\\bwe'?re (all )?good\\b/, /\\bdecline\\b/]],\n\n  ['QUESTION', [\n    /\\?/, /\\bhow (do|does|would|can)\\b/, /\\bwhat (is|are|would)\\b/,\n    /\\bcan you (explain|clarify|tell)\\b/, /\\bwhich\\b/]],\n\n  ['INTERESTED', [\n    /\\binterested\\b/, /\\bsounds good\\b/, /\\btell me more\\b/, /\\byes\\b/,\n    /\\bkeen\\b/, /\\blet'?s (talk|chat|discuss)\\b/, /\\bhappy to\\b/]]\n];\n\nlet category = 'UNCLEAR';\nfor (var i = 0; i < RULES.length; i++) {\n  if (any(RULES[i][1])) { category = RULES[i][0]; break; }\n}\n\n// What each category means for the funnel. Only two suppress, and both\n// suppress via do_not_contact -- the flag every send path actually filters\n// on (Outreach Sender, Follow Up and Booking all carry\n// do_not_contact=eq.false). `unsubscribed` is the semantically nicer\n// column but update_lead's allowlist does not include it, so relying on it\n// would mean writing a flag nothing enforces.\nconst SUPPRESS  = { UNSUBSCRIBE: true };\nconst STATUS = {\n  UNSUBSCRIBE:          'Do Not Contact',\n  NOT_INTERESTED:       'Not Interested',\n  ALREADY_HAS_PROVIDER: 'Not Interested'\n};\n// Everything else stays 'Replied': a human decides, and the lead stops\n// being chased either way because follow-up filters on reply_detected.\n\nconst suppress = SUPPRESS[category] === true;\n\nconsole.log('[reply] ' + (item.from_email || '?') + ' -> ' + category +\n            (suppress ? ' (SUPPRESSED)' : ''));\n\nreturn { json: Object.assign({}, item, {\n  reply_category: category,\n  suppress: suppress,\n  new_status: STATUS[category] || 'Replied',\n  // Recorded so a misclassification can be audited against what arrived,\n  // rather than argued about from memory.\n  classified_on: String(item.snippet || '').slice(0, 300)\n}) };\n"
+      },
+      "id": "clx-reply-classify",
+      "name": "Classify Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        300
+      ],
+      "alwaysOutputData": true
     }
   ],
   "connections": {
@@ -354,7 +369,7 @@
       "main": [
         [
           {
-            "node": "IF Matched",
+            "node": "Classify Reply",
             "type": "main",
             "index": 0
           }
@@ -395,6 +410,17 @@
         [
           {
             "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reply": {
+      "main": [
+        [
+          {
+            "node": "IF Matched",
             "type": "main",
             "index": 0
           }
