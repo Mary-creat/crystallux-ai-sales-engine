@@ -158,7 +158,12 @@ COMMENT ON FUNCTION set_outbound_armed(boolean, text) IS
 -- 4. Read model for the dashboard.
 -- ---------------------------------------------------------------------------
 
-CREATE OR REPLACE VIEW v_outbound_arming AS
+-- security_invoker: the view runs as the CALLER, not as its owner. Without
+-- it Postgres runs a view with the owner's rights, which quietly escalates
+-- privilege for anyone able to select from it. Supabase's advisor flags
+-- that as CRITICAL and is right to. A safety control must not bend the
+-- permission model.
+CREATE OR REPLACE VIEW v_outbound_arming WITH (security_invoker = on) AS
   SELECT workflow_id,
          workflow_name,
          current_status,
