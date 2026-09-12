@@ -24,11 +24,12 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Scored&lead_score=gte.1&select=id,full_name,company,industry,job_title,city,lead_score,priority_level,research_summary,likely_business_need,research_angle,product_type&limit=20",
+        "url": "https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/leads?lead_status=eq.Scored&lead_score=gte.1&lead_pool=eq.tenant&select=id,vertical,lead_pool,client_id,full_name,company,industry,job_title,city,lead_score,priority_level,research_summary,likely_business_need,research_angle,product_type&limit=20",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": false,
-        "options": {}
+        "options": {},
+        "notes": "Selects vertical so the signal definition can be looked up, and scopes to the tenant pool."
       },
       "id": "clx04-0000-0000-0000-000000000002",
       "name": "Get Scored Leads",
@@ -130,8 +131,9 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1024, messages: [{ role: 'user', content: 'You are a business intelligence analyst for the Crystallux Sales Engine.\\n\\nBased on what you know about this company and the research provided, identify the strongest business signal and recommend the best outreach strategy.\\n\\nCompany: ' + $('Split In Batches').first().json.company + '\\nIndustry: ' + $('Split In Batches').first().json.industry + '\\nCity: ' + $('Split In Batches').first().json.city + '\\nJob Title: ' + $('Split In Batches').first().json.job_title + '\\nProduct Type: ' + ($('Split In Batches').first().json.product_type || '') + '\\nLead Score: ' + $('Split In Batches').first().json.lead_score + '\\nResearch Summary: ' + ($('Split In Batches').first().json.research_summary || '') + '\\nLikely Business Need: ' + ($('Split In Batches').first().json.likely_business_need || '') + '\\nResearch Angle: ' + ($('Split In Batches').first().json.research_angle || '') + '\\n\\nAnalyze this company and determine:\\n1. What business signal is most relevant right now\\n2. What growth stage they are in\\n3. What campaign type would resonate most\\n4. How confident you are in the signal\\n5. When to reach out\\n\\nReturn ONLY raw JSON no explanation no markdown no code blocks:\\n{\\n  \"detected_signal\": \"brief description of the business signal\",\\n  \"growth_stage\": \"Startup\" or \"Growing\" or \"Established\" or \"Declining\" or \"Pivoting\",\\n  \"recommended_campaign_type\": \"automation_campaign\" or \"lead_generation_campaign\" or \"reputation_campaign\" or \"expansion_campaign\" or \"retention_campaign\" or \"general_outreach\",\\n  \"signal_confidence\": \"High\" or \"Medium\" or \"Low\",\\n  \"outreach_timing\": \"Immediate\" or \"This Week\" or \"This Month\"\\n}' }] }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify($json.signal_payload) }}",
+        "options": {},
+        "notes": "Payload built in Build Signal Prompt from the vertical config."
       },
       "id": "clx04-0000-0000-0000-000000000008",
       "name": "Claude Analyze Signal",
@@ -235,6 +237,52 @@
         1160,
         500
       ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/niche_overlays?niche_name=eq.' + ($('Split In Batches').item.json.vertical || 'insurance_broker') + '&select=niche_name,behavior_config,pain_signals&limit=1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": false,
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "notes": "behavior_config holds signal_types and intent_rules, seeded for all 8 verticals and read by nothing until now."
+      },
+      "id": "clx-sig-def",
+      "name": "Fetch Signal Definition",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the signal prompt from the vertical's OWN definition of a signal.\n//\n// The prompt used to ask, of every lead in every industry, \"what business\n// signal is most relevant right now\" -- with no statement of what counts as\n// a signal, and no market data to check against. market_signals_processed\n// has never held a row. So the model was asked to find something it had no\n// way to find, and 60 of 79 leads ended up at lead_status 'Signal Detected'\n// with detected_signal NULL.\n//\n// niche_overlays.behavior_config has held the answer all along: signal_types\n// and intent_rules, seeded for all eight verticals, read by no workflow.\n// Moving companies signal through fleet_expansion and hiring_movers;\n// insurance brokers through advisor_recruitment and new_carrier_appointment.\n// Those are different questions and were being asked as one.\n//\n// Prompt built in a Code node rather than an inline expression: it is\n// multi-line, and a single unescaped newline inside an expression silently\n// breaks the whole request. That exact fault cost this project a day on\n// the research workflow.\n\nconst lead = $('Split In Batches').first().json;\n\nlet cfg = {};\ntry {\n  const rows = $('Fetch Signal Definition').all().map(function (i) { return i.json; });\n  let row = rows.length ? rows[0] : null;\n  if (Array.isArray(row)) row = row[0];\n  if (row && !row.code && !row.message) cfg = row;\n} catch (e) { cfg = {}; }\n\nconst bc = cfg.behavior_config || {};\nconst signalTypes = Array.isArray(bc.signal_types) ? bc.signal_types : [];\nconst intentRules = bc.intent_rules || {};\nconst painSignals = Array.isArray(cfg.pain_signals) ? cfg.pain_signals : [];\n\nconst val = function (v) {\n  const s = (v === null || v === undefined) ? '' : String(v).trim();\n  return s || 'not provided';\n};\n\nconst lines = [\n  'You are a B2B sales intelligence analyst for the Crystallux Sales Engine.',\n  '',\n  'Lead:',\n  'Company: ' + val(lead.company),\n  'Industry: ' + val(lead.industry),\n  'City: ' + val(lead.city),\n  'Job Title: ' + val(lead.job_title),\n  'Lead Score: ' + val(lead.lead_score),\n  'Research: ' + val(lead.research_summary),\n  'Likely need: ' + val(lead.likely_business_need)\n];\n\nif (signalTypes.length) {\n  lines.push('', 'For this vertical (' + val(cfg.niche_name) + '), a buying signal',\n             'is ONE OF these and nothing else:', '  ' + signalTypes.join(', '));\n}\nif (painSignals.length) {\n  lines.push('', 'Known pain signals: ' + painSignals.join(', '));\n}\nif (intentRules.hot || intentRules.warm || intentRules.cold) {\n  lines.push('', 'Intent rules:',\n             '  hot:  ' + val(intentRules.hot),\n             '  warm: ' + val(intentRules.warm),\n             '  cold: ' + val(intentRules.cold));\n}\n\nlines.push('',\n  'Return ONLY a raw JSON object, no markdown, with these fields:',\n  '- detected_signal: the signal you can EVIDENCE from the research above,',\n  '  named using the vocabulary given. If the research does not evidence one,',\n  '  return null. Do not infer a signal from the industry alone.',\n  '- growth_stage: one of Startup, Growing, Established, Enterprise',\n  '- recommended_campaign_type: a short slug',\n  '- signal_confidence: High, Medium or Low',\n  '- outreach_timing: This Week, This Month or This Quarter',\n  '',\n  'null for detected_signal is a correct and expected answer. A lead with no',\n  'evidenced signal is worth knowing about accurately; an invented one is',\n  'worse than none, because the funnel then treats it as intent.');\n\nconst prompt = lines.join('\\n');\n\nreturn { json: {\n  lead_id: lead.id,\n  _has_definition: signalTypes.length > 0,\n  _vertical: cfg.niche_name || null,\n  signal_payload: {\n    model: 'claude-haiku-4-5-20251001',\n    max_tokens: 1024,\n    messages: [{ role: 'user', content: prompt }]\n  }\n} };\n"
+      },
+      "id": "clx-sig-prompt",
+      "name": "Build Signal Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        300
+      ],
+      "alwaysOutputData": true
     }
   ],
   "connections": {
@@ -300,7 +348,7 @@
       "main": [
         [
           {
-            "node": "Claude Analyze Signal",
+            "node": "Fetch Signal Definition",
             "type": "main",
             "index": 0
           }
@@ -345,6 +393,28 @@
         [
           {
             "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Signal Definition": {
+      "main": [
+        [
+          {
+            "node": "Build Signal Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Signal Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Analyze Signal",
             "type": "main",
             "index": 0
           }
