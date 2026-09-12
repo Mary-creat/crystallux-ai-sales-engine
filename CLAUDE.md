@@ -61,6 +61,12 @@ Claude has no memory between sessions. Within a session, context compresses. To 
 - `tests/audit/dashboard-audit.js` — Playwright audit harness.
 
 ### Operations runbooks
+- [`docs/operations/SERVER_RUNBOOK.md`](docs/operations/SERVER_RUNBOOK.md) — **read before touching the VPS.**
+  `docker-compose.yml` on the server is EMPTY; the real file is
+  `docker-compose.prod.yml`, and a plain `docker compose up -d` can recreate
+  the container without its ~50 environment variables. Also documents the
+  name-mismatch family (five instances in one week) and the
+  reports-success-does-nothing family.
 - [`docs/operations/`](docs/operations/) — every recurring operational doc (onboarding scripts, contracts, consent forms, incident response, weekly check-in, etc.).
 - [`docs/operations/AGENT_PREFERENCE_ONBOARDING.md`](docs/operations/AGENT_PREFERENCE_ONBOARDING.md) — 5-question Q&A every advisor / agent goes through.
 
