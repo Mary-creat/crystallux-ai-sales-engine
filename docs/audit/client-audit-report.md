@@ -1,5 +1,32 @@
 # CLIENT Dashboard Audit Report
 
+> ## ⚠️ THIS AUDIT IS INVALID — DO NOT ACT ON IT
+>
+> **It never logged in.** Established 2026-09-12 while deduplicating the
+> repository: seven of the eight screenshots are **byte-identical**
+> (36,638 bytes each — activity, billing, bookings, campaigns, leads,
+> overview, settings). Playwright captured the same page seven times.
+>
+> That page was the login screen. It returns HTTP 200, which is why every
+> row below reads `200`. It has no sidebar, no stat cards, no charts and no
+> tables, which is why every row reads `MISSING` and `0`.
+>
+> So **"0 / 7 pages pass" is a fact about the audit, not about the client
+> dashboard.** The dashboard may be entirely healthy; this run cannot say
+> either way. Anyone reading this as "the client dashboard is broken" would
+> be rebuilding something on the strength of a screenshot of a login form.
+>
+> The six duplicate images have been deleted. One is kept as
+> `capture-failed-login-redirect.png` — it is the evidence that the capture
+> failed, which is the only thing this run actually proved.
+>
+> **The admin audit is unaffected**: 11 of 11 of its screenshots are
+> distinct, so it really did reach the pages it reports on.
+>
+> To redo this properly the harness needs an authenticated session —
+> `testclient@crystallux.org` — before it navigates. Until then these
+> numbers should not appear in any readiness claim.
+
 Generated: 2026-05-05T05:37:20.099Z
 Base URL: https://app.crystallux.org
 
@@ -27,7 +54,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/overview.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ### leads
 - URL: https://app.crystallux.org/pages/leads.html
@@ -37,7 +64,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/leads.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ### campaigns
 - URL: https://app.crystallux.org/pages/campaigns.html
@@ -47,7 +74,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/campaigns.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ### bookings
 - URL: https://app.crystallux.org/pages/bookings.html
@@ -57,7 +84,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/bookings.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ### activity
 - URL: https://app.crystallux.org/pages/activity.html
@@ -67,7 +94,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/activity.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ### billing
 - URL: https://app.crystallux.org/pages/billing.html
@@ -77,7 +104,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/billing.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ### settings
 - URL: https://app.crystallux.org/pages/settings.html
@@ -87,7 +114,7 @@ Base URL: https://app.crystallux.org
 - Charts (sparkline/donut/bar): 0 (n/a)
 - Table rows: 0, list rows: 0
 - Interactive: 0
-- Screenshot: `docs/audit/screenshots/client/settings.png`
+- Screenshot: `docs/audit/screenshots/client/capture-failed-login-redirect.png` (the login page — see the warning above)
 
 ## Mobile (375px)
 - Pass: ✓
