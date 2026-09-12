@@ -145,11 +145,13 @@
       "parameters": {
         "method": "POST",
         "url": "https://places.googleapis.com/v1/places:searchText",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "={{ $env.GOOGLE_PLACES_API_KEY }}"
+            },
             {
               "name": "X-Goog-FieldMask",
               "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.id"
@@ -169,7 +171,8 @@
               "fullResponse": true
             }
           }
-        }
+        },
+        "notes": "Key read from $env.GOOGLE_PLACES_API_KEY, not an n8n credential.\nThe Header Auth credential sent nothing for a week -- Google answered\n'unregistered callers' on every call while the same key returned 200\nfrom curl. This is the pattern Claude Research Lead already uses\n($env.ANTHROPIC_API_KEY) and that one has never failed."
       },
       "id": "clx21-0000-0000-0000-000000000007",
       "name": "Search Google Maps",
@@ -179,12 +182,7 @@
         1640,
         300
       ],
-      "continueOnFail": true,
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Google Maps"
-        }
-      }
+      "continueOnFail": true
     },
     {
       "parameters": {
