@@ -149,7 +149,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Replies');\n// Map date_created to replied_at so the UI can show a stable column.\nrows.forEach(r => { r.replied_at = r.date_created; });\nreturn { json: { ok: true, replies: rows } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    // alwaysOutputData makes an empty Supabase read emit ONE empty item\n    // rather than none -- that is the point of it, it keeps the workflow\n    // alive so the caller gets a real answer instead of a bodyless 200.\n    // But an empty item is not a record, and passing it through renders a\n    // blank row in the dashboard. No rows means no rows.\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Query Replies');\n// Map date_created to replied_at so the UI can show a stable column.\nrows.forEach(r => { r.replied_at = r.date_created; });\nreturn { json: { ok: true, replies: rows } };",
         "mode": "runOnceForAllItems"
       },
       "id": "cli-rp-0007",
