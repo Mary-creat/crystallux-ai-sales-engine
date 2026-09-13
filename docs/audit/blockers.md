@@ -18,6 +18,41 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0ai. 47 shapers silently return nothing — needs a sweep, needs a decision (2026-09-13)
+
+**Nothing for Mary to apply. This is a code change awaiting a go-ahead.**
+
+This line appears 47 times across 43 workflows:
+
+```js
+const rows = Array.isArray($input.item.json) ? $input.item.json : [];
+```
+
+n8n splits an array response into one item per row, so `$input.item.json`
+is the ROW, not an array containing it. `Array.isArray` is false on every
+successful read, `rows` becomes `[]`, and the workflow answers ok:true
+with nothing in it — a healthy-looking response meaning "there is no
+data". Proven, not theorised: this is exactly what /client/settings did
+after the columns existed and the query returned the row perfectly.
+
+Every one of the 47 is fed directly by an httpRequest, so every one has
+the same failure. Affected: the six MGA report builders, compliance
+scoring, all four Sentinel cost collectors, the daily plan and summary
+generators, script matcher, route optimiser, content attribution,
+pre-meeting briefings.
+
+The fix per site is the `allOf()` helper (CLAUDE.md house pattern) — the
+same change already made to clx-client-settings. Mechanical, but 43 files
+is a change surface that deserves its own verification pass rather than
+riding along with unrelated work, and none of it was on the path to
+getting Eazer signed in.
+
+Find them again with:
+
+```
+grep -rl 'Array.isArray($input.item.json) ? $input.item.json : \[\]' workflows/
+```
+
 ## 0ah. Two migrations to apply — client dashboard (2026-09-12)
 
 Both are additive and idempotent. Neither breaks anything if delayed;
