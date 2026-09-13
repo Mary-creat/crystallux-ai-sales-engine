@@ -120,6 +120,49 @@ t('VS-08', 'a genuinely unverified account still reports unverified', () => {
   eq(r.email_verified, false);
 });
 
+// The shape bug that actually locked everyone out. PostgREST echoed the
+// vnd.pgrst.object+json Accept header back as the Content-Type, n8n did not
+// recognise it as JSON, and the row arrived as a string under `data`.
+t('VS-10', 'a row wrapped in { data: "<json>" } is still read', () => {
+  const r = run({ data: JSON.stringify(profile()) });
+  eq(r.ok, true, 'stringified data;');
+  eq(r.email_verified, true);
+  eq(r.products, ['sales_engine']);
+});
+
+t('VS-11', 'a row wrapped in { data: {...} } is still read', () => {
+  const r = run({ data: profile() });
+  eq(r.ok, true);
+  eq(r.company_name, 'Eazer');
+});
+
+t('VS-12', 'a one-element array is still read', () => {
+  const r = run([profile()]);
+  eq(r.ok, true);
+  eq(r.email_verified, true);
+});
+
+t('VS-13', 'an empty array is an absent profile, not an unverified one', () => {
+  const r = run([]);
+  eq(r.ok, false);
+  eq(r.error, 'profile-unavailable');
+});
+
+t('VS-14', 'unparseable data is an absent profile', () => {
+  const r = run({ data: '<html>502 Bad Gateway</html>' });
+  eq(r.ok, false);
+  eq(r.error, 'profile-unavailable');
+});
+
+// The header must not come back. It is the whole cause.
+t('VS-15', 'the fetch no longer asks for a content type n8n cannot parse', () => {
+  const f = wf.nodes.find(n => n.name === 'Fetch Access Profile');
+  const hdrs = JSON.stringify(f.parameters.headerParameters || {});
+  if (hdrs.indexOf('vnd.pgrst') !== -1) {
+    throw new Error('the vnd.pgrst Accept header is back; the row will arrive as text');
+  }
+});
+
 t('VS-09', 'the profile fetch tolerates failure instead of killing the run', () => {
   const f = wf.nodes.find(n => n.name === 'Fetch Access Profile');
   if (!f) throw new Error('Fetch Access Profile node is gone');
