@@ -133,6 +133,12 @@ UPDATE leads SET vertical = product_type
 
 -- ---------------------------------------------------------------------------
 -- 2. The vertical itself
+--
+-- NOTE: pain_signals is jsonb in production, though
+-- 2026-04-18-niche-overlays.sql declares it text[]. The live schema is the
+-- authority here -- another instance of the repo and the server disagreeing
+-- about a column, which is why this file was written against a read of the
+-- live definitions rather than against the migration history.
 -- ---------------------------------------------------------------------------
 
 INSERT INTO niche_overlays (
@@ -267,7 +273,7 @@ OUTPUT
     outreach_angle  one line naming the specific reason this business was
                     contacted
 $PROMPT$,
-  ARRAY[
+  jsonb_build_array(
     'paying high marketplace commission on every order',
     'no delivery capability for direct or phone orders',
     'employing or paying drivers for a handful of deliveries a day',
@@ -277,7 +283,7 @@ $PROMPT$,
     'owner personally doing deliveries',
     'cannot offer scheduled or recurring delivery',
     'losing walk-in trade to competitors who deliver'
-  ],
+  ),
   jsonb_build_object(
     'primary_offer', jsonb_build_object(
       'name', 'Try Eazer with your first delivery',
