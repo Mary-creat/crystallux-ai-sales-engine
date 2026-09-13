@@ -18,6 +18,46 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0ah. Two migrations to apply — client dashboard (2026-09-12)
+
+Both are additive and idempotent. Neither breaks anything if delayed;
+each fixes something a customer can currently see.
+
+**1. `db/migrations/client-notification-prefs.sql`**
+
+Adds `clients.daily_digest_opt_in` and `clients.booking_alerts_opt_in`.
+The Settings page has always read AND written these two toggles and
+neither column exists, so PostgREST answered 400 to both paths: they
+never loaded a value and never saved one. Until this is applied,
+`/client/settings` returns `client: null` and the Settings page stays
+blank.
+
+Both default **false** — they gate outbound email to the customer, and
+nothing should start sending because a column appeared. If you want
+existing clients opted in, say so and it gets its own migration.
+
+**2. `db/migrations/client-lead-stats-rpc.sql`**
+
+Adds `client_lead_stats(uuid)`. The overview counted leads by fetching
+every row and taking `.length`; PostgREST caps at 1000 whatever `limit`
+says. Eazer has 1094 leads and their dashboard says 1000 — and would say
+1000 at ten thousand. Every figure under it is computed off the same
+truncated page.
+
+The endpoint already works without this (it falls back to the row scan)
+and the response carries `stats_exact: false` while it is missing. Apply
+it and the number becomes exact with no further deploy.
+
+Verify: `SELECT public.client_lead_stats('1583b401-0357-4935-a8c7-ba26d48222ad');`
+→ expect `total_leads: 1094`, not 1000.
+
+**Also open, not blocking:** `scripts/audit/schema-drift.py` found eight
+more select lists naming columns that do not exist — `leads.first_name`,
+`leads.last_name`, `leads.created_at`, `leads.reply_received`,
+`auth_users.full_name`. All on MGA / Sentinel / content-attribution
+surfaces. Real, but mapping `full_name` onto a first/last split is a
+decision rather than a rename, so they were left for a deliberate pass.
+
 ## 0ag. MCP Tool Gateway — auth fixed in repo, needs a secret + a re-import (2026-08-28)
 
 The gateway checked that `X-MCP-API-Key` was **present** and never compared it to
