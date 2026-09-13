@@ -81,18 +81,21 @@ jobs:
           python-version: '3.11'
 
       - name: Lead Research v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-lead-research-v2.json
 
       - name: Lead Scoring v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-lead-scoring-v2.json
 
       - name: Agent decision engine matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
@@ -105,6 +108,7 @@ jobs:
       # running build is not this one. This step names the drift instead
       # of leaving it to be inferred from column values a fourth time.
       - name: Business Signal Detection v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
@@ -114,18 +118,21 @@ jobs:
       # patched but never verified live is how the last three deploys
       # reported success while behaviour disagreed.
       - name: Campaign Router v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-campaign-router-v2.json
 
       - name: Outreach Generation v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-outreach-generation-v2.json
 
       - name: Outreach Sender v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
@@ -136,12 +143,14 @@ jobs:
       # and Follow Up v2 and Booking v2 both send via Gmail directly with
       # no eligibility guard between them and a real inbox.
       - name: Follow Up v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: python scripts/n8n/compare-live-vs-repo.py workflows/clx-follow-up-v2.json
 
       - name: Booking v2 matches live
+        if: always()
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
