@@ -55,12 +55,60 @@
   }
 
   function redirectToLogin(reason) {
+    // LOOP GUARD.
+    //
+    // A bad session sent the browser to login, login signed in fine and
+    // sent it back, the dashboard rejected it again, forever. Paul did
+    // that three times tonight; the server wrote three sessions and he
+    // never saw a page. An infinite redirect tells the user nothing and
+    // tells us nothing either -- it just burns sessions.
+    //
+    // After two consecutive bounces we stop and say why. A dead end with
+    // a reason beats a loop without one.
+    var n = 0;
+    try { n = parseInt(sessionStorage.getItem('clx_auth_bounce') || '0', 10) || 0; } catch (e) {}
+    if (n >= 2) {
+      try { sessionStorage.removeItem('clx_auth_bounce'); } catch (e) {}
+      return showAuthStop(reason);
+    }
+    try { sessionStorage.setItem('clx_auth_bounce', String(n + 1)); } catch (e) {}
+
     clearSession();
     var sep = LOGIN_URL.indexOf('?') === -1 ? '?' : '&';
     var next = encodeURIComponent(window.location.href);
     var why  = reason ? '&why=' + encodeURIComponent(reason) : '';
     window.location.replace(LOGIN_URL + sep + 'next=' + next + why);
   }
+
+  // Shown instead of the third redirect. Plain DOM, no dependencies -- this
+  // has to work on a page whose own scripts may not have run.
+  function showAuthStop(reason) {
+    var REASONS = {
+      'no-token':      'Your browser did not receive a sign-in token.',
+      'wrong-role':    'This account is not permitted to open this dashboard.',
+      'no-client-id':  'This account is not linked to a company yet.',
+      'network':       'We could not reach the sign-in service.',
+      'suspended':     'This account is suspended.'
+    };
+    var detail = REASONS[reason] || ('The sign-in check failed (' + (reason || 'unknown') + ').');
+    try {
+      document.documentElement.setAttribute('data-clx-gate', 'ok');
+      document.body.innerHTML =
+        '<div style="max-width:520px;margin:80px auto;padding:28px;font:14px/1.6 Inter,system-ui,sans-serif;' +
+        'border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:#111827">' +
+        '<div style="font-weight:700;font-size:17px;margin-bottom:10px">Signed in, but this dashboard would not open</div>' +
+        '<div style="color:#4b5563;margin-bottom:6px">' + detail + '</div>' +
+        '<div style="color:#6b7280;font-size:12px;margin-bottom:18px">Reference: <code>' +
+        (reason || 'unknown') + '</code></div>' +
+        '<a href="' + LOGIN_URL + '" style="display:inline-block;background:#7C3AED;color:#fff;' +
+        'padding:9px 16px;border-radius:8px;text-decoration:none;font-weight:600">Back to sign in</a>' +
+        '<div style="margin-top:16px;color:#6b7280;font-size:12px">' +
+        'If this keeps happening, send that reference to support@crystallux.org.</div></div>';
+    } catch (e) {
+      window.location.replace(LOGIN_URL);
+    }
+  }
+
 
   function redirectAdmin() {
     window.location.replace(ADMIN_URL);
@@ -169,6 +217,7 @@
       if (user.email_verified === false && !pageAllowsUnverified()) {
         return redirectToVerify();
       }
+      try { sessionStorage.removeItem('clx_auth_bounce'); } catch (e) {}
       global.clxAuth.user = user;
       document.documentElement.setAttribute('data-clx-gate', 'ok');
       try { window.dispatchEvent(new CustomEvent('clx:auth:ready', { detail: user })); } catch (e) {}
