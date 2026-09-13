@@ -126,10 +126,20 @@
             {
               "name": "Accept",
               "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
             }
           ]
         },
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
       },
       "id": "cli-le-0006",
       "name": "Query Leads",
@@ -149,7 +159,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    // alwaysOutputData makes an empty Supabase read emit ONE empty item\n    // rather than none -- that is the point of it, it keeps the workflow\n    // alive so the caller gets a real answer instead of a bodyless 200.\n    // But an empty item is not a record, and passing it through renders a\n    // blank row in the dashboard. No rows means no rows.\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nreturn { json: { ok: true, leads: allOf('Query Leads') } };",
+        "jsCode": "// Return the page AND how big the whole set is.\n//\n// The list asks for the newest 100 and renders them. With 1094 leads in\n// the account that looks like an account with 100 leads -- there was no\n// total anywhere in the response for the page to say otherwise. A page\n// that cannot say 'showing 100 of 1094' is indistinguishable from one\n// that is showing everything.\n//\n// PostgREST reports the unpaged count in Content-Range as 'a-b/total'\n// when asked with Prefer: count=exact, so the number costs one header\n// rather than a second query.\nconst first = $('Query Leads').first().json;\n\n// fullResponse wraps the payload as { body, headers, statusCode }. Handle\n// the unwrapped shape too, so this survives the option being changed.\nconst isWrapped = first && typeof first === 'object' && ('body' in first) && ('headers' in first);\nconst body    = isWrapped ? first.body    : null;\nconst headers = isWrapped ? (first.headers || {}) : {};\n\nlet leads;\nif (Array.isArray(body)) {\n  leads = body;\n} else if (body && typeof body === 'object') {\n  leads = Object.keys(body).length ? [body] : [];\n} else {\n  const items = $('Query Leads').all().map(function (i) { return i.json; });\n  leads = (items.length === 1 && Array.isArray(items[0])) ? items[0]\n        : items.filter(function (o) {\n            return o && typeof o === 'object' && Object.keys(o).length > 0;\n          });\n}\n\n// 'items 0-99/1094' or '0-99/1094' -- take what follows the slash. A '*'\n// means the server declined to count; report null rather than invent one.\nlet total = null;\nconst cr = headers['content-range'] || headers['Content-Range'] || '';\nconst m = String(cr).match(/\\/(\\d+)\\s*$/);\nif (m) total = parseInt(m[1], 10);\n\nreturn { json: {\n  ok: true,\n  leads: leads,\n  returned: leads.length,\n  total: total            // null = unknown, never a guess\n} };",
         "mode": "runOnceForAllItems"
       },
       "id": "cli-le-0009",

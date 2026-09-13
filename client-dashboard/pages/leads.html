@@ -51,6 +51,10 @@
 <script src="/shared/copilot.js"></script>
 <script>
 var __rows = [];
+// How many leads exist, as opposed to how many this page asked for. The
+// list fetches the newest 100; with 1094 in the account that reads as an
+// account with 100 leads unless the page can say otherwise.
+var __total = null;
 
 clxAuth.require('client').then(function () {
   clxComp.injectNav(document.getElementById('clxSidebar'));
@@ -77,6 +81,7 @@ async function load() {
   var res = await clxApi.clientGet('leads', filters);
   if (!res.ok) { clxApi.renderError(document.getElementById('leadsList'), res); return; }
   __rows = (res.data && res.data.leads) || [];
+  __total = (res.data && typeof res.data.total === 'number') ? res.data.total : null;
   renderKpis();
   renderRows();
 }
@@ -87,7 +92,10 @@ function renderKpis() {
   var replied   = __rows.filter(function(r){ return ['replied','booking sent','booked'].indexOf((r.lead_status||'').toLowerCase()) !== -1; }).length;
   var booked    = __rows.filter(function(r){ return (r.lead_status||'').toLowerCase() === 'booked'; }).length;
   clxComp.renderStatGrid(document.getElementById('kpiGrid'), [
-    { label: 'In view',   value: total,    icon: 'target',         variant: 'leads'    },
+    { label: 'In view',   value: total,    icon: 'target',         variant: 'leads',
+      // Only worth saying when the page is not showing everything.
+      delta: (__total != null && __total > total)
+        ? 'of ' + __total.toLocaleString() + ' total' : null },
     { label: 'Contacted', value: contacted,icon: 'mail',           variant: 'activity' },
     { label: 'Replied',   value: replied,  icon: 'message-square', variant: 'bookings' },
     { label: 'Booked',    value: booked,   icon: 'calendar',       variant: 'revenue'  }
