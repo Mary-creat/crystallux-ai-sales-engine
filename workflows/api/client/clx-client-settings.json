@@ -181,7 +181,9 @@
         "httpCustomAuth": {
           "name": "Supabase Crystallux Custom"
         }
-      }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -214,7 +216,8 @@
         }
       },
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {

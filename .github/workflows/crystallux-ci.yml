@@ -297,6 +297,14 @@ jobs:
       - name: Test validate-session access gates
         run: node tests/agent/validate-session.test.js
 
+      # Five client pages required 'client_admin' or 'client_user'. Neither
+      # role has ever existed. A wrong-role is bounced off the dashboard
+      # origin to crystallux.org/login.html, so a page gated on a role
+      # nobody holds reads to the customer as being signed out. Step 3 of
+      # the welcome checklist was one of them.
+      - name: Test dashboard role gates are reachable
+        run: node tests/agent/dashboard-roles.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.

@@ -24,8 +24,22 @@
      compliance_officer — MGA compliance gate
      advisor            — LLQP advisor (MGA dashboard)
      sub_agent          — advisor's sub-agent (MGA dashboard)
-     client_admin       — admin within a client tenant (content pages)
-     client_user        — non-admin user within a client tenant (content pages)
+
+   NOT roles, however much this list used to imply otherwise:
+     client_admin, client_user — invented here, never issued by the signup
+     flow, never stored in auth_users.user_role, never checked by any
+     workflow. Five client pages gated on them (content-calendar,
+     content-engagement, content-preferences, training-coach,
+     training-progress) and were therefore unreachable by every customer.
+     A wrong-role is bounced off the dashboard origin entirely, to
+     crystallux.org/login.html, so it read to the user as being signed out
+     mid-session. Found 2026-09-12 when an Eazer user clicked step 3 of the
+     welcome checklist.
+
+   Production has exactly three (SELECT DISTINCT user_role FROM auth_users):
+   admin, client, mga_principal. The rest above are provisioned-for, not
+   live. Before gating a page on a role, confirm the signup flow can issue
+   it -- a gate on a role nobody holds is a locked door, not a permission.
    `require()` accepts either a single role string ('admin') or an
    array (['admin','mga_principal']); the array form is preferred for
    pages shared across role sets.

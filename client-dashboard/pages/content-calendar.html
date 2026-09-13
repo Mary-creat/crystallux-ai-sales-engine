@@ -17,7 +17,7 @@
 (function(){
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
   fetch('/shared/nav.html').then(function(r){return r.text();}).then(function(h){document.getElementById('clxSidebar').innerHTML = h;});
-  clxAuth.require(['client_admin','client_user','admin']).then(function(user){
+  clxAuth.require(['client','team_member','admin']).then(function(user){
     if(!user)return;
     document.getElementById('clxTopbarRight').innerHTML = '<span class="clx-user-chip">'+esc(user.email||'')+'</span>';
     load();

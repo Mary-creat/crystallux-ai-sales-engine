@@ -145,7 +145,8 @@
         }
       },
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -178,7 +179,8 @@
         }
       },
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -211,7 +213,8 @@
         }
       },
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -229,7 +232,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Converge parallel queries; build pre-baked tenant facts so Claude\n// answers from grounded data instead of hallucinating. The system\n// prompt tells Claude: read-only, scoped to this tenant, no SQL,\n// no admin tools.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst leads = allOf('Query Leads');\nconst bookings = allOf('Query Bookings');\nconst clientArr = allOf('Query Client');\nconst client = clientArr[0] || {};\n\n// Compute tenant facts\nconst now = Date.now();\nconst d7  = now - 7  * 24*60*60*1000;\nconst d30 = now - 30 * 24*60*60*1000;\nconst statusBuckets = { 'New Lead': 0, 'Contacted': 0, 'Replied': 0, 'Booked': 0, 'Closed Lost': 0 };\nlet new7 = 0, repl30 = 0, book30 = 0, contacted30 = 0;\nleads.forEach(function (l) {\n  const s = l.lead_status || 'New Lead';\n  if (statusBuckets.hasOwnProperty(s)) statusBuckets[s] += 1;\n  const created = l.date_created ? new Date(l.date_created).getTime() : 0;\n  const sent    = l.outreach_sent_at ? new Date(l.outreach_sent_at).getTime() : 0;\n  if (created >= d7) new7 += 1;\n  if (sent >= d30) contacted30 += 1;\n  if (s === 'Replied' && created >= d30) repl30 += 1;\n  if (s === 'Booked'  && created >= d30) book30 += 1;\n});\nconst upcoming = bookings.filter(function (b) {\n  return b.scheduled_start && new Date(b.scheduled_start).getTime() > now;\n}).slice(0, 5);\n\nconst question = $('Check Tenant').item.json.question;\n\nconst systemPrompt = [\n  'You are the Crystallux Assistant for ' + (client.client_name || 'this customer') + '.',\n  'You answer questions ABOUT THEIR PIPELINE ONLY. You do NOT have access to other clients data.',\n  'Be concise: 1-3 sentences for direct questions, a short list for list questions (max 5 items).',\n  'If the question is outside their pipeline (e.g. \"what is Mary revenue?\"), politely decline.',\n  'Never produce SQL. Never invent numbers — use only the facts below.',\n  '',\n  'TENANT: ' + (client.client_name || '?'),\n  'Industry: ' + (client.industry || client.vertical || '?'),\n  'City: ' + (client.city || '?'),\n  '',\n  'PIPELINE FACTS (today):',\n  '- Total leads: ' + leads.length,\n  '- New in last 7 days: ' + new7,\n  '- Contacted (last 30d): ' + contacted30,\n  '- Replies (last 30d): ' + repl30,\n  '- Booked (last 30d): ' + book30,\n  '- Lead status mix: ' + JSON.stringify(statusBuckets),\n  '- Upcoming bookings: ' + upcoming.length,\n  upcoming.length ? '  Next: ' + upcoming.map(function(b){ return new Date(b.scheduled_start).toISOString().slice(0,16).replace('T',' '); }).join(', ') : ''\n].filter(Boolean).join('\\n');\n\nreturn { json: {\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 350,\n    temperature: 0.2,\n    system: systemPrompt,\n    messages: [\n      { role: 'user', content: question }\n    ]\n  }\n} };",
+        "jsCode": "// Converge parallel queries; build pre-baked tenant facts so Claude\n// answers from grounded data instead of hallucinating. The system\n// prompt tells Claude: read-only, scoped to this tenant, no SQL,\n// no admin tools.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items;\n  } catch (e) { return []; }\n};\nconst leads = allOf('Query Leads');\nconst bookings = allOf('Query Bookings');\nconst clientArr = allOf('Query Client');\nconst client = clientArr[0] || {};\n\n// Compute tenant facts\nconst now = Date.now();\nconst d7  = now - 7  * 24*60*60*1000;\nconst d30 = now - 30 * 24*60*60*1000;\nconst statusBuckets = { 'New Lead': 0, 'Contacted': 0, 'Replied': 0, 'Booked': 0, 'Closed Lost': 0 };\nlet new7 = 0, repl30 = 0, book30 = 0, contacted30 = 0;\nleads.forEach(function (l) {\n  const s = l.lead_status || 'New Lead';\n  if (statusBuckets.hasOwnProperty(s)) statusBuckets[s] += 1;\n  const created = l.date_created ? new Date(l.date_created).getTime() : 0;\n  const sent    = l.outreach_sent_at ? new Date(l.outreach_sent_at).getTime() : 0;\n  if (created >= d7) new7 += 1;\n  if (sent >= d30) contacted30 += 1;\n  if (s === 'Replied' && created >= d30) repl30 += 1;\n  if (s === 'Booked'  && created >= d30) book30 += 1;\n});\nconst upcoming = bookings.filter(function (b) {\n  return b.scheduled_start && new Date(b.scheduled_start).getTime() > now;\n}).slice(0, 5);\n\nconst question = $('Check Tenant').item.json.question;\n\nconst systemPrompt = [\n  'You are the Crystallux Assistant for ' + (client.client_name || 'this customer') + '.',\n  'You answer questions ABOUT THEIR PIPELINE ONLY. You do NOT have access to other clients data.',\n  'Be concise: 1-3 sentences for direct questions, a short list for list questions (max 5 items).',\n  'If the question is outside their pipeline (e.g. \"what is Crystallux revenue?\"), politely decline.',\n  'Never produce SQL. Never invent numbers — use only the facts below.',\n  '',\n  'TENANT: ' + (client.client_name || '?'),\n  'Industry: ' + (client.industry || client.vertical || '?'),\n  'City: ' + (client.city || '?'),\n  '',\n  'PIPELINE FACTS (today):',\n  '- Total leads: ' + leads.length,\n  '- New in last 7 days: ' + new7,\n  '- Contacted (last 30d): ' + contacted30,\n  '- Replies (last 30d): ' + repl30,\n  '- Booked (last 30d): ' + book30,\n  '- Lead status mix: ' + JSON.stringify(statusBuckets),\n  '- Upcoming bookings: ' + upcoming.length,\n  upcoming.length ? '  Next: ' + upcoming.map(function(b){ return new Date(b.scheduled_start).toISOString().slice(0,16).replace('T',' '); }).join(', ') : ''\n].filter(Boolean).join('\\n');\n\nreturn { json: {\n  claude_payload: {\n    model: 'claude-sonnet-4-5-20250929',\n    max_tokens: 350,\n    temperature: 0.2,\n    system: systemPrompt,\n    messages: [\n      { role: 'user', content: question }\n    ]\n  }\n} };",
         "mode": "runOnceForAllItems"
       },
       "id": "cli-ck-0010",
