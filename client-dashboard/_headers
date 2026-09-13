@@ -16,7 +16,16 @@
 # Long-cache the immutable shared assets — they're versioned by the
 # git commit so cache hit rate stays high.
 /shared/*
-  Cache-Control: public, max-age=86400, must-revalidate
+  # auth.js gates every page. At max-age=86400 a fix to it took 24 hours to
+  # reach anyone, and Cloudflare served a stale copy the whole time -- which
+  # is how a corrected redirect loop kept looping after the fix shipped.
+  #
+  # max-age=0 with must-revalidate does NOT mean "download every time": the
+  # ETag makes the check a 304 with no body. The cost is one conditional
+  # request; the benefit is that a security or access fix is live the moment
+  # it deploys. For the file that decides who gets in, that is the right
+  # trade.
+  Cache-Control: public, max-age=0, must-revalidate
 
 # Pages must always re-validate so a deploy reaches users on next
 # load instead of waiting for cache TTL.
