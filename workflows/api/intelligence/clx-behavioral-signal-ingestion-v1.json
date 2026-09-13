@@ -6,7 +6,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "hours", "hoursInterval": 6 }
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
           ]
         }
       },
@@ -14,25 +17,44 @@
       "name": "Schedule Trigger (DEACTIVATED)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "notes": "DEACTIVATED. Fires every 6h once activated. Per-lead behavioral scan across §35 categories. Mirrors clx-signal-ingestion-v1 architecture but per-lead scope instead of platform-wide. Writes raw signals to behavioral_signals with relevance_score=NULL — Behavioral Intelligence (A2) classifier picks them up via idx_bs_unclassified. Universal multi-vertical: filters by client.niche_name."
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?behavioral_intel_enabled=eq.true&select=id,client_name,niche_name,vertical,city",
+        "url": "=https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?behavioral_intel_enabled=eq.true&select=id,client_name,niche_name,city",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
-        "options": { "timeout": 15000 }
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "bsi-0002",
       "name": "Fetch BI-enabled Clients",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 400],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        440,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -45,14 +67,29 @@
       "name": "Fan Out Clients",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._empty }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -61,7 +98,10 @@
       "name": "IF Empty",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [900, 400]
+      "position": [
+        900,
+        400
+      ]
     },
     {
       "parameters": {
@@ -72,7 +112,10 @@
       "name": "Per Client Batch",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [1140, 500]
+      "position": [
+        1140,
+        500
+      ]
     },
     {
       "parameters": {
@@ -81,15 +124,31 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
-        "options": { "timeout": 15000 }
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "bsi-0006",
       "name": "Fetch Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1380, 500],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        1380,
+        500
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true
     },
@@ -102,14 +161,29 @@
       "name": "Scan Sources Per Lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1620, 500]
+      "position": [
+        1620,
+        500
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json._empty }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._empty }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
           ],
           "combinator": "and"
         }
@@ -118,7 +192,10 @@
       "name": "IF Has Signals",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1860, 500]
+      "position": [
+        1860,
+        500
+      ]
     },
     {
       "parameters": {
@@ -129,8 +206,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -142,8 +225,15 @@
       "name": "Insert Signal (RPC)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2100, 580],
-      "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } },
+      "position": [
+        2100,
+        580
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Crystallux Custom"
+        }
+      },
       "continueOnFail": true,
       "alwaysOutputData": true,
       "notes": "Calls record_behavioral_signal RPC which is consent-gated. Returns NULL silently if the client hasn't opted in to this signal_category (signal_subscriptions). NULL = no insert; not an error. Caller should not treat NULL as failure."
@@ -154,7 +244,10 @@
       "name": "Loop Continue",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2340, 580]
+      "position": [
+        2340,
+        580
+      ]
     },
     {
       "parameters": {
@@ -165,21 +258,147 @@
       "name": "Summarize Run",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1140, 280]
+      "position": [
+        1140,
+        280
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger (DEACTIVATED)": { "main": [[ { "node": "Fetch BI-enabled Clients", "type": "main", "index": 0 } ]] },
-    "Fetch BI-enabled Clients":       { "main": [[ { "node": "Fan Out Clients", "type": "main", "index": 0 } ]] },
-    "Fan Out Clients":                { "main": [[ { "node": "IF Empty", "type": "main", "index": 0 } ]] },
-    "IF Empty":                       { "main": [[ { "node": "Summarize Run", "type": "main", "index": 0 } ], [ { "node": "Per Client Batch", "type": "main", "index": 0 } ]] },
-    "Per Client Batch":               { "main": [[ { "node": "Summarize Run", "type": "main", "index": 0 } ], [ { "node": "Fetch Leads", "type": "main", "index": 0 } ]] },
-    "Fetch Leads":                    { "main": [[ { "node": "Scan Sources Per Lead", "type": "main", "index": 0 } ]] },
-    "Scan Sources Per Lead":          { "main": [[ { "node": "IF Has Signals", "type": "main", "index": 0 } ]] },
-    "IF Has Signals":                 { "main": [[ { "node": "Per Client Batch", "type": "main", "index": 0 } ], [ { "node": "Insert Signal (RPC)", "type": "main", "index": 0 } ]] },
-    "Insert Signal (RPC)":            { "main": [[ { "node": "Loop Continue", "type": "main", "index": 0 } ]] },
-    "Loop Continue":                  { "main": [[ { "node": "Per Client Batch", "type": "main", "index": 0 } ]] }
+    "Schedule Trigger (DEACTIVATED)": {
+      "main": [
+        [
+          {
+            "node": "Fetch BI-enabled Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch BI-enabled Clients": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan Out Clients": {
+      "main": [
+        [
+          {
+            "node": "IF Empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Empty": {
+      "main": [
+        [
+          {
+            "node": "Summarize Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Per Client Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Per Client Batch": {
+      "main": [
+        [
+          {
+            "node": "Summarize Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Leads": {
+      "main": [
+        [
+          {
+            "node": "Scan Sources Per Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Sources Per Lead": {
+      "main": [
+        [
+          {
+            "node": "IF Has Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has Signals": {
+      "main": [
+        [
+          {
+            "node": "Per Client Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Signal (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Signal (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Loop Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Continue": {
+      "main": [
+        [
+          {
+            "node": "Per Client Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "active": false
 }

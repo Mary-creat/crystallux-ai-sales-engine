@@ -117,7 +117,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($json.client_id) + '&select=id,client_name,industry,city,vertical,active&limit=1' }}",
+        "url": "={{ 'https://zqwatouqmqgkmaslydbr.supabase.co/rest/v1/clients?id=eq.' + encodeURIComponent($json.client_id) + '&select=id,client_name,industry,city,niche_name,active&limit=1' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
