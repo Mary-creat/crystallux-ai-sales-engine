@@ -221,7 +221,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn { json: { ok: true, client: rows[0] || null } };",
+        "jsCode": "// Read the row back whatever shape it arrives in.\n//\n// This used to be:\n//   const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// n8n splits an array response into separate items, so $input.item.json\n// is the ROW, not an array containing it. Array.isArray was therefore\n// false on every successful read, rows became [], and the endpoint\n// answered ok:true with client:null -- a healthy-looking response that\n// said the customer has no settings. The Settings page rendered blank\n// and there was no error anywhere to explain it.\n//\n// allOf() is the house pattern for this (see CLAUDE.md); it handles both\n// the split and unsplit shapes, and drops the empty item alwaysOutputData\n// emits when a read genuinely returns nothing.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Read Settings');\nreturn { json: { ok: true, client: rows[0] || null } };",
         "mode": "runOnceForEachItem"
       },
       "id": "cli-st-0009",
