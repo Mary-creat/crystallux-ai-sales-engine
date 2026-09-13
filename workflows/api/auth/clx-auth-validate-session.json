@@ -278,9 +278,9 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid or expired session' }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid or expired session', detail: $json.detail || undefined, diag: $json.diag || undefined }) }}",
         "options": {
-          "responseCode": "={{ $json.status === 403 ? 403 : 401 }}"
+          "responseCode": "={{ $json.status === 403 ? 403 : ($json.status === 503 ? 503 : 401) }}"
         }
       },
       "id": "auth-vs-0009",
