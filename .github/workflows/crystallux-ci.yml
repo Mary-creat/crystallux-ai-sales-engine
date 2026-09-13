@@ -282,6 +282,13 @@ jobs:
       - name: Test reply classifier (STOP must suppress)
         run: node tests/agent/reply-classifier.test.js
 
+      # Both dashboards read data.user.role from a response that is FLAT and
+      # calls the field user_role. Every successful login was bounced back to
+      # the login page, for every account, and the client-dashboard audit
+      # photographed the login screen seven times without noticing.
+      - name: Test dashboard session normaliser
+        run: node tests/agent/dashboard-auth.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.

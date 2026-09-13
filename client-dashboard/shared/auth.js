@@ -88,19 +88,53 @@
         if (res.status === 403) { return Promise.reject('suspended'); }
         if (!res.ok || !data.ok) { return Promise.reject(data.error || ('http-' + res.status)); }
         try {
-          if (data.user) {
-            localStorage.setItem('clx_user_email',     data.user.email     || '');
-            localStorage.setItem('clx_user_role',      data.user.role      || '');
-            localStorage.setItem('clx_user_client_id', data.user.client_id || '');
-            localStorage.setItem('clx_user_products',  JSON.stringify(data.user.products || []));
-            localStorage.setItem('clx_user_email_verified',    String(!!data.user.email_verified));
-            localStorage.setItem('clx_user_is_active',         String(data.user.is_active !== false));
-            localStorage.setItem('clx_user_onboarding_status', data.user.onboarding_status || 'new');
-            localStorage.setItem('clx_user_company_name',      data.user.company_name || '');
+        // The endpoint returns a FLAT object, not { user: {...} }:
+        //   { ok, user_id, email, user_role, client_id, expires_at,
+        //     is_active, email_verified, products, onboarding_status,
+        //     company_name }
+        //
+        // This code read data.user.role. data.user does not exist, so the
+        // whole block was skipped, validate() returned {}, user.role was
+        // undefined, and require_() sent the browser back to login --
+        // every time, for every account. A successful sign-in looked
+        // exactly like a rejected one: session created server-side,
+        // bounced client-side, login page again.
+        //
+        // It also explains docs/audit/client-audit-report.md reporting
+        // 0/7 pages passing with every screenshot identical: the Playwright
+        // run could not get past this either, and photographed the login
+        // page seven times.
+        //
+        // Both shapes are accepted so a future nested response does not
+        // break it back, and user_role/role are both read for the same
+        // reason.
+        var u = data.user || data;
+        var role = u.role || u.user_role || '';
+        if (u && (u.email || u.user_id || u.client_id)) {
+            localStorage.setItem('clx_user_email',     u.email     || '');
+            localStorage.setItem('clx_user_role',      role);
+            localStorage.setItem('clx_user_client_id', u.client_id || '');
+            localStorage.setItem('clx_user_products',  JSON.stringify(u.products || []));
+            localStorage.setItem('clx_user_email_verified',    String(!!u.email_verified));
+            localStorage.setItem('clx_user_is_active',         String(u.is_active !== false));
+            localStorage.setItem('clx_user_onboarding_status', u.onboarding_status || 'new');
+            localStorage.setItem('clx_user_company_name',      u.company_name || '');
           }
           if (data.expires_at) localStorage.setItem('clx_session_expires', data.expires_at);
         } catch (e) {}
-        return data.user || {};
+        // Normalised on the way out: require_() and every page read
+        // user.role, so it must exist whatever the server called it.
+        return {
+          user_id: u.user_id || u.id || null,
+          email: u.email || '',
+          role: role,
+          client_id: u.client_id || null,
+          products: u.products || [],
+          is_active: u.is_active !== false,
+          email_verified: !!u.email_verified,
+          onboarding_status: u.onboarding_status || 'new',
+          company_name: u.company_name || null
+        };
       });
     }).catch(function (err) {
       return Promise.reject(typeof err === 'string' ? err : 'network');
