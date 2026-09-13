@@ -289,6 +289,14 @@ jobs:
       - name: Test dashboard session normaliser
         run: node tests/agent/dashboard-auth.test.js
 
+      # The other half of that bug. When the access-profile fetch came
+      # back empty the gate answered ok:true with email_verified:false,
+      # so every account -- admin included -- looked unverified and was
+      # sent to /verify-email forever. A fetch that did not happen is not
+      # the same fact as a field that is false.
+      - name: Test validate-session access gates
+        run: node tests/agent/validate-session.test.js
+
       # MCP must not be the shorter path to a real send. This proves the
       # five contact-a-human tools hand over to agent/action-execute and
       # that no MCP node calls a deterministic sender directly.

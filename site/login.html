@@ -316,5 +316,44 @@
     });
   })();
 </script>
+<script>
+  // Say why they were sent back here.
+  //
+  // The dashboards have always appended ?why=<reason> to this URL and
+  // nothing ever read it, so being bounced by a backend fault looked to the
+  // user exactly like a wrong password. Naming the cause is the difference
+  // between a person retrying forever and a person telling us what broke.
+  (function () {
+    var why;
+    try { why = new URLSearchParams(window.location.search).get('why'); } catch (e) { return; }
+    if (!why) return;
+    var REASONS = {
+      'no-token':     'You were signed out because your browser did not keep the sign-in token.',
+      'wrong-role':   'That account cannot open the dashboard you tried to reach.',
+      'no-client-id': 'That account is not linked to a company yet. Contact support@crystallux.org.',
+      'profile-unavailable':
+        'Your sign-in worked, but we could not read your account profile. ' +
+        'This is a fault on our side, not your password. Please try again shortly.',
+      'network':      'We could not reach the sign-in service. Check your connection and try again.',
+      'expired':      'Your session expired. Please sign in again.',
+      'suspended':    'That account is suspended. Contact support@crystallux.org.'
+    };
+    var text = REASONS[why] || ('Signed out (' + why + ').');
+    var el = document.getElementById('authMsg') || document.getElementById('msg');
+    if (el) {
+      el.textContent = text;
+      el.style.display = 'block';
+      return;
+    }
+    var form = document.getElementById('loginForm');
+    if (!form) return;
+    var d = document.createElement('div');
+    d.setAttribute('role', 'status');
+    d.style.cssText = 'margin:0 0 14px;padding:10px 12px;border-radius:8px;' +
+      'background:#fef3c7;border:1px solid #fde68a;color:#92400e;font-size:13px';
+    d.textContent = text;
+    form.parentNode.insertBefore(d, form);
+  })();
+</script>
 </body>
 </html>

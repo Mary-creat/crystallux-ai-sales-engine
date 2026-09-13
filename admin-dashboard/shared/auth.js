@@ -110,6 +110,9 @@
   function showAuthStop(reason) {
     var REASONS = {
       'no-token':      'Your browser did not receive a sign-in token.',
+      'profile-unavailable':
+        'Your sign-in worked, but we could not read your account profile. '
+      + 'This is a fault on our side, not your password.',
       'wrong-role':    'This account is not permitted to open this dashboard.',
       'no-client-id':  'This account is not linked to a company yet.',
       'network':       'We could not reach the sign-in service.',
@@ -249,6 +252,11 @@
       return user;
     }).catch(function (reason) {
       if (reason === 'suspended') return redirectToSuspended();
+      // A server fault is not an authentication failure. Sending the user
+      // back to sign in cannot fix it and disguises a backend outage as a
+      // password problem, which is how three sessions got burned for one
+      // person who had typed the right password every time.
+      if (reason === 'profile-unavailable') return showAuthStop(reason);
       redirectToLogin(reason);
       return new Promise(function () {});
     });
