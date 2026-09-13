@@ -196,6 +196,46 @@ When something "works but nothing happens", assume this shape first.
 
 ---
 
+## The content-type family — a 200 that arrives unreadable
+
+On 2026-09-12 nobody could sign in to any dashboard. The password was
+right, the server wrote a session every time, and the browser was sent
+straight back to the login page.
+
+`clx-auth-validate-session` fetches the account profile from
+`v_auth_users_access`. It asked for `Accept: application/vnd.pgrst.object+json`,
+which is the correct PostgREST way to get one row instead of a
+one-element array. PostgREST honours it and returns that string as the
+**Content-Type**. n8n parses a body as JSON only for content types it
+recognises, and that is not one of them, so the row arrived as text under
+`data`. HTTP 200. Correct body. Unreadable.
+
+Then the second fault: the gate treated a profile it could not read as a
+profile that said `email_verified: false, products: []`, and still
+answered `ok: true`. The dashboard believed it and redirected to
+`/verify-email` — which could never help, because verifying writes to a
+database nobody was reading. Every account was affected, `info@crystallux.org`
+included.
+
+**The rules this leaves behind:**
+
+1. If an HTTP node asks for a vendor content type (`application/vnd.*`),
+   set the node's response format to JSON explicitly. Do not assume the
+   caller parses what the server sends.
+2. A fetch that did not happen is not the same fact as a field that is
+   false. Never substitute a default for a security-gate field. Fail with
+   a name the caller can show a human.
+3. Normalise the response shape before reading a field from it — row,
+   `[row]`, `{data: {...}}`, `{data: "..."}`. The shape of a response
+   must never decide whether somebody can sign in.
+4. When a responder rebuilds its body by hand, check it forwards the
+   status and reason it was given. `Respond Denied` here mapped every
+   status to 401/403, so a 503 server fault reached the browser dressed
+   as "sign in again".
+
+Covered by `tests/agent/validate-session.test.js` (15 cases) and
+`tests/agent/dashboard-auth.test.js` (12).
+
 ## Health checks
 
 ```bash
