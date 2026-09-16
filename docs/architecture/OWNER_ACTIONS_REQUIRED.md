@@ -83,27 +83,52 @@ WHERE lead_status = 'Signal Detected'
 
 That number is what Campaign Router v2 will pick up the moment it is activated.
 
-### 0d-STATE. The correction WAS run on 2026-09-16 — read this before acting
+### 0d-STATE. Live position as of 2026-09-16 — read before touching the pipeline
+
+**Done by Mary, in this order:** the `UPDATE` (205 tenant leads `Signal
+Detected` → `Scored`), then **deactivated `CLX - Business Signal Detection v2`**,
+then **activated `CLX - Campaign Router v2`**.
+
+**Confirmed by live query:** 19 tenant leads remain at `Signal Detected`, all 19
+carry a `research_summary`, so Campaign Router promotes **all 19** to
+`Campaign Assigned`. The corrected 205 cannot be touched by it — they are
+`Scored`, which Router does not read.
+
+**The chain below them is guarded** (repo state, see caveat):
+
+| stage | gate |
+|---|---|
+| Campaign Router | `Signal Detected` + tenant + `client_id` + `research_summary` |
+| Outreach Generation v2 | + `researched_at` + `lead_score > 0` + `campaign_name`, `limit=25` |
+| Outreach Sender v2 | `const to = '…+clxtest@gmail.com'` — **test inbox, hardcoded** |
+
+Router writes `campaign_name` and the four campaign fields in the same update as
+the status, so Generation's `campaign_name` gate is satisfied by the promotion
+itself. A lead whose vertical matches no campaign config goes to `Out of Focus`
+rather than through.
+
+**Two standing consequences:**
+
+1. **The pipeline is open but unfed.** With signal detection off, nothing new
+   reaches `Signal Detected`. Router drains the 19 and idles. Acceptable for
+   days, not weeks — it is a holding position, not a finished one.
+2. **The "no accidental send" property is gone.** It used to hold because the
+   chain terminated at `Signal Detected`. It now rests entirely on the Sender's
+   hardcoded test address. **Read that line before ever flipping it to
+   `data.email`.**
+
+**Caveat on all of the above:** it is read from the repo. Production is known to
+diverge — the old signal-detection build is the proof. Whether the *live*
+Generation query carries those seven filters, and whether the *live* Sender
+still points at the test inbox, cannot be confirmed without **#0**.
+
+
 
 Mary ran the `UPDATE` before the ordering warning landed. **205 tenant leads
 moved from `Signal Detected` to `Scored`.** The database is now in the corrected
 state, and it will not stay there by itself.
 
-**Live position:**
-
-| | |
-|---|---|
-| 205 tenant leads | now `lead_status = 'Scored'`, `detected_signal` still NULL |
-| 19 tenant leads | remain `Signal Detected` with a real signal — these are the genuine ones |
-| the correction | holds only until `clx-business-signal-detection-v2` next runs |
-
-**The one urgent action: deactivate `CLX - Business Signal Detection v2` in n8n.**
-It runs hourly, reads exactly `lead_status=eq.Scored&lead_score=gte.1&lead_pool=eq.tenant`,
-and calls Claude once per lead. Its next run re-reads all 205, spends 205 model
-calls and marks them `Signal Detected` again with no signal. It is **not** on the
-protected list, so pausing it is safe. Pausing costs nothing real: the build
-currently deployed produces a wrong status on every lead without a signal, which
-is what created this.
+**Done — signal detection was deactivated, so the correction holds.**
 
 **A second, benign effect.** `leads.updated_at` is a column DEFAULT, not a
 trigger, so the `UPDATE` did not refresh it. Those 205 rows kept their old
