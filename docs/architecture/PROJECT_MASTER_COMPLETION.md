@@ -97,10 +97,31 @@ that put 1,373 leads in front of a scorer with nothing to reason about.
 
 **2. The chain terminates at `Signal Detected`.** There are 0 leads at
 `Campaign Assigned` anywhere in production, and the 37 scored tenant leads have
-sat at `Signal Detected` since `21:46Z` without advancing. Nothing promotes a
-scored lead into the campaign stage. That is why draft → send → reply →
-follow-up → booking cannot yet be proven end to end — and, incidentally, why no
-accidental send is possible today.
+sat at `Signal Detected` since `21:46Z` without advancing. That is why draft →
+send → reply → follow-up → booking cannot yet be proven end to end — and,
+incidentally, why no accidental send is possible today.
+
+**Corrected 2026-09-16.** This paragraph used to end "Nothing promotes a scored
+lead into the campaign stage," which contradicted this same file 160 lines
+below, where Campaign Router is named as a reader of the status. Something does
+promote them: `clx-campaign-router-v2` queries
+
+```
+lead_status=eq.Signal%20Detected & lead_pool=eq.tenant
+  & client_id=not.is.null & research_summary=not.is.null
+```
+
+and writes `Campaign Assigned`. It ships `active: false`. The promoter is
+built, carries the right guards, and is switched off — which is an owner
+action, not a missing feature. Recorded as
+[`OWNER_ACTIONS_REQUIRED.md` #0b](OWNER_ACTIONS_REQUIRED.md).
+
+The earlier wording produced a remedy in the owner queue —
+`UPDATE leads SET lead_status='New Lead'` — that would have reset those 37
+researched, scored leads to the start of the pipeline and discarded work that
+cost live model calls. A wrong diagnosis in this file became a destructive
+instruction two files away, which is the argument for this file naming the
+workflow rather than saying "nothing".
 
 ## Outbound state — one real send, then closed
 
