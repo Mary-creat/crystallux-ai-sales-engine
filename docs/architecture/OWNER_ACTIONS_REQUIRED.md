@@ -24,6 +24,14 @@ Last reviewed: **2026-09-01**.
 - **Agentic read-only AND controlled-action are both proven live.** Nothing
   here is waiting on an agent decision any more.
 
+## Where this is all going
+
+The ordered path from today's holding position to a lead travelling Discovery →
+Booking on its own, with the intelligence layers feeding it, is
+[`docs/operations/PIPELINE_ACTIVATION_SEQUENCE.md`](../operations/PIPELINE_ACTIVATION_SEQUENCE.md).
+It is a sequence, not a checklist — several steps are only safe in order, and it
+says why each time. Everything below is Phase 0 of it.
+
 ## New — the only thing blocking the next step
 
 | # | Action | Why it is yours | 2 minutes |
