@@ -18,9 +18,60 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
-## 0ai. 47 shapers silently return nothing — needs a sweep, needs a decision (2026-09-13)
+## 0ai. The shapers that silently return nothing — 26 fixed, 20 left (2026-09-13, updated 2026-09-16)
 
-**Nothing for Mary to apply. This is a code change awaiting a go-ahead.**
+**Nothing for Mary to apply.** 26 of these were fixed in `7ed6787`. The
+remaining 20 are a different bug and are described at the bottom of this
+section.
+
+**Count correction.** This section said 47 sites in 43 files. One of the 47
+is a comment inside `clx-client-settings.json` quoting the old code, so the
+real figure was **46 live sites in 42 files**. The grep below counts the
+comment; that is the whole discrepancy.
+
+**What was fixed (26 sites, commit `7ed6787`).** Every site in a
+`runOnceForAllItems` Code node fed by exactly one httpRequest. Each got the
+`allOf()` house pattern. 23 of them also sat in workflows with a
+`respondToWebhook` node, where `allOf()` alone is not enough: a fetch
+returning zero rows yields zero items, the Code node never runs, and the
+caller gets a bodyless 200 — the empty-200 trap, now found a fifth time.
+Those feeders got `alwaysOutputData`. Validated: 327 workflows, 0 problems.
+
+**What is left (20 sites) and why it was not swept.** They sit in
+`runOnceForEachItem` nodes, where `$input.item.json` **is** the current row
+and is the correct accessor. `allOf()` there would gather every item on each
+of N runs — N passes over N rows, duplicated output. The `Array.isArray`
+test is still wrong in all 20, but the right fix depends on what each node
+is trying to do: read the single row, or change the node to
+`runOnceForAllItems` and aggregate. That is a per-site reading, not a sweep.
+A mechanical pass over these would have made them quietly worse.
+
+The 20:
+
+```
+clx-activity-classifier-v1              Split Batches
+clx-appointment-geocoder-v1             Prep Queries
+clx-daily-plan-generator-v1             Fan Out Clients
+clx-daily-summary-generator-v1          Fan Out Per Agent
+clx-no-show-detector-v1                 Split Per Appointment
+clx-post-call-analyzer-v1               Prep Prompt
+clx-realtime-script-suggester-v1        Shape Suggestions
+clx-reshuffle-suggester-v1              Shape Suggestions
+clx-route-optimizer-v1                  Haversine Optimize
+clx-script-learning-loop-v1             Detect Problem Scripts
+clx-script-matcher-v1                   Prep Claude Prompt
+api/briefing/...briefing-generator-v1   Build Prompt
+api/completeness/...calculate-v1        Compute Score
+api/content/...topic-generator-v1       Build Prompt
+api/insurance-mga/...carrier-seed...    Prepare Products
+api/insurance-mga/...compliance-score-calculate-v1  Compute Score
+api/insurance-mga/...policy-recommendation-engine-v2  Build Claude Prompt
+api/insurance-mga/...product-compare-v1 Shape Comparison
+api/insurance-mga/...quote-engine-v1    Plan Dispatch
+api/sentinel/...alert-router-v1         Plan Insert
+```
+
+--- original entry, kept for the diagnosis ---
 
 This line appears 47 times across 43 workflows:
 
