@@ -29,7 +29,7 @@ Last reviewed: **2026-09-01**.
 | # | Action | Why it is yours | 2 minutes |
 |---|---|---|---|
 | **0** | **Put the new n8n API key in the local `.env`** | The key on this machine is the one minted `2026-04-06`; `GET /api/v1/workflows` answers `401`. The working key lives only in the GitHub secret, which cannot be read back. Without it, live-vs-repo drift can only be *inferred* from database behaviour — and inference is exactly what got a diagnosis wrong twice this sprint | Paste the same key you saved into GitHub Actions into `.env` as `N8N_API_KEY=` |
-| **0b** | **Activate `CLX - Campaign Router v2`** — *not* a database write | The 36 is real and tenant-scoped: leads stuck at `Signal Detected`. They are stuck because Campaign Router v2, the workflow that promotes them, ships `active: false`. Activation is an owner action by the dormant-by-default policy | Activate it in n8n. **Do not run the UPDATE this row used to describe** |
+| **0b** | **Activate `CLX - Campaign Router v2`** — *not* a database write | The 36 is real and tenant-scoped: leads stuck at `Signal Detected`. They are stuck because Campaign Router v2, the workflow that promotes them, ships `active: false`. Activation is an owner action by the dormant-by-default policy | **Do [#0d](#0d-signal-detected-is-a-lie-on-most-rows--fix-the-data-not-the-guard-2026-09-16) first**, then activate it in n8n. **Do not run the UPDATE this row used to describe** |
 
 
 ### 0b (detail). The 36 was sourced — the earlier withdrawal was wrong
@@ -82,6 +82,73 @@ WHERE lead_status = 'Signal Detected'
 ```
 
 That number is what Campaign Router v2 will pick up the moment it is activated.
+
+### 0d. `Signal Detected` is a lie on most rows — fix the data, not the guard (2026-09-16)
+
+Measured live 2026-09-01: **79 tenant leads hold `lead_status = 'Signal
+Detected'` and only 19 have a `detected_signal`.** Three of the 60 empty ones
+were written *during* the run, so this is current behaviour, not history.
+
+The repo is right and production is not. `Prep Update Signal` in
+`clx-business-signal-detection-v2` reads:
+
+```js
+lead_status: item.detected_signal ? 'Signal Detected' : 'Scored'
+```
+
+A lead with no signal is supposed to stay `Scored`. Production marks it
+`Signal Detected` anyway, which is an older build — the same
+"the node that writes the status discards the node that decides it" defect
+fixed for research in `92bd9fe`, made here and never deployed.
+
+**Why this matters now.** #0b activates Campaign Router v2, which promotes
+`Signal Detected` leads into outreach. 60 of those 79 have no signal. Promoting
+them means generating outreach that references a buying signal that does not
+exist — on the majority of the batch.
+
+**The fix is the data, not the guard.** `PROJECT_MASTER_COMPLETION` suggested
+adding `detected_signal IS NOT NULL` to the promotion guard. That would work,
+but Campaign Router v2 is a **protected production workflow**, and it would be
+patching a query to compensate for rows that are simply wrong. Correct the rows
+and the existing filter is already right — no protected workflow is touched.
+
+**Step 1 — look before writing.** Read-only:
+
+```sql
+SELECT lead_pool, count(*) AS mislabelled
+FROM leads
+WHERE lead_status = 'Signal Detected'
+  AND detected_signal IS NULL
+GROUP BY lead_pool;
+```
+
+**Step 2 — correct them to what the shipped code would have written:**
+
+```sql
+UPDATE leads
+SET lead_status = 'Scored'
+WHERE lead_status = 'Signal Detected'
+  AND detected_signal IS NULL;
+```
+
+This is a status correction, not a data loss: `Scored` is where signal
+detection re-reads them (`lead_status=eq.Scored&lead_score=gte.1&lead_pool=eq.tenant`),
+so they get another pass at a real signal rather than being stranded. Research
+summaries and scores are untouched.
+
+**Do step 2 before activating Campaign Router in #0b**, or the 60 promote first.
+
+**Step 3 — stop it recurring.** Production runs an older
+`clx-business-signal-detection-v2` than the repo. CI deploys changed files only
+and this file has not changed, so a normal push will not refresh it. It needs a
+forced redeploy, which needs the n8n key from **#0**. Until then step 2 is a
+correction that will need repeating.
+
+**Note on the pipeline shape, worth a decision separately.** `Scored` is read
+only by signal detection and the staleness sweeper. Nothing promotes a `Scored`
+lead onward. So a lead that genuinely has no signal never advances — it is
+re-checked forever. That is coherent if a signal is meant to be a prerequisite
+for outreach, and a dead end if it is not. Currently unstated either way.
 
 ### 0c. 1,318 leads sit in "Scoring Failed" and the status does not match the code (2026-09-16)
 
