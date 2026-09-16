@@ -29,49 +29,61 @@ Last reviewed: **2026-09-01**.
 | # | Action | Why it is yours | 2 minutes |
 |---|---|---|---|
 | **0** | **Put the new n8n API key in the local `.env`** | The key on this machine is the one minted `2026-04-06`; `GET /api/v1/workflows` answers `401`. The working key lives only in the GitHub secret, which cannot be read back. Without it, live-vs-repo drift can only be *inferred* from database behaviour — and inference is exactly what got a diagnosis wrong twice this sprint | Paste the same key you saved into GitHub Actions into `.env` as `N8N_API_KEY=` |
-| **0b** | ~~Allow the production-database write for 36 stuck leads~~ **— WITHDRAWN 2026-09-16.** This number was unsourced: no tenant, no status, no date, and it appears exactly once in the whole doc set. A live `SELECT lead_status, count(*) FROM leads GROUP BY 1` returned no bucket of 36. Do not run the UPDATE it described. What the query did surface is recorded below as **#0c** | Nothing to do. Superseded by #0c |
+| **0b** | **Activate `CLX - Campaign Router v2`** — *not* a database write | The 36 is real and tenant-scoped: leads stuck at `Signal Detected`. They are stuck because Campaign Router v2, the workflow that promotes them, ships `active: false`. Activation is an owner action by the dormant-by-default policy | Activate it in n8n. **Do not run the UPDATE this row used to describe** |
 
+
+### 0b (detail). The 36 was sourced — the earlier withdrawal was wrong
+
+Withdrawn on 2026-09-16 as "unsourced" after a global
+`SELECT lead_status, count(*) FROM leads GROUP BY 1` returned no bucket of 36.
+That check could not have found it: the row says *tenant* leads, and a
+per-tenant count of 36 never appears in a global grouping. Mary caught this.
+
+The source is `PROJECT_MASTER_COMPLETION.md`, written the same day by the same
+measurement session:
+
+> The chain terminates at `Signal Detected`. There are 0 leads at
+> `Campaign Assigned` anywhere in production, and the 37 scored tenant leads
+> have sat at `Signal Detected` since `21:46Z` without advancing.
+
+The global count confirms the bucket exists: `Signal Detected` = **224**
+platform-wide. The ~36 are tenant `6edc687d`'s share.
+
+**But the recorded remedy was wrong, and worse than doing nothing.**
+`UPDATE leads SET lead_status='New Lead'` would reset 37 researched, scored
+leads to the start of the pipeline, discarding grounded `research_summary`,
+`research_angle` and `score_components` that cost live Anthropic calls to
+produce — and they would return to `Signal Detected` anyway, because the
+reason they stopped would still be true.
+
+**Nothing promotes them because the promoter is switched off.**
+`clx-campaign-router-v2` reads exactly this population:
+
+```
+leads?lead_status=eq.Signal%20Detected
+     &lead_pool=eq.tenant
+     &client_id=not.is.null
+     &research_summary=not.is.null
+```
+
+and writes `Campaign Assigned`. It ships `active: false`. It already carries
+the three guards that ordering defect #1 says outreach generation lacks, so it
+promotes only properly-researched tenant leads — which is precisely the 37.
+
+**The action is an activation, not a write.** No `UPDATE`, no approval, no
+production database change. Confirm the population first:
+
+```sql
+SELECT count(*) FROM leads
+WHERE lead_status = 'Signal Detected'
+  AND lead_pool = 'tenant'
+  AND client_id IS NOT NULL
+  AND research_summary IS NOT NULL;
+```
+
+That number is what Campaign Router v2 will pick up the moment it is activated.
 
 ### 0c. 1,318 leads sit in "Scoring Failed" and the status does not match the code (2026-09-16)
-
-Live counts, from Mary's own query (4,006 leads total):
-
-| status | count |
-|---|---|
-| Scored | 1,378 |
-| **Scoring Failed** | **1,318** |
-| New Lead | 891 |
-| Signal Detected | 224 |
-| Outreach Ready | 171 |
-| Contacted | 17 |
-| everything else | 7 |
-
-A third of every lead in the database failed scoring, and 891 more were
-never scored at all. Against 17 Contacted, that is the pipeline's real
-bottleneck — not the 36 leads #0b claimed.
-
-**The part that needs the n8n key to settle.** `clx-lead-scoring-v2` in the
-repo can write exactly three statuses: `Scored`, `Scoring Failed`, and
-`Research Failed`. The last of those is the fail-closed guard — a lead with
-no `research_summary` is deliberately left unscored rather than given a
-fake zero. **Production has zero rows with `Research Failed`.**
-
-Either no lead has ever reached scoring without research — implausible with
-891 sitting at New Lead — or **the deployed Lead Scoring v2 is older than the
-repo's**, from before that guard existed, and wrote every no-research lead as
-`Scoring Failed` instead. The second is far more likely, and it is
-live-vs-repo drift on a *protected* workflow.
-
-This cannot be confirmed from the working machine: the n8n key answers 401
-(#0). That is the concrete question #0 now unblocks.
-
-**Do not bulk-reset these to 'New Lead'.** If the cause is missing research,
-re-feeding them scores them straight back to failure. The order is: read the
-live workflow, confirm which failure mode applies, re-run research on the
-affected leads, then re-score. `leads` has no `scoring_error` column, so the
-reason was only ever written to the n8n console — which is the other thing
-worth fixing, and why this was invisible until a count was run.
-
 
 ---
 
