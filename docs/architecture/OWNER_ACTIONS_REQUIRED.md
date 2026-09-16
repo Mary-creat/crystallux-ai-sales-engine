@@ -122,7 +122,31 @@ WHERE lead_status = 'Signal Detected'
 GROUP BY lead_pool;
 ```
 
-**Step 2 — correct them to what the shipped code would have written:**
+**MEASURED 2026-09-16 — do NOT run step 2 yet.** Mary ran step 1:
+**205 tenant leads** are mislabelled (`Signal Detected` with
+`detected_signal` NULL), out of 224 at that status platform-wide. The 19 with
+a real signal match the 2026-09-01 measurement exactly — so **every one of the
+145 rows added since then is mislabelled**, about 10 a day. The bad build is
+not history, it is running now.
+
+**That makes the ordering hard, not advisory.** `clx-business-signal-detection-v2`
+runs on a **1-hour schedule** and re-reads exactly
+`lead_status=eq.Scored&lead_score=gte.1&lead_pool=eq.tenant` — which is what
+step 2 turns those 205 rows into. It calls Claude once per lead
+(`Claude Analyze Signal`). Run step 2 against the current deployment and within
+the hour the old build re-reads all 205, spends **205 model calls**, and marks
+them `Signal Detected` again. Real money, no change.
+
+**Correct order:**
+
+1. **#0** — n8n key into `.env`.
+2. **Force-redeploy `clx-business-signal-detection-v2`** so production runs the
+   build that only claims a signal when there is one. Nothing else is safe until
+   this is done, because everything else is undone hourly.
+3. **Then** step 2 below — the correction now holds.
+4. **Then** #0b — activate Campaign Router v2.
+
+**Step 2 — correct them to what the shipped code would have written (AFTER step 2 above):**
 
 ```sql
 UPDATE leads
