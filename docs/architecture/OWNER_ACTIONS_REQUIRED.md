@@ -83,6 +83,46 @@ WHERE lead_status = 'Signal Detected'
 
 That number is what Campaign Router v2 will pick up the moment it is activated.
 
+### 0d-STATE. The correction WAS run on 2026-09-16 — read this before acting
+
+Mary ran the `UPDATE` before the ordering warning landed. **205 tenant leads
+moved from `Signal Detected` to `Scored`.** The database is now in the corrected
+state, and it will not stay there by itself.
+
+**Live position:**
+
+| | |
+|---|---|
+| 205 tenant leads | now `lead_status = 'Scored'`, `detected_signal` still NULL |
+| 19 tenant leads | remain `Signal Detected` with a real signal — these are the genuine ones |
+| the correction | holds only until `clx-business-signal-detection-v2` next runs |
+
+**The one urgent action: deactivate `CLX - Business Signal Detection v2` in n8n.**
+It runs hourly, reads exactly `lead_status=eq.Scored&lead_score=gte.1&lead_pool=eq.tenant`,
+and calls Claude once per lead. Its next run re-reads all 205, spends 205 model
+calls and marks them `Signal Detected` again with no signal. It is **not** on the
+protected list, so pausing it is safe. Pausing costs nothing real: the build
+currently deployed produces a wrong status on every lead without a signal, which
+is what created this.
+
+**A second, benign effect.** `leads.updated_at` is a column DEFAULT, not a
+trigger, so the `UPDATE` did not refresh it. Those 205 rows kept their old
+`updated_at`, which matches Pipeline Update v2's staleness rule
+(`lead_status.eq.Scored` and `updated_at` older than 2 hours). They will be
+flagged `is_stale = true` with a `stale_reason`. This does **not** block
+anything: `is_stale` is filtered on by Pipeline Update alone, and Campaign
+Router does not read it. Reversible with
+`UPDATE leads SET is_stale = false WHERE ...` if the reporting matters.
+
+**Remaining order, unchanged:**
+
+1. Deactivate signal detection — *now*, to hold the correction.
+2. **#0** — n8n key into `.env`.
+3. Force-redeploy `clx-business-signal-detection-v2`, then reactivate it.
+4. **#0b** — activate Campaign Router v2.
+
+If step 1 is missed, re-run the `UPDATE` in #0d after step 3 — it is idempotent.
+
 ### 0d. `Signal Detected` is a lie on most rows — fix the data, not the guard (2026-09-16)
 
 Measured live 2026-09-01: **79 tenant leads hold `lead_status = 'Signal
