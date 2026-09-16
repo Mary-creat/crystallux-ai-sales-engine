@@ -142,3 +142,7 @@ vite.config.ts.timestamp-*
 # Python bytecode cache (drift detector + other scripts)
 __pycache__/
 *.pyc
+
+# Database exports. Contain personal data and must never be committed.
+backups/
+*.ndjson
