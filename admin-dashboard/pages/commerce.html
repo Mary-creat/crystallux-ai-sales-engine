@@ -255,10 +255,17 @@
 <script>
 (function () {
   'use strict';
-  clxAuth.requireAdmin && clxAuth.requireAdmin();
-  clxComp.injectNav && clxComp.injectNav();
-  clxComp.wireSidebar && clxComp.wireSidebar();
-  clxComp.renderTopbarUser && clxComp.renderTopbarUser();
+  // clxAuth.requireAdmin has never existed. The `&&` guarded the call with its
+  // own typo, so this line was a no-op and commerce was the one admin page with
+  // no gate at all -- it rendered for anyone who opened the URL. Nothing leaked:
+  // catalog, draft-listing and orders all validate the session and require admin
+  // server-side, so every call from an ungated page came back 401. But the other
+  // 44 admin pages redirect a wrong role off the origin, and this one did not.
+  clxAuth.require('admin').then(function () {
+    clxComp.injectNav && clxComp.injectNav();
+    clxComp.wireSidebar && clxComp.wireSidebar();
+    clxComp.renderTopbarUser && clxComp.renderTopbarUser();
+  });
 
   var API = 'https://automation.crystallux.org/webhook';
   function $(id) { return document.getElementById(id); }
