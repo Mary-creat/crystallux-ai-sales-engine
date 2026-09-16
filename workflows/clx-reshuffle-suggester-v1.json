@@ -72,8 +72,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Normalize candidates into suggestion shape, carry forward request context.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst parsed = $('Validate + Parse').first().json;\nconst suggestions = rows.map(function(r, i) {\n  return {\n    lead_id: r.lead_id,\n    score: r.score,\n    reason: r.reason,\n    rank: i + 1,\n    lead_name: r.lead_name || null,\n    lead_email: r.lead_email || null,\n    lead_phone: r.lead_phone || null\n  };\n});\nreturn { json: Object.assign({}, parsed, { suggestions }) };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "// Normalize candidates into suggestion shape, carry forward request context.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Candidates (RPC)');\nconst parsed = $('Validate + Parse').first().json;\nconst suggestions = rows.map(function(r, i) {\n  return {\n    lead_id: r.lead_id,\n    score: r.score,\n    reason: r.reason,\n    rank: i + 1,\n    lead_name: r.lead_name || null,\n    lead_email: r.lead_email || null,\n    lead_phone: r.lead_phone || null\n  };\n});\nreturn { json: Object.assign({}, parsed, { suggestions }) };",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-rs-v1-0004",
       "name": "Shape Suggestions",

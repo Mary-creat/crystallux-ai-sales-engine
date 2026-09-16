@@ -169,7 +169,7 @@
         "options": {}
       },
       "id": "qe-0006",
-      "name": "Fetch Integrations",
+      "name": "Fetch Integrations", "alwaysOutputData": true,
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -184,8 +184,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const integrations = Array.isArray($input.item.json) ? $input.item.json : [];\nconst body = $('Check Role').first().json.body;\nconst actor_id = $('Check Role').first().json.actor_id;\nconst byType = { manual: [], email: [], api: [], portal: [], unconfigured: [] };\n(body.carrier_ids || []).forEach(function (cid) {\n  const integ = integrations.find(function (i) { return i.carrier_id === cid && i.active; });\n  if (!integ) byType.unconfigured.push(cid);\n  else (byType[integ.integration_type] || byType.unconfigured).push(cid);\n});\n// Pre-seed pending carrier_quotes rows so the principal dashboard surfaces them.\nconst rows = (body.carrier_ids || []).map(function (cid) {\n  return { vertical_id: 'insurance', client_id: body.client_id, lead_id: body.lead_id, carrier_id: cid, product_id: body.product_id || null, suitability_assessment_id: body.suitability_assessment_id || null, quote_source: 'manual', quote_data: { dispatch: 'quote-engine' }, status: 'pending', created_by_user_id: actor_id };\n});\nreturn { json: { ok: true, dispatch: byType, pending_rows: rows, summary: { manual: byType.manual.length, email: byType.email.length, api: byType.api.length, portal: byType.portal.length, unconfigured: byType.unconfigured.length } } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst integrations = allOf('Fetch Integrations');\nconst body = $('Check Role').first().json.body;\nconst actor_id = $('Check Role').first().json.actor_id;\nconst byType = { manual: [], email: [], api: [], portal: [], unconfigured: [] };\n(body.carrier_ids || []).forEach(function (cid) {\n  const integ = integrations.find(function (i) { return i.carrier_id === cid && i.active; });\n  if (!integ) byType.unconfigured.push(cid);\n  else (byType[integ.integration_type] || byType.unconfigured).push(cid);\n});\n// Pre-seed pending carrier_quotes rows so the principal dashboard surfaces them.\nconst rows = (body.carrier_ids || []).map(function (cid) {\n  return { vertical_id: 'insurance', client_id: body.client_id, lead_id: body.lead_id, carrier_id: cid, product_id: body.product_id || null, suitability_assessment_id: body.suitability_assessment_id || null, quote_source: 'manual', quote_data: { dispatch: 'quote-engine' }, status: 'pending', created_by_user_id: actor_id };\n});\nreturn { json: { ok: true, dispatch: byType, pending_rows: rows, summary: { manual: byType.manual.length, email: byType.email.length, api: byType.api.length, portal: byType.portal.length, unconfigured: byType.unconfigured.length } } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "qe-0007",
       "name": "Plan Dispatch",

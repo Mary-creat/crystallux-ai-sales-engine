@@ -18,87 +18,72 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
-## 0ai. The shapers that silently return nothing — 26 fixed, 20 left (2026-09-13, updated 2026-09-16)
+## 0ai. The shapers that silently return nothing — 44 of 46 fixed, 2 need a decision (2026-09-13, updated 2026-09-16)
 
-**Nothing for Mary to apply.** 26 of these were fixed in `7ed6787`. The
-remaining 20 are a different bug and are described at the bottom of this
-section.
+**Nothing for Mary to apply.** Fixed across `7ed6787` and the commit that
+replaces this entry. Two sites remain and are described at the bottom.
 
-**Count correction.** This section said 47 sites in 43 files. One of the 47
-is a comment inside `clx-client-settings.json` quoting the old code, so the
-real figure was **46 live sites in 42 files**. The grep below counts the
+**Count correction.** This entry originally said 47 sites in 43 files. One of
+the 47 is a comment inside `clx-client-settings.json` quoting the old code, so
+the real figure was **46 live sites in 42 files**. The grep still returns the
 comment; that is the whole discrepancy.
 
-**What was fixed (26 sites, commit `7ed6787`).** Every site in a
-`runOnceForAllItems` Code node fed by exactly one httpRequest. Each got the
-`allOf()` house pattern. 23 of them also sat in workflows with a
-`respondToWebhook` node, where `allOf()` alone is not enough: a fetch
-returning zero rows yields zero items, the Code node never runs, and the
-caller gets a bodyless 200 — the empty-200 trap, now found a fifth time.
-Those feeders got `alwaysOutputData`. Validated: 327 workflows, 0 problems.
+**The bug.** `const rows = Array.isArray($input.item.json) ? $input.item.json : []`.
+n8n splits an array response into one item per row, so `$input.item.json` is
+the ROW. `Array.isArray` is false on every successful read, `rows` becomes `[]`,
+and the workflow answers a healthy `ok:true` carrying nothing.
 
-**What is left (20 sites) and why it was not swept.** They sit in
-`runOnceForEachItem` nodes, where `$input.item.json` **is** the current row
-and is the correct accessor. `allOf()` there would gather every item on each
-of N runs — N passes over N rows, duplicated output. The `Array.isArray`
-test is still wrong in all 20, but the right fix depends on what each node
-is trying to do: read the single row, or change the node to
-`runOnceForAllItems` and aggregate. That is a per-site reading, not a sweep.
-A mechanical pass over these would have made them quietly worse.
+**It was two bugs wearing one shape.** Which fix is correct depends on the Code
+node's mode, per OPERATIONS_HANDBOOK §4.9:
 
-The 20:
+**26 sites in `runOnceForAllItems` nodes** — aggregation code in aggregation
+mode. Fixed with the `allOf()` house pattern. 23 also sat in workflows with a
+`respondToWebhook` node, where `allOf()` alone is not enough: a fetch returning
+zero rows yields zero items, the Code node never runs, and the caller gets a
+bodyless 200 — the empty-200 trap, now found a fifth time. Those feeders got
+`alwaysOutputData`.
 
-```
-clx-activity-classifier-v1              Split Batches
-clx-appointment-geocoder-v1             Prep Queries
-clx-daily-plan-generator-v1             Fan Out Clients
-clx-daily-summary-generator-v1          Fan Out Per Agent
-clx-no-show-detector-v1                 Split Per Appointment
-clx-post-call-analyzer-v1               Prep Prompt
-clx-realtime-script-suggester-v1        Shape Suggestions
-clx-reshuffle-suggester-v1              Shape Suggestions
-clx-route-optimizer-v1                  Haversine Optimize
-clx-script-learning-loop-v1             Detect Problem Scripts
-clx-script-matcher-v1                   Prep Claude Prompt
-api/briefing/...briefing-generator-v1   Build Prompt
-api/completeness/...calculate-v1        Compute Score
-api/content/...topic-generator-v1       Build Prompt
-api/insurance-mga/...carrier-seed...    Prepare Products
-api/insurance-mga/...compliance-score-calculate-v1  Compute Score
-api/insurance-mga/...policy-recommendation-engine-v2  Build Claude Prompt
-api/insurance-mga/...product-compare-v1 Shape Comparison
-api/insurance-mga/...quote-engine-v1    Plan Dispatch
-api/sentinel/...alert-router-v1         Plan Insert
-```
+**17 sites in `runOnceForEachItem` nodes** — aggregation code in the *wrong
+mode*. Every one of them did `rows.map(...)`, `rows.filter(...)`, batching or
+grouping, and several `return`ed an array, which per-item mode does not accept.
+Handbook §4.9: per-item is for prep and formatting, all-items is for
+aggregation. These were written as all-items code and mis-flagged. Fixed by
+switching the mode *and* applying `allOf()`.
 
---- original entry, kept for the diagnosis ---
+**1 site** (`clx-pre-meeting-briefing-generator-v1`, `Build Prompt`) genuinely
+is per-item: `$itemIndex` pairs each lead with its appointment. `Fetch Lead`
+reads one lead by id, so the split row *is* the lead. Fixed by reading
+`$input.item.json` directly and keeping the mode. Every briefing had been
+taking the `_skip` branch.
 
-This line appears 47 times across 43 workflows:
+### The 2 that are left — these need a decision, not a sweep
 
-```js
-const rows = Array.isArray($input.item.json) ? $input.item.json : [];
-```
+| Workflow | Node | Wants |
+|---|---|---|
+| `api/content/clx-content-topic-generator-v1` | `Build Prompt` | all signals for **this** client |
+| `api/insurance-mga/clx-mga-insurance-compliance-score-calculate-v1` | `Compute Score` | all reviews for **this** client |
 
-n8n splits an array response into one item per row, so `$input.item.json`
-is the ROW, not an array containing it. `Array.isArray` is false on every
-successful read, `rows` becomes `[]`, and the workflow answers ok:true
-with nothing in it — a healthy-looking response meaning "there is no
-data". Proven, not theorised: this is exactly what /client/settings did
-after the columns existed and the query returned the row perfectly.
+Both fan out per client, fetch per client, and then aggregate per client. That
+combination has no clean fix:
 
-Every one of the 47 is fed directly by an httpRequest, so every one has
-the same failure. Affected: the six MGA report builders, compliance
-scoring, all four Sentinel cost collectors, the daily plan and summary
-generators, script matcher, route optimiser, content attribution,
-pre-meeting briefings.
+- `allOf()` is **wrong** — handbook §4.8 says a named-node reference goes stale
+  inside a loop, and it would gather every client's rows on every run.
+- Switching to `runOnceForAllItems` is **wrong** — it breaks `$itemIndex`, which
+  is how each run knows which client it is on.
+- Reading the single row is **wrong** — it changes the node's output cardinality
+  and every downstream node with it.
 
-The fix per site is the `allOf()` helper (CLAUDE.md house pattern) — the
-same change already made to clx-client-settings. Mechanical, but 43 files
-is a change surface that deserves its own verification pass rather than
-riding along with unrelated work, and none of it was on the path to
-getting Eazer signed in.
+The real fix is to switch to all-items, gather with `allOf()`, and group by
+`client_id` on the rows themselves, emitting one item per client. That changes
+the node's contract, so it needs live data to verify rather than a careful read.
 
-Find them again with:
+**What it costs to leave them.** Both currently compute from `[]`. Content
+topics are generated with no behavioural signals. Compliance scores fall through
+to their heuristic defaults (75/80) instead of real review data — a score that
+looks computed and is not. Neither is carrying customer traffic today:
+`policy_applications` is 0 and the content publishers are stubs.
+
+Find any regression of the original pattern with:
 
 ```
 grep -rl 'Array.isArray($input.item.json) ? $input.item.json : \[\]' workflows/

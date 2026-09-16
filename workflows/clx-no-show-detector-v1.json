@@ -90,8 +90,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Split rows into individual items so downstream nodes run per appointment.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function(r) { return { json: r }; });",
-        "mode": "runOnceForEachItem"
+        "jsCode": "// Split rows into individual items so downstream nodes run per appointment.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Pending Appointments');\nreturn rows.map(function(r) { return { json: r }; });",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-nsd-v1-0005",
       "name": "Split Per Appointment",

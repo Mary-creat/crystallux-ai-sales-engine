@@ -156,8 +156,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst ctx = $('Resolve Context').first().json;\nif (rows.length === 0) return { json: Object.assign({}, ctx, { _no_match: true, suggestions: [] }) };\nconst suggestions = rows.map(function(r) { return {\n  script_id: r.script_id,\n  script_type: r.script_type,\n  script_title: r.script_title,\n  script_body: r.script_body,\n  rank: r.rank,\n  conversion_rate: r.conversion_rate\n}; });\nreturn { json: Object.assign({}, ctx, { suggestions, _no_match: false }) };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Match Scripts (RPC)');\nconst ctx = $('Resolve Context').first().json;\nif (rows.length === 0) return { json: Object.assign({}, ctx, { _no_match: true, suggestions: [] }) };\nconst suggestions = rows.map(function(r) { return {\n  script_id: r.script_id,\n  script_type: r.script_type,\n  script_title: r.script_title,\n  script_body: r.script_body,\n  rank: r.rank,\n  conversion_rate: r.conversion_rate\n}; });\nreturn { json: Object.assign({}, ctx, { suggestions, _no_match: false }) };",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-rss-v1-0007",
       "name": "Shape Suggestions",

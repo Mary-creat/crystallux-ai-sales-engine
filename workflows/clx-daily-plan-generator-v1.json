@@ -124,8 +124,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Fan out into per-client items.\nconst arr = Array.isArray($input.item.json) ? $input.item.json : [];\nconst plan_date = $('Parse Input').first().json.plan_date;\nreturn arr.map(function(c) { return { json: { client_id: c.id, agent_id: null, plan_date } }; });",
-        "mode": "runOnceForEachItem"
+        "jsCode": "// Fan out into per-client items.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst arr = allOf('Fetch Active Clients');\nconst plan_date = $('Parse Input').first().json.plan_date;\nreturn arr.map(function(c) { return { json: { client_id: c.id, agent_id: null, plan_date } }; });",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-dpg-v1-0006",
       "name": "Fan Out Clients",

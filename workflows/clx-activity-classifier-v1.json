@@ -75,8 +75,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Split into batches of 20 rows for Claude context economy.\nconst rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst BATCH = 20;\nconst out = [];\nfor (let i = 0; i < rows.length; i += BATCH) {\n  out.push({ json: { batch: rows.slice(i, i + BATCH) } });\n}\nreturn out;",
-        "mode": "runOnceForEachItem"
+        "jsCode": "// Split into batches of 20 rows for Claude context economy.\nconst allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Unclassified');\nconst BATCH = 20;\nconst out = [];\nfor (let i = 0; i < rows.length; i += BATCH) {\n  out.push({ json: { batch: rows.slice(i, i + BATCH) } });\n}\nreturn out;",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-ac-v1-0004",
       "name": "Split Batches",

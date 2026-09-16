@@ -76,8 +76,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const arr = Array.isArray($input.item.json) ? $input.item.json : [];\nconst today = new Date().toISOString().slice(0, 10);\nreturn arr.map(function(a) { return { json: Object.assign({}, a, { plan_date: today }) }; });",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst arr = allOf('Fetch Consenting Agents');\nconst today = new Date().toISOString().slice(0, 10);\nreturn arr.map(function(a) { return { json: Object.assign({}, a, { plan_date: today }) }; });",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-dsg-v1-0004",
       "name": "Fan Out Per Agent",

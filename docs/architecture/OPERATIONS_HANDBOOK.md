@@ -261,6 +261,46 @@ n8n Code nodes have a mode setting:
 
 Using the wrong mode silently breaks things. If you're updating leads in a loop and it's set to "Run Once for All Items," you'll only update one lead and not know why.
 
+### 4.9a The `Array.isArray($input.item.json)` family — one shape, two bugs
+
+This line appeared 46 times across 42 workflows and was wrong in all of them:
+
+```js
+const rows = Array.isArray($input.item.json) ? $input.item.json : [];
+```
+
+n8n splits an array response into one item per row, so `$input.item.json` is
+the ROW, not an array containing it. `Array.isArray` is therefore false on
+every *successful* read, `rows` becomes `[]`, and the workflow answers a
+healthy-looking `ok:true` carrying no data. There is no error anywhere.
+
+**Which fix is right depends on the node's mode (§4.9). Check it first.**
+
+| Mode | What the code does | Fix |
+|---|---|---|
+| `runOnceForAllItems` | aggregates | `allOf('<Feeder>')` |
+| `runOnceForEachItem` but the code aggregates | wrong mode | switch to all-items, **then** `allOf()` |
+| `runOnceForEachItem` and genuinely per-item | reads one row | use `$input.item.json` directly |
+
+Do **not** sweep `allOf()` across per-item nodes. Per §4.8 a named-node
+reference goes stale inside a loop, and `allOf()` would gather every item on
+each of N runs — N passes over N rows. A mechanical pass over these makes them
+quietly worse than the bug it is fixing.
+
+**The second half, for any workflow with a `respondToWebhook` node.** `allOf()`
+repairs the wrongly-shaped-rows case. It does nothing for the zero-rows case:
+an empty fetch yields zero items, the Code node never runs at all, and the
+caller gets a bodyless 200. Set `alwaysOutputData` on the feeder as well. This
+is the empty-200 trap and it has now been found five separate times.
+
+**Two traps when fixing these in bulk:**
+
+- A node name containing an apostrophe (`Fetch Day's Appointments`) breaks
+  `allOf('...')`. Use double quotes for the name.
+- When flipping `mode`, anchor the edit to the node that owns it. 16 of 17
+  files here had several `runOnceForEachItem` nodes, so a first-match
+  replacement would have flipped the wrong one.
+
 ### 4.10 continueOnFail — when it helps and when it hurts
 
 Setting `continueOnFail: true` on an HTTP node means "if this call fails, don't halt the workflow — keep going with the other items."

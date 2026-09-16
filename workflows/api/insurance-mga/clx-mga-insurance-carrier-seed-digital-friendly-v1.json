@@ -42,13 +42,13 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
       },
-      "id": "csd-0006", "name": "Fetch Carrier Ids", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 320],
+      "id": "csd-0006", "name": "Fetch Carrier Ids", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 320],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const carrierRows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst byCode = {};\ncarrierRows.forEach(function (r) { if (r.carrier_code) byCode[r.carrier_code] = r.id; });\nconst productsByCode = $('Build Seed Data').first().json.products || {};\nconst rows = [];\nObject.keys(productsByCode).forEach(function (code) {\n  const carrierId = byCode[code];\n  if (!carrierId) return;\n  (productsByCode[code] || []).forEach(function (p) {\n    rows.push({\n      vertical_id: 'insurance',\n      carrier_id: carrierId,\n      product_name: p.name,\n      product_type: p.type,\n      min_coverage_cents: p.min,\n      max_coverage_cents: p.max,\n      base_premium_cents: p.base,\n      commission_first_year: p.fy,\n      commission_renewal: p.ren,\n      ai_compliance_ready: !!p.ai,\n      features: Array.isArray(p.features) ? p.features : [],\n      active: true\n    });\n  });\n});\nreturn { json: { rows, carriers_seeded: carrierRows.length, products_to_seed: rows.length } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst carrierRows = allOf('Fetch Carrier Ids');\nconst byCode = {};\ncarrierRows.forEach(function (r) { if (r.carrier_code) byCode[r.carrier_code] = r.id; });\nconst productsByCode = $('Build Seed Data').first().json.products || {};\nconst rows = [];\nObject.keys(productsByCode).forEach(function (code) {\n  const carrierId = byCode[code];\n  if (!carrierId) return;\n  (productsByCode[code] || []).forEach(function (p) {\n    rows.push({\n      vertical_id: 'insurance',\n      carrier_id: carrierId,\n      product_name: p.name,\n      product_type: p.type,\n      min_coverage_cents: p.min,\n      max_coverage_cents: p.max,\n      base_premium_cents: p.base,\n      commission_first_year: p.fy,\n      commission_renewal: p.ren,\n      ai_compliance_ready: !!p.ai,\n      features: Array.isArray(p.features) ? p.features : [],\n      active: true\n    });\n  });\n});\nreturn { json: { rows, carriers_seeded: carrierRows.length, products_to_seed: rows.length } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "csd-0007", "name": "Prepare Products", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1600, 320]
     },

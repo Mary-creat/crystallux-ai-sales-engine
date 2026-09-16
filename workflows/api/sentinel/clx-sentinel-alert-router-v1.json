@@ -24,13 +24,13 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "sar-0004", "name": "Check Dedup", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "id": "sar-0004", "name": "Check Dedup", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const existing = Array.isArray($input.item.json) ? $input.item.json : [];\nconst body = $('Extract').first().json.body;\nif (existing.length > 0 && body.aggregation_key) return { json: { _dedup: true, status: 200, existing_alert_id: existing[0].id } };\nconst payload = { module_name: body.module_name, alert_type: body.alert_type, severity: body.severity, title: body.title, message: body.message || null, details: body.details || {}, aggregation_key: body.aggregation_key || null };\nreturn { json: { payload } };",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst existing = allOf('Check Dedup');\nconst body = $('Extract').first().json.body;\nif (existing.length > 0 && body.aggregation_key) return { json: { _dedup: true, status: 200, existing_alert_id: existing[0].id } };\nconst payload = { module_name: body.module_name, alert_type: body.alert_type, severity: body.severity, title: body.title, message: body.message || null, details: body.details || {}, aggregation_key: body.aggregation_key || null };\nreturn { json: { payload } };",
+        "mode": "runOnceForAllItems"
       },
       "id": "sar-0005", "name": "Plan Insert", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]
     },

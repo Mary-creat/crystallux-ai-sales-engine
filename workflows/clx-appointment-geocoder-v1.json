@@ -78,8 +78,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const arr = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn arr.map(function(a) {\n  const addr = [a.address_line, a.city, a.province, a.postal_code, a.country || 'CA'].filter(Boolean).join(', ');\n  return { json: Object.assign({}, a, { query: addr }) };\n});",
-        "mode": "runOnceForEachItem"
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst arr = allOf('Fetch Ungeocoded');\nreturn arr.map(function(a) {\n  const addr = [a.address_line, a.city, a.province, a.postal_code, a.country || 'CA'].filter(Boolean).join(', ');\n  return { json: Object.assign({}, a, { query: addr }) };\n});",
+        "mode": "runOnceForAllItems"
       },
       "id": "clx-geo-v1-0004",
       "name": "Prep Queries",
