@@ -29,7 +29,48 @@ Last reviewed: **2026-09-01**.
 | # | Action | Why it is yours | 2 minutes |
 |---|---|---|---|
 | **0** | **Put the new n8n API key in the local `.env`** | The key on this machine is the one minted `2026-04-06`; `GET /api/v1/workflows` answers `401`. The working key lives only in the GitHub secret, which cannot be read back. Without it, live-vs-repo drift can only be *inferred* from database behaviour — and inference is exactly what got a diagnosis wrong twice this sprint | Paste the same key you saved into GitHub Actions into `.env` as `N8N_API_KEY=` |
-| **0b** | **Allow the production-database write** (or run it yourself) | Recovering the 36 stuck tenant leads needs one `UPDATE leads SET lead_status='New Lead'`. Claude Code's auto-mode classifier refuses production writes without your approval, which is the correct default | Approve the write when prompted, or say the word and I will hand you the exact one-line call |
+| **0b** | ~~Allow the production-database write for 36 stuck leads~~ **— WITHDRAWN 2026-09-16.** This number was unsourced: no tenant, no status, no date, and it appears exactly once in the whole doc set. A live `SELECT lead_status, count(*) FROM leads GROUP BY 1` returned no bucket of 36. Do not run the UPDATE it described. What the query did surface is recorded below as **#0c** | Nothing to do. Superseded by #0c |
+
+
+### 0c. 1,318 leads sit in "Scoring Failed" and the status does not match the code (2026-09-16)
+
+Live counts, from Mary's own query (4,006 leads total):
+
+| status | count |
+|---|---|
+| Scored | 1,378 |
+| **Scoring Failed** | **1,318** |
+| New Lead | 891 |
+| Signal Detected | 224 |
+| Outreach Ready | 171 |
+| Contacted | 17 |
+| everything else | 7 |
+
+A third of every lead in the database failed scoring, and 891 more were
+never scored at all. Against 17 Contacted, that is the pipeline's real
+bottleneck — not the 36 leads #0b claimed.
+
+**The part that needs the n8n key to settle.** `clx-lead-scoring-v2` in the
+repo can write exactly three statuses: `Scored`, `Scoring Failed`, and
+`Research Failed`. The last of those is the fail-closed guard — a lead with
+no `research_summary` is deliberately left unscored rather than given a
+fake zero. **Production has zero rows with `Research Failed`.**
+
+Either no lead has ever reached scoring without research — implausible with
+891 sitting at New Lead — or **the deployed Lead Scoring v2 is older than the
+repo's**, from before that guard existed, and wrote every no-research lead as
+`Scoring Failed` instead. The second is far more likely, and it is
+live-vs-repo drift on a *protected* workflow.
+
+This cannot be confirmed from the working machine: the n8n key answers 401
+(#0). That is the concrete question #0 now unblocks.
+
+**Do not bulk-reset these to 'New Lead'.** If the cause is missing research,
+re-feeding them scores them straight back to failure. The order is: read the
+live workflow, confirm which failure mode applies, re-run research on the
+affected leads, then re-score. `leads` has no `scoring_error` column, so the
+reason was only ever written to the n8n console — which is the other thing
+worth fixing, and why this was invisible until a count was run.
 
 
 ---
