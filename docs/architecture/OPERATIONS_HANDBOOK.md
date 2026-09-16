@@ -293,6 +293,35 @@ an empty fetch yields zero items, the Code node never runs at all, and the
 caller gets a bodyless 200. Set `alwaysOutputData` on the feeder as well. This
 is the empty-200 trap and it has now been found five separate times.
 
+**The fan-out case — per-client aggregation.** A node that fans out per client,
+fetches per client, then aggregates per client fits none of the three rows
+above: `allOf()` alone gathers every client's rows, all-items mode breaks
+`$itemIndex`, and reading the single row changes output cardinality. Iterate
+the **client list**, not the rows:
+
+```js
+const clients = allOf('Fan Out Clients').map(function (o) { return o && o.client; }).filter(Boolean);
+const rows = allOf('Fetch Signals');
+const byClient = {};
+rows.forEach(function (r) {
+  const k = String(r && r.client_id);
+  if (!byClient[k]) byClient[k] = [];
+  byClient[k].push(r);
+});
+return clients.map(function (client) {
+  const signals = byClient[String(client.id)] || [];
+  /* per-client work */
+});
+```
+
+This emits one item per client — the cardinality the fan-out intended — and a
+client with zero rows still produces output rather than being dropped.
+
+**Check the `select` first.** This pattern needs `client_id` on the fetched
+rows, and neither of the two workflows that needed it was selecting the column.
+Grouping silently produces nothing if the key is not in the response, which
+looks exactly like the bug being fixed.
+
 **Two traps when fixing these in bulk:**
 
 - A node name containing an apostrophe (`Fetch Day's Appointments`) breaks

@@ -18,10 +18,10 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
-## 0ai. The shapers that silently return nothing — 44 of 46 fixed, 2 need a decision (2026-09-13, updated 2026-09-16)
+## 0ai. The shapers that silently return nothing — all 46 fixed (2026-09-13, closed 2026-09-16)
 
-**Nothing for Mary to apply.** Fixed across `7ed6787` and the commit that
-replaces this entry. Two sites remain and are described at the bottom.
+**Nothing for Mary to apply. This is closed.** Fixed across `7ed6787`,
+`9e56f94` and the commit that closes this entry.
 
 **Count correction.** This entry originally said 47 sites in 43 files. One of
 the 47 is a comment inside `clx-client-settings.json` quoting the old code, so
@@ -56,32 +56,45 @@ reads one lead by id, so the split row *is* the lead. Fixed by reading
 `$input.item.json` directly and keeping the mode. Every briefing had been
 taking the `_skip` branch.
 
-### The 2 that are left — these need a decision, not a sweep
+### The last 2 — fixed, and the reason they looked unfixable
 
-| Workflow | Node | Wants |
-|---|---|---|
-| `api/content/clx-content-topic-generator-v1` | `Build Prompt` | all signals for **this** client |
-| `api/insurance-mga/clx-mga-insurance-compliance-score-calculate-v1` | `Compute Score` | all reviews for **this** client |
+| Workflow | Node |
+|---|---|
+| `api/content/clx-content-topic-generator-v1` | `Build Prompt` |
+| `api/insurance-mga/clx-mga-insurance-compliance-score-calculate-v1` | `Compute Score` |
 
-Both fan out per client, fetch per client, and then aggregate per client. That
-combination has no clean fix:
+Both fan out per client, fetch per client, then aggregate per client. Written
+up here first as needing live data, because all three obvious fixes are wrong:
+`allOf()` alone gathers every client's rows, all-items mode breaks `$itemIndex`,
+and reading the single row changes the node's output cardinality.
 
-- `allOf()` is **wrong** — handbook §4.8 says a named-node reference goes stale
-  inside a loop, and it would gather every client's rows on every run.
-- Switching to `runOnceForAllItems` is **wrong** — it breaks `$itemIndex`, which
-  is how each run knows which client it is on.
-- Reading the single row is **wrong** — it changes the node's output cardinality
-  and every downstream node with it.
+The way through is to stop iterating rows and iterate **clients**:
 
-The real fix is to switch to all-items, gather with `allOf()`, and group by
-`client_id` on the rows themselves, emitting one item per client. That changes
-the node's contract, so it needs live data to verify rather than a careful read.
+- `allOf('<Fan Out node>')` gives the client list — one `{ client }` per client,
+  which is what the fan-out already emitted.
+- `allOf('<Fetch node>')` gives every row across every client, grouped by
+  `client_id` into a lookup.
+- Mapping over the clients emits exactly one item per client, which is the
+  cardinality the fan-out intended, and a client with **zero** rows still
+  produces output instead of being silently dropped.
 
-**What it costs to leave them.** Both currently compute from `[]`. Content
-topics are generated with no behavioural signals. Compliance scores fall through
-to their heuristic defaults (75/80) instead of real review data — a score that
-looks computed and is not. Neither is carrying customer traffic today:
-`policy_applications` is 0 and the content publishers are stubs.
+**The part that was genuinely missing.** Neither fetch selected `client_id`:
+
+```
+select=signal_type,signal_category,signal_data,detected_at
+select=ai_decision,status,review_type
+```
+
+So the rows could not be attributed back to a client at all, and the grouping
+fix could not have worked as first written up. Both `select` lists now include
+`client_id`. That is the real reason this pair resisted the sweep — not the
+mode, which was only the visible half.
+
+Both keep their scoring and prompt logic verbatim; only the accessor, the mode
+and the select changed. `alwaysOutputData` set on both feeders, since each
+workflow answers a webhook.
+
+**All 46 sites are now fixed.**
 
 Find any regression of the original pattern with:
 
