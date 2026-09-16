@@ -118,6 +118,9 @@ var GROUPS = [
     { name:'LUXI', status:'live', how:'Live auctions that close themselves: auction + Buy Now + auto-bid with Stripe capture.', money:'Transaction fees / margin on every sale.', need:'LIVE since 2026-08-08 — deployed, 16 workflows active, card-backed auto-bid proven on live Stripe. Next: list real inventory and run a show.', act:{label:'Manage LUXI', href:'/pages/avatars/luxi/'} },
     { name:'More personas (eaza, lety, luma, lumi)', status:'dormant', how:'Four additional branded persona avatars for showcase and client demos.', money:'Demo + client persona showcases.', act:{label:'Open Avatars', href:'/pages/system/avatars.html'} },
   ]},
+  { label: 'AI chat in this dashboard', sub:'Your #1 ask. It was listed here as "not built yet" — it is built, and has been for a while.', items: [
+    { name:'Copilot — talk to me from any admin page', status:'ready', how:'A chat button auto-mounts on every admin page (shared/copilot.js, admin + client). Typed questions and voice, wired to the four copilot workflows and the MCP tool gateway, so you give commands here instead of copying terminal scripts. Spec: OPERATIONS_HANDBOOK §22.', money:'Ends the copy-paste pain. Nothing left to build for the basic loop.', need:'All five backing workflows ship active:false (dormant-by-default). Activate clx-copilot-query / troubleshoot / platform / whisper + clx-mcp-tool-gateway in n8n, then open any admin page and enter the master token once when the panel asks.', act:{label:'Activate in Workflows', href:'/pages/workflows.html'} },
+  ]},
   { label: 'Standalone products', sub:'Sold on their own, outside the core services.', items: [
     { name:'Sentinel', status:'dormant', how:'AI DevOps employee for SMBs: monitoring, uptime, ops automation.', money:'$499 / $1,499 / $3,999 self-serve (Stripe).', need:'Needs Stripe prices + env vars.', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
   ]},
@@ -135,7 +138,6 @@ var GROUPS = [
     { name:'Apollo · Hunter.io · Cloudflare R2', status:'dormant', how:'B2B enrichment, email finding, media storage.', money:'Deeper lead data + file storage.', need:'Verify Apollo key; add Hunter + R2 if/when needed.', act:{label:'Verify', href:'/pages/workflows.html'} },
   ]},
   { label: 'Build backlog — not built yet', sub:'When you power on, pick the next one here and just point me to it. Listed in priority order.', items: [
-    { name:'AI chat in this dashboard (talk to me here)', status:'todo', how:'Intercom-style chat wired to your MCP tools, so you give me commands in the dashboard instead of copying terminal scripts.', money:'Ends the copy-paste pain — your #1 ask.', act:{label:'Build next', href:'/pages/command-center.html'} },
     { name:'DevOps Digital Employee', status:'todo', how:'Auto-restarts failed workflows, watches quotas/balances, sends a daily health briefing.', money:'Removes your system-health mental load.', act:{label:'Planned', href:'/pages/command-center.html'} },
     { name:'COO / CMO Digital Employee', status:'todo', how:'Pipeline health, revenue forecast, content QA, multi-channel brand watch, weekly business review.', money:'You get decisions, not raw data.', act:{label:'Planned', href:'/pages/command-center.html'} },
     { name:'Email/SMS voice audit + brand voice doc', status:'todo', how:'Strip em-dashes + robotic openings so every template sounds like you; document the brand voice.', money:'Higher reply rates; consistent brand.', act:{label:'Planned', href:'/pages/command-center.html'} },
