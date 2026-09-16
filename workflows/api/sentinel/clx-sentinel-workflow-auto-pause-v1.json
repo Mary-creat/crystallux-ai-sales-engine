@@ -19,12 +19,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": {}
       },
-      "id": "swap-0004", "name": "Fetch Non-Essential", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
+      "id": "swap-0004", "name": "Fetch Non-Essential", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [880, 320],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (r) { return { json: { workflow_id: r.workflow_id, workflow_name: r.workflow_name } }; });",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Non-Essential');\nreturn rows.map(function (r) { return { json: { workflow_id: r.workflow_id, workflow_name: r.workflow_name } }; });",
         "mode": "runOnceForAllItems"
       },
       "id": "swap-0005", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 320]

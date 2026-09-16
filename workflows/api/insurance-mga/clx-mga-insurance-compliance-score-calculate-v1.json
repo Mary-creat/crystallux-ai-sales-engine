@@ -12,12 +12,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "csc-0003", "name": "Fetch MGAs", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "id": "csc-0003", "name": "Fetch MGAs", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (c) { return { json: { client: c } }; });",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch MGAs');\nreturn rows.map(function (c) { return { json: { client: c } }; });",
         "mode": "runOnceForAllItems"
       },
       "id": "csc-0004", "name": "Fan Out", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]

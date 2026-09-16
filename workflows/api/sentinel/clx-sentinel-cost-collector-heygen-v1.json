@@ -12,12 +12,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "sch-0003", "name": "Fetch Renders", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "id": "sch-0003", "name": "Fetch Renders", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nlet costCents = 0;\nlet totalSeconds = 0;\nconst byContentType = {};\nrows.forEach(function (r) {\n  const c = parseInt(r.cost_cents) || 0;\n  costCents += c;\n  totalSeconds += parseInt(r.duration_seconds) || 0;\n  const t = r.content_type || 'outreach';\n  byContentType[t] = (byContentType[t] || { count: 0, cost_cents: 0 });\n  byContentType[t].count += 1;\n  byContentType[t].cost_cents += c;\n});\nconst tracking_date = new Date(Date.now() - 86400000).toISOString().slice(0,10);\nreturn { json: { row: { tracking_date, service_name: 'heygen', spend_cents: costCents, data_source: 'internal_log', usage_metrics: { renders_total: rows.length, total_seconds: totalSeconds, by_content_type: byContentType }, notes: 'Computed from video_renders.cost_cents (recorded per render at HeyGen render time).' } } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Renders');\nlet costCents = 0;\nlet totalSeconds = 0;\nconst byContentType = {};\nrows.forEach(function (r) {\n  const c = parseInt(r.cost_cents) || 0;\n  costCents += c;\n  totalSeconds += parseInt(r.duration_seconds) || 0;\n  const t = r.content_type || 'outreach';\n  byContentType[t] = (byContentType[t] || { count: 0, cost_cents: 0 });\n  byContentType[t].count += 1;\n  byContentType[t].cost_cents += c;\n});\nconst tracking_date = new Date(Date.now() - 86400000).toISOString().slice(0,10);\nreturn { json: { row: { tracking_date, service_name: 'heygen', spend_cents: costCents, data_source: 'internal_log', usage_metrics: { renders_total: rows.length, total_seconds: totalSeconds, by_content_type: byContentType }, notes: 'Computed from video_renders.cost_cents (recorded per render at HeyGen render time).' } } };",
         "mode": "runOnceForAllItems"
       },
       "id": "sch-0004", "name": "Compute Spend", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]

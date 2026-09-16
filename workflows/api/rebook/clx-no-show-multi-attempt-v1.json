@@ -20,12 +20,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "nsma-0003", "name": "Fetch No Shows", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "id": "nsma-0003", "name": "Fetch No Shows", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst now = Date.now();\nreturn rows.map(function (r) {\n  const daysSince = Math.floor((now - new Date(r.scheduled_end).getTime()) / 86400000);\n  const attempts = parseInt(r.recovery_attempts) || 0;\n  let channel = null;\n  if (daysSince >= 1 && attempts < 1) channel = 'sms';\n  else if (daysSince >= 3 && attempts < 2) channel = 'whatsapp';\n  else if (daysSince >= 7 && attempts < 3) channel = 'email';\n  else if (daysSince >= 14 && attempts < 4) channel = 'video';\n  else if (daysSince >= 14 && attempts >= 4) channel = 'mark_cold';\n  return { json: { id: r.id, lead_id: r.lead_id, client_id: r.client_id, days_since: daysSince, attempts: attempts, next_channel: channel } };\n}).filter(function (i) { return i.json.next_channel !== null; });",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch No Shows');\nconst now = Date.now();\nreturn rows.map(function (r) {\n  const daysSince = Math.floor((now - new Date(r.scheduled_end).getTime()) / 86400000);\n  const attempts = parseInt(r.recovery_attempts) || 0;\n  let channel = null;\n  if (daysSince >= 1 && attempts < 1) channel = 'sms';\n  else if (daysSince >= 3 && attempts < 2) channel = 'whatsapp';\n  else if (daysSince >= 7 && attempts < 3) channel = 'email';\n  else if (daysSince >= 14 && attempts < 4) channel = 'video';\n  else if (daysSince >= 14 && attempts >= 4) channel = 'mark_cold';\n  return { json: { id: r.id, lead_id: r.lead_id, client_id: r.client_id, days_since: daysSince, attempts: attempts, next_channel: channel } };\n}).filter(function (i) { return i.json.next_channel !== null; });",
         "mode": "runOnceForAllItems"
       },
       "id": "nsma-0004", "name": "Plan Attempts", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]

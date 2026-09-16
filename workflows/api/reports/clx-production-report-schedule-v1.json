@@ -19,12 +19,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "prs-0004", "name": "Fetch Due Templates", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [720, 300],
+      "id": "prs-0004", "name": "Fetch Due Templates", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [720, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn { json: { ok: true, scheduled_templates_due: rows.length, patterns_today: $('Detect Patterns').first().json.patterns, message: rows.length === 0 ? 'Nothing scheduled for today.' : 'Per-template fan-out to recipients lives in vertical-specific scheduler workflows. Universal scheduler reports the count; vertical schedulers do the heavy lifting.' } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Due Templates');\nreturn { json: { ok: true, scheduled_templates_due: rows.length, patterns_today: $('Detect Patterns').first().json.patterns, message: rows.length === 0 ? 'Nothing scheduled for today.' : 'Per-template fan-out to recipients lives in vertical-specific scheduler workflows. Universal scheduler reports the count; vertical schedulers do the heavy lifting.' } };",
         "mode": "runOnceForAllItems"
       },
       "id": "prs-0005", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [960, 300]

@@ -169,7 +169,7 @@
         "options": {}
       },
       "id": "csf-0007",
-      "name": "Fetch Scores",
+      "name": "Fetch Scores", "alwaysOutputData": true,
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -184,7 +184,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst latest = rows[0] || null;\nconst trend = rows.map(function (r) { return { date: r.snapshot_date, overall_score: parseFloat(r.overall_score) }; });\nreturn { json: { ok: true, vertical_id: 'insurance', latest, trend_90d: trend.reverse() } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Scores');\nconst latest = rows[0] || null;\nconst trend = rows.map(function (r) { return { date: r.snapshot_date, overall_score: parseFloat(r.overall_score) }; });\nreturn { json: { ok: true, vertical_id: 'insurance', latest, trend_90d: trend.reverse() } };",
         "mode": "runOnceForAllItems"
       },
       "id": "csf-0008",

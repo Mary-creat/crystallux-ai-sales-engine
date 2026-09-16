@@ -12,12 +12,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "cma-0003", "name": "Fetch High Risk", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "id": "cma-0003", "name": "Fetch High Risk", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nconst alerts = rows.map(function (r) { return { client_id: r.client_id, risk_level: r.risk_level, overall_score: r.overall_score, snapshot_date: r.snapshot_date, recommendation: r.risk_level === 'critical' ? 'IMMEDIATE: review compliance pipeline + escalate to mga_principal.' : 'Review compliance gaps within 48 hours.' }; });\nreturn { json: { ok: true, alerts, alerts_count: alerts.length } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch High Risk');\nconst alerts = rows.map(function (r) { return { client_id: r.client_id, risk_level: r.risk_level, overall_score: r.overall_score, snapshot_date: r.snapshot_date, recommendation: r.risk_level === 'critical' ? 'IMMEDIATE: review compliance pipeline + escalate to mga_principal.' : 'Review compliance gaps within 48 hours.' }; });\nreturn { json: { ok: true, alerts, alerts_count: alerts.length } };",
         "mode": "runOnceForAllItems"
       },
       "id": "cma-0004", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]

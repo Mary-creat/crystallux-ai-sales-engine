@@ -12,12 +12,12 @@
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Accept", "value": "application/json" } ] },
         "options": { "continueOnFail": true }
       },
-      "id": "fcb-0003", "name": "Fetch Existing", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
+      "id": "fcb-0003", "name": "Fetch Existing", "alwaysOutputData": true, "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300],
       "credentials": { "httpCustomAuth": { "name": "Supabase Crystallux Custom" } }
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\n// STUB: actual recalc requires per-file_type data fetch. This row touches the existing score\n// rows' calculated_at so the dashboard heartbeat keeps green. Real recalc loops are added\n// per-file_type by domain-specific workflows.\nreturn { json: { ok: true, files_refreshed: rows.length, stub: true, message: 'Heartbeat only. Per-file_type recalc loops are owned by domain workflows.' } };",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Existing');\n// STUB: actual recalc requires per-file_type data fetch. This row touches the existing score\n// rows' calculated_at so the dashboard heartbeat keeps green. Real recalc loops are added\n// per-file_type by domain-specific workflows.\nreturn { json: { ok: true, files_refreshed: rows.length, stub: true, message: 'Heartbeat only. Per-file_type recalc loops are owned by domain workflows.' } };",
         "mode": "runOnceForAllItems"
       },
       "id": "fcb-0004", "name": "Shape Response", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [720, 300]

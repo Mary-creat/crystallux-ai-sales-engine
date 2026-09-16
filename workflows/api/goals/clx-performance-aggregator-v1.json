@@ -37,7 +37,7 @@
         "options": {}
       },
       "id": "pa-0003",
-      "name": "Fetch Active Goals",
+      "name": "Fetch Active Goals", "alwaysOutputData": true,
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [480, 300],
@@ -45,7 +45,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = Array.isArray($input.item.json) ? $input.item.json : [];\nreturn rows.map(function (r) { return { json: { user_goal_id: r.id } }; });",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst rows = allOf('Fetch Active Goals');\nreturn rows.map(function (r) { return { json: { user_goal_id: r.id } }; });",
         "mode": "runOnceForAllItems"
       },
       "id": "pa-0004",

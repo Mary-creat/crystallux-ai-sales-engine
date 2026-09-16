@@ -37,7 +37,7 @@
         "options": {}
       },
       "id": "gpn-0003",
-      "name": "Fetch Goals",
+      "name": "Fetch Goals", "alwaysOutputData": true,
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [480, 300],
@@ -45,7 +45,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const goals = Array.isArray($input.item.json) ? $input.item.json : [];\nconst today = new Date();\nconst flagged = goals.filter(function (g) {\n  const start = new Date(g.period_start).getTime();\n  const end   = new Date(g.period_end).getTime();\n  const total = end - start;\n  if (total <= 0) return false;\n  const elapsed = Math.max(0, today.getTime() - start);\n  const periodPct = Math.min(100, (elapsed / total) * 100);\n  const ach = parseFloat(g.achievement_percentage) || 0;\n  if (ach >= 100) return true;                       // achieved\n  return ach < (periodPct - 20);                      // behind track by >20pp\n});\nconst byUser = {};\nflagged.forEach(function (g) {\n  if (!byUser[g.user_id]) byUser[g.user_id] = [];\n  byUser[g.user_id].push(g);\n});\nreturn Object.keys(byUser).map(function (uid) { return { json: { user_id: uid, goals: byUser[uid] } }; });",
+        "jsCode": "const allOf = function (name) {\n  try {\n    const items = $(name).all().map(function (i) { return i.json; });\n    if (items.length === 1 && Array.isArray(items[0])) return items[0];\n    return items.filter(function (o) {\n      return o && typeof o === 'object' && Object.keys(o).length > 0;\n    });\n  } catch (e) { return []; }\n};\nconst goals = allOf('Fetch Goals');\nconst today = new Date();\nconst flagged = goals.filter(function (g) {\n  const start = new Date(g.period_start).getTime();\n  const end   = new Date(g.period_end).getTime();\n  const total = end - start;\n  if (total <= 0) return false;\n  const elapsed = Math.max(0, today.getTime() - start);\n  const periodPct = Math.min(100, (elapsed / total) * 100);\n  const ach = parseFloat(g.achievement_percentage) || 0;\n  if (ach >= 100) return true;                       // achieved\n  return ach < (periodPct - 20);                      // behind track by >20pp\n});\nconst byUser = {};\nflagged.forEach(function (g) {\n  if (!byUser[g.user_id]) byUser[g.user_id] = [];\n  byUser[g.user_id].push(g);\n});\nreturn Object.keys(byUser).map(function (uid) { return { json: { user_id: uid, goals: byUser[uid] } }; });",
         "mode": "runOnceForAllItems"
       },
       "id": "gpn-0004",
