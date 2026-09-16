@@ -17,6 +17,7 @@
   .cc-ready   { background:#fef3c7; color:#b45309; }
   .cc-dormant { background:#ede9fe; color:#6d28d9; }
   .cc-todo    { background:#e0e7ff; color:#4338ca; }
+  .cc-you     { background:#fee2e2; color:#b91c1c; }
   .cc-section-label { font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#6d28d9; margin:30px 0 6px; }
   .cc-section-sub { font-size:13.5px; color:#52525b; margin:0 0 16px; }
   .cc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
@@ -67,6 +68,7 @@
         <span class="cc-badge cc-ready">● Ready</span><span style="color:#52525b">built, just flip it on</span>
         <span class="cc-badge cc-dormant">● Dormant</span><span style="color:#52525b">built, needs setup/keys</span>
         <span class="cc-badge cc-todo">● To build</span><span style="color:#52525b">not built yet — pick next</span>
+        <span class="cc-badge cc-you">● Needs you</span><span style="color:#52525b">waiting on you, not on me</span>
       </div>
 
       <div id="ccBody"></div>
@@ -87,6 +89,11 @@ clxAuth.require('admin').then(function (user) {
 // Your business, as built. Edit this list as states change.
 // status: 'live' | 'ready' | 'dormant'
 var GROUPS = [
+  { label: 'Needs you — I cannot do these from here', sub:'Each one needs a password, a paste into Supabase, or your permission to touch real data. Everything else on this page continues without them. Current as of 2026-09-16.', items: [
+    { name:'Apply 2 SQL migrations (client dashboard)', status:'you', how:'db/migrations/client-notification-prefs.sql adds the two notification toggles the Settings page has always read and written — neither column exists, so Settings loads blank. db/migrations/client-lead-stats-rpc.sql adds client_lead_stats(), so lead counts stop capping at 1000.', money:'Until these are applied, a client with 1094 leads sees 1000 and a blank Settings page. Both additive, both idempotent, neither breaks anything if delayed.', need:'Paste each file into the Supabase SQL editor and run it.', act:{label:'Open blockers §0ah', href:'/pages/workflows.html'} },
+    { name:'Put the current n8n API key in the local .env', status:'you', how:'The key on this machine was minted 2026-04-06 and answers 401. The working key exists only in the GitHub Actions secret, which cannot be read back.', money:'Without it, live-vs-repo drift can only be inferred from database behaviour — and inference got a diagnosis wrong twice this sprint.', need:'Paste the same key you saved into GitHub Actions into .env as N8N_API_KEY=', act:{label:'Owner actions #0', href:'/pages/workflows.html'} },
+    { name:'Approve the 36 stuck leads write', status:'you', how:'36 tenant leads are parked in a status the pipeline will not pick up. Recovering them is one UPDATE against production.', money:'36 leads that currently go nowhere re-enter the pipeline.', need:'Say the word and I will hand you the exact one-line statement, or approve it when prompted.', act:{label:'Owner actions #0b', href:'/pages/leads.html'} },
+  ]},
   { label: 'Core money services', sub: 'The five productized offerings. This is the bulk of your recurring revenue.', items: [
     { name: 'Pipeline · Sales Engine', status:'live', how:'Done-for-you AI: finds businesses, emails them, AI qualifies replies, books meetings on a calendar, chases no-shows.', money:'$1,497 – $5,997 / mo per client (10–50 booked meetings).', act:{label:'Manage in Workflows', href:'/pages/workflows.html'} },
     { name: 'Content', status:'dormant', how:'AI generates emails, LinkedIn/IG posts, carousels, video scripts — then auto-publishes across 6 platforms.', money:'$497 – $2,997 / mo per client.', need:'Needs HeyGen + Buffer + connected social accounts.', act:{label:'Activation steps', href:'/pages/workflows.html'} },
@@ -142,19 +149,20 @@ var GROUPS = [
 ];
 
 function badge(s){
-  var m = { live:['cc-live','Live'], ready:['cc-ready','Ready'], dormant:['cc-dormant','Dormant'], todo:['cc-todo','To build'] }[s] || ['cc-dormant','Dormant'];
+  var m = { live:['cc-live','Live'], ready:['cc-ready','Ready'], dormant:['cc-dormant','Dormant'], todo:['cc-todo','To build'], you:['cc-you','Needs you'] }[s] || ['cc-dormant','Dormant'];
   return '<span class="cc-badge '+m[0]+'">● '+m[1]+'</span>';
 }
 function esc(t){ return clxComp && clxComp.escapeHtml ? clxComp.escapeHtml(t) : String(t); }
 
 function render(){
-  var counts = { live:0, ready:0, dormant:0, todo:0, total:0 };
+  var counts = { live:0, ready:0, dormant:0, todo:0, you:0, total:0 };
   GROUPS.forEach(function(g){ g.items.forEach(function(i){ counts[i.status]++; counts.total++; }); });
   document.getElementById('ccSummary').innerHTML =
     stat(counts.live, 'Live now', '#15803d') +
     stat(counts.ready, 'Ready to flip on', '#b45309') +
     stat(counts.dormant, 'Dormant (need keys)', '#7c3aed') +
-    stat(counts.todo, 'Still to build', '#4338ca');
+    stat(counts.todo, 'Still to build', '#4338ca') +
+    stat(counts.you, 'Waiting on you', '#b91c1c');
 
   var html = '';
   GROUPS.forEach(function(g){
