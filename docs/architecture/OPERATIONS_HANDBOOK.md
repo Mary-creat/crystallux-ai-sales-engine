@@ -1760,6 +1760,46 @@ When adding a new page:
 
 ---
 
+### 26.x The link-to-a-list-that-ignores-the-parameter family (2026-09-17)
+
+Mary, in production: a tenant's leads "link to the main leads, or
+connect to themselves, especially on back or forward."
+
+Two links pointed at `/pages/leads.html?lead_id=<id>`:
+
+| file | link |
+|---|---|
+| `admin-dashboard/pages/client-detail.html` | every row of a client's recent-leads table |
+| `admin-dashboard/pages/ciro/alerts.html` | the "Open this lead" button on a hot-lead alert |
+
+`leads.html` has never read `lead_id`. It reads `status`, `client_id`
+and `show`. So the parameter was silently dropped and the page rendered
+what it renders with no filter at all: **the platform-wide leads list,
+every tenant in it**. Nothing errored. The lead detail page
+(`lead-detail.html?id=`) was right there and is what `leads.html` itself
+links to — these two callers simply used the older URL.
+
+**Why back/forward made it worse.** The wrong page went into the history
+stack, so walking back and forward cycled between a tenant view and the
+unscoped list — which is what "connecting to themselves" described.
+`lead-detail.html`'s "← All leads" then hard-coded the unscoped list, so
+even the correct link lost tenant context on the way back. It now
+carries `client_id` through and returns to that client's leads.
+
+**The family.** A link that passes a parameter the destination does not
+read fails silently and looks like a data-scoping bug — the same shape as
+the `Switch` with no `fallbackOutput` and the empty-200 trap: the wrong
+answer arrives with a 200 and no error anywhere. **When adding a deep
+link, grep the destination for the parameter name before shipping it.**
+
+Fixed 2026-09-17. `admin-dashboard/pages/leads.html` also carried a
+delegated click handler calling `toggleLeadDetail`, renamed to
+`__unusedToggleLeadDetail` when row-click navigation replaced it — a
+`ReferenceError` on every row click for as long as that rename stood.
+Both the dead function and its caller are gone.
+
+---
+
 ## 27. Market Intelligence Activation (Phase B.9)
 
 The Market Intelligence Engine ingests external market signals

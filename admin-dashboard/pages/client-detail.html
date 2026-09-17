@@ -161,7 +161,7 @@ async function load(id) {
   }
 
   // Recent leads table
-  leads.forEach(function(r){ if (r.id) r._href = '/pages/leads.html?lead_id=' + r.id; });
+  leads.forEach(function(r){ if (r.id) r._href = '/pages/lead-detail.html?id=' + r.id + '&client_id=' + encodeURIComponent(id); });
   var leEl = document.getElementById('cdLeads');
   if (!leads.length) {
     clxComp.renderEmpty(leEl, 'No leads for this client yet.', 'inbox');

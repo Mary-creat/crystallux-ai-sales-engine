@@ -229,7 +229,7 @@ function openDetail(alertId) {
     // Special-case: hot_lead details carry a lead_id — link straight into the leads page filter
     if (a.alert_type === 'hot_lead' && a.details.lead_id) {
       html += '<div class="a-detail-section">';
-      html += '<a class="clx-btn clx-btn-primary" href="/pages/leads.html?lead_id=' + encodeURIComponent(a.details.lead_id) + '">Open this lead</a>';
+      html += '<a class="clx-btn clx-btn-primary" href="/pages/lead-detail.html?id=' + encodeURIComponent(a.details.lead_id) + '">Open this lead</a>';
       if (a.details.client_id) {
         html += ' <a class="clx-btn clx-btn-secondary" href="/pages/client-detail.html?id=' + encodeURIComponent(a.details.client_id) + '" style="margin-left:8px">View client</a>';
       }

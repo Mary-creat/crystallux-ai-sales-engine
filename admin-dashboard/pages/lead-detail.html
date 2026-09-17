@@ -47,7 +47,7 @@
     <div class="clx-page-head">
       <div>
         <h1 class="clx-page-title" id="leadName">Lead</h1>
-        <div class="clx-page-sub"><a href="/pages/leads.html" style="color:var(--text-muted)">← All leads</a> · <span id="leadId" style="font-family:ui-monospace,monospace;font-size:11px;color:#9ca3af"></span></div>
+        <div class="clx-page-sub"><a href="/pages/leads.html" id="backLink" style="color:var(--text-muted)">← All leads</a> · <span id="leadId" style="font-family:ui-monospace,monospace;font-size:11px;color:#9ca3af"></span></div>
       </div>
     </div>
 
@@ -74,8 +74,19 @@
 <script src="/shared/copilot.js"></script>
 <script>
 (function () {
-  var leadId = new URLSearchParams(window.location.search).get('id');
+  var qs = new URLSearchParams(window.location.search);
+  var leadId = qs.get('id');
   document.getElementById('leadId').textContent = leadId ? ('id: ' + leadId) : '(no id in URL)';
+
+  // Arriving from a client/tenant view carries client_id. Without it the back
+  // link dumps you on the unscoped platform-wide list, which reads as "this
+  // tenant's lead belongs to the main leads" — see the fix in client-detail.
+  var backClientId = qs.get('client_id');
+  if (backClientId) {
+    var back = document.getElementById('backLink');
+    back.href = '/pages/leads.html?client_id=' + encodeURIComponent(backClientId);
+    back.textContent = '← This client’s leads';
+  }
 
   clxAuth.require('admin').then(function () {
     clxComp.injectNav(document.getElementById('clxSidebar'));
