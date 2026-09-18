@@ -3107,3 +3107,137 @@ At 30 clients × 100 monitored leads each (3,000 prospects):
 - §28 Closing Intelligence (script library, the outreach-template source)
 - §32 Productivity Tier (acted-on-rate becomes a tracked dimension)
 - §34 Real-time Script Pop-Ups (in-call adaptation feeds back into archetype tuning)
+
+---
+
+## 36. Eazer — how the venture connects (2026-09-17)
+
+Mary asked how Eazer connects and the handbook had no answer: Eazer appeared
+in six migrations, four workflows and three audit files, and in none of the
+2,500 lines that are supposed to be the source of truth. This section is that
+answer, written against **live production**, not against the repo.
+
+**Eazer connects to Crystallux in two entirely separate ways, and they share
+nothing but a name.** Conflating them is the trap this section exists to
+prevent.
+
+### 36.1 Eazer as a TENANT — its leads are merchants
+
+Eazer is a three-sided marketplace operated by Crystallux Group Inc. (North
+York, ON): merchants, delivery partners, users. Only merchants and delivery
+organisations are a discovery problem — Google Maps indexes businesses, so it
+cannot find individual drivers or consumers. Those are paid acquisition, and
+pointing the engine at them would build a pipeline that returns nothing while
+looking like it works.
+
+Two tenant rows, not three, because the pitch differs:
+
+| client | id | product_type | active | leads |
+|---|---|---|---|---|
+| Eazer — Merchants | `1583b401-0357-4935-a8c7-ba26d48222ad` | `eazer_merchant` | **true** | **1,380** |
+| Eazer — Delivery | `fb518afd-ec52-4d9b-9cf9-fcdc3219e9e8` | `eazer_delivery` | false | 0 |
+
+Delivery is seeded dormant on purpose: discovery scans every *active* client's
+`product_type`, merchants alone is 75 searches, both is 145, and every business
+found costs a Claude research call plus a Claude scoring call. Dormant-by-default
+applied to **spend** rather than to risk. Its 70 queries are seeded anyway and
+sit inert until the client is switched on — nothing extra to remember later.
+
+```sql
+UPDATE clients SET active = true WHERE client_name = 'Eazer — Delivery';
+```
+
+**The four connection points, all verified live 2026-09-17:**
+
+1. **Discovery** — `scan_query_tracker` is the registry, not a memo.
+   75 rows for `eazer_merchant`, 70 for `eazer_delivery`. They used to be a
+   hardcoded object inside `clx-b2c-discovery-v2.1`, so adding a city meant
+   editing JavaScript and redeploying. Adding a search is now an `INSERT`.
+2. **Messaging** — the `eazer_merchant` row in `niche_overlays` is live.
+   `clx-outreach-generation-v2` reads `claude_system_prompt`, `outreach_tone`,
+   `pain_signals`, `offer_mapping` and layers the lead's own segment, signal and
+   research on top. **That is the intelligent messaging layer; Eazer needed
+   configuration in it, not a second one.** There is no `eazer_delivery` overlay
+   yet — write one before activating that tenant, or it falls back to
+   `insurance_broker`.
+3. **Lead vertical** — `Fetch Niche Overlay` looks the overlay up by
+   `lead.vertical` and falls back to `insurance_broker` when null. All 1,094
+   original Eazer merchants were inserted with `vertical` NULL, so every one of
+   them would have been written to as an insurance broker.
+   `insert_lead_if_not_exists` gained `p_vertical` and the rows were backfilled:
+   **1,380 / 1,380 now carry `vertical = eazer_merchant`, 0 null.**
+4. **Login** — `info@eazer.com`, active, verified, `products: ["sales_engine"]`,
+   scoped to Eazer — Merchants. Admin-provisioned, **not** a Stripe purchase:
+   routing a venture through Stripe would create a customer record and a payment
+   obligation for something Crystallux already owns. The stored `password_hash`
+   is bcrypt over 48 random bytes generated, hashed and discarded in one breath
+   — **nobody has the plaintext, including whoever wrote the migration.** The
+   account holder sets their own password through `crystallux.org/forgot-password`,
+   so a real password never travels through this repository.
+
+**Where the 1,380 actually are, and why they are not moving.** All 1,380 are
+`Scored`, all have a `research_summary`, all score ≥ 1 — and **none has a
+`detected_signal`.** `Scored` is the dead end described in
+[`PIPELINE_ACTIVATION_SEQUENCE.md`](../operations/PIPELINE_ACTIVATION_SEQUENCE.md)
+Phase 1 step 6: the only thing that reads a `Scored` lead is signal detection,
+which is currently deactivated to hold the 205-row correction, and Campaign
+Router v2 reads only `Signal Detected`. **Eazer's entire book is therefore
+parked behind the same switch as everything else** — not behind anything
+Eazer-specific. It moves when Phase 0 and Phase 1 of that sequence are done.
+
+### 36.2 Eazer as a DELIVERY PROVIDER — commerce fulfilment
+
+Unrelated to the above. In `db/migrations/commerce-fulfilment-layer.sql`, Eazer
+is one of seven values a `deliveries.provider` may take:
+
+```
+PICKUP, EAZER, SUPPLIER, SELLER, WAREHOUSE, DIGITAL, EXTERNAL_CARRIER
+```
+
+**Crystallux is not a dispatch engine.** It does not match drivers, plan routes
+or track vehicles — Eazer already does all of that. The `deliveries` record says
+*which* provider has the job, *what* state it is in and *what* it cost. The
+provider owns the movement; we own the order. `commerce_resolve_provider`
+returns `'EAZER'` for any order with `fulfilment_method = 'delivery'`, and is
+deliberately a pure function of the data.
+
+**Live state 2026-09-17: the model is there and the integration is not.**
+`deliveries`, `delivery_events` and `delivery_status_map` all exist in
+production. `deliveries` holds **0 rows**. `delivery_status_map` holds **0 EAZER
+rows** — only PICKUP and DIGITAL, which need no provider API and work today.
+No adapter workflow exists.
+
+**Connecting Eazer for real is three things, in this order:**
+
+1. Insert the EAZER rows into `delivery_status_map` — each Eazer status mapped
+   to one of the 14 canonical `dlv_status_check` values. A provider renaming a
+   status then becomes a one-row fix rather than a code change.
+2. Write the adapter: request a quote, request a delivery, receive webhooks.
+   Set `delivery_events.idempotency_key` from Eazer's own event id so a
+   redelivered webhook is a no-op. `deliveries_order_uniq` already guarantees
+   one delivery per order — a retried webhook or a double-clicked button cannot
+   produce two drivers for one parcel.
+3. Nothing else. The data model was built ahead of the integration precisely so
+   that this step is filling in one adapter rather than designing a schema under
+   deadline.
+
+### 36.3 Known gap — `clients.tenant_type` is not in production
+
+`db/migrations/tenant-type-classification.sql` adds the one column that tells a
+paying **customer** (Blonai) from a Crystallux **operation** from a Crystallux
+Group **venture** (both Eazer rows). **Verified 2026-09-17: the column does not
+exist live** — `clients.tenant_type` returns `42703`.
+
+Until it is applied, every count of "clients" counts Crystallux's own operations
+as customers, and **any revenue report built on that table is wrong before it is
+written** — five of six rows are not what the table is called. Gated on Mary;
+see `docs/audit/blockers.md`.
+
+### 36.4 Cross-references
+
+- `db/migrations/eazer-tenant-seed.sql` — the two tenants and their queries
+- `db/migrations/eazer-merchant-vertical.sql` — the overlay + the vertical backfill
+- `db/migrations/eazer-login.sql` — why a venture does not go through Stripe
+- `db/migrations/commerce-fulfilment-layer.sql` — the provider-agnostic delivery record
+- `db/migrations/tenant-type-classification.sql` — §36.3, not yet applied
+- [`PIPELINE_ACTIVATION_SEQUENCE.md`](../operations/PIPELINE_ACTIVATION_SEQUENCE.md) — why the 1,380 are parked
