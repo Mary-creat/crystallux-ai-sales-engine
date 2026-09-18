@@ -40,6 +40,20 @@ says why each time. Everything below is Phase 0 of it.
 | **0b** | **Activate `CLX - Campaign Router v2`** — *not* a database write | The 36 is real and tenant-scoped: leads stuck at `Signal Detected`. They are stuck because Campaign Router v2, the workflow that promotes them, ships `active: false`. Activation is an owner action by the dormant-by-default policy | **Do [#0d](#0d-signal-detected-is-a-lie-on-most-rows--fix-the-data-not-the-guard-2026-09-16) first**, then activate it in n8n. **Do not run the UPDATE this row used to describe** |
 
 
+## Also yours, but not blocking the pipeline — two migrations to paste
+
+Neither touches a workflow, neither activates anything, both are re-runnable.
+Detail in [`docs/audit/blockers.md`](../audit/blockers.md) §0aj.
+
+| # | Paste into Supabase | Why it matters |
+|---|---|---|
+| **0e** | `db/migrations/eazer-delivery-vertical.sql` | The `eazer_delivery` niche overlay did not exist. `Fetch Niche Overlay` falls back to `insurance_broker` when it finds none, so switching on `Eazer — Delivery` would write to every parcel-moving business using the insurance broker prompt. Guarded by `WHERE NOT EXISTS` |
+| **0f** | `db/migrations/tenant-type-classification.sql` | `clients.tenant_type` does not exist live. Until it does, every "client" count counts Crystallux's own operations as customers and any revenue figure off that table is wrong before it is written. Verified against the six live rows — the classification lands as written. Guarded by `ADD COLUMN IF NOT EXISTS` |
+
+**0e does not activate Eazer — Delivery.** That client stays `active = false`;
+switching it on is a separate spend decision (14 queries × 5 cities, each
+business found costing a research call plus a scoring call).
+
 ### 0b (detail). The 36 was sourced — the earlier withdrawal was wrong
 
 Withdrawn on 2026-09-16 as "unsourced" after a global

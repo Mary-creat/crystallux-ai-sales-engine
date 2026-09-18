@@ -18,6 +18,60 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
+## 0aj. Two Eazer migrations to paste — one overlay, one column (2026-09-18)
+
+**Both written, both parse clean against the real Postgres grammar
+(`scripts/validate-migrations.py`). Neither is applied. Both are yours because
+migrations go through the Supabase SQL editor.**
+
+### 1. `db/migrations/eazer-delivery-vertical.sql` — the missing overlay
+
+`Fetch Niche Overlay` looks an overlay up by `lead.vertical` and **falls back to
+`insurance_broker` when it finds none**. A row exists for `eazer_merchant`; none
+existed for `eazer_delivery`. So activating `Eazer — Delivery` would have written
+to every auto-parts store and dental laboratory it found using the insurance
+broker system prompt — the same defect `eazer-merchant-vertical.sql` was written
+to fix, waiting to happen a second time for the same reason.
+
+Checked live first: the client row exists, 70 discovery queries are seeded and
+inert, and `Process Each Business` already sets `p_vertical` from
+`biz.product_type`, so delivery leads will arrive tagged correctly. **Only the
+overlay row was missing.** This adds it and nothing else.
+
+**It does not activate anything.** `Eazer — Delivery` stays `active = false`.
+That switch is a spend decision — 14 queries × 5 cities, each business found
+costing a research call plus a scoring call.
+
+### 2. `db/migrations/tenant-type-classification.sql` — the column
+
+Written earlier, never applied; `clients.tenant_type` returns `42703` live.
+**Verified 2026-09-18 against the six live rows: the names in the migration
+match production exactly**, including the em dash in `Eazer — Merchants`, so
+the classification lands as written — 1 customer, 3 internal, 2 venture.
+
+Until it is applied every count of "clients" counts Crystallux's own operations
+as customers, and any revenue figure off that table is wrong before it is
+written.
+
+### Order
+
+Independent of each other. Either order. Neither touches a workflow, neither
+activates anything, and both are guarded — the overlay by `WHERE NOT EXISTS`,
+the column by `ADD COLUMN IF NOT EXISTS` — so re-running is a no-op.
+
+### Not gated on you — recorded so it is not lost
+
+`eazer_merchant`'s `offer_mapping.lead_segments` is keyed on six trade names
+(`bakery`, `retail`, `florist`, `grocery`, `pharmacy`, `restaurant`).
+`lead_segment` is written by one node, `Decide Segment` in Campaign Router v2,
+and it can only emit `residential`, `commercial` or `unknown`. **None of the six
+can ever match**, so that overlay's per-trade tone and pain angles have never
+reached a prompt. Fails silently: a missing branch is a pass-through, not an
+error. OPERATIONS_HANDBOOK §36.5 has the three ways out; picking one is a
+content decision, not a migration.
+
+---
+
 ## 0ai. The shapers that silently return nothing — all 46 fixed (2026-09-13, closed 2026-09-16)
 
 **Nothing for Mary to apply. This is closed.** Fixed across `7ed6787`,

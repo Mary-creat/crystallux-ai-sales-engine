@@ -3157,9 +3157,10 @@ UPDATE clients SET active = true WHERE client_name = 'Eazer — Delivery';
    `clx-outreach-generation-v2` reads `claude_system_prompt`, `outreach_tone`,
    `pain_signals`, `offer_mapping` and layers the lead's own segment, signal and
    research on top. **That is the intelligent messaging layer; Eazer needed
-   configuration in it, not a second one.** There is no `eazer_delivery` overlay
-   yet — write one before activating that tenant, or it falls back to
-   `insurance_broker`.
+   configuration in it, not a second one.** `eazer_delivery` was missing and is
+   now written — `db/migrations/eazer-delivery-vertical.sql`, **awaiting Mary in
+   the Supabase SQL editor**. Until it is applied, activating that tenant writes
+   to every parcel-moving business with the insurance-broker prompt.
 3. **Lead vertical** — `Fetch Niche Overlay` looks the overlay up by
    `lead.vertical` and falls back to `insurance_broker` when null. All 1,094
    original Eazer merchants were inserted with `vertical` NULL, so every one of
@@ -3233,10 +3234,46 @@ as customers, and **any revenue report built on that table is wrong before it is
 written** — five of six rows are not what the table is called. Gated on Mary;
 see `docs/audit/blockers.md`.
 
+### 36.5 `lead_segments` keyed on values the classifier cannot produce
+
+Found 2026-09-18 while writing the `eazer_delivery` overlay.
+
+`Merge Segment Overlay` in `clx-outreach-generation-v2` reads
+`offer_mapping.lead_segments[lead.lead_segment]` and, when a branch matches,
+merges its `pain_angles` into `pain_signals` and appends a SEGMENT CONTEXT
+stanza to the system prompt.
+
+**`lead_segment` is written by exactly one node** — `Decide Segment` in
+Campaign Router v2 — and that node can only ever emit **`residential`**,
+`commercial` or `unknown`. It classifies on `company_size`, on
+`linkedin_url` + `apollo_org_id`, and on a personal-email-domain regex.
+Nothing else.
+
+The `eazer_merchant` overlay keys its six branches `bakery`, `retail`,
+`florist`, `grocery`, `pharmacy`, `restaurant`. **None of the six can ever
+match**, so that overlay's per-trade pain angles and tone have never reached a
+prompt and never will in the current wiring. Live confirmation: all 1,380
+Eazer merchant leads carry `lead_segment = 'unknown'`.
+
+It fails the way this codebase's defects usually fail — silently and
+plausibly. A missing branch is a pass-through, not an error, so the outreach
+still generates and still looks fine; it is simply less targeted than the
+configuration claims.
+
+`eazer_delivery` keys on `commercial` / `residential` / `unknown` and puts the
+trade-specific guidance in the system prompt, which always applies. **Check the
+key against `Decide Segment` before writing any future `lead_segments` block.**
+
+**Still open for the merchant overlay, and a content decision rather than a
+migration:** remap the six onto the three (loses the per-trade detail), move the
+detail into `claude_system_prompt` (keeps it — what the delivery overlay does),
+or teach `Decide Segment` to classify by trade (changes a protected workflow).
+
 ### 36.4 Cross-references
 
 - `db/migrations/eazer-tenant-seed.sql` — the two tenants and their queries
 - `db/migrations/eazer-merchant-vertical.sql` — the overlay + the vertical backfill
+- `db/migrations/eazer-delivery-vertical.sql` — the delivery overlay, §36.5, not yet applied
 - `db/migrations/eazer-login.sql` — why a venture does not go through Stripe
 - `db/migrations/commerce-fulfilment-layer.sql` — the provider-agnostic delivery record
 - `db/migrations/tenant-type-classification.sql` — §36.3, not yet applied
