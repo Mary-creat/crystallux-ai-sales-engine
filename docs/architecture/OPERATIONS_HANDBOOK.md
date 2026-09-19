@@ -3264,16 +3264,40 @@ configuration claims.
 trade-specific guidance in the system prompt, which always applies. **Check the
 key against `Decide Segment` before writing any future `lead_segments` block.**
 
-**Still open for the merchant overlay, and a content decision rather than a
-migration:** remap the six onto the three (loses the per-trade detail), move the
-detail into `claude_system_prompt` (keeps it — what the delivery overlay does),
-or teach `Decide Segment` to classify by trade (changes a protected workflow).
+**It is worse than convention — it is a constraint.** `leads_lead_segment_check`
+(added 2026-04-23) is `CHECK (lead_segment IN ('residential','commercial',
+'unknown'))`. The database would *reject* a lead carrying `bakery`. Teaching
+`Decide Segment` to classify by trade was therefore never an option without a
+schema change, which settles the choice.
+
+**Fixed 2026-09-19** in `db/migrations/eazer-merchant-segment-keys.sql`
+(awaiting Mary in the SQL editor). Nothing is deleted: the six trade branches
+move to `offer_mapping.trade_guidance` verbatim, `lead_segments` is rebuilt on
+the three reachable keys, and the trade guidance is appended to
+`claude_system_prompt` — which applies to every lead regardless of segment, and
+is what actually delivers the content.
+
+**The safety property, and it is load-bearing:** the new branches carry **no
+`channels` key**. `Decide Channel` in Campaign Router v2 — a protected
+workflow — overrides the chosen channel only when it finds
+`lead_segments.<segment>.channels` as an array. The six trade branches never
+had one, so the router has never taken that path for Eazer; branches without
+`channels` keep it that way. Only `Merge Segment Overlay` (prompt enrichment)
+changes behaviour. **Any future `lead_segments` block must make the same
+decision deliberately** — adding `channels` moves a live routing decision.
+
+`unknown` is included for both Eazer overlays, unlike the eight insurance-era
+ones. Not a style difference: these leads come from a Google Maps city scan
+with no `company_size`, `linkedin_url` or `apollo_org_id`, so `Decide Segment`
+classifies the great majority `unknown`. Branches limited to
+residential/commercial would be correct and still never fire.
 
 ### 36.4 Cross-references
 
 - `db/migrations/eazer-tenant-seed.sql` — the two tenants and their queries
 - `db/migrations/eazer-merchant-vertical.sql` — the overlay + the vertical backfill
 - `db/migrations/eazer-delivery-vertical.sql` — the delivery overlay, §36.5, not yet applied
+- `db/migrations/eazer-merchant-segment-keys.sql` — the §36.5 fix, not yet applied
 - `db/migrations/eazer-login.sql` — why a venture does not go through Stripe
 - `db/migrations/commerce-fulfilment-layer.sql` — the provider-agnostic delivery record
 - `db/migrations/tenant-type-classification.sql` — §36.3, not yet applied

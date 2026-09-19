@@ -18,9 +18,9 @@ Apply each, then re-run `tests/audit/dashboard-audit.js all` to verify.
 
 ---
 
-## 0aj. Two Eazer migrations to paste — one overlay, one column (2026-09-18)
+## 0aj. Three Eazer migrations to paste (2026-09-18, extended 2026-09-19)
 
-**Both written, both parse clean against the real Postgres grammar
+**All three written, all parse clean against the real Postgres grammar
 (`scripts/validate-migrations.py`). Neither is applied. Both are yours because
 migrations go through the Supabase SQL editor.**
 
@@ -58,6 +58,28 @@ written.
 Independent of each other. Either order. Neither touches a workflow, neither
 activates anything, and both are guarded — the overlay by `WHERE NOT EXISTS`,
 the column by `ADD COLUMN IF NOT EXISTS` — so re-running is a no-op.
+
+### 3. `db/migrations/eazer-merchant-segment-keys.sql` — the fix for the below
+
+Written 2026-09-19. The item that was "not gated on you" is now a third paste.
+
+`lead_segment` is not merely conventionally limited to three values — it is
+constrained: `leads_lead_segment_check` is
+`CHECK (lead_segment IN ('residential','commercial','unknown'))`. The database
+would reject a lead carrying `bakery`, so the six trade keys in the
+`eazer_merchant` overlay could never have matched.
+
+Nothing is deleted. The six move to `offer_mapping.trade_guidance` verbatim,
+`lead_segments` is rebuilt on the three reachable keys, and the trade guidance
+is appended to `claude_system_prompt`, where it applies to every lead.
+
+**It does not touch a workflow.** The new branches deliberately carry no
+`channels` key, because `Decide Channel` in Campaign Router v2 — protected —
+only overrides a routing decision when it finds one. No routing decision moves.
+
+Safe now: 0 Eazer merchant leads have reached `Outreach Ready`, so nothing in
+flight depends on the current shape. All three statements are guarded; re-running
+is a no-op.
 
 ### Not gated on you — recorded so it is not lost
 

@@ -40,7 +40,7 @@ says why each time. Everything below is Phase 0 of it.
 | **0b** | **Activate `CLX - Campaign Router v2`** — *not* a database write | The 36 is real and tenant-scoped: leads stuck at `Signal Detected`. They are stuck because Campaign Router v2, the workflow that promotes them, ships `active: false`. Activation is an owner action by the dormant-by-default policy | **Do [#0d](#0d-signal-detected-is-a-lie-on-most-rows--fix-the-data-not-the-guard-2026-09-16) first**, then activate it in n8n. **Do not run the UPDATE this row used to describe** |
 
 
-## Also yours, but not blocking the pipeline — two migrations to paste
+## Also yours, but not blocking the pipeline — three migrations to paste
 
 Neither touches a workflow, neither activates anything, both are re-runnable.
 Detail in [`docs/audit/blockers.md`](../audit/blockers.md) §0aj.
@@ -48,6 +48,7 @@ Detail in [`docs/audit/blockers.md`](../audit/blockers.md) §0aj.
 | # | Paste into Supabase | Why it matters |
 |---|---|---|
 | **0e** | `db/migrations/eazer-delivery-vertical.sql` | The `eazer_delivery` niche overlay did not exist. `Fetch Niche Overlay` falls back to `insurance_broker` when it finds none, so switching on `Eazer — Delivery` would write to every parcel-moving business using the insurance broker prompt. Guarded by `WHERE NOT EXISTS` |
+| **0g** | `db/migrations/eazer-merchant-segment-keys.sql` | The merchant overlay's six per-trade branches are keyed on values `leads_lead_segment_check` forbids, so they have never reached a prompt. Moves them somewhere that applies, rebuilds the keys on the three legal values. Touches no workflow — the new branches carry no `channels`, so no routing decision moves. Every statement guarded |
 | **0f** | `db/migrations/tenant-type-classification.sql` | `clients.tenant_type` does not exist live. Until it does, every "client" count counts Crystallux's own operations as customers and any revenue figure off that table is wrong before it is written. Verified against the six live rows — the classification lands as written. Guarded by `ADD COLUMN IF NOT EXISTS` |
 
 **0e does not activate Eazer — Delivery.** That client stays `active = false`;
